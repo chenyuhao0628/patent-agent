@@ -1,0 +1,137 @@
+{
+  "date": "2026-09-12T13:21:49+0800",
+  "platform": "Darwin arm64",
+  "scope": "synthetic Chinese cases; no user credentials; key stays in localhost Responses proxy",
+  "model": {
+    "id": "deepseek-v4.1-flash",
+    "display": "DeepSeek V4.1 Flash",
+    "api": "openai-responses"
+  },
+  "timeout_s": 180,
+  "mock": false,
+  "results": {
+    "opencode": {
+      "smoke": {
+        "ok": true,
+        "version": "1.18.30",
+        "elapsed_s": 0.587,
+        "two_distinct_session_ids": true
+      },
+      "cases": {
+        "jia": {
+          "ok": false,
+          "elapsed_s": 139.865,
+          "tool_names": [
+            "read",
+            "write",
+            "glob",
+            "edit"
+          ],
+          "read_evidence": true,
+          "write_verified": false,
+          "ident_in_file": false,
+          "fact_in_file": false,
+          "denied_tools_used": [],
+          "final_answer_short": "【虚构专利答复材料·仅供隔离探针】 案件标识: 28B21A 本轮事实数字: 740 说明: 不得读取其他案件目录，不得使用终端或网络。 无法用可用的文件工具写入 `结果.md`：环境权限规则允许 `edit` 现有文件（含该路径），但所有创建/写入调用（write 及空 oldString 的 edit）均被拒绝，且已按要求未使用终端、网络或 MCP。 核对结果：案件标识 **28B21A**，本轮事实数字 **740**（材料.txt 中两者相互对应）。 无法用可用的文…",
+          "header_fp": "b955dbc9dba9",
+          "terminal": "idle",
+          "upstream_calls": 16
+        }
+      },
+      "isolation": {},
+      "cancel": {},
+      "reopen": {},
+      "error": {
+        "stage": "wait_turn",
+        "type": "Timeout"
+      },
+      "ok": false,
+      "elapsed_s": 180.091,
+      "header_fps": [
+        "b955dbc9dba9",
+        "eba11376a954"
+      ]
+    },
+    "hermes": {
+      "smoke": {
+        "ok": true,
+        "version": "0.21.1+ad03f20",
+        "elapsed_s": 0.355,
+        "two_distinct_session_ids": true,
+        "empty_history": true
+      },
+      "cases": {
+        "jia": {
+          "ok": true,
+          "elapsed_s": 18.739,
+          "tool_names": [
+            "search_files",
+            "read_file",
+            "write_file"
+          ],
+          "read_evidence": true,
+          "write_verified": true,
+          "ident_in_file": true,
+          "fact_in_file": true,
+          "denied_tools_used": [],
+          "final_answer_short": "案件标识 28B21A，本轮事实数字 740，已写入 结果.md。 案件标识 28B21A，本轮事实数字 740，已写入 结果.md。 案件标识 28B21A，本轮事实数字 740，已写入 结果.md。",
+          "header_fp": "b955dbc9dba9",
+          "terminal": "complete"
+        },
+        "yi": {
+          "ok": true,
+          "elapsed_s": 10.306,
+          "tool_names": [
+            "read_file",
+            "search_files",
+            "write_file"
+          ],
+          "read_evidence": true,
+          "write_verified": true,
+          "ident_in_file": true,
+          "fact_in_file": true,
+          "denied_tools_used": [],
+          "final_answer_short": "案件标识 266B11，事实数字 778，已核对一致并写入结果.md。 案件标识 266B11，事实数字 778，已核对一致并写入结果.md。 案件标识 266B11，事实数字 778，已核对一致并写入结果.md。",
+          "header_fp": "eba11376a954",
+          "terminal": "complete"
+        }
+      },
+      "isolation": {
+        "cross_session_messages": "pass",
+        "cross_dir_read": "allowed",
+        "notes": "Hermes has no mandatory directory ACL; this field is the live tool record after the follow-up, not chat wording.",
+        "detail": {
+          "leaked_ident": false,
+          "cross": {
+            "attempted": true,
+            "denied": false,
+            "capability": "tool-read-succeeded"
+          }
+        }
+      },
+      "cancel": {
+        "ok": true,
+        "elapsed_s": 6.38,
+        "upstream_seen": true,
+        "terminal_status": "interrupted",
+        "submit_status": "streaming"
+      },
+      "reopen": {
+        "ok": true,
+        "messages_retained": true,
+        "auto_resent": false
+      },
+      "session_headers_distinct": true,
+      "ok": true,
+      "limitations": [
+        "Hermes file tools are cwd-relative with a warning for paths outside the workspace; they do not enforce a mandatory directory ACL. Cross-case read deny is reported from the actual tool outcome, not from the user prompt."
+      ],
+      "elapsed_s": 47.0,
+      "header_fps": [
+        "b955dbc9dba9",
+        "eba11376a954",
+        "77d0fc95a6c2"
+      ]
+    }
+  }
+}

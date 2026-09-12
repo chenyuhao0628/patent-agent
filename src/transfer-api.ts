@@ -1,0 +1,34 @@
+export const FIVE_PARTS = [
+  { code: '100001', name: '权利要求书' }, { code: '100002', name: '说明书' },
+  { code: '100003', name: '说明书附图' }, { code: '100004', name: '说明书摘要' },
+  { code: '100005', name: '摘要附图' },
+] as const;
+export type TransferRoute = 'application' | 'reply' | 'correction';
+export type TransferFileRole = 'baseline' | 'application' | 'reply';
+export type CorrectionRow = { ChangeId: string; Sort: number; FileName: string; PositionInFile: string; CorrectionBefore: string; CorrectionAfter: string };
+export type PartComparison = { code: string; name: string; changed: boolean | null; reason: string; available?: boolean; before?: string; after?: string };
+export type TransferForm = {
+  noticeDate: string; noticeName: string; noticeNo: string;
+  correctionReason: 1 | 2; addEntrust: boolean; corrections: CorrectionRow[];
+  otherProof: boolean; experimentData: boolean; abstractFigure: string;
+  declarations: Record<string, boolean>;
+};
+export type TransferReview = { keepCodes: string[]; form: TransferForm; stepId: string; userId: string; remark: string };
+export type TransferView = {
+  id: string; profileKey: string; caseId: string; caseNumber: string; caseTitle: string; processId: string; processName: string;
+  route: TransferRoute; canEditRemote?: boolean; handId?: string; currentNode?: string; currentUser?: string;
+  files: Array<{ role: TransferFileRole; name: string; relativePath: string; hash: string }>;
+  parts: PartComparison[]; review: TransferReview;
+  steps: Array<{ id: string; name: string; users: Array<{ id: string; name: string }> }>;
+  phase: 'draft' | 'saved' | 'submitted' | 'uncertain' | 'superseded';
+  results: string[]; error?: string; existingFileNames: string[]; at: string;
+};
+export type TransferAPI = {
+  prepare(profileKey: string, caseId: string): Promise<TransferView>;
+  pickFile(profileKey: string, id: string, role: TransferFileRole): Promise<TransferView>;
+  startHand(profileKey: string, id: string): Promise<TransferView>;
+  save(profileKey: string, id: string, review: TransferReview): Promise<TransferView>;
+  submit(profileKey: string, id: string): Promise<TransferView>;
+  refresh(profileKey: string, id: string): Promise<TransferView>;
+  reprepare(profileKey:string,id:string):Promise<TransferView>;
+};

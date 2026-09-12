@@ -1,0 +1,72 @@
+{
+  "version": "0.3.0",
+  "date": "2026-09-13",
+  "automated": {
+    "fullSuitePassed": 319,
+    "failed": 0,
+    "finalProfessionalRegressionPassed": 9,
+    "scope": "stubbed model; reference copies and selected task snapshots checked"
+  },
+  "nativeUI": {
+    "driver": "CUA macOS native Electron",
+    "syntheticData": true,
+    "filePicker": true,
+    "cancelUnchanged": true,
+    "autoSelectNew": true,
+    "openInTextEdit": true,
+    "reopenMaterialRetained": true,
+    "selectionOnReopen": "explicit reselect, selection is current-page state",
+    "removeClearsSelection": true,
+    "originalAndRetainedCopyEqual": true,
+    "screenshot": "CUA screenshot in this task, actual writing reference section"
+  },
+  "upgrade": {
+    "from": "0.2.11",
+    "to": "0.3.0",
+    "recordsChecked": 7,
+    "changedFiles": [],
+    "asarMatches": true
+  },
+  "installedUI": {
+    "version": "0.3.0",
+    "accountRetained": true,
+    "activeCases": 24
+  },
+  "release": {
+    "version": "0.3.0",
+    "builtAt": "2026-09-12T16:14:48.369Z",
+    "appId": "com.patentworkbench.desktop",
+    "productName": "专利工作台",
+    "files": [
+      {
+        "file": "专利工作台-0.3.0-macOS-arm64.app",
+        "platform": "mac-arm64",
+        "version": "0.3.0",
+        "sha256": "34ec087dffbe34c3c8c11228ec38d0c79daf35f5f56556938bb9cc650aa55873",
+        "hashAlgorithm": "sha256-tree"
+      },
+      {
+        "file": "PatentWorkbench-0.3.0-macOS-arm64.pkg",
+        "platform": "mac-arm64-installer",
+        "version": "0.3.0",
+        "sha256": "8b147e460d51985aad9b211e52d70856ff34120140544c669ea85bb22ce82bdd",
+        "hashAlgorithm": "sha256"
+      },
+      {
+        "file": "PatentWorkbench-0.3.0-Windows-x64-Setup.exe",
+        "platform": "win-x64",
+        "version": "0.3.0",
+        "sha256": "d27c4a253c16a42bbf6215a8545af45e06c1e50890e87ab821dcc2a4ab11d8fb",
+        "hashAlgorithm": "sha256"
+      }
+    ]
+  },
+  "limitations": [
+    "Windows package validated, no Windows device acceptance",
+    "No new real-model writing run; selected-material snapshot and read tracking tested with stub",
+    "Document parsing depends on existing converter/model capabilities",
+    "No real Baseland upload, form save, or handoff",
+    "Only active list association is removed; physical copies remain",
+    "No Git commit or push"
+  ]
+}

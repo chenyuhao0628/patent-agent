@@ -1,0 +1,833 @@
+import mammoth from 'mammoth';
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import * as fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
+import { DesktopService } from './service.ts';
+import { AgentHost, type AgentHostRun, type AgentHostRunInput } from './agent-host.ts';
+import type { AgentModelService } from './agent-host.ts';
+import type { Case } from '../src/domain/workflow.ts';
+import type { RuntimeModelConfig } from './model-service.ts';
+import type { ModelConfigPublic } from '../src/domain/models.ts';
+
+const rulesRoot = fileURLToPath(new URL('../resources/reply-rules', import.meta.url));
+
+function serial() {
+  let gate = Promise.resolve();
+  return <T>(fn: () => Promise<T>) => {
+    const run = gate.then(fn, fn);
+    gate = run.then(() => undefined, () => undefined);
+    return run;
+  };
+}
+
+function vault() {
+  const key = randomBytes(32);
+  return {
+    available: () => true,
+    encrypt: (s: string) => {
+      const iv = randomBytes(12), c = createCipheriv('aes-256-gcm', key, iv);
+      return Buffer.concat([iv, c.update(s), c.final(), c.getAuthTag()]);
+    },
+    decrypt: (b: Buffer) => {
+      const c = createDecipheriv('aes-256-gcm', key, b.subarray(0, 12));
+      c.setAuthTag(b.subarray(-16));
+      return Buffer.concat([c.update(b.subarray(12, -16)), c.final()]).toString();
+    },
+  };
+}
+
+function modelStub(box?: { modelId: string; providerName: string }): AgentModelService {
+  const current = box ?? { modelId: 'deepseek-v4.1-flash', providerName: 'OpenCode Go' };
+  const listed = (): ModelConfigPublic => ({
+    profileKey: 'local',
+    defaultProviderId: 'p',
+    defaultModelId: 'm',
+    providers: [{
+      id: 'p', name: current.providerName, baseURL: 'https://example.invalid', protocol: 'openai-responses', hasKey: true,
+      models: [{
+        id: 'm', modelId: current.modelId, displayName: 'Flash', protocol: 'openai-responses',
+        contextWindowSource: 'missing', maxOutputSource: 'missing',
+        reasoning: { capability: { supported: true, kind: 'openai-effort', levels: [], allowBudget: false, allowAdaptive: false, allowOff: false, allowIncludeThoughts: false, allowOutputEffort: false, outputEfforts: [], source: 'preset', unverified: false }, selection: { levelId: 'vendor-default', overridden: false } },
+      }],
+    }],
+  });
+  return {
+    async list(profileKey) { return { ...listed(), profileKey }; },
+    async resolveRuntimeConfig(profileKey, conversationId): Promise<RuntimeModelConfig> {
+      return {
+        profileKey, providerId: 'p', providerName: current.providerName, baseURL: 'https://example.invalid',
+        protocol: 'openai-responses', modelId: current.modelId, displayName: 'Flash',
+        key: 'memory-only-key', headers: { 'x-opencode-session': conversationId },
+        reasoning: { levelId: 'vendor-default', protocol: 'openai-responses', request: {}, omitted: false, unverified: false, source: 'preset' },
+      };
+    },
+  };
+}
+
+function analysisJson() {
+  return JSON.stringify({
+    kind: 'analysis',
+    opinions: [{ id: 'o1', title: '创造性', summary: '意见1', basis: '通知.txt' }],
+    strategies: [
+      { id: 's1', title: '争辩', summary: '维持', benefits: '范围大', risks: '风险', basis: '申请.txt' },
+      { id: 's2', title: '修改', summary: '补特征', benefits: '稳妥', risks: '收窄', basis: '申请.txt' },
+    ],
+  });
+}
+
+function draftJson(strategyId = 's2') {
+  return JSON.stringify({
+    kind: 'draft', strategyId,
+    body: '尊敬的审查员：\n意见陈述。',
+    amendmentText: '1. 一种装置。',
+    applicationParts:{CLAIMS:'1. 一种装置。',DESCRIPTION:'一种装置\n技术领域\n本方案涉及检测装置。'},
+    amendmentBasis: '说明书记载限位件。',
+    reviewNotes: '未见必须处理事项。',
+  });
+}
+
+type RunnerCtl = {
+  starts: number;
+  last?: AgentHostRunInput;
+  gate?: Promise<void>;
+  aborts?: number;
+  skipReads?: boolean;
+  lateCompleteAfterAbort?: boolean;
+  latePartialAfterAbort?: boolean;
+};
+
+function mockRunner(ctl: RunnerCtl): AgentHostRun {
+  return input => {
+    ctl.starts += 1;
+    ctl.last = input;
+    const wait = (async () => {
+      const aborted = new Promise<void>(resolve => {
+        if (input.signal.aborted) resolve();
+        else input.signal.addEventListener('abort', () => resolve(), { once: true });
+      });
+      if (ctl.gate) await Promise.race([ctl.gate, aborted]);
+      if (input.signal.aborted) {
+        await input.onEvent({ type: 'stopped' });
+        if (ctl.latePartialAfterAbort) {
+          await input.onEvent({ type: 'partial', text: '迟到部分-不应出现' });
+        }
+        if (ctl.lateCompleteAfterAbort) {
+          const text = analysisJson();
+          await fs.writeFile(path.join(input.outputDir, 'result.json'), text);
+          await input.onEvent({ type: 'completed', outputText: text });
+        }
+        return;
+      }
+      await input.onEvent({ type: 'partial', text: '思考中' });
+      if (!ctl.skipReads) {
+        for (const material of input.materials) {
+          await fs.readFile(material.snapshotPath);
+          await input.onEvent({ type: 'tool', filename: material.name, readRange: '1-2', status: 'ok', materialId: material.id, toolKind: 'read_material' });
+        }
+        if (input.action === 'review' && input.draft) {
+          await input.onEvent({ type: 'tool', filename: '当前稿', readRange: '全文', status: 'ok', toolKind: 'read_draft' });
+        }
+      }
+      const text = input.action === 'analysis' ? analysisJson()
+        : input.action === 'draft' ? draftJson()
+          : input.action === 'review' ? JSON.stringify({ kind: 'review', draftVersionId: input.draft?.id, summary: '未见必须处理的问题。', issues: [] })
+            : JSON.stringify({ kind: 'discuss', reply: '可以讨论期限。' });
+      await fs.writeFile(path.join(input.outputDir, 'result.json'), text);
+      await input.onEvent({ type: 'completed', outputText: text });
+    })();
+    return {
+      wait,
+      abort() { ctl.aborts = (ctl.aborts ?? 0) + 1; },
+    };
+  };
+}
+
+async function prepareCase(service: DesktopService, number: string, extra?: { symlink?: boolean }) {
+  await service.settings('local', { provider: '', baseUrl: '', model: '', originalLibrary: service.workspace.settings.originalLibrary, workRoot: service.workspace.settings.workRoot });
+  await service.createCase({ title: '夹持装置' + number, number, kind: 'write' });
+  const c = service.workspace.cases.find(item => item.number === number)!;
+  const notice = await service.files().writeMaterial(c, '01_通知与材料', 'notice-' + number, '通知.txt', Buffer.from('通知正文' + number));
+  const app = await service.files().writeMaterial(c, '00_原始申请', 'app-' + number, '申请.txt', Buffer.from('申请正文' + number));
+  const materials = [
+    { id: 'n-' + number, name: '通知.txt', role: '当前通知', location: '', excerpt: '', ready: true, relativePath: notice.relativePath },
+    { id: 'a-' + number, name: '申请.txt', role: '原始申请', location: '', excerpt: '', ready: true, relativePath: app.relativePath },
+  ];
+  if (extra?.symlink) {
+    const root = await service.casePath(c.id);
+    await fs.symlink(path.join(root, app.relativePath), path.join(root, '01_通知与材料', 'escape.txt'));
+    materials.push({ id: 'link-' + number, name: 'escape.txt', role: '其他', location: '', excerpt: '', ready: true, relativePath: '01_通知与材料/escape.txt' });
+  }
+  c.materials = materials;
+  c.rounds = [{
+    id: 'r-' + number, name: '第一次审查意见', stage: 'materials', confirmed: false, materials, strategy: null, draft: '',
+    versions: [], discussions: [{ id: 'd-' + number, title: '主', messages: [] }], review: null, job: null, final: null, finalHistory: [],
+  }];
+  c.current = { kind: 'reply', roundId: 'r-' + number };
+  c.localDraft = c.localDraft ?? '';
+  await service.persist();
+  return c;
+}
+
+function holdableSerial() {
+  const base = serial();
+  let gate: Promise<void> | null = null;
+  let unlock = () => {};
+  return {
+    hold() { gate = new Promise<void>(resolve => { unlock = resolve; }); },
+    release() { unlock(); gate = null; },
+    serialize<T>(fn: () => Promise<T>) {
+      return base(async () => {
+        if (gate) await gate;
+        return fn();
+      });
+    },
+  };
+}
+
+async function setup(t: test.TestContext, runnerCtl?: RunnerCtl, over?: {
+  run?: AgentHostRun;
+  serialize?: <T>(fn: () => Promise<T>) => Promise<T>;
+  model?: AgentModelService;
+}) {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'agent-host-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const originals = path.join(root, 'lib'), work = path.join(root, 'work');
+  await fs.mkdir(originals); await fs.mkdir(work);
+  const service = new DesktopService(root, vault());
+  await service.init();
+  await service.settings('local', { provider: '', baseUrl: '', model: '', originalLibrary: originals, workRoot: work });
+  const ctl = runnerCtl ?? { starts: 0, aborts: 0 };
+  const host = new AgentHost({
+    desktopService: service,
+    modelService: over?.model ?? modelStub(),
+    serialize: over?.serialize ?? serial(),
+    rulesRoot,
+    run: over?.run ?? mockRunner(ctl),
+  });
+  return { root, service, host, work, ctl };
+}
+
+const classify = { patentType: '发明' as const, noticeCategory: '审查意见通知书' as const, officeActionRound: 1, correctionBasis: 'original' as const };
+
+async function readyAnalysis(host: AgentHost, caseId: string, ids: string[]) {
+  await host.command('local', caseId, { type: 'classify', classification: classify });
+  await host.command('local', caseId, { type: 'materials', selectedIds: ids });
+}
+
+test('材料快照核验 hash 并拒绝符号链接；跨案材料不会进入另一案 run', async t => {
+  const { service, host, ctl } = await setup(t);
+  const a = await prepareCase(service, 'A1', { symlink: true });
+  const b = await prepareCase(service, 'B1');
+  await host.command('local', a.id, { type: 'classify', classification: { patentType: '发明', noticeCategory: '审查意见通知书', officeActionRound: 1, correctionBasis: 'original' } });
+  await host.command('local', a.id, { type: 'materials', selectedIds: ['n-A1', 'a-A1'] });
+  await host.command('local', a.id, { type: 'run', action: 'analysis' });
+  await host.waitIdle();
+  assert.equal(ctl.starts, 1);
+  assert.equal(ctl.last?.materials.some(item => item.id.startsWith('n-B') || item.relativePath?.includes('B1') || item.id.includes('..')), false);
+  assert.equal(ctl.last?.runtime.key, 'memory-only-key');
+  const manifest = JSON.parse(await fs.readFile(path.join(ctl.last!.snapshotDir, 'manifest.json'), 'utf8'));
+  assert.equal(manifest.key, undefined);
+  assert.equal(JSON.stringify(manifest).includes('memory-only-key'), false);
+  for (const item of ctl.last!.materials) {
+    assert.match(item.id, /^[0-9a-f-]{36}$/i);
+    assert.equal(item.relativePath.includes('..'), false);
+    assert.equal(item.snapshotPath.includes(`materials/${item.id}/`), true);
+    assert.ok(manifest.ids[item.id] === 'n-A1' || manifest.ids[item.id] === 'a-A1');
+    assert.equal(item.id === 'n-A1' || item.id === 'a-A1', false);
+  }
+  assert.ok(Object.values(manifest.ids).includes('n-A1'));
+  assert.ok(Object.values(manifest.ids).includes('a-A1'));
+  assert.equal(manifest.model.modelId, 'deepseek-v4.1-flash');
+  assert.equal(manifest.model.providerName, 'OpenCode Go');
+  await host.command('local', a.id, { type: 'materials', selectedIds: ['link-A1'] });
+  await assert.rejects(host.command('local', a.id, { type: 'run', action: 'analysis' }), /符号链接|材料/);
+});
+
+test('同案 busy、两案并行、停止后迟到结果不推进', async t => {
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const ctl: RunnerCtl = { starts: 0, gate, aborts: 0 };
+  const { service, host } = await setup(t, ctl);
+  const a = await prepareCase(service, 'P1');
+  const b = await prepareCase(service, 'P2');
+  const classify = { patentType: '发明' as const, noticeCategory: '审查意见通知书' as const, officeActionRound: 1, correctionBasis: 'original' as const };
+  await host.command('local', a.id, { type: 'classify', classification: classify });
+  await host.command('local', b.id, { type: 'classify', classification: classify });
+  await host.command('local', a.id, { type: 'materials', selectedIds: ['n-P1', 'a-P1'] });
+  await host.command('local', b.id, { type: 'materials', selectedIds: ['n-P2', 'a-P2'] });
+  const first = await host.command('local', a.id, { type: 'run', action: 'analysis' });
+  assert.equal(first.busy, true);
+  await assert.rejects(host.command('local', a.id, { type: 'run', action: 'discuss', userMessage: '插话' }), /进行中/);
+  const second = await host.command('local', b.id, { type: 'run', action: 'analysis' });
+  assert.equal(second.busy, true);
+  assert.equal(ctl.starts, 2);
+  const stopping = await host.command('local', a.id, { type: 'stop' });
+  assert.equal(ctl.aborts, 1);
+  assert.equal(stopping.busy, true);
+  const busySeen: boolean[] = [];
+  const off = host.onState(view => { if (view.caseId === a.id) busySeen.push(view.busy); });
+  release();
+  await host.waitIdle();
+  off();
+  const after = await host.getCase('local', a.id);
+  assert.equal(after.process.jobs.at(-1)?.state, 'stopped');
+  assert.equal(after.busy, false);
+  assert.equal(after.process.analysis, null);
+  assert.equal(after.partialText, undefined);
+  assert.equal(busySeen.at(-1), false);
+  const bView = await host.getCase('local', b.id);
+  assert.equal(bView.process.analysis?.strategies.length, 2);
+});
+
+test('A-B-A 世代变化拒绝迟到结果；运行中人工稿可保存', async t => {
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const ctl = { starts: 0, gate };
+  const { service, host } = await setup(t, ctl);
+  const a = await prepareCase(service, 'G1');
+  await host.command('local', a.id, { type: 'classify', classification: { patentType: '发明', noticeCategory: '审查意见通知书', officeActionRound: 1, correctionBasis: 'original' } });
+  await host.command('local', a.id, { type: 'materials', selectedIds: ['n-G1', 'a-G1'] });
+  await host.command('local', a.id, { type: 'run', action: 'analysis' });
+  const ws = structuredClone(service.workspace);
+  const row = ws.cases.find(item => item.id === a.id)!;
+  row.localDraft = '运行中人工修改';
+  await service.save('local', ws);
+  service.generation += 1;
+  release();
+  await host.waitIdle();
+  const view = await host.getCase('local', a.id);
+  assert.equal(view.process.jobs.at(-1)?.state, 'failed');
+  assert.match(view.process.jobs.at(-1)?.error ?? '', /世代|过期/);
+  assert.equal(view.process.analysis, null);
+  assert.ok(view.process.drafts.some(item => item.text === '运行中人工修改') || service.findCase(a.id).localDraft === '运行中人工修改');
+});
+
+test('策略门、独立复核、定稿 Word、采用冲突与成果索引隔离', async t => {
+  const { service, host, root } = await setup(t);
+  const c = await prepareCase(service, 'F1');
+  await host.command('local', c.id, { type: 'classify', classification: { patentType: '发明', noticeCategory: '审查意见通知书', officeActionRound: 1, correctionBasis: 'original' } });
+  await host.command('local', c.id, { type: 'materials', selectedIds: ['n-F1', 'a-F1'] });
+  await host.command('local', c.id, { type: 'run', action: 'analysis' });
+  await host.waitIdle();
+  await assert.rejects(host.command('local', c.id, { type: 'run', action: 'draft' }), /策略/);
+  await host.command('local', c.id, { type: 'strategy', strategyId: 's2' });
+  await host.command('local', c.id, { type: 'run', action: 'draft' });
+  await host.waitIdle();
+  let view = await host.getCase('local', c.id);
+  const pending = view.process.drafts.find(item => item.adoptStatus === 'pending')!;
+  const conflictWs = structuredClone(service.workspace);
+  const conflictRow = conflictWs.cases.find(item => item.id === c.id)!;
+  conflictRow.localDraft = '采用前又改了人工稿';
+  await service.save('local', conflictWs);
+  await assert.rejects(host.command('local', c.id, { type: 'adopt', versionId: pending.id }), /哈希|材料|未覆盖/);
+  assert.equal(service.findCase(c.id).localDraft, '采用前又改了人工稿');
+  const c2 = await prepareCase(service, 'F2');
+  await host.command('local', c2.id, { type: 'classify', classification: { patentType: '发明', noticeCategory: '审查意见通知书', officeActionRound: 1, correctionBasis: 'original' } });
+  await host.command('local', c2.id, { type: 'materials', selectedIds: ['n-F2', 'a-F2'] });
+  await host.command('local', c2.id, { type: 'run', action: 'analysis' });
+  await host.waitIdle();
+  await host.command('local', c2.id, { type: 'strategy', strategyId: 's2' });
+  await host.command('local', c2.id, { type: 'run', action: 'draft' });
+  await host.waitIdle();
+  view = await host.getCase('local', c2.id);
+  const okPending = view.process.drafts.find(item => item.adoptStatus === 'pending')!;
+  await host.command('local', c2.id, { type: 'adopt', versionId: okPending.id });
+  const reviewSource=(await host.reviewSources('local')).find(s=>s.caseId===c2.id)!;assert.equal(reviewSource.files.length,2);assert(reviewSource.files.every(f=>f.hash));assert.equal(reviewSource.supersededAt,undefined);
+  view = await host.getCase('local', c2.id);
+  await host.command('local', c2.id, { type: 'run', action: 'review' });
+  await host.waitIdle();
+  view = await host.getCase('local', c2.id);
+  assert.ok(view.process.discussions.some(item => item.kind === 'review'));
+  await host.command('local', c2.id, { type: 'finalize' });
+  view = await host.getCase('local', c2.id);
+  assert.equal(view.process.stage, 'final');
+  const caseRoot = await service.casePath(c2.id);
+  async function findNamed(dir: string, name: string): Promise<string> {
+    const entries = await fs.readdir(dir, { recursive: true, withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isFile() && entry.name === name) {
+        const parent = 'parentPath' in entry ? String(entry.parentPath) : dir;
+        return path.join(parent, entry.name);
+      }
+    }
+    throw new Error('missing ' + name);
+  }
+  const bodyFile = await findNamed(path.join(caseRoot, '03_定稿'), '意见陈述书.docx');
+  assert.match((await mammoth.extractRawText({buffer:await fs.readFile(bodyFile)})).value,/尊敬的审查员/);
+  const adopted=view.process.drafts.find(item=>item.id===view.process.currentDraftVersionId)!;
+  const claims=await findNamed(path.join(caseRoot,'03_定稿'),'权利要求书.docx');
+  assert.equal((await mammoth.extractRawText({buffer:await fs.readFile(claims)})).value.trim(),adopted.applicationParts!.CLAIMS);
+  assert.equal(view.process.finalized?.word.generated,true);
+  assert.ok(view.artifacts.some(item=>item.relativePath.endsWith('修改依据.docx')));
+  assert.ok(view.artifacts.filter(item=>item.kind.startsWith('final-')).every(item=>item.relativePath.endsWith('.docx')));
+  for (const name of await fs.readdir(path.join(caseRoot, '04_内部说明'))) {
+    if (!name.startsWith('agent-run-')) continue;
+    const index = JSON.parse(await fs.readFile(path.join(caseRoot, '04_内部说明', name), 'utf8'));
+    assert.equal(index.profileKey, 'local');
+    assert.equal(JSON.stringify(index).includes('memory-only-key'), false);
+    assert.equal(JSON.stringify(index).includes('messages'), false);
+  }
+  const foreign = path.join(caseRoot, '04_内部说明', 'agent-run-foreign.json');
+  await fs.writeFile(foreign, JSON.stringify({ schema: 1, caseId: c2.id, profileKey: 'other', processKey: view.processKey, runId: 'foreign', at: new Date().toISOString(), files: [] }));
+  view = await host.getCase('local', c2.id);
+  assert.equal(view.artifacts.some(item => item.id.includes('foreign')), false);
+  await assert.rejects(host.getCase('other', c2.id), /账号已切换/);
+  void root;
+});
+
+test('重开把 running 标为 stopped 且不自动请求', async t => {
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const ctl = { starts: 0, gate };
+  const { service, host, root } = await setup(t, ctl);
+  const c = await prepareCase(service, 'R1');
+  await host.command('local', c.id, { type: 'classify', classification: { patentType: '发明', noticeCategory: '审查意见通知书', officeActionRound: 1, correctionBasis: 'original' } });
+  await host.command('local', c.id, { type: 'materials', selectedIds: ['n-R1', 'a-R1'] });
+  await host.command('local', c.id, { type: 'run', action: 'analysis' });
+  await host.command('local', c.id, { type: 'stop' });
+  release();
+  await host.waitIdle();
+  const restarted = new AgentHost({
+    desktopService: service,
+    modelService: modelStub(),
+    serialize: serial(),
+    rulesRoot,
+    run: mockRunner({ starts: 0 }),
+  });
+  const view = await restarted.getCase('local', c.id);
+  assert.equal(view.process.jobs.every(item => item.state !== 'running'), true);
+  assert.equal(ctl.starts, 1);
+  void root;
+});
+
+test('并发 get/command 都走同一队列，不会用共享 depth 抢写', async t => {
+  let depth = 0;
+  let overlapping = 0;
+  let serializeCalls = 0;
+  const base = serial();
+  const serialize = <T>(fn: () => Promise<T>) => {
+    serializeCalls += 1;
+    return base(async () => {
+      depth += 1;
+      if (depth > 1) overlapping += 1;
+      try { return await fn(); }
+      finally { depth -= 1; }
+    });
+  };
+  const { service, host } = await setup(t, undefined, { serialize });
+  const c = await prepareCase(service, 'Q1');
+  await Promise.all([
+    host.getCase('local', c.id),
+    host.command('local', c.id, { type: 'classify', classification: classify }),
+    host.getCase('local', c.id),
+    host.command('local', c.id, { type: 'discussion', title: '并行讨论' }),
+  ]);
+  assert.equal(serializeCalls, 4);
+  assert.equal(overlapping, 0);
+  const view = await host.getCase('local', c.id);
+  assert.equal(view.process.classification.status, 'classified');
+  assert.ok(view.process.discussions.some(item => item.title === '并行讨论'));
+});
+
+test('getCase 排队后 A-B-A 切回仍拒绝旧 generation，不泄漏旧 profile', async t => {
+  const held = holdableSerial();
+  const { service, host } = await setup(t, undefined, { serialize: held.serialize });
+  const c = await prepareCase(service, 'ABA');
+  await host.getCase('local', c.id);
+  const leaked: string[] = [];
+  host.onState(view => leaked.push(view.profileKey));
+  held.hold();
+  const queued = host.getCase('local', c.id);
+  service.key = 'other';
+  service.generation += 1;
+  service.key = 'local';
+  service.generation += 1;
+  held.release();
+  await assert.rejects(queued, /账号已切换/);
+  assert.equal(leaked.includes('other'), false);
+  const view = await host.getCase('local', c.id);
+  assert.equal(view.profileKey, 'local');
+});
+
+test('同账号同流程普通 save 不中断 Agent；profile/generation 变化才按账号 abort', async t => {
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const ctl: RunnerCtl = { starts: 0, gate, aborts: 0 };
+  const { service, host } = await setup(t, ctl);
+  service.changed = () => host.noteAccountChange();
+  const c = await prepareCase(service, 'NC1');
+  await readyAnalysis(host, c.id, ['n-NC1', 'a-NC1']);
+  await host.command('local', c.id, { type: 'run', action: 'analysis' });
+  const ws = structuredClone(service.workspace);
+  ws.cases.find(item => item.id === c.id)!.localDraft = '运行中普通保存';
+  await service.save('local', ws);
+  service.changed();
+  host.noteAccountChange();
+  assert.equal(host.hasRunningJobs(), true);
+  assert.equal(ctl.aborts, 0);
+  service.generation += 1;
+  host.noteAccountChange();
+  assert.equal(ctl.aborts, 1);
+  release();
+  await host.waitIdle();
+  const view = await host.getCase('local', c.id);
+  assert.equal(view.busy, false);
+  assert.equal(view.process.jobs.at(-1)?.state, 'failed');
+  assert.match(view.process.jobs.at(-1)?.error ?? '', /世代|过期|账号/);
+});
+
+test('startRun 抛错或 wait reject 必须清 busy 且允许重试，无未处理 rejection', async t => {
+  const leaks: unknown[] = [];
+  const onUnhandled = (reason: unknown) => { leaks.push(reason); };
+  process.on('unhandledRejection', onUnhandled);
+  t.after(() => process.off('unhandledRejection', onUnhandled));
+  let impl: AgentHostRun = async () => { throw new Error('runner exploded'); };
+  const { service, host } = await setup(t, undefined, { run: input => impl(input) });
+  const c = await prepareCase(service, 'EX1');
+  await readyAnalysis(host, c.id, ['n-EX1', 'a-EX1']);
+  await assert.rejects(host.command('local', c.id, { type: 'run', action: 'analysis' }), /runner exploded/);
+  let view = await host.getCase('local', c.id);
+  assert.equal(view.busy, false);
+  assert.equal(host.hasRunningJobs(), false);
+  assert.equal(view.process.jobs.at(-1)?.state, 'failed');
+  impl = () => ({
+    wait: new Promise((_, reject) => setImmediate(() => reject(new Error('wait boom')))),
+    abort() {},
+  });
+  const started = await host.command('local', c.id, { type: 'run', action: 'analysis' });
+  assert.equal(started.busy, true);
+  await host.waitIdle();
+  view = await host.getCase('local', c.id);
+  assert.equal(view.busy, false);
+  assert.equal(view.process.jobs.at(-1)?.state, 'failed');
+  const ctl: RunnerCtl = { starts: 0, aborts: 0 };
+  impl = mockRunner(ctl);
+  await host.command('local', c.id, { type: 'run', action: 'analysis' });
+  await host.waitIdle();
+  view = await host.getCase('local', c.id);
+  assert.equal(view.busy, false);
+  assert.equal(view.process.analysis?.strategies.length, 2);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(leaks.length, 0);
+});
+
+test('stop 后晚到 completed 不覆盖产物；abort 句柄被调用；shutdown 可退出', async t => {
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const ctl: RunnerCtl = { starts: 0, gate, aborts: 0, lateCompleteAfterAbort: true };
+  const { service, host } = await setup(t, ctl);
+  const c = await prepareCase(service, 'ST1');
+  await readyAnalysis(host, c.id, ['n-ST1', 'a-ST1']);
+  await host.command('local', c.id, { type: 'run', action: 'analysis' });
+  const stopping = await host.command('local', c.id, { type: 'stop' });
+  assert.equal(ctl.aborts, 1);
+  assert.equal(stopping.busy, true);
+  release();
+  await host.waitIdle();
+  const view = await host.getCase('local', c.id);
+  assert.equal(view.busy, false);
+  assert.equal(view.process.jobs.at(-1)?.state, 'stopped');
+  assert.equal(view.process.analysis, null);
+  await host.shutdown();
+});
+
+test('活动 run 的 model 冻结为启动时快照，manifest 同一份；下次任务才用新设置', async t => {
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const ctl: RunnerCtl = { starts: 0, gate };
+  const box = { modelId: 'deepseek-v4.1-flash', providerName: 'OpenCode Go' };
+  const { service, host } = await setup(t, ctl, { model: modelStub(box) });
+  const c = await prepareCase(service, 'MD1');
+  await readyAnalysis(host, c.id, ['n-MD1', 'a-MD1']);
+  const started = await host.command('local', c.id, { type: 'run', action: 'analysis' });
+  assert.equal(started.model?.modelId, 'deepseek-v4.1-flash');
+  box.modelId = 'other-model';
+  box.providerName = 'Other Vendor';
+  const during = await host.getCase('local', c.id);
+  assert.equal(during.busy, true);
+  assert.equal(during.model?.modelId, 'deepseek-v4.1-flash');
+  assert.equal(during.model?.providerName, 'OpenCode Go');
+  const manifest = JSON.parse(await fs.readFile(path.join(ctl.last!.snapshotDir, 'manifest.json'), 'utf8'));
+  assert.equal(manifest.model.modelId, 'deepseek-v4.1-flash');
+  assert.equal(manifest.model.providerName, 'OpenCode Go');
+  release();
+  await host.waitIdle();
+  const after = await host.getCase('local', c.id);
+  assert.equal(after.busy, false);
+  assert.equal(after.model?.modelId, 'other-model');
+  assert.equal(after.model?.providerName, 'Other Vendor');
+});
+
+test('材料 id 含穿越时快照落在 run 目录内，manifest 保存映射', async t => {
+  const ctl: RunnerCtl = { starts: 0 };
+  const { service, host, root } = await setup(t, ctl);
+  const c = await prepareCase(service, 'ESC');
+  c.materials = [
+    ...(c.materials ?? []),
+    { id: '../../../tmp/escape', name: '通知.txt', role: '其他', location: '', excerpt: '', ready: true, relativePath: c.materials![0].relativePath },
+  ];
+  await service.persist();
+  await readyAnalysis(host, c.id, ['n-ESC', '../../../tmp/escape']);
+  await host.command('local', c.id, { type: 'run', action: 'analysis' });
+  await host.waitIdle();
+  assert.ok(ctl.last);
+  for (const item of ctl.last!.materials) {
+    assert.equal(item.id.includes('..'), false);
+    assert.equal(path.resolve(item.snapshotPath).startsWith(path.resolve(ctl.last!.snapshotDir)), true);
+    assert.equal(path.resolve(item.snapshotPath).includes(`${path.sep}..${path.sep}`), false);
+  }
+  const manifest = JSON.parse(await fs.readFile(path.join(ctl.last!.snapshotDir, 'manifest.json'), 'utf8'));
+  assert.ok(Object.values(manifest.ids).includes('../../../tmp/escape'));
+  const escaped = path.join(ctl.last!.snapshotDir, '..', '..', '..', 'tmp', 'escape');
+  await assert.rejects(fs.stat(escaped), /ENOENT/);
+  void root;
+});
+
+test('定稿写入版本目录，不覆盖用户已编辑成果，索引可查看 Word', async t => {
+  const { service, host } = await setup(t);
+  const c = await prepareCase(service, 'FIN');
+  await readyAnalysis(host, c.id, ['n-FIN', 'a-FIN']);
+  await host.command('local', c.id, { type: 'run', action: 'analysis' });
+  await host.waitIdle();
+  await host.command('local', c.id, { type: 'strategy', strategyId: 's2' });
+  await host.command('local', c.id, { type: 'run', action: 'draft' });
+  await host.waitIdle();
+  let view = await host.getCase('local', c.id);
+  const pending = view.process.drafts.find(item => item.adoptStatus === 'pending')!;
+  await host.command('local', c.id, { type: 'adopt', versionId: pending.id });
+  await host.command('local', c.id, { type: 'run', action: 'review' });
+  await host.waitIdle();
+  const caseRoot = await service.casePath(c.id);
+  const userFinal = path.join(caseRoot, '03_定稿', view.processKey, '定稿正文.txt');
+  await fs.mkdir(path.dirname(userFinal), { recursive: true });
+  await fs.writeFile(userFinal, '用户已编辑的定稿，不能覆盖', { mode: 0o600 });
+  await host.command('local', c.id, { type: 'finalize' });
+  view = await host.getCase('local', c.id);
+  assert.equal(await fs.readFile(userFinal, 'utf8'), '用户已编辑的定稿，不能覆盖');
+  const generated=view.artifacts.find(item=>item.kind==='final-word'&&item.relativePath.endsWith('.docx'))!;
+  assert.ok(generated);
+  assert.equal(generated.relativePath.includes(view.processKey),true);
+  assert.notEqual(path.resolve(caseRoot,generated.relativePath),path.resolve(userFinal));
+  assert.match((await mammoth.extractRawText({buffer:await fs.readFile(path.join(caseRoot,generated.relativePath))})).value,/尊敬的审查员/);
+});
+
+test('补正四字段编辑使复核失效，独立审查读取完整新版本；定稿只存表单记录与实际修改 Word',async t=>{
+ const {service,host,ctl}=await setup(t);const c=await prepareCase(service,'COR');c.current!.kind='correction';await service.persist();
+ await host.command('local',c.id,{type:'classify',classification:{...classify,noticeCategory:'补正通知书'}});
+ await host.command('local',c.id,{type:'materials',selectedIds:['n-COR','a-COR']});
+ await host.command('local',c.id,{type:'run',action:'analysis'});await host.waitIdle();
+ await host.command('local',c.id,{type:'strategy',strategyId:'s2'});
+ await host.command('local',c.id,{type:'run',action:'draft'});await host.waitIdle();
+ let view=await host.getCase('local',c.id);const pending=view.process.drafts.find(d=>d.adoptStatus==='pending')!;
+ await host.command('local',c.id,{type:'adopt',versionId:pending.id});
+ await host.command('local',c.id,{type:'run',action:'review'});await host.waitIdle();
+ await assert.rejects(host.command('local',c.id,{type:'finalize'}),/补正字段/);
+ const items=[{FileName:'权利要求书',PositionInFile:'权利要求 1',CorrectionBefore:'一种装罝',CorrectionAfter:'一种装置'}];
+ view=await host.command('local',c.id,{type:'correctionContents',items});
+ assert.notEqual(view.process.currentDraftVersionId,pending.id);assert(view.process.reviews.every(r=>r.invalidated));
+ assert.equal(view.process.drafts.find(d=>d.id===pending.id)!.correctionContents,undefined);
+ const current=view.process.drafts.find(d=>d.id===view.process.currentDraftVersionId)!;
+ assert.deepEqual(current.correctionContents,items);assert.deepEqual(current.applicationParts,pending.applicationParts);
+ const source=(await host.reviewSources('local')).find(s=>s.caseId===c.id&&!s.supersededAt)!;assert.deepEqual(source.correctionContents,items);assert.equal(source.files.length,2);assert(source.files.every(f=>f.hash));
+ await host.command('local',c.id,{type:'run',action:'review'});await host.waitIdle();assert.deepEqual(ctl.last!.draft!.correctionContents,items);assert(ctl.last!.prompt.combined.includes('一种装罝'));
+ view=await host.command('local',c.id,{type:'finalize'});assert.equal(view.process.stage,'final');
+ const finals=view.artifacts.filter(a=>a.kind.startsWith('final-'));
+ assert(!finals.some(a=>a.kind==='final-word'||/补正说明\.docx$/.test(a.relativePath)));
+ const form=finals.find(a=>a.kind==='final-correction-form')!;
+ const saved=JSON.parse(await fs.readFile(await service.casePath(c.id,form.relativePath),'utf8'));
+ assert.equal(saved.FormCode,100006);assert.equal(saved.CorrectionContentList[0].CorrectionBefore,items[0].CorrectionBefore);
+ assert(saved.CorrectionContentList[0].ChangeId);assert.equal(saved.CorrectionContentList[0].Sort,0);
+ const claims=finals.find(a=>a.kind==='final-application-CLAIMS')!;
+ assert.equal((await mammoth.extractRawText({buffer:await fs.readFile(await service.casePath(c.id,claims.relativePath))})).value.trim(),current.applicationParts!.CLAIMS);
+ assert.equal(view.process.finalized!.word.status,'not-required');
+});
+
+test('讨论消息可以引用网址和路径，不把整条聊天当配置封锁', async t => {
+  const { service, host } = await setup(t);
+  const c = await prepareCase(service, 'URL1');
+  await host.command('local', c.id, { type: 'run', action: 'discuss', userMessage: 'https://example.invalid/期限怎么算，材料在 01_通知与材料/通知.txt' });
+  await host.waitIdle();
+  const view = await host.getCase('local', c.id);
+  assert.equal(view.process.jobs.at(-1)?.state, 'completed');
+});
+
+test('正式分析无实际 read 不能完成；讨论可以无材料完成', async t => {
+  const ctl: RunnerCtl = { starts: 0, skipReads: true };
+  const { service, host } = await setup(t, ctl);
+  const c = await prepareCase(service, 'RD1');
+  await readyAnalysis(host, c.id, ['n-RD1', 'a-RD1']);
+  await host.command('local', c.id, { type: 'run', action: 'analysis' });
+  await host.waitIdle();
+  let view = await host.getCase('local', c.id);
+  assert.equal(view.process.jobs.at(-1)?.state, 'failed');
+  assert.match(view.process.jobs.at(-1)?.error ?? '', /实际读取|MATERIALS_UNREAD|必须实际读取/);
+  assert.equal(view.process.analysis, null);
+  await host.command('local', c.id, { type: 'run', action: 'discuss', userMessage: '期限怎么算' });
+  await host.waitIdle();
+  view = await host.getCase('local', c.id);
+  assert.equal(view.process.jobs.at(-1)?.state, 'completed');
+  assert.equal(view.process.stage, 'materials');
+});
+
+test('startRun 工厂内 await onEvent 不会与队列死锁', { timeout: 8000 }, async t => {
+  const ctl: RunnerCtl = { starts: 0 };
+  const inner = mockRunner(ctl);
+  const { service, host } = await setup(t, ctl, {
+    run: async input => {
+      await input.onEvent({ type: 'partial', text: 'factory' });
+      return inner(input);
+    },
+  });
+  const c = await prepareCase(service, 'DL1');
+  await readyAnalysis(host, c.id, ['n-DL1', 'a-DL1']);
+  const started = await host.command('local', c.id, { type: 'run', action: 'analysis' });
+  assert.equal(started.busy, true);
+  await host.waitIdle();
+  const view = await host.getCase('local', c.id);
+  assert.equal(view.busy, false);
+  assert.equal(view.process.analysis?.strategies.length, 2);
+});
+
+function switchProcess(c: Case, processKey: string, draft: string) {
+  c.current = { kind: 'reply', roundId: processKey };
+  if (!c.rounds.some(item => item.id === processKey)) {
+    c.rounds.push({
+      id: processKey, name: '下一轮审查意见', stage: 'materials', confirmed: false,
+      materials: c.materials ?? [], strategy: null, draft: '',
+      versions: [], discussions: [{ id: 'd-' + processKey, title: '主', messages: [] }],
+      review: null, job: null, final: null, finalHistory: [],
+    });
+  }
+  c.localDraft = draft;
+}
+
+async function readAgentStore(service: DesktopService) {
+  const file = path.join(service.root, 'profiles', service.key, 'agent', 'state.json');
+  return JSON.parse(await fs.readFile(file, 'utf8')) as {
+    processes: Array<{
+      scope: { caseId: string; processKey: string };
+      drafts: Array<{ text: string; source: string }>;
+      jobs: Array<{ state: string; error?: string }>;
+      analysis: unknown;
+    }>;
+  };
+}
+
+test('运行中切到流程 B 且 B 手稿独特：旧 run 取消，新手稿不进旧 history，无迟到 partial', async t => {
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const ctl: RunnerCtl = { starts: 0, gate, aborts: 0, latePartialAfterAbort: true, lateCompleteAfterAbort: true };
+  const { service, host } = await setup(t, ctl);
+  service.changed = () => host.noteAccountChange();
+  const c = await prepareCase(service, 'SW1');
+  const processA = 'r-SW1';
+  const processB = 'r-SW1-b';
+  const uniqueB = 'UNIQUE-FLOW-B-DRAFT-XYZ';
+  await readyAnalysis(host, c.id, ['n-SW1', 'a-SW1']);
+  const started = await host.command('local', c.id, { type: 'run', action: 'analysis' });
+  assert.equal(started.processKey, processA);
+  assert.equal(started.busy, true);
+  const leaked: Array<{ processKey: string; partialText?: string; busy: boolean; analysis: boolean }> = [];
+  const off = host.onState(view => {
+    leaked.push({
+      processKey: view.processKey,
+      partialText: view.partialText,
+      busy: view.busy,
+      analysis: !!view.process.analysis,
+    });
+  });
+  const row = service.workspace.cases.find(item => item.id === c.id)!;
+  switchProcess(row, processB, uniqueB);
+  await service.persist();
+  host.noteAccountChange();
+  assert.equal(ctl.aborts, 1);
+  release();
+  await host.waitIdle();
+  off();
+  assert.equal(host.hasRunningJobs(), false);
+  assert.equal(leaked.some(item => item.partialText === '迟到部分-不应出现'), false);
+  assert.equal(leaked.some(item => item.processKey === processA && item.analysis), false);
+
+  const bView = await host.getCase('local', c.id);
+  assert.equal(bView.processKey, processB);
+  assert.equal(bView.busy, false);
+  assert.equal(bView.process.analysis, null);
+  assert.equal(bView.partialText, undefined);
+  assert.ok(bView.process.drafts.some(item => item.text === uniqueB) || service.findCase(c.id).localDraft === uniqueB);
+
+  const stored = await readAgentStore(service);
+  const old = stored.processes.find(item => item.scope.caseId === c.id && item.scope.processKey === processA);
+  assert.ok(old);
+  assert.equal(old.drafts.some(item => item.text.includes(uniqueB)), false);
+  assert.ok(old.jobs.every(item => item.state !== 'running'));
+  assert.ok(old.jobs.some(item => item.state === 'failed' || item.state === 'stopped'));
+  assert.equal(old.analysis, null);
+
+  switchProcess(service.workspace.cases.find(item => item.id === c.id)!, processA, '');
+  await service.persist();
+  const aView = await host.getCase('local', c.id);
+  assert.equal(aView.processKey, processA);
+  assert.equal(aView.busy, false);
+  assert.equal(aView.process.analysis, null);
+  assert.equal(aView.partialText, undefined);
+  assert.equal(aView.process.drafts.some(item => item.text.includes(uniqueB)), false);
+  assert.ok(['stopped', 'failed'].includes(aView.process.jobs.at(-1)?.state ?? ''));
+});
+
+test('同流程普通手工稿保存不断；变 workRoot 或案件消失则 abort 且不污染新流程', async t => {
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const ctl: RunnerCtl = { starts: 0, gate, aborts: 0 };
+  const { service, host, root } = await setup(t, ctl);
+  service.changed = () => host.noteAccountChange();
+  const c = await prepareCase(service, 'SV1');
+  const c2 = await prepareCase(service, 'SV2');
+  const processA = 'r-SV1';
+  await readyAnalysis(host, c.id, ['n-SV1', 'a-SV1']);
+  await host.command('local', c.id, { type: 'run', action: 'analysis' });
+  const ws = structuredClone(service.workspace);
+  ws.cases.find(item => item.id === c.id)!.localDraft = '同流程手工保存-KEEP';
+  await service.save('local', ws);
+  service.changed();
+  host.noteAccountChange();
+  assert.equal(host.hasRunningJobs(), true);
+  assert.equal(ctl.aborts, 0);
+
+  const originalRoot = service.workspace.settings.workRoot;
+  service.workspace.settings.workRoot = path.join(root, 'moved-work');
+  host.noteAccountChange();
+  assert.equal(ctl.aborts, 1);
+  release();
+  await host.waitIdle();
+  assert.equal(host.hasRunningJobs(), false);
+  const stored = await readAgentStore(service);
+  const old = stored.processes.find(item => item.scope.caseId === c.id && item.scope.processKey === processA);
+  assert.ok(old);
+  assert.ok(old.jobs.every(item => item.state !== 'running'));
+  assert.equal(old.analysis, null);
+  assert.ok(old.drafts.every(item => item.text !== 'UNIQUE-SHOULD-NOT-APPEAR'));
+
+  let release2!: () => void;
+  const gate2 = new Promise<void>(resolve => { release2 = resolve; });
+  ctl.gate = gate2;
+  ctl.aborts = 0;
+  service.workspace.settings.workRoot = originalRoot;
+  await readyAnalysis(host, c2.id, ['n-SV2', 'a-SV2']);
+  await host.command('local', c2.id, { type: 'run', action: 'analysis' });
+  assert.equal(host.hasRunningJobs(), true);
+  service.workspace.cases = service.workspace.cases.filter(item => item.id !== c2.id);
+  host.noteAccountChange();
+  assert.equal(ctl.aborts, 1);
+  release2();
+  await host.waitIdle();
+  assert.equal(host.hasRunningJobs(), false);
+  const stored2 = await readAgentStore(service);
+  const gone = stored2.processes.find(item => item.scope.caseId === c2.id);
+  assert.ok(gone);
+  assert.ok(gone.jobs.every(item => item.state !== 'running'));
+  assert.match(gone.jobs.at(-1)?.error ?? gone.jobs.at(-1)?.state ?? '', /不存在|范围|failed|stopped/);
+});

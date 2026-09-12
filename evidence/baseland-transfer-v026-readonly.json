@@ -1,0 +1,501 @@
+{
+  "at": "2026-09-12T09:40:44.909Z",
+  "readOnly": true,
+  "samples": [
+    {
+      "route": "reply",
+      "caseNumber": "202606292-0634",
+      "handKeys": [
+        "HandInfo",
+        "CaseInfo",
+        "CaseProc",
+        "IsReviewing",
+        "IsUndertakerId",
+        "CanHurryNotice",
+        "IsStartFlowNode",
+        "IsPackageSendSuccess",
+        "IsNeedSendToOfficail",
+        "CanEditInventorIsNotPublishName",
+        "CanShowSameDayHandTips",
+        "HasSameDayHandCase",
+        "NeedConfirmForNotMarkQuickAdvanceExamine",
+        "IsNotNeedUploadFile",
+        "CurrentFlowInfo",
+        "EnSpecificationInfo",
+        "UsBuildFileInfo",
+        "HandInfoWo",
+        "IsInEntrusting",
+        "EntrustInfo",
+        "IsShowNewApplyRevision",
+        "ExistReviewDraftLog",
+        "OtherFileCount"
+      ],
+      "cards": [
+        {
+          "code": 100001,
+          "name": "权利要求书",
+          "selected": false
+        },
+        {
+          "code": 100002,
+          "name": "说明书",
+          "selected": false
+        },
+        {
+          "code": 100003,
+          "name": "说明书附图",
+          "selected": false
+        },
+        {
+          "code": 100004,
+          "name": "说明书摘要",
+          "selected": false
+        },
+        {
+          "code": 100005,
+          "name": "摘要附图",
+          "selected": false
+        },
+        {
+          "code": 120101,
+          "name": "实用新型专利请求书",
+          "selected": false
+        },
+        {
+          "code": 100006,
+          "name": "补正书",
+          "selected": false
+        },
+        {
+          "code": 100008,
+          "name": "费用减缴请求书",
+          "selected": false
+        },
+        {
+          "code": 100009,
+          "name": "延长期限请求书",
+          "selected": false
+        },
+        {
+          "code": 100010,
+          "name": "恢复权利请求书",
+          "selected": false
+        },
+        {
+          "code": 100011,
+          "name": "意见陈述书（关于费用）",
+          "selected": false
+        },
+        {
+          "code": 100012,
+          "name": "意见陈述书",
+          "selected": true
+        },
+        {
+          "code": 100013,
+          "name": "撤回专利申请声明",
+          "selected": false
+        },
+        {
+          "code": 100016,
+          "name": "著录项目变更申报书",
+          "selected": false
+        },
+        {
+          "code": 100039,
+          "name": "纸件转电子申请请求书",
+          "selected": false
+        },
+        {
+          "code": 100042,
+          "name": "修改对照页",
+          "selected": false
+        },
+        {
+          "code": 100104,
+          "name": "著录项目变更理由证明",
+          "selected": false
+        },
+        {
+          "code": 100122,
+          "name": "申请权转让证明",
+          "selected": false
+        },
+        {
+          "code": 100601,
+          "name": "放弃专利权声明",
+          "selected": false
+        },
+        {
+          "code": 100701,
+          "name": "专利权评价报告请求书",
+          "selected": false
+        },
+        {
+          "code": 101501,
+          "name": "意见陈述书(关于非正常申请)",
+          "selected": false
+        }
+      ],
+      "formCode": "100012",
+      "instructionsCode": "000000",
+      "formShape": null,
+      "instructionsShape": {
+        "CaseHandFormInstructionsAndImageSettingId": "null",
+        "IsUseXmlFormatHand": "boolean",
+        "IsShowIsUseXmlFormatHand": "boolean",
+        "CaseName": "null",
+        "IsShowCaseName": "boolean",
+        "FormGroup": "array"
+      },
+      "group": [],
+      "steps": [
+        {
+          "name": "递交官方",
+          "users": [
+            "杨佳"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "application",
+      "caseNumber": "202608282-1291",
+      "handKeys": [
+        "HandInfo",
+        "CaseInfo",
+        "CaseProc",
+        "IsReviewing",
+        "IsUndertakerId",
+        "CanHurryNotice",
+        "IsStartFlowNode",
+        "IsPackageSendSuccess",
+        "IsNeedSendToOfficail",
+        "CanEditInventorIsNotPublishName",
+        "CanShowSameDayHandTips",
+        "HasSameDayHandCase",
+        "NeedConfirmForNotMarkQuickAdvanceExamine",
+        "IsNotNeedUploadFile",
+        "CurrentFlowInfo",
+        "EnSpecificationInfo",
+        "UsBuildFileInfo",
+        "HandInfoWo",
+        "IsInEntrusting",
+        "EntrustInfo",
+        "IsShowNewApplyRevision",
+        "ExistReviewDraftLog",
+        "OtherFileCount"
+      ],
+      "cards": [
+        {
+          "code": 100001,
+          "name": "权利要求书",
+          "selected": true
+        },
+        {
+          "code": 100002,
+          "name": "说明书",
+          "selected": true
+        },
+        {
+          "code": 100003,
+          "name": "说明书附图",
+          "selected": true
+        },
+        {
+          "code": 100004,
+          "name": "说明书摘要",
+          "selected": true
+        },
+        {
+          "code": 100005,
+          "name": "摘要附图",
+          "selected": true
+        },
+        {
+          "code": 120101,
+          "name": "实用新型专利请求书",
+          "selected": true
+        },
+        {
+          "code": 100006,
+          "name": "补正书",
+          "selected": false
+        },
+        {
+          "code": 100008,
+          "name": "费用减缴请求书",
+          "selected": false
+        },
+        {
+          "code": 100009,
+          "name": "延长期限请求书",
+          "selected": false
+        },
+        {
+          "code": 100010,
+          "name": "恢复权利请求书",
+          "selected": false
+        },
+        {
+          "code": 100011,
+          "name": "意见陈述书（关于费用）",
+          "selected": false
+        },
+        {
+          "code": 100012,
+          "name": "意见陈述书",
+          "selected": false
+        },
+        {
+          "code": 100013,
+          "name": "撤回专利申请声明",
+          "selected": false
+        },
+        {
+          "code": 100016,
+          "name": "著录项目变更申报书",
+          "selected": false
+        },
+        {
+          "code": 100039,
+          "name": "纸件转电子申请请求书",
+          "selected": false
+        },
+        {
+          "code": 100042,
+          "name": "修改对照页",
+          "selected": false
+        },
+        {
+          "code": 100104,
+          "name": "著录项目变更理由证明",
+          "selected": false
+        },
+        {
+          "code": 100122,
+          "name": "申请权转让证明",
+          "selected": false
+        },
+        {
+          "code": 100601,
+          "name": "放弃专利权声明",
+          "selected": false
+        },
+        {
+          "code": 100701,
+          "name": "专利权评价报告请求书",
+          "selected": false
+        },
+        {
+          "code": 101501,
+          "name": "意见陈述书(关于非正常申请)",
+          "selected": false
+        }
+      ],
+      "formCode": "120101",
+      "instructionsCode": "000000",
+      "formShape": {
+        "CaseHandId": "string",
+        "FormCode": "null",
+        "DivisionalCase": "null",
+        "RequestInfo": "null",
+        "SpecificationInfo": [
+          "AbstractDrawNumber"
+        ],
+        "BiomaterialStoreGroup": "array"
+      },
+      "instructionsShape": {
+        "CaseHandFormInstructionsAndImageSettingId": "string",
+        "IsUseXmlFormatHand": "boolean",
+        "IsShowIsUseXmlFormatHand": "boolean",
+        "CaseName": "string",
+        "IsShowCaseName": "boolean",
+        "FormGroup": "array"
+      },
+      "group": [
+        {
+          "keys": [
+            "FormCode",
+            "FormName",
+            "File",
+            "ClaimsCount",
+            "AbstractDrawNumber",
+            "IsMixFile",
+            "IsFiveFormsPackFile"
+          ],
+          "code": 100001,
+          "isMix": false,
+          "fileKeys": [
+            "UploadUserType",
+            "UploadUserId",
+            "UploadUserName",
+            "UploadDate",
+            "CaseHandFileId",
+            "CaseHandId",
+            "FileNo",
+            "FileName",
+            "FileRemark",
+            "ListFileName",
+            "ImageDescription"
+          ],
+          "hasFileNo": true
+        },
+        {
+          "keys": [
+            "FormCode",
+            "FormName",
+            "File",
+            "ClaimsCount",
+            "AbstractDrawNumber",
+            "IsMixFile",
+            "IsFiveFormsPackFile"
+          ],
+          "code": 100002,
+          "isMix": false,
+          "fileKeys": [
+            "UploadUserType",
+            "UploadUserId",
+            "UploadUserName",
+            "UploadDate",
+            "CaseHandFileId",
+            "CaseHandId",
+            "FileNo",
+            "FileName",
+            "FileRemark",
+            "ListFileName",
+            "ImageDescription"
+          ],
+          "hasFileNo": true
+        },
+        {
+          "keys": [
+            "FormCode",
+            "FormName",
+            "File",
+            "ClaimsCount",
+            "AbstractDrawNumber",
+            "IsMixFile",
+            "IsFiveFormsPackFile"
+          ],
+          "code": 100003,
+          "isMix": false,
+          "fileKeys": [
+            "UploadUserType",
+            "UploadUserId",
+            "UploadUserName",
+            "UploadDate",
+            "CaseHandFileId",
+            "CaseHandId",
+            "FileNo",
+            "FileName",
+            "FileRemark",
+            "ListFileName",
+            "ImageDescription"
+          ],
+          "hasFileNo": true
+        },
+        {
+          "keys": [
+            "FormCode",
+            "FormName",
+            "File",
+            "ClaimsCount",
+            "AbstractDrawNumber",
+            "IsMixFile",
+            "IsFiveFormsPackFile"
+          ],
+          "code": 100004,
+          "isMix": false,
+          "fileKeys": [
+            "UploadUserType",
+            "UploadUserId",
+            "UploadUserName",
+            "UploadDate",
+            "CaseHandFileId",
+            "CaseHandId",
+            "FileNo",
+            "FileName",
+            "FileRemark",
+            "ListFileName",
+            "ImageDescription"
+          ],
+          "hasFileNo": true
+        },
+        {
+          "keys": [
+            "FormCode",
+            "FormName",
+            "File",
+            "ClaimsCount",
+            "AbstractDrawNumber",
+            "IsMixFile",
+            "IsFiveFormsPackFile"
+          ],
+          "code": 100005,
+          "isMix": false,
+          "fileKeys": [
+            "UploadUserType",
+            "UploadUserId",
+            "UploadUserName",
+            "UploadDate",
+            "CaseHandFileId",
+            "CaseHandId",
+            "FileNo",
+            "FileName",
+            "FileRemark",
+            "ListFileName",
+            "ImageDescription"
+          ],
+          "hasFileNo": true
+        },
+        {
+          "keys": [
+            "FormCode",
+            "FormName",
+            "File",
+            "ClaimsCount",
+            "AbstractDrawNumber",
+            "IsMixFile",
+            "IsFiveFormsPackFile"
+          ],
+          "code": 0,
+          "isMix": true,
+          "fileKeys": [
+            "UploadUserType",
+            "UploadUserId",
+            "UploadUserName",
+            "UploadDate",
+            "CaseHandFileId",
+            "CaseHandId",
+            "FileNo",
+            "FileName",
+            "FileRemark",
+            "ListFileName",
+            "ImageDescription"
+          ],
+          "hasFileNo": true
+        }
+      ],
+      "steps": []
+    },
+    {
+      "route": "correction",
+      "caseNumber": "202606292-0476",
+      "status": 0,
+      "hand": "none"
+    },
+    {
+      "route": "correction",
+      "caseNumber": "202606292-0539",
+      "status": 0,
+      "hand": "none"
+    },
+    {
+      "route": "correction",
+      "caseNumber": "202606292-0580",
+      "status": 0,
+      "hand": "none"
+    }
+  ]
+}

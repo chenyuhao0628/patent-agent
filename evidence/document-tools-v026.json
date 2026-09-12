@@ -1,0 +1,75 @@
+{
+  "visionModel": "OpenCode Go / DeepSeek v4.1 / Responses",
+  "liveSyntheticVision": {
+    "status": "completed",
+    "error": null,
+    "seconds": 12.569,
+    "toolEvents": [
+      {
+        "name": "read_material",
+        "success": true,
+        "materialId": "format-0",
+        "range": {
+          "startLine": 1,
+          "endLine": 1
+        }
+      },
+      {
+        "name": "read_material",
+        "success": true,
+        "materialId": "format-0",
+        "range": {
+          "startLine": 2,
+          "endLine": 2
+        }
+      },
+      {
+        "name": "write_artifact",
+        "success": true
+      }
+    ],
+    "artifactExists": true,
+    "markerMatched": true,
+    "artifactPath": "/tmp/patent-agent-v026/vision-live/engine3/outputs/result.json",
+    "runDir": "/tmp/patent-agent-v026/vision-live"
+  },
+  "result": "{\"status\":\"completed\",\"error\":null,\"seconds\":12.569,\"toolEvents\":[{\"name\":\"read_material\",\"success\":true,\"materialId\":\"format-0\",\"range\":{\"startLine\":1,\"endLine\":1}},{\"name\":\"read_material\",\"success\":true,\"materialId\":\"format-0\",\"range\":{\"startLine\":2,\"endLine\":2}},{\"name\":\"write_artifact\",\"success\":true}],\"artifactExists\":true,\"markerMatched\":true,\"artifactPath\":\"/tmp/patent-agent-v026/vision-live/engine3/outputs/result.json\",\"runDir\":\"/tmp/patent-agent-v026/vision-live\"}\n",
+  "packagedWorker": {
+    "at": "2026-09-12T09:48:53.688Z",
+    "electron": "44.3.0",
+    "workerFrom": "app.asar.unpacked",
+    "pages": [
+      {
+        "page": 1,
+        "pages": 2,
+        "width": 1384,
+        "height": 1800,
+        "jpegBytes": 116925,
+        "red": 0,
+        "blue": 277783
+      },
+      {
+        "page": 2,
+        "pages": 2,
+        "width": 1384,
+        "height": 1800,
+        "jpegBytes": 115518,
+        "red": 440195,
+        "blue": 0
+      }
+    ]
+  },
+  "templateSource": "一种汽车内饰用皮革裁切装置_第一次审查意见答复.docx",
+  "templateSourcePages": 4,
+  "applicationTemplateSourcePages": 7,
+  "finalReplySamplePages": 1,
+  "legacyDocConvertedAndRenderedPages": 1,
+  "legacyConverterInstalledInUserApp": false,
+  "tests": {
+    "passed": 271,
+    "failed": 0,
+    "log": "/tmp/patent-agent-v026/full-tests-permissions.txt"
+  },
+  "realBaselandWrites": false,
+  "windowsDeviceTested": false
+}

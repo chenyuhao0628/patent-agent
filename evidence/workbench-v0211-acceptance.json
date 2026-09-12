@@ -1,0 +1,73 @@
+{
+  "version": "0.2.11",
+  "date": "2026-09-12",
+  "automated": {
+    "fullSuitePassed": 317,
+    "failed": 0,
+    "finalDomainRegressionPassed": 22
+  },
+  "nativeUI": {
+    "passed": true,
+    "checks": [
+      "single discussion tab and legacy reply route",
+      "empty deletion",
+      "nonempty protected",
+      "archive view and send disabled",
+      "restore",
+      "formal steps",
+      "remote transfer without final",
+      "review pending default",
+      "persist after reload"
+    ],
+    "errors": []
+  },
+  "upgrade": {
+    "from": "0.2.10",
+    "to": "0.2.11",
+    "recordsChecked": 7,
+    "changedFiles": [],
+    "asarMatches": true
+  },
+  "installedUserUI": {
+    "version": "0.2.11",
+    "accountRetained": true,
+    "totalLocalCases": 40,
+    "internalTransferVisible": 24
+  },
+  "release": {
+    "version": "0.2.11",
+    "builtAt": "2026-09-12T15:57:26.403Z",
+    "appId": "com.patentworkbench.desktop",
+    "productName": "专利工作台",
+    "files": [
+      {
+        "file": "专利工作台-0.2.11-macOS-arm64.app",
+        "platform": "mac-arm64",
+        "version": "0.2.11",
+        "sha256": "5133651579db2427556725c81ffa85cffcf1bf2b8367172c0d4c2e12b79e67e1",
+        "hashAlgorithm": "sha256-tree"
+      },
+      {
+        "file": "PatentWorkbench-0.2.11-macOS-arm64.pkg",
+        "platform": "mac-arm64-installer",
+        "version": "0.2.11",
+        "sha256": "43719b5275f6865817ffb263b022d52fe7b907528a8950e17b19959b21d11467",
+        "hashAlgorithm": "sha256"
+      },
+      {
+        "file": "PatentWorkbench-0.2.11-Windows-x64-Setup.exe",
+        "platform": "win-x64",
+        "version": "0.2.11",
+        "sha256": "f560bed265e7b3f6605999d43735d50c3756b5746520cbd0900c9c17eee66a65",
+        "hashAlgorithm": "sha256"
+      }
+    ]
+  },
+  "limitations": [
+    "Windows cross-built package, no Windows device acceptance",
+    "No new real-model run needed for these UI and local state changes",
+    "No real Baseland uploads, form saves or internal handoff",
+    "Native UI tested via Playwright Electron in isolated synthetic data; installed UI checked via CUA",
+    "Browser plugin absent; tested desktop runtime directly"
+  ]
+}

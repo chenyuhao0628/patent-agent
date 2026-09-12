@@ -1,0 +1,255 @@
+{
+  "version": "0.2.7",
+  "tests": {
+    "passed": 284,
+    "failed": 0,
+    "log": "/tmp/patent-agent-v027/tests-release.txt"
+  },
+  "readOnlyBaseland": {
+    "at": "2026-09-12T10:53:30.016Z",
+    "readOnly": true,
+    "samples": [
+      {
+        "number": "202606291-0181",
+        "hasCompany": false,
+        "caseRemarkLength": 0,
+        "processFields": [
+          "officeNote",
+          "procNote"
+        ],
+        "processIdMatches": true
+      },
+      {
+        "number": "202606292-0698",
+        "hasCompany": false,
+        "caseRemarkLength": 0,
+        "processFields": [
+          "officeNote",
+          "procNote"
+        ],
+        "processIdMatches": true
+      },
+      {
+        "number": "202608281-1290",
+        "hasCompany": false,
+        "caseRemarkLength": 0,
+        "processFields": [
+          "officeNote",
+          "procNote"
+        ],
+        "processIdMatches": true
+      },
+      {
+        "number": "202606291-0096",
+        "hasCompany": false,
+        "caseRemarkLength": 0,
+        "processFields": [
+          "officeNote",
+          "procNote"
+        ],
+        "processIdMatches": true
+      },
+      {
+        "number": "202606292-0610",
+        "hasCompany": false,
+        "caseRemarkLength": 0,
+        "processFields": [
+          "officeNote",
+          "procNote"
+        ],
+        "processIdMatches": true
+      },
+      {
+        "number": "202608191-1237",
+        "hasCompany": false,
+        "caseRemarkLength": 0,
+        "processFields": [
+          "officeNote",
+          "procNote"
+        ],
+        "processIdMatches": true
+      }
+    ],
+    "personal": {
+      "rows": 50,
+      "withClientName": 50,
+      "withFlowRemark": 0,
+      "application": []
+    }
+  },
+  "syntheticModel": {
+    "provider": "OpenCode Go",
+    "model": "deepseek-v4.1-flash",
+    "protocol": "openai-responses",
+    "writing": {
+      "state": "completed",
+      "skill": "draft-cn-invention-patent",
+      "tools": [
+        {
+          "name": "read_skill",
+          "status": "ok"
+        },
+        {
+          "name": "read_skill",
+          "status": "ok"
+        },
+        {
+          "name": "read_skill",
+          "status": "ok"
+        },
+        {
+          "name": "read_skill",
+          "status": "ok"
+        },
+        {
+          "name": "write_artifact",
+          "status": "ok"
+        }
+      ]
+    },
+    "review": {
+      "state": "completed",
+      "skill": "review-cn-invention-patent",
+      "tools": [
+        {
+          "name": "read_skill",
+          "status": "ok"
+        },
+        {
+          "name": "read_material:m0",
+          "status": "ok"
+        },
+        {
+          "name": "read_skill",
+          "status": "ok"
+        },
+        {
+          "name": "read_skill",
+          "status": "ok"
+        },
+        {
+          "name": "read_skill",
+          "status": "ok"
+        },
+        {
+          "name": "read_skill",
+          "status": "ok"
+        },
+        {
+          "name": "read_skill",
+          "status": "ok"
+        },
+        {
+          "name": "read_skill",
+          "status": "ok"
+        },
+        {
+          "name": "read_skill",
+          "status": "ok"
+        },
+        {
+          "name": "read_skill",
+          "status": "ok"
+        },
+        {
+          "name": "read_skill",
+          "status": "ok"
+        },
+        {
+          "name": "read_skill",
+          "status": "ok"
+        },
+        {
+          "name": "read_skill",
+          "status": "ok"
+        },
+        {
+          "name": "read_skill",
+          "status": "ok"
+        },
+        {
+          "name": "write_artifact",
+          "status": "ok"
+        }
+      ],
+      "foundSeededInconsistency": true,
+      "contextMessages": 0
+    },
+    "firstReviewAttempt": "Output cap 4096 reached; retried only review with 16384, completed. Product exposes explicit output_limit error.",
+    "customerMaterialsSent": false
+  },
+  "nativeSyntheticUI": [
+    "Company visible, column 180px and current state 112px; initial application uses internal 2026-09-20 while reply/correction use Baseland 2026-10-30",
+    "Overview shows customer, case notes, official notes and process memo",
+    "Submit page directly after Baseland flow; optional personal review has enabled submit navigation",
+    "Writing generation then nonempty direction confirmation advances exactly one phase",
+    "Manual completed response enters review; independent report saved; global queue retains report after restart",
+    "Standard draft/review skills visible in Settings",
+    "Window preferences save and survive reopen; minimize emitted minimize and hide, explicit quit ended QA process"
+  ],
+  "windowEventLog": "show\nclose\nminimize\nhide\nshow\nclose\n",
+  "notValidated": [
+    "Windows device",
+    "real customer document writing/review quality",
+    "live Baseland business writes",
+    "real OS startup registration/relogin",
+    "arbitrary Python scripts from skills",
+    "complete application figures"
+  ],
+  "alignmentFix": {
+    "reportedByUser": true,
+    "cause": "Global .field input width:100% stretched radio controls and compressed labels; generic action layout centered buttons.",
+    "fixed": "Dedicated settings CSS and three labeled rows; 16px native controls, consistent text offsets, left aligned buttons.",
+    "nativeScreenshotVerifiedWidths": [
+      1400,
+      980
+    ],
+    "buildLog": "/tmp/patent-agent-v027/build-alignment.txt",
+    "preferenceBehaviorUnchanged": true
+  },
+  "finalScopeCheck": {
+    "passed": 5,
+    "log": "/tmp/patent-agent-v027/tests-final-scope.txt"
+  },
+  "release": {
+    "version": "0.2.7",
+    "builtAt": "2026-09-12T11:16:20.433Z",
+    "appId": "com.patentworkbench.desktop",
+    "productName": "专利工作台",
+    "files": [
+      {
+        "file": "专利工作台-0.2.7-macOS-arm64.app",
+        "platform": "mac-arm64",
+        "version": "0.2.7",
+        "sha256": "3a34ae77e86b79a20d00123b31c5231d0ac0ae3e3a5e6449ebb714c9bf286f4b",
+        "hashAlgorithm": "sha256-tree"
+      },
+      {
+        "file": "PatentWorkbench-0.2.7-Windows-x64.exe",
+        "platform": "win-x64",
+        "version": "0.2.7",
+        "sha256": "078f5bceea1b9795664121599cb8522e5a8cc4c6e5532e52d44d40083d895699",
+        "hashAlgorithm": "sha256"
+      }
+    ],
+    "buildLog": "/tmp/patent-agent-v027/package-complete.txt"
+  },
+  "finalPackagedMacOS": {
+    "actualAppAsarOpened": true,
+    "version": "0.2.7",
+    "personalProcessRows": 50,
+    "cases": 40,
+    "syncedAtLocal": "2026-09-12 19:18:27",
+    "companyVisibleAfterSync": true,
+    "initialInternalDeadlineVisible": true,
+    "replyBaselandDeadlineVisible": true,
+    "existingAccountPreserved": true,
+    "sourceRootPreserved": true,
+    "workRootPreserved": true,
+    "settingsScreenshotAligned": true,
+    "actualStartupEnabled": false,
+    "actualCloseBehavior": "quit",
+    "actualMinimizeToTray": false,
+    "noBusinessWrites": true
+  }
+}

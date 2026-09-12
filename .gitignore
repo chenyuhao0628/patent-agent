@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.lab/
+.env
+.env.*
+!.env.example
+.DS_Store
+test-results/
+desktop-dist/
+release/
+release-staging/
+.package-release.lock
+resources/agent-runtime/

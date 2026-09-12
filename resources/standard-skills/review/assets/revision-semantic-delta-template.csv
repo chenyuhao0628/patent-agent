@@ -1,0 +1,2 @@
+change_id,location,before,after,change_level,added_relations,removed_relations,scope_effect,authorization,source_basis,status
+C001,权利要求1,包括部件A,包括所述部件A,B,N/A：仅修复指代,N/A：未删除关系,none,N/A：B级同步修复,原权利要求1,confirmed

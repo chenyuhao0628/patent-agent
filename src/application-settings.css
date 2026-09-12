@@ -1,0 +1,16 @@
+.application-settings{margin:22px 0 26px;padding:24px;border:1px solid var(--line);border-radius:12px;background:#fff;min-width:0}
+.application-settings-heading h3{margin:0;font-size:16px;line-height:1.5;font-weight:600}
+.application-settings-heading p{margin:8px 0 4px;color:#737b8b;font-size:13px;line-height:1.8}
+.application-settings .application-preferences{display:block;min-width:0;max-width:none;margin:0;padding:0;border:0}
+.application-option-row{display:grid;grid-template-columns:104px minmax(0,1fr);gap:20px;padding:22px 0;border-bottom:1px solid var(--line)}
+.application-option-title{padding-top:1px;color:#424959;font-size:13px;font-weight:550;line-height:22px}
+.application-option-controls{display:flex;flex-direction:column;gap:12px;min-width:0}
+.application-choice{display:flex;align-items:flex-start;justify-content:flex-start;gap:10px;margin:0;color:#444c5d;font-size:13px;line-height:22px;cursor:pointer}
+.application-settings .application-choice input[type=checkbox],.application-settings .application-choice input[type=radio]{appearance:auto;flex:0 0 16px;width:16px;height:16px;min-width:16px;max-width:16px;margin:3px 0 0;padding:0;accent-color:var(--accent)}
+.application-choice span{min-width:0;overflow-wrap:anywhere}
+.application-option-hint{margin:-4px 0 0 26px;font-size:12px;line-height:1.75;color:#8a91a0}
+.application-settings-actions{display:flex;align-items:center;justify-content:flex-start;flex-wrap:wrap;gap:10px;padding-top:22px}
+.application-settings-actions button{margin:0;white-space:nowrap}
+.application-settings-feedback{margin:16px 0 0;font-size:13px;line-height:1.7;color:#46745c}
+.application-settings-feedback.inline-warning{color:#9b6034}
+@media(max-width:1050px){.application-settings{padding:20px}.application-option-row{grid-template-columns:1fr;gap:10px;padding:18px 0}.application-option-hint{font-size:12px}}

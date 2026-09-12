@@ -1,0 +1,130 @@
+{
+  "name": "patent-agent",
+  "private": true,
+  "version": "0.3.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5173 --strictPort",
+    "build": "tsc --noEmit && vite build && node scripts/build-desktop.mjs",
+    "test": "node --experimental-strip-types --test src/domain/*.test.ts desktop/*.test.ts scripts/*.test.mjs",
+    "preview": "vite preview --host 127.0.0.1 --port 5173 --strictPort",
+    "desktop": "npm run build && electron .",
+    "package:release": "node scripts/package-release.mjs",
+    "package:mac": "node scripts/package-release.mjs --platform mac",
+    "package:win": "node scripts/package-release.mjs --platform win",
+    "prepare:agent-runtime": "node scripts/prepare-agent-runtime.mjs --source .lab/agent-runtime --output resources/agent-runtime"
+  },
+  "dependencies": {
+    "@hyzyla/pdfium": "2.1.13",
+    "@thednp/dommatrix": "3.1.2",
+    "@xmldom/xmldom": "0.8.15",
+    "jpeg-js": "0.4.4",
+    "js-yaml": "4.3.2",
+    "jszip": "3.10.2",
+    "lucide-react": "1.45.0",
+    "mammoth": "1.12.2",
+    "pdfjs-dist": "4.10.38",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "electron": "44.3.0",
+    "electron-builder": "26.15.3",
+    "esbuild": "0.28.2",
+    "typescript": "7.0.2",
+    "vite": "8.3.0"
+  },
+  "description": "独立专利工作台",
+  "author": "Patent Workbench",
+  "main": "desktop-dist/main.cjs",
+  "build": {
+    "appId": "com.patentworkbench.desktop",
+    "productName": "专利工作台",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "desktop-dist/**/*",
+      "package.json",
+      "!node_modules/**/*",
+      "resources/reply-rules/**/*",
+      "resources/document-templates/**/*",
+      "resources/licenses/**/*",
+      "resources/standard-skills/**/*",
+      "resources/branding/**/*"
+    ],
+    "asar": true,
+    "mac": {
+      "identity": null,
+      "target": [
+        "dir",
+        "pkg"
+      ],
+      "category": "public.app-category.productivity",
+      "extraResources": [
+        {
+          "from": ".lab/agent-runtime",
+          "to": "agent-runtime",
+          "filter": [
+            "runtime-manifest.json",
+            "OPENCODE-LICENSE.txt",
+            "darwin-arm64/**"
+          ]
+        }
+      ],
+      "icon": "resources/branding/icon.png"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "signAndEditExecutable": true,
+      "extraResources": [
+        {
+          "from": ".lab/agent-runtime",
+          "to": "agent-runtime",
+          "filter": [
+            "runtime-manifest.json",
+            "OPENCODE-LICENSE.txt",
+            "win32-x64/**"
+          ]
+        }
+      ],
+      "icon": "resources/branding/windows.ico",
+      "signExecutable": false
+    },
+    "asarUnpack": [
+      "desktop-dist/document-visual-worker.cjs",
+      "desktop-dist/pdfium.wasm"
+    ],
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": false,
+      "createDesktopShortcut": "always",
+      "artifactName": "PatentWorkbench-${version}-Windows-x64-Setup.exe",
+      "runAfterFinish": false,
+      "allowElevation": true
+    },
+    "pkg": {
+      "artifactName": "PatentWorkbench-${version}-macOS-arm64.pkg",
+      "identity": null,
+      "installLocation": "/Applications",
+      "isRelocatable": false,
+      "isVersionChecked": true,
+      "hasStrictIdentifier": true,
+      "overwriteAction": "upgrade",
+      "mustClose": [
+        "com.patentworkbench.desktop"
+      ],
+      "allowAnywhere": false,
+      "allowCurrentUserHome": true,
+      "allowRootDirectory": true
+    }
+  }
+}

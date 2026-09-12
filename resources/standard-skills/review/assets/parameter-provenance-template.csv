@@ -1,0 +1,2 @@
+claim_id,parameter,proposed_value,lower_source,upper_source,complete_combination_source,test_condition,mosaic_risk,status
+1,参数A,1.0-2.0,实施例1,实施例2,原始说明书第X段,测试条件X,no,confirmed

@@ -1,0 +1,21 @@
+{
+  "upstreamCalls": 1,
+  "upstreamAborted": true,
+  "abortRequested": true,
+  "stopSeconds": 0.015,
+  "lateEvents": 0,
+  "childPids": [
+    44762
+  ],
+  "allChildrenExited": true,
+  "status": "aborted",
+  "error": {
+    "code": "aborted",
+    "message": "运行已取消。"
+  },
+  "seconds": 2.132,
+  "toolEvents": [],
+  "artifactExists": false,
+  "markerMatched": false,
+  "runDir": "/Users/cyh/Documents/ChatGPT/patent-agent/.lab/agent-live-v025/9f3b7a05-a668-4390-bfaf-c601b4eac9a0"
+}

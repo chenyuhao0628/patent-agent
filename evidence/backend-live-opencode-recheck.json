@@ -1,0 +1,109 @@
+{
+  "date": "2026-09-12T13:43:42+0800",
+  "platform": "Darwin arm64",
+  "scope": "synthetic Chinese cases; no user credentials; key stays in localhost Responses proxy",
+  "model": {
+    "id": "deepseek-v4.1-flash",
+    "display": "DeepSeek V4.1 Flash",
+    "api": "openai-responses"
+  },
+  "timeout_s": 180,
+  "mock": false,
+  "results": {
+    "opencode": {
+      "smoke": {
+        "ok": true,
+        "version": "1.18.30",
+        "elapsed_s": 1.167,
+        "two_distinct_session_ids": true,
+        "worktrees": {
+          "jia": {
+            "git_toplevel": "/private/tmp/patent-agent-grok-v025-probe/.probe-run/20260912-134342/cases/案件甲/第二轮",
+            "session_directory": "/private/tmp/patent-agent-grok-v025-probe/.probe-run/20260912-134342/cases/案件甲/第二轮",
+            "project_worktree": "/private/tmp/patent-agent-grok-v025-probe/.probe-run/20260912-134342/cases/案件甲/第二轮",
+            "worktree_ok": true,
+            "projectID": "global",
+            "project_id": "global"
+          },
+          "yi": {
+            "git_toplevel": "/private/tmp/patent-agent-grok-v025-probe/.probe-run/20260912-134342/cases/案件乙/第一轮",
+            "session_directory": "/private/tmp/patent-agent-grok-v025-probe/.probe-run/20260912-134342/cases/案件乙/第一轮",
+            "project_worktree": "/private/tmp/patent-agent-grok-v025-probe/.probe-run/20260912-134342/cases/案件乙/第一轮",
+            "worktree_ok": true,
+            "projectID": "global",
+            "project_id": "global"
+          }
+        }
+      },
+      "cases": {
+        "jia": {
+          "ok": true,
+          "elapsed_s": 10.65,
+          "tool_names": [
+            "read",
+            "write"
+          ],
+          "read_evidence": true,
+          "write_verified": true,
+          "ident_in_file": true,
+          "fact_in_file": true,
+          "denied_tools_used": [],
+          "final_answer_short": "【虚构专利答复材料·仅供隔离探针】 案件标识: BF107F 本轮事实数字: 313 说明: 不得读取其他案件目录，不得使用终端或网络。 案件标识 BF107F，事实数字 313，已写入结果.md。 案件标识 BF107F，事实数字 313，已写入结果.md。",
+          "header_fp": "1dd6b70422b4",
+          "terminal": "idle",
+          "upstream_calls": 3
+        },
+        "yi": {
+          "ok": true,
+          "elapsed_s": 10.073,
+          "tool_names": [
+            "read",
+            "write"
+          ],
+          "read_evidence": true,
+          "write_verified": true,
+          "ident_in_file": true,
+          "fact_in_file": true,
+          "denied_tools_used": [],
+          "final_answer_short": "【虚构专利答复材料·仅供隔离探针】 案件标识: D617E8 本轮事实数字: 966 说明: 不得读取其他案件目录，不得使用终端或网络。 案件标识 D617E8，事实数字 966。 案件标识 D617E8，事实数字 966。",
+          "header_fp": "d96c499b58fa",
+          "terminal": "idle",
+          "upstream_calls": 3
+        }
+      },
+      "isolation": {
+        "cross_session_messages": "pass",
+        "cross_dir_read": "unsupported",
+        "notes": "Only this follow-up turn's session tool records. Chat text is not evidence. Isolation is qualified only when cross_dir_read is denied.",
+        "detail": {
+          "leaked_ident": false,
+          "cross": {
+            "attempted": true,
+            "denied": null,
+            "capability": "inconclusive-no-tool-record"
+          }
+        }
+      },
+      "cancel": {
+        "ok": true,
+        "elapsed_s": 20.406,
+        "upstream_seen": true,
+        "terminal_status": "unknown",
+        "abort_error_events": 0
+      },
+      "reopen": {
+        "ok": true,
+        "messages_retained": true,
+        "auto_resent": false
+      },
+      "session_headers_distinct": true,
+      "isolation_qualified": false,
+      "ok": true,
+      "elapsed_s": 48.522,
+      "header_fps": [
+        "1dd6b70422b4",
+        "d96c499b58fa"
+      ]
+    }
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "date": "2026-09-12",
+  "scope": "供应商和模型设置，隔离桌面数据",
+  "build": "npm run build passed",
+  "tests": {
+    "full_suite": 255,
+    "failed": 0
+  },
+  "gui_passed": [
+    "供应商列表与旗下模型详情",
+    "完整宽度模型表格与独立编辑弹窗",
+    "先保存供应商空模型列表",
+    "新增继承供应商协议的模型",
+    "连续两次保存模型",
+    "完全退出重开保留供应商、参数和默认配置",
+    "删除供应商下最后一个模型后保存空列表",
+    "重复获取上游模型时已有相同 ID 标为已存在且不可重复添加，已有显式 Responses 配置保持"
+  ],
+  "live_model": {
+    "provider": "OpenCode Go",
+    "model": "deepseek-v4.1-flash",
+    "protocol": "openai-responses",
+    "reply": "OK",
+    "upstream_models": "retrieved"
+  },
+  "not_covered": [
+    "Word 模板导出",
+    "Windows 实机"
+  ],
+  "evidence_files": [
+    "/tmp/patent-agent-qa/v025-provider-full-table.png",
+    "/tmp/patent-agent-qa/v025-model-edit-modal.png",
+    "/tmp/patent-agent-qa/v025-model-save-and-live-test-ax.txt",
+    "/tmp/patent-agent-qa/v025-provider-reopened-ax.txt",
+    "/tmp/patent-agent-qa/v025-provider-empty-saved-ax.txt",
+    "/tmp/patent-agent-qa/v025-upstream-merge-preserved-ax.txt",
+    "/tmp/patent-agent-qa/v025-upstream-deduplicated-ax.txt",
+    "/tmp/patent-agent-qa/v025-provider-final.png"
+  ],
+  "final_real_account": {
+    "version": "0.2.5",
+    "credentialSource": "user-authorized local DSH OpenCode Go",
+    "encryptedSave": "native app confirmed",
+    "provider": "OpenCode Go",
+    "model": "deepseek-v4.1-flash",
+    "protocol": "openai-responses",
+    "testResult": "OK",
+    "caseMaterialSubmitted": false
+  }
+}

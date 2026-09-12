@@ -1,0 +1,3 @@
+claim_id,depends_on,element,element_role,antecedent_claim,wording,relation_change,notes
+1,,试件,new,,试件,none,独立权利要求首次引入
+2,1,试件,inherited,1,所述试件,none,沿权利要求1继承

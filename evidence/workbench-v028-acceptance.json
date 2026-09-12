@@ -1,0 +1,213 @@
+{
+  "version": "0.2.8",
+  "releaseBuiltAt": "2026-09-12T12:16:11.127Z",
+  "implementation": {
+    "checkbox": {
+      "pixels": 20,
+      "hitTarget": 36
+    },
+    "filterFontPixels": 13,
+    "globalReviewHistory": true,
+    "formalAndPersonalReviewMerge": true,
+    "closedCasesArchivedLocally": true,
+    "lightIcon": true,
+    "windowsRoundedIco": true,
+    "desktopInstallers": true,
+    "libreofficeBundled": false,
+    "controlledTools": [
+      "read_material",
+      "read_draft",
+      "read_skill",
+      "write_artifact",
+      "web_search",
+      "web_fetch",
+      "ensure_tool"
+    ]
+  },
+  "tests": {
+    "fullSuite": {
+      "passed": 291,
+      "failed": 0
+    },
+    "finalReviewRegression": {
+      "passed": 7,
+      "failed": 0
+    },
+    "build": true
+  },
+  "realModel": {
+    "status": "completed",
+    "tools": [
+      {
+        "name": "web_search",
+        "status": "success"
+      },
+      {
+        "name": "web_fetch",
+        "status": "success"
+      },
+      {
+        "name": "read_material",
+        "status": "success"
+      },
+      {
+        "name": "write_artifact",
+        "status": "success"
+      }
+    ],
+    "sourceUnchanged": true,
+    "artifact": "result.json"
+  },
+  "directToolSmoke": {
+    "systemConverter": true,
+    "readChinese": true,
+    "sourceUnchanged": true,
+    "webSearch": true,
+    "webFetch": true
+  },
+  "macManagedInstall": {
+    "executable": "/tmp/patent-agent-v028/managed-install-qa/libreoffice/26.2.6/darwin/LibreOffice.app/Contents/MacOS/soffice",
+    "state": {
+      "phase": "ready",
+      "downloaded": 0,
+      "total": 0,
+      "message": "完整 DOC 转换组件已安装",
+      "root": "/tmp/patent-agent-v028/managed-install-qa",
+      "version": "26.2.6"
+    },
+    "reused": true
+  },
+  "macManagedReadAndRemove": {
+    "engine": "libreoffice",
+    "docxBytes": 8960,
+    "installed": true,
+    "removed": true
+  },
+  "macInstall": {
+    "installedPath": "/Users/cyh/Applications/专利工作台.app",
+    "currentUserDomain": true,
+    "repeatOverwrite": true,
+    "obsoleteProgramFileRemoved": true,
+    "preservation": {
+      "allJsonPreserved": true,
+      "filesChecked": 5,
+      "changed": []
+    },
+    "crossVersionUpgradeNotProven": true,
+    "installedMatchesFinalRelease": true
+  },
+  "gui": {
+    "nativeElectron": true,
+    "libraryWidths": [
+      1400,
+      980
+    ],
+    "selectionWorks": true,
+    "reviewAttemptsVisible": 2,
+    "toolSettingsVisible": true,
+    "permissionTogglePersistedInQa": true,
+    "realAccountRetained": true,
+    "originalLibraryRetained": true,
+    "workRootRetained": true,
+    "finalInstalledAppReopened": true
+  },
+  "realLocalArchive": {
+    "cases": [
+      {
+        "number": "202606182-0003",
+        "archived": true,
+        "closure": {
+          "finished": true,
+          "checkedAt": "2026-09-12T12:12:45.750Z"
+        }
+      },
+      {
+        "number": "202606182-0001",
+        "archived": true,
+        "closure": {
+          "finished": true,
+          "checkedAt": "2026-09-12T12:12:46.361Z"
+        }
+      },
+      {
+        "number": "202606181-0002",
+        "archived": true,
+        "closure": {
+          "finished": true,
+          "checkedAt": "2026-09-12T12:12:46.943Z"
+        }
+      }
+    ],
+    "archivedTotal": 4,
+    "total": 40,
+    "originalLibrary": "/Users/cyh/Documents/专利撰写目录/未完成",
+    "workRoot": "/Users/cyh/Documents/专利工作文件夹"
+  },
+  "windowsIcon": {
+    "pngWithAlpha": true,
+    "cornerAlpha": 0,
+    "frames": [
+      {
+        "size": 16,
+        "embedded": true
+      },
+      {
+        "size": 24,
+        "embedded": true
+      },
+      {
+        "size": 32,
+        "embedded": true
+      },
+      {
+        "size": 48,
+        "embedded": true
+      },
+      {
+        "size": 64,
+        "embedded": true
+      },
+      {
+        "size": 128,
+        "embedded": true
+      },
+      {
+        "size": 256,
+        "embedded": true
+      }
+    ],
+    "finalInstallerVerified": true
+  },
+  "limits": {
+    "windowsDevice": false,
+    "windowsManagedInstall": false,
+    "realBaselandWrites": false,
+    "realCaseLegalQuality": false,
+    "onlineUpdater": false,
+    "signing": false,
+    "notarization": false
+  },
+  "artifacts": [
+    {
+      "file": "专利工作台-0.2.8-macOS-arm64.app",
+      "platform": "mac-arm64",
+      "version": "0.2.8",
+      "sha256": "91ad64efc3c5951e05460f1330c5f0abd8f02ecc438c1a8ea33899f255412efa",
+      "hashAlgorithm": "sha256-tree"
+    },
+    {
+      "file": "PatentWorkbench-0.2.8-macOS-arm64.pkg",
+      "platform": "mac-arm64-installer",
+      "version": "0.2.8",
+      "sha256": "660967abcd7db6ab43309f27cb782ed21c692e26c7cc084815bafcc812881204",
+      "hashAlgorithm": "sha256"
+    },
+    {
+      "file": "PatentWorkbench-0.2.8-Windows-x64-Setup.exe",
+      "platform": "win-x64",
+      "version": "0.2.8",
+      "sha256": "8fd630598dce476984a00e049da6f8048388fcbc76f8cbe6b4d4a9673dfb65c4",
+      "hashAlgorithm": "sha256"
+    }
+  ]
+}

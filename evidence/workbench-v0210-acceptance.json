@@ -1,0 +1,235 @@
+{
+  "version": "0.2.10",
+  "recordedAt": "2026-09-12T15:40:33.122204+00:00",
+  "scope": [
+    "智慧芽对比文件自动下载",
+    "自定义技能与 MCP",
+    "使用准确母版的 Word 定稿",
+    "补正四字段及独立表单保存"
+  ],
+  "automated": {
+    "command": "npm test",
+    "passed": 315,
+    "failed": 0,
+    "build": "npm run build passed",
+    "lastUIOnlyChange": "Removed duplicate correction heading; rebuilt and checked in native GUI"
+  },
+  "patsnap": {
+    "provider": "智慧芽",
+    "credentialSource": "Existing local patent application Keychain configuration, imported encrypted per current account",
+    "livePublicPDFDownload": true,
+    "noticeCheck": {
+      "pages": 7,
+      "emptyTextPages": [],
+      "patentReferences": 3
+    },
+    "finalInstalledRecheck": {
+      "configured": true,
+      "warning": "",
+      "pdfs": [
+        {
+          "number": "CN120069239A",
+          "bytes": 1318019,
+          "sha256": "5bb659b855fca567ee2327df6b899da78ff73bf72af8f0a283e82d173131341f",
+          "reusedWithoutChange": true
+        },
+        {
+          "number": "CN101229869A",
+          "bytes": 2030011,
+          "sha256": "f92590f488b5ea499fa3150f609bd904dbd11f230ba5697ca2587d6b615ac8d1",
+          "reusedWithoutChange": true
+        },
+        {
+          "number": "CN121169419A",
+          "bytes": 979470,
+          "sha256": "7561ad7f47c603497b3ceb7436a11807ad497211e11e2c1f12f6fcf96c9de162",
+          "reusedWithoutChange": true
+        }
+      ]
+    },
+    "secretsLogged": false,
+    "localOriginalsUnmodified": true
+  },
+  "extensions": {
+    "liveModel": "OpenCode Go / DeepSeek V4.1 / Responses",
+    "realRun": {
+      "status": "completed",
+      "probes": [
+        {
+          "tools": 1
+        },
+        {
+          "tools": 1
+        }
+      ],
+      "remoteCalls": 1,
+      "authenticated": 8,
+      "tools": [
+        {
+          "name": "read_skill",
+          "success": true
+        },
+        {
+          "name": "discover_tools",
+          "success": true
+        },
+        {
+          "name": "custom_5e154f58ce154cf0adcf75f6c4bc6f00_remote_marker",
+          "success": true
+        },
+        {
+          "name": "custom_47a529bdf9aa42999ba22ff3a5a0aea5_local_marker",
+          "success": true
+        },
+        {
+          "name": "write_artifact",
+          "success": true
+        },
+        {
+          "name": "write_artifact",
+          "success": true
+        },
+        {
+          "name": "write_artifact",
+          "success": true
+        },
+        {
+          "name": "write_artifact",
+          "success": true
+        }
+      ],
+      "artifact": "result.json"
+    },
+    "markers": [
+      "SKILL_QA_PURPLE_17",
+      "REMOTE_QA_GREEN_84",
+      "LOCAL_QA_BLUE_39"
+    ],
+    "GUI": [
+      "Import/write skill",
+      "Paste MCP JSON",
+      "Connect: 1 tool",
+      "Disable",
+      "Edit"
+    ],
+    "secretScan": "No synthetic MCP secret in run logs/config JSON",
+    "toolIdentity": "Custom MCP tool names cannot satisfy built-in material/draft read gates",
+    "realAccountQAExtensions": 0
+  },
+  "word": {
+    "exactOriginalTemplates": [
+      {
+        "file": "/Users/cyh/Desktop/模板.docx",
+        "sha256": "3894db5b79558784ee20e722821e764d21f80d3f12ad7cadf79fd7626e02f861"
+      },
+      {
+        "file": "/Users/cyh/Documents/专利撰写目录/case/重庆秋泽汽车部件有限公司+一种汽车内饰用皮革裁切装置+第一次审查意见通知书/一种汽车内饰用皮革裁切装置_第一次审查意见答复.docx",
+        "sha256": "062821ee0428413b852c2d2effe458e5631e70eca85e973b26fead933dc74d77"
+      }
+    ],
+    "originalHashesRecheckedUnchanged": true,
+    "method": "Fill sanitized template package, preserve layout and section/header/footer resources; explicit source CJK font",
+    "syntheticReplyNativeFinalization": "5 DOCX artifacts",
+    "renderedAndVisuallyChecked": [
+      "Claims",
+      "Description: 3 pages",
+      "Abstract",
+      "Opinion statement",
+      "Amendment basis",
+      "4 correction final DOCX files"
+    ],
+    "correctionWordNotice": "No supplementary correction Word is generated; actual modified application parts and internal notes are Word"
+  },
+  "correction": {
+    "authority": "/Users/cyh/Documents/0001/贝思兰德系统命令行接入说明-v1.4.md, section 5",
+    "fieldsOnly": [
+      "FileName",
+      "PositionInFile",
+      "CorrectionBefore",
+      "CorrectionAfter"
+    ],
+    "ancillaryMetadata": "Read/preserve current Baseland form and associated notice; not user inputs",
+    "rowIdentity": "Preserve existing server IDs; generate ChangeId and Sort for new rows",
+    "localArchive": "补正表单.json; not an uploaded attachment",
+    "versioning": "Edits invalidate prior review; old drafts and frozen evidence remain available",
+    "automatedSaveEvidence": "Synthetic Baseland: zero supplementary uploads; specialized Insert/Update and GetFormCorrection; missing notice or readback mismatch blocks",
+    "partialApplication": "Reply/correction accept only selected parsed parts; application still requires five",
+    "gui": "Native Electron with isolated synthetic draft and transfer IPC fixture; 1400 and 980 widths checked"
+  },
+  "installation": {
+    "initialUpgrade": {
+      "from": "0.2.9",
+      "to": "0.2.10",
+      "recordsChecked": 5,
+      "changedFiles": [],
+      "asarMatches": true
+    },
+    "finalUpgrade": {
+      "from": "0.2.10 interim",
+      "to": "0.2.10 final correction",
+      "recordsChecked": 7,
+      "changedFiles": [],
+      "asarMatches": true,
+      "version": "0.2.10"
+    },
+    "installedApp": "/Users/cyh/Applications/专利工作台.app",
+    "reopened": {
+      "version": "0.2.10",
+      "accountRetained": true,
+      "cases": 40,
+      "originalLibrary": "/Users/cyh/Documents/专利撰写目录/未完成",
+      "workRoot": "/Users/cyh/Documents/专利工作文件夹"
+    },
+    "release": {
+      "version": "0.2.10",
+      "builtAt": "2026-09-12T15:36:26.291Z",
+      "appId": "com.patentworkbench.desktop",
+      "productName": "专利工作台",
+      "files": [
+        {
+          "file": "专利工作台-0.2.10-macOS-arm64.app",
+          "platform": "mac-arm64",
+          "version": "0.2.10",
+          "sha256": "0cb8cf77ac475a2641bac4603ee17481eb71209192dcc5628adce56d22ac09cb",
+          "hashAlgorithm": "sha256-tree"
+        },
+        {
+          "file": "PatentWorkbench-0.2.10-macOS-arm64.pkg",
+          "platform": "mac-arm64-installer",
+          "version": "0.2.10",
+          "sha256": "ad03405a48b91c29b3af3ac77fa5e94fe63ceb29476bf56d8bdb7e603fdaebff",
+          "hashAlgorithm": "sha256",
+          "bytes": 181387011,
+          "MiB": 172.98
+        },
+        {
+          "file": "PatentWorkbench-0.2.10-Windows-x64-Setup.exe",
+          "platform": "win-x64",
+          "version": "0.2.10",
+          "sha256": "89c564a93916218835d9c5c4b5ce766407826c19beb6dc513504123407e7cae4",
+          "hashAlgorithm": "sha256",
+          "bytes": 159197617,
+          "MiB": 151.82
+        }
+      ]
+    },
+    "latestOnly": true,
+    "completeOfficeEngineBundled": false
+  },
+  "evidenceDirectory": "evidence/v0210; only synthetic UI/documents, no real case screenshots",
+  "notVerified": [
+    "Windows physical installation/run",
+    "Real Baseland uploads/form saves/deletions/internal transfer",
+    "Complex figures/formulas automatic Word export",
+    "Real patent drafting/review content quality",
+    "MCP interactive OAuth",
+    "Skill binary asset import",
+    "Online update delivery and release signing/notarization"
+  ],
+  "noActions": [
+    "No real Baseland write",
+    "No Git commit/push",
+    "No public release",
+    "No source repository changes"
+  ]
+}

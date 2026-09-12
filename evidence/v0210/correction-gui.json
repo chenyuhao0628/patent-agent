@@ -1,0 +1,52 @@
+{
+  "fieldsOnly": [
+    "文件名称",
+    "具体位置",
+    "补正前",
+    "补正后"
+  ],
+  "agentFinalization": "native IPC with synthetic model draft",
+  "transferUI": "synthetic IPC fixture",
+  "finals": [
+    {
+      "id": "final-300363a7-c113-4731-b436-965bdc6f3609:03_定稿/r-UI-COR-0210/300363a7-c113-4731-b436-965bdc6f3609/补正表单.json",
+      "title": "补正表单（字段记录）",
+      "kind": "final-correction-form",
+      "relativePath": "03_定稿/r-UI-COR-0210/300363a7-c113-4731-b436-965bdc6f3609/补正表单.json",
+      "at": "2026-09-12T15:35:30.926Z",
+      "versionId": "6bc342bf-4660-4ede-8d12-9b6c007ddf38"
+    },
+    {
+      "id": "final-300363a7-c113-4731-b436-965bdc6f3609:03_定稿/r-UI-COR-0210/300363a7-c113-4731-b436-965bdc6f3609/权利要求书.docx",
+      "title": "权利要求书",
+      "kind": "final-application-CLAIMS",
+      "relativePath": "03_定稿/r-UI-COR-0210/300363a7-c113-4731-b436-965bdc6f3609/权利要求书.docx",
+      "at": "2026-09-12T15:35:30.940Z",
+      "versionId": "6bc342bf-4660-4ede-8d12-9b6c007ddf38"
+    },
+    {
+      "id": "final-300363a7-c113-4731-b436-965bdc6f3609:03_定稿/r-UI-COR-0210/300363a7-c113-4731-b436-965bdc6f3609/说明书.docx",
+      "title": "说明书",
+      "kind": "final-application-DESCRIPTION",
+      "relativePath": "03_定稿/r-UI-COR-0210/300363a7-c113-4731-b436-965bdc6f3609/说明书.docx",
+      "at": "2026-09-12T15:35:30.946Z",
+      "versionId": "6bc342bf-4660-4ede-8d12-9b6c007ddf38"
+    },
+    {
+      "id": "final-300363a7-c113-4731-b436-965bdc6f3609:03_定稿/r-UI-COR-0210/300363a7-c113-4731-b436-965bdc6f3609/修改依据.docx",
+      "title": "修改依据",
+      "kind": "final-basis",
+      "relativePath": "03_定稿/r-UI-COR-0210/300363a7-c113-4731-b436-965bdc6f3609/修改依据.docx",
+      "at": "2026-09-12T15:35:30.951Z",
+      "versionId": "6bc342bf-4660-4ede-8d12-9b6c007ddf38"
+    },
+    {
+      "id": "final-300363a7-c113-4731-b436-965bdc6f3609:03_定稿/r-UI-COR-0210/300363a7-c113-4731-b436-965bdc6f3609/内部复核说明.docx",
+      "title": "内部复核说明",
+      "kind": "final-review-notes",
+      "relativePath": "03_定稿/r-UI-COR-0210/300363a7-c113-4731-b436-965bdc6f3609/内部复核说明.docx",
+      "at": "2026-09-12T15:35:30.956Z",
+      "versionId": "6bc342bf-4660-4ede-8d12-9b6c007ddf38"
+    }
+  ]
+}

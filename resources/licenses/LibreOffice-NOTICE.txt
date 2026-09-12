@@ -1,0 +1,8 @@
+LibreOffice 26.2.6 is redistributed unmodified as a local document conversion engine.
+Official source: https://www.libreoffice.org/
+Source code: https://download.documentfoundation.org/libreoffice/src/26.2.6/
+License texts and third-party notices are retained inside each LibreOffice distribution.
+macOS archive SHA256: 94bb3248df074c225490a8a6d1d9dc87c7d6783dbb7a8e9f0d0c3d94348552af
+Windows archive SHA256: f9877032fd908beb9c0ddf06df4af5c2e85f419c42e14876c4cce5aae5fb2660
+Windows redistributable DLLs from the same official MSI are placed beside its executables.
+The application invokes Writer conversion with a separate temporary user profile and disabled macros; original documents are retained.

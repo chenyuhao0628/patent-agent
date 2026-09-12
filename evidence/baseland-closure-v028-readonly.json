@@ -1,0 +1,63 @@
+{
+  "at": "2026-09-12T11:30:47.012Z",
+  "readOnly": true,
+  "samples": [
+    {
+      "number": "202606181-0002",
+      "IsFinishCase": true,
+      "CaseStatusType": 8,
+      "personalBusiness": [
+        {
+          "name": "取消提出申请",
+          "code": 0,
+          "status": 500
+        }
+      ],
+      "closureFlows": [
+        {
+          "name": "结案",
+          "code": 171,
+          "status": 500
+        }
+      ]
+    },
+    {
+      "number": "202606182-0001",
+      "IsFinishCase": true,
+      "CaseStatusType": 8,
+      "personalBusiness": [
+        {
+          "name": "取消提出申请",
+          "code": 0,
+          "status": 500
+        }
+      ],
+      "closureFlows": [
+        {
+          "name": "结案",
+          "code": 171,
+          "status": 500
+        }
+      ]
+    },
+    {
+      "number": "202606182-0003",
+      "IsFinishCase": true,
+      "CaseStatusType": 8,
+      "personalBusiness": [
+        {
+          "name": "取消提出申请",
+          "code": 0,
+          "status": 500
+        }
+      ],
+      "closureFlows": [
+        {
+          "name": "结案",
+          "code": 171,
+          "status": 500
+        }
+      ]
+    }
+  ]
+}

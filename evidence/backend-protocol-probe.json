@@ -1,0 +1,27 @@
+{
+  "date": "2026-09-12T00:18:56+0800",
+  "platform": "Darwin arm64",
+  "scope": "synthetic sessions; no prompt or real model request; no user credentials",
+  "results": {
+    "opencode": {
+      "version": "1.18.30",
+      "headless_health": true,
+      "two_distinct_session_ids": true,
+      "list_roundtrip": true,
+      "survive_process_restart": true,
+      "chinese_cwd": true,
+      "observed_directory": "/Users/cyh/Documents/ChatGPT/patent-agent/.lab/probe-20260912-001856/案件甲/第二轮",
+      "limitation": "Two sessions in one directory; cross-directory isolation, streaming, running cancellation and model/file support NOT tested."
+    },
+    "hermes": {
+      "version": "0.21.1",
+      "source_commit": "ad03f20dd61919ca2135d6904e787a94284aacaf",
+      "gateway_ready_event": true,
+      "two_distinct_session_ids": true,
+      "chinese_cwd": true,
+      "empty_history_roundtrip": true,
+      "active_list_response": true,
+      "limitation": "Fresh sessions are lazily persisted by upstream; durable transcript restart, model execution and running cancellation NOT tested."
+    }
+  }
+}

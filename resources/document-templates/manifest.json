@@ -1,0 +1,218 @@
+{
+  "reply": {
+    "sourceName": "一种汽车内饰用皮革裁切装置_第一次审查意见答复.docx",
+    "sourceSha256": "062821ee0428413b852c2d2effe458e5631e70eca85e973b26fead933dc74d77",
+    "templateSha256": "fd18a8fd22acd39555e194658c0d973bab27414c53a3b0b57167d8a050318986",
+    "parts": {
+      "[Content_Types].xml": {
+        "sha256": "a58c513901dde4e6d32ac11abdf15e7c3f513650eae5f5e426cdbb295e84f150",
+        "preserve": false
+      },
+      "_rels/": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "preserve": true
+      },
+      "_rels/.rels": {
+        "sha256": "7f663eedc15e218382778b72c260c3f011c9a60f379edfa4f242efafdc3cf08b",
+        "preserve": false
+      },
+      "customXml/": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "preserve": true
+      },
+      "customXml/_rels/": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "preserve": true
+      },
+      "customXml/_rels/item1.xml.rels": {
+        "sha256": "80482f86e196171d66001e0e74d1900408a3aaf2463e54005d251b5f2db9a0b0",
+        "preserve": true
+      },
+      "customXml/item1.xml": {
+        "sha256": "b7ebe617992e309f3bd5b187e28bccb75afc7cb92c4e7ea57801329b5c04c5ce",
+        "preserve": true
+      },
+      "customXml/itemProps1.xml": {
+        "sha256": "54cafba8fcbc886f8c496cf218e749c9eef7227a81a7531025f9bc9cc85581e8",
+        "preserve": true
+      },
+      "docProps/": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "preserve": true
+      },
+      "docProps/app.xml": {
+        "sha256": "7e530958f27a3fa19fa5790df125fa887bc0a11489c9862acea72f600babb1ee",
+        "preserve": false
+      },
+      "docProps/core.xml": {
+        "sha256": "0a6ab4af49d5cf48aaec2f03b5d1e677da100ae93258b3bfb34cf8d3b38c55d2",
+        "preserve": false
+      },
+      "docProps/custom.xml": {
+        "sha256": "613487c97e981e9529c6e415b7d9579fc7c28e1df140867939ea838cab11ab89",
+        "preserve": false,
+        "removed": true
+      },
+      "docProps/thumbnail.wmf": {
+        "sha256": "7e650579cdfc50f9382ec522792ba8410a1699fff46a1e8f34219e3826bef444",
+        "preserve": false,
+        "removed": true
+      },
+      "word/": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "preserve": true
+      },
+      "word/_rels/": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "preserve": true
+      },
+      "word/_rels/document.xml.rels": {
+        "sha256": "2834743de4c8b73e268d7f0e466181044a1b3bc2ca7a6adb02f9c23df0b17573",
+        "preserve": true
+      },
+      "word/document.xml": {
+        "sha256": "f492d153561fbfa3549017b030c5ca61c988981c0edafd281d6a689e4af5be90",
+        "preserve": false
+      },
+      "word/endnotes.xml": {
+        "sha256": "0bb3317d3770f08a4713efc1ec7e2cd753cfbe7b8d4e5eebfd957501cd005ec9",
+        "preserve": true
+      },
+      "word/fontTable.xml": {
+        "sha256": "6e16bc546f67405d8729bd5fbed5e84c432ed26fcca9570d745249904a47e307",
+        "preserve": true
+      },
+      "word/footnotes.xml": {
+        "sha256": "d637dccd730b55ba46f4041187a84d3527dcd534a9e39e3e98577486d9735858",
+        "preserve": true
+      },
+      "word/numbering.xml": {
+        "sha256": "323b62d8d2dce448106cd7dfa8de69852e7af961bd70497bd69e4bbe34f7543a",
+        "preserve": true
+      },
+      "word/settings.xml": {
+        "sha256": "88f643e9b0323964ad6f98f04cd0a66480ced04b6daa92399c97916c4f449a29",
+        "preserve": true
+      },
+      "word/styles.xml": {
+        "sha256": "43a7e791c90deb9dddf472e89bf411725c8217c54a850e2336b9eb874e49ef8a",
+        "preserve": true
+      },
+      "word/theme/": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "preserve": true
+      },
+      "word/theme/theme1.xml": {
+        "sha256": "6c2ccb074eb96187e7e5698447de5d130e10a7d833daba034ef35cb593864a19",
+        "preserve": true
+      }
+    },
+    "sanitization": "Case text and personal properties removed; source thumbnail removed; typography, sections, headers and footers preserved."
+  },
+  "application": {
+    "sourceName": "模板.docx",
+    "sourceSha256": "3894db5b79558784ee20e722821e764d21f80d3f12ad7cadf79fd7626e02f861",
+    "templateSha256": "46f04755be02bee9b3bbb899de1f8ad8f76da529dd391a1d73b3a04e5142b36a",
+    "parts": {
+      "[Content_Types].xml": {
+        "sha256": "63e081e6560cfd3be8cc8affbaf489f52c9ddb9a3d1367bfc2ec6aa8d84cebe9",
+        "preserve": false
+      },
+      "_rels/": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "preserve": true
+      },
+      "_rels/.rels": {
+        "sha256": "514e1846381cb6bcfff105a4b0a17d666cf0ed1f0c120bff73b82226ab7ed977",
+        "preserve": false
+      },
+      "docProps/": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "preserve": true
+      },
+      "docProps/app.xml": {
+        "sha256": "566226327b5b54782f7726c66e4ef580b11a7d14617df742cc78233802fea69a",
+        "preserve": false
+      },
+      "docProps/core.xml": {
+        "sha256": "2caf63e0dd78510915aafc9be692dfe821b1e8d27800fa0423397e122a007bdf",
+        "preserve": false
+      },
+      "docProps/custom.xml": {
+        "sha256": "569bf48dd4ef9669374586cee983ff1a50aff30334dc2a786428a71eeb20407d",
+        "preserve": false,
+        "removed": true
+      },
+      "word/": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "preserve": true
+      },
+      "word/_rels/": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "preserve": true
+      },
+      "word/_rels/document.xml.rels": {
+        "sha256": "7d6088bec1446f98c6a2b551b76fd52fd3688a8d526a083f38d12d68ec88ae04",
+        "preserve": true
+      },
+      "word/document.xml": {
+        "sha256": "724cd1bed562583c1efbc3d803b8cfe18017f175cf789808f60c84dd24a7c982",
+        "preserve": false
+      },
+      "word/fontTable.xml": {
+        "sha256": "f9afb39c919b424900e187031074b71def2d812314e6c15df647b47490c70e2c",
+        "preserve": true
+      },
+      "word/footer1.xml": {
+        "sha256": "67d89e7c8ce9523f5a5fe15950193c3885e8eaef3edf475eb94235edab6ec86a",
+        "preserve": true
+      },
+      "word/footer2.xml": {
+        "sha256": "95d799c73988c294882a125ec0f68f66eec582cc5ce295dafcb6b2c407353347",
+        "preserve": true
+      },
+      "word/footer3.xml": {
+        "sha256": "2e3587385358d7771f269413354e42ca89c2a134dfbcdebb3729572ae285fb81",
+        "preserve": true
+      },
+      "word/header1.xml": {
+        "sha256": "715f19f4abf38cf131e14da287e719c93ff5fa2f8fb4887a9d4834458f69b4db",
+        "preserve": true
+      },
+      "word/header2.xml": {
+        "sha256": "146418f5dd98b85e06c70c2073714fffd4a81ed4bc66c9fc2e64d174ec7aa0e4",
+        "preserve": true
+      },
+      "word/header3.xml": {
+        "sha256": "e81762e8ecb34322a7073d3b657450ad1986e5e72d35704063a99e5243b515c4",
+        "preserve": true
+      },
+      "word/header4.xml": {
+        "sha256": "272de35b99a2c4da0b6b3af10ff7d07d0dc7e47b060dea85847db7dd61acc1a6",
+        "preserve": true
+      },
+      "word/header5.xml": {
+        "sha256": "c241b0352c18b7df1ded0e8f8eb746dc691534825ca28a93e0893bd7602dadd9",
+        "preserve": true
+      },
+      "word/settings.xml": {
+        "sha256": "0263e98aced2bfd144515806a19a201a3512e413678af32046933d2271558a67",
+        "preserve": true
+      },
+      "word/styles.xml": {
+        "sha256": "c2eb37e7ecca46e592d5c3dafb6f94f675b28139c493d138b9977f509dd8c7e2",
+        "preserve": true
+      },
+      "word/theme/": {
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "preserve": true
+      },
+      "word/theme/theme1.xml": {
+        "sha256": "bea0a0590dea0ed9e97fa4391c1b7980640249387153014388eaaa628837b32c",
+        "preserve": true
+      }
+    },
+    "sanitization": "Case text and personal properties removed; source thumbnail removed; typography, sections, headers and footers preserved.",
+    "formatsSha256": "654b2bc8f84b0fcff41e2d56ec0eb96501d3244f051dd631a81b95bf8a19b1bf"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "version": "V3",
+  "status": "awaiting-applicant-confirmation",
+  "files": [
+    {
+      "role": "formal-source",
+      "path": "申请文件V3.docx",
+      "sha256": ""
+    },
+    {
+      "role": "internal-record",
+      "path": "数据来源记录.csv",
+      "sha256": ""
+    }
+  ]
+}

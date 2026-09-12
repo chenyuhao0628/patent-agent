@@ -1,0 +1,29 @@
+.dir-migration{border:1px solid #e4e1f3;border-radius:10px;padding:20px;margin:22px 0;background:#fbfbfe}
+.dir-migration h3{margin:0 0 8px;font-size:15px;font-weight:550}
+.dir-migration>.lead{font-size:13px;line-height:1.8;color:#6f7686;margin:0 0 16px}
+.dir-migration-facts{margin:0 0 16px;display:grid;gap:10px}
+.dir-migration-facts>div{display:grid;grid-template-columns:148px minmax(0,1fr);gap:12px;font-size:13px;line-height:1.6}
+.dir-migration-facts dt{color:#8a91a0;font-size:12px}
+.dir-migration-facts dd{margin:0;overflow-wrap:anywhere}
+.dir-migration .native-directory{margin:4px 0 8px}
+.dir-migration .inline-warning,.dir-migration-alert{color:#b43b3b;background:#fdf2f2;border-radius:6px;padding:10px 12px;font-size:12px;line-height:1.7;margin:12px 0}
+.dir-migration-note{font-size:12px;line-height:1.8;color:#7c818c;margin:8px 0 0}
+.dir-migration-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px;align-items:center}
+.dir-migration-preview{display:grid;gap:12px;margin:4px 0 8px}
+.dir-migration-preview>div{display:grid;grid-template-columns:158px minmax(0,1fr);gap:10px;font-size:13px;padding:8px 0;border-bottom:1px solid #eceef3}
+.dir-migration-preview dt{color:#8a91a0;font-size:12px}
+.dir-migration-preview dd{margin:0;overflow-wrap:anywhere}
+.dir-migration-guarantees{margin:16px 0 8px;padding:0;list-style:none;font-size:12px;line-height:1.8;color:#5f6675}
+.dir-migration-guarantees li{padding-left:14px;position:relative}
+.dir-migration-guarantees li:before{content:'·';position:absolute;left:0;color:#8b83c4}
+.dir-migration-progress{margin:12px 0;padding:14px 16px;border-radius:8px;background:#f4f3fd;color:#4f4a86;font-size:13px;line-height:1.8}
+.dir-migration-progress strong{display:block;margin-bottom:4px;font-weight:550}
+.dir-migration-progress .muted{display:block;color:#76729a;font-size:12px;overflow-wrap:anywhere}
+.dir-migration-block{border:1px solid #e4e1f3;border-radius:10px;padding:20px;background:#f8f7fd}
+.dir-migration-block p{margin:0;font-size:13px;line-height:1.8;color:#6f7686}
+@media(max-width:700px){
+  .dir-migration,.dir-migration-block{padding:16px}
+  .dir-migration-facts>div,.dir-migration-preview>div{grid-template-columns:1fr;gap:4px}
+  .dir-migration-actions{flex-direction:column;align-items:stretch}
+  .dir-migration-actions button{width:100%}
+}

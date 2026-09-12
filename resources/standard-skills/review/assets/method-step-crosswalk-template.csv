@@ -1,0 +1,2 @@
+step_id,claim_text,spec_text,figure_text,pre_state,post_state,prerequisites,status,notes
+S1,安装试件,安装试件,安装与加载,装置可开启,试件已安装,N/A：首步骤,aligned,示例行

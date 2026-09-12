@@ -1,0 +1,48 @@
+{
+  "status": "completed",
+  "probes": [
+    {
+      "tools": 1
+    },
+    {
+      "tools": 1
+    }
+  ],
+  "remoteCalls": 1,
+  "authenticated": 8,
+  "tools": [
+    {
+      "name": "read_skill",
+      "success": true
+    },
+    {
+      "name": "discover_tools",
+      "success": true
+    },
+    {
+      "name": "custom_5e154f58ce154cf0adcf75f6c4bc6f00_remote_marker",
+      "success": true
+    },
+    {
+      "name": "custom_47a529bdf9aa42999ba22ff3a5a0aea5_local_marker",
+      "success": true
+    },
+    {
+      "name": "write_artifact",
+      "success": true
+    },
+    {
+      "name": "write_artifact",
+      "success": true
+    },
+    {
+      "name": "write_artifact",
+      "success": true
+    },
+    {
+      "name": "write_artifact",
+      "success": true
+    }
+  ],
+  "artifact": "result.json"
+}

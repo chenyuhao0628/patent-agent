@@ -1,0 +1,2 @@
+data_id,formal_location,sample_id,metric,value,unit,source_type,source_reference,control_variable,constraints,confirmation_status
+D001,表1,实施例1,指标A,0,单位,source/original,原始说明书第X段,无,合理区间X,confirmed

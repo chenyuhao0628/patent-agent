@@ -1,0 +1,174 @@
+{
+  "date": "2026-09-12",
+  "scope": "真实 OpenCode Go Responses + 原生 macOS Electron + 两个合成案件；非真实法律质量验收",
+  "cases": [
+    {
+      "scope": {
+        "caseId": "agent-qa-a",
+        "processKey": "round-a"
+      },
+      "stage": "final",
+      "jobs": [
+        {
+          "action": "analysis",
+          "state": "completed",
+          "runId": "1dad852a-5a54-4b21-82b7-fe3dc8a5f62c",
+          "error": null
+        },
+        {
+          "action": "draft",
+          "state": "completed",
+          "runId": "ef0129f0-607d-45c0-9391-cdfd83f01cd4",
+          "error": null
+        },
+        {
+          "action": "review",
+          "state": "completed",
+          "runId": "e4284002-b937-43ff-8a63-787ef5f71b4c",
+          "error": null
+        },
+        {
+          "action": "revise",
+          "state": "completed",
+          "runId": "7b971832-e206-4bf1-8a76-c7bfc1c6cf51",
+          "error": null
+        },
+        {
+          "action": "review",
+          "state": "completed",
+          "runId": "7515b67f-a798-4132-8666-0572206e58b1",
+          "error": null
+        }
+      ],
+      "draftCount": 2,
+      "reviewCount": 2,
+      "finalized": true
+    },
+    {
+      "scope": {
+        "caseId": "agent-qa-b",
+        "processKey": "round-b"
+      },
+      "stage": "materials",
+      "jobs": [
+        {
+          "action": "discuss",
+          "state": "completed",
+          "runId": "a3a7160c-ee5c-4c31-ba1b-e526964291ef",
+          "error": null
+        },
+        {
+          "action": "discuss",
+          "state": "stopped",
+          "runId": "2dcbdcaf-84fe-4ee0-943d-9270bc5657dc",
+          "error": "用户已停止任务。"
+        },
+        {
+          "action": "discuss",
+          "state": "completed",
+          "runId": "34d6ccc6-081a-49b4-84c9-07cca9cbd515",
+          "error": null
+        }
+      ],
+      "draftCount": 0,
+      "reviewCount": 0,
+      "finalized": false
+    }
+  ],
+  "humanConfirmationSimulation": "新稿复核产生5项问题；在合成验收中模拟人工勾选处理，验证门控与落盘，不表示对真实案件法律质量的认可。",
+  "independentLiveFormats": {
+    "status": "completed",
+    "error": null,
+    "seconds": 8.97,
+    "toolEvents": [
+      {
+        "name": "read_material",
+        "success": true,
+        "materialId": "format-0",
+        "range": {
+          "startLine": 1,
+          "endLine": 1
+        }
+      },
+      {
+        "name": "read_material",
+        "success": true,
+        "materialId": "format-1",
+        "range": {
+          "startLine": 1,
+          "endLine": 1
+        }
+      },
+      {
+        "name": "write_artifact",
+        "success": true
+      }
+    ],
+    "artifactExists": true,
+    "markerMatched": true,
+    "artifactPath": "/tmp/patent-agent-v025-format-live/engine/outputs/result.json",
+    "runDir": "/tmp/patent-agent-v025-format-live"
+  },
+  "packagedMac": {
+    "version": "0.2.5",
+    "entry": "Contents/Resources/app.asar/dist/index.html",
+    "runtimeObserved": "Contents/Resources/agent-runtime/darwin-arm64/opencode serve",
+    "liveRunId": "34d6ccc6-081a-49b4-84c9-07cca9cbd515",
+    "liveRunState": "completed",
+    "liveReadToolCount": 2,
+    "marker": "QA-BETA-836",
+    "reopenedFinalAndStoppedJobs": true,
+    "finalArtifactSortAndOverviewLink": "verified in final rebuilt package",
+    "amendmentPreview": "matched selected current version, not body",
+    "assetsComparedToFinalBuild": 6,
+    "assetMismatches": [],
+    "nodeModulesEntries": 0,
+    "finalManifest": {
+      "version": "0.2.5",
+      "builtAt": "2026-09-12T08:13:52.977Z",
+      "appId": "com.patentworkbench.desktop",
+      "productName": "专利工作台",
+      "files": [
+        {
+          "file": "专利工作台-0.2.5-macOS-arm64.app",
+          "platform": "mac-arm64",
+          "version": "0.2.5",
+          "sha256": "e8258daf6bfd0f6c0610d5aeb4719914476771ea322f06bf9721db3d680b7570",
+          "hashAlgorithm": "sha256-tree"
+        },
+        {
+          "file": "PatentWorkbench-0.2.5-Windows-x64.exe",
+          "platform": "win-x64",
+          "version": "0.2.5",
+          "sha256": "3477c413f668b611acc1541c3957ed7e855795985bbd14e76999a4b28cdbe1e1",
+          "hashAlgorithm": "sha256"
+        }
+      ]
+    }
+  },
+  "realAccountFinalReadOnly": {
+    "date": "2026-09-12T08:18:58Z",
+    "accountLoginRetained": true,
+    "syncFlowCount": 50,
+    "syncCaseCount": 40,
+    "caseNumber": "202606291-0181",
+    "currentProcess": "请求复审",
+    "submission": "received",
+    "handling": "官方 / 等待官方处理结果",
+    "baselandDeadline": "2026-10-29",
+    "sourceOriginalRoot": "/Users/cyh/Documents/专利撰写目录/未完成",
+    "existingWorkRoot": "/Users/cyh/Documents/专利工作文件夹",
+    "directoriesAlteredByAcceptance": false,
+    "remoteBusinessWrites": false,
+    "modelConnectionConfiguredFromAuthorizedDshSource": true,
+    "modelTestResponse": "OK",
+    "realCaseMaterialsSentToModel": false
+  },
+  "limitations": [
+    "准确模板 Word 尚未提供和适配",
+    "扫描件 OCR、旧 DOC、附图公式完整阅读尚未验收",
+    "Windows 仅交叉构建，未实机运行",
+    "真实云盘跨机协作未验收",
+    "不是完整首版交付"
+  ]
+}

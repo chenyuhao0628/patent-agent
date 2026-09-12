@@ -1,0 +1,6 @@
+{
+  "files": ["申请文件.md"],
+  "forbidden_terms": ["已删除的旧范围"],
+  "required_terms": ["修改后的新范围"],
+  "notes": "文件路径相对于本清单所在目录"
+}

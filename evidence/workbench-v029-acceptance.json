@@ -1,0 +1,120 @@
+{
+  "version": "0.2.9",
+  "date": "2026-09-12",
+  "automated": {
+    "fullSuite": {
+      "passed": 298,
+      "failed": 0,
+      "log": "/tmp/patent-agent-v029/all-tests.txt"
+    },
+    "finalToolRegression": {
+      "passed": 5,
+      "failed": 0
+    },
+    "finalReaderRegression": {
+      "passed": 13,
+      "failed": 0
+    }
+  },
+  "realModel": {
+    "status": "completed",
+    "tools": [
+      {
+        "name": "discover_tools",
+        "status": "success"
+      },
+      {
+        "name": "prepare_material",
+        "status": "success"
+      },
+      {
+        "name": "download_file",
+        "status": "success"
+      },
+      {
+        "name": "execute_command",
+        "status": "success"
+      },
+      {
+        "name": "execute_command",
+        "status": "success"
+      },
+      {
+        "name": "read_work_file",
+        "status": "success"
+      },
+      {
+        "name": "write_artifact",
+        "status": "success"
+      }
+    ],
+    "sourceUnchanged": true,
+    "artifact": "result.json"
+  },
+  "lightweightDependency": {
+    "name": "olefile",
+    "version": "0.47",
+    "downloadBytesApprox": 114600,
+    "pythonEnvironmentMiBApprox": 14,
+    "oleStreamsRead": 6,
+    "exitCode": 0,
+    "source": "https://pypi.org/project/olefile/0.47/",
+    "scope": "isolated synthetic DOC, not a DOCX converter"
+  },
+  "nativeUI": {
+    "qaWindowWidth": 980,
+    "downloadsCheckboxSaved": true,
+    "commandsCheckboxSaved": true,
+    "bothPreservedAfterAppRestart": true,
+    "systemAppsDetected": [
+      "WPS Office",
+      "Microsoft Word"
+    ],
+    "realUserNewPermissions": "default false, unchanged",
+    "installedVersionScreenshot": "0.2.9, 1400px window, commands/downloads unchecked, web/preset install unchanged",
+    "realAccountRetained": true
+  },
+  "upgrade": {
+    "from": "0.2.8",
+    "to": "0.2.9",
+    "recordsChecked": 5,
+    "changedFiles": [],
+    "asarMatches": true
+  },
+  "release": {
+    "version": "0.2.9",
+    "builtAt": "2026-09-12T13:07:23.313Z",
+    "appId": "com.patentworkbench.desktop",
+    "productName": "专利工作台",
+    "files": [
+      {
+        "file": "专利工作台-0.2.9-macOS-arm64.app",
+        "platform": "mac-arm64",
+        "version": "0.2.9",
+        "sha256": "e58da8cef637b0805e902c398f7e0ecdec49a18243e473086bebaa834c962f52",
+        "hashAlgorithm": "sha256-tree"
+      },
+      {
+        "file": "PatentWorkbench-0.2.9-macOS-arm64.pkg",
+        "platform": "mac-arm64-installer",
+        "version": "0.2.9",
+        "sha256": "8f9dfd36768e7319f1d453dc4f3ab60be2a876c4ddbf27cee1abae8b726d0c03",
+        "hashAlgorithm": "sha256"
+      },
+      {
+        "file": "PatentWorkbench-0.2.9-Windows-x64-Setup.exe",
+        "platform": "win-x64",
+        "version": "0.2.9",
+        "sha256": "331e1772c79e296ddc665651335c696598f497093d82e0712f7d79c46808ef32",
+        "hashAlgorithm": "sha256"
+      }
+    ]
+  },
+  "limitations": [
+    "Windows package cross-built; no Windows device acceptance",
+    "WPS detected; unattended conversion API not validated",
+    "General commands are current-user full access, not filesystem or network sandbox",
+    "No real Baseland uploads, form saves, material deletions, handoff, or official submission",
+    "No git commit/push or external publishing"
+  ]
+}
