@@ -7,7 +7,7 @@
 - macOS Apple Silicon：`release/PatentWorkbench-0.9.3-macOS-arm64.pkg`；也保留同版本 `.app`。
 - Windows x64：`release/PatentWorkbench-0.9.3-Windows-x64-Setup.exe`。
 
-安装器沿用固定应用标识，覆盖程序并保留用户数据。Mac 使用所选安装域的“Applications”目录；用户已将系统目录版本更新为0.5.0，并移除了用户目录副本；本轮0.9.3安装包供升级，源码修复不等于已安装。Windows 使用 NSIS 安装器，保留安装路径与 AppData。旧便携版应退出后使用安装器，原便携 EXE 不属于安装器管理的文件。
+安装器沿用固定应用标识，覆盖程序并保留用户数据。Mac 安装到所选安装域的“Applications”目录；安装前的系统目录旧版本不在此断言，以 `release/release-manifest.json` 与实际 Info.plist 为准。Windows 使用 NSIS 安装器，保留安装路径与 AppData。旧便携版应退出后使用安装器，原便携 EXE 不属于安装器管理的文件。
 
 账号、加密凭证和本机设置放在应用数据目录，原始申请库与工作目录独立选择。Mac 安装与重复覆盖已经实测；Windows 已交叉构建和检查安装器内容，尚未实机验收。当前包未做发行签名 / macOS 公证，也没有在线自动更新服务。版本与 SHA-256 以 `release/release-manifest.json` 为准。
 
