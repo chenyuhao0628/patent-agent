@@ -5,7 +5,7 @@ import {CorrectionContentsEditor} from './CorrectionContentsEditor.tsx';
 import { ApplicationPartsEditor } from './ApplicationPartsEditor.tsx';
 import { PriorArtPanel } from './PriorArt.tsx';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { FolderOpen, PanelRight, Square } from 'lucide-react';
+import { FileText, FolderOpen, PanelRight, Square } from 'lucide-react';
 import type { Case } from '../domain/workflow.ts';
 import type { AgentJob, AgentMessage, Discussion, MaterialEntry, ToolEvent } from '../domain/agent.ts';
 import { activeJob, currentDraft, currentReview, selectedMaterials, selectedStrategy, unhandledIssues } from '../domain/agent.ts';
@@ -103,6 +103,7 @@ export function AgentWorkbench({
   const [previewId, setPreviewId] = useState<string>();
   const [stageOpen, setStageOpen] = useState(false);
   const [selectedStage, setSelectedStage] = useState<number>();
+  const [originals, setOriginals] = useState<{ id: string; name: string }[] | null>(null);
   const [commandError, setCommandError] = useState<{ text: string; discussionId?: string } | null>(null);
   const api = desktop?.agent;
   const expected = { profileKey, caseId, processKey };
@@ -150,6 +151,7 @@ export function AgentWorkbench({
     setPicked({});
     setStageOpen(false);
     setSelectedStage(undefined);
+    setOriginals(null);
     setCommandError(null);
     if (!api) return;
     void api.getCase(profileKey, caseId).then(next => apply(next, token)).catch(err => {
@@ -394,6 +396,14 @@ export function AgentWorkbench({
           </div>)}
           <button type="button" disabled={!canEditMaterials} onClick={() => void run({ type: 'materials', selectedIds: Object.keys(picked).filter(id => picked[id]) })}>{formal ? '确认用于分析的材料' : '保存讨论用材料'}</button>
         </div>
+        <div className="agent-card">
+          <h4>原始申请文件</h4>
+          <p className="muted">按案号或准确名称从原始申请文件库匹配；复制到本案后出现在上方材料列表，由你勾选后进入分析，文件库原件保留。</p>
+          <button type="button" disabled={busy} onClick={() => void (async () => {
+            try { setOriginals(await desktop!.findOriginals(caseId)); }
+            catch (err) { setCommandError({ text: sanitizeAgentError((err as Error).message) }); }
+          })()}>匹配原始申请文件</button>
+        </div>
         </>}
         {showProgress && <>
           {shownStage === 0 && <>
@@ -484,6 +494,15 @@ export function AgentWorkbench({
         </>}
         {(!formal || shownStage === 4) && <AgentArtifacts view={view} caseId={caseId}/>}
       </div></Modal>}
+      {originals && <Modal title="原始申请文件匹配" onClose={() => setOriginals(null)}>
+        {originals.length ? <div className="artifact-catalog">{originals.map(candidate => <button key={candidate.id} onClick={() => void (async () => {
+          try {
+            await desktop!.copyOriginal(caseId, candidate.id);
+            setOriginals(null);
+            apply(await api!.getCase(profileKey, caseId), gen.current);
+          } catch (err) { setCommandError({ text: sanitizeAgentError((err as Error).message) }); }
+        })()}><FileText/><span><b>{candidate.name}</b><small>复制到本案，保留文件库原件</small></span></button>)}</div> : <Note>未找到唯一案号或准确名称匹配。请检查设置中的原始申请文件库与文件命名。</Note>}
+      </Modal>}
     </div>
   </div>;
 }
