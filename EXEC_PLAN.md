@@ -526,3 +526,13 @@ GUI 使用 `.lab/desktop-qa` 及 `.lab/gui-*` 独立测试数据，不包含真�
 - 自动化399项通过（/tmp/patent-092-tests.log），涵盖已有表单、首次创建空表单、ExistsForm回读失败拦截、正文空行、并发单案读取、中文路径迁移与目录导航隔离。
 - 隔离Electron GUI通过：只读案件仍显示五个可点击进度节点，分类/修改动作禁用；表单第一项显示选中；复核跳过、报告滚动、稿件确认回归通过。截图 /tmp/patent-092-readonly-progress.png、/tmp/patent-092-notice-form.png。
 - 最终双平台安装包构建完成（/tmp/patent-092-package-final.log），包内主程序及renderer与当前构建一致，两安装器SHA-256与release清单一致，diff检查通过。没有执行真实贝思兰德保存、内部转交、Windows实机、覆盖安装或Git提交推送。
+
+## 0.9.3 材料核对匹配入口修复（当前）
+
+用户反馈：「材料核对」阶段弹窗没有匹配原始申请文件入口，只在「材料」大栏有；材料核对环节反而要切栏才能匹配，流程断层。
+
+- 修改 `src/components/AgentWorkbench.tsx`：在材料核对阶段 0（`!showProgress || shownStage===0`，含非正式选用讨论材料模式）新增「原始申请文件」卡片与「匹配原始申请文件」按钮。行为对齐 `CurrentCase` 材料 tab：`findOriginals` 列出候选 → 弹窗选择 → `copyOriginal` 复制到本案 `00_原始申请` → `api.getCase` 刷新 `view.process.materials`，新材料出现在上方勾选列表。
+- 边界：复制后新材料默认未勾选，由用户勾选后进入分析，文件库原件保留；任务运行中（`busy`）禁用匹配；切换案件时清空候选状态（与其它表单状态一同 reset）。
+- 验证：tsc 通过；399/399 自动化通过。隔离 Electron 两路径实测——空原始库点击匹配弹出「未找到唯一案号或准确名称匹配」提示；配置 `originalLibrary` + 按申请号匹配的合成 PDF 后，匹配→选中复制→材料列表由 0 增至 1 并显示该文件，1400 宽度无渲染错误。截图 `/tmp/patent-093-stage0.png`、`/tmp/patent-093-match-empty.png`、`/tmp/patent-093-match-candidates.png`、`/tmp/patent-093-after-copy.png`；GUI 脚本 `/tmp/patent-093-gui.cjs`、`/tmp/patent-093-happy.cjs`。合成种子 `/tmp/patent-agent-v052/profiles`，未执行真实文件操作或业务写入。
+- 环境：WorkBuddy shell 带 `ELECTRON_RUN_AS_NODE=1`，Electron GUI 验收脚本须删除该变量并加 `--no-sandbox --disable-gpu`，否则 Electron 以纯 Node 运行、`app` 为 undefined 或渲染进程崩溃。
+- 版本 0.9.3：package.json、package-lock.json、README、本计划同步；双平台安装包构建及 release-manifest.json 校验见交付记录。Windows 真机、真实案件质量、真实贝思兰德写入、签名公证与自动更新仍待验收。
