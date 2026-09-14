@@ -75,6 +75,12 @@ export async function executeLocalCommand(input: { command: string; workRoot: st
   if (!Number.isInteger(timeout) || timeout < 1 || timeout > 300) throw new Error('命令超时应为 1–300 秒。');
   input.signal?.throwIfAborted();
   const env = await commandEnvironment(input.workRoot, input.toolsRoot);
+  // 模型可能用 execute_command 手动跑 soffice；默认 profile 若上次被强杀会残留
+  // OfficeRestartInProgress，导致配置层 ReadWriteAccess::create 失败而 abort。
+  // 检测到 LibreOffice 调用时清理其默认 profile，让 soffice 用全新干净 profile 启动。
+  if (/\b(soffice|libreoffice)\b/i.test(input.command) && env.XDG_CONFIG_HOME) {
+    await fs.rm(path.join(env.XDG_CONFIG_HOME, 'libreoffice'), { recursive: true, force: true }).catch(() => {});
+  }
   await input.onStart?.(); input.signal?.throwIfAborted();
   const start = Date.now();
   return new Promise((resolve, reject) => {

@@ -1,6 +1,6 @@
 # 专利工作台实施计划
 
-更新日期：2026-09-14，当前源码版本 0.9.3。登录恢复、对话布局、逐轮执行卡、策略入口、消息队列与版本恢复、分项保存与完成检查闭环、可选独立复核、提交稿件自动获取、意见陈述书表单核验与材料核对匹配入口已实现；完整自动化 399 项通过、双平台 0.9.3 安装包已构建。Windows 实机、真实案件质量及外部写入仍需独立验收。
+更新日期：2026-09-14，当前源码版本 0.9.4。登录恢复、对话布局、逐轮执行卡、策略入口、消息队列与版本恢复、分项保存与完成检查闭环、可选独立复核、提交稿件自动获取、意见陈述书表单核验、材料核对匹配入口与 LibreOffice 启动崩溃修复已实现；完整自动化 400 项通过、双平台 0.9.4 安装包已构建、任务运行时限 60 分钟。Windows 实机、真实案件质量及外部写入仍需独立验收。
 
 ## 0.4.0 Agent 对话体验（2026-09-14，已实现并打包）
 
@@ -536,3 +536,15 @@ GUI 使用 `.lab/desktop-qa` 及 `.lab/gui-*` 独立测试数据，不包含真�
 - 验证：tsc 通过；399/399 自动化通过。隔离 Electron 两路径实测——空原始库点击匹配弹出「未找到唯一案号或准确名称匹配」提示；配置 `originalLibrary` + 按申请号匹配的合成 PDF 后，匹配→选中复制→材料列表由 0 增至 1 并显示该文件，1400 宽度无渲染错误。截图 `/tmp/patent-093-stage0.png`、`/tmp/patent-093-match-empty.png`、`/tmp/patent-093-match-candidates.png`、`/tmp/patent-093-after-copy.png`；GUI 脚本 `/tmp/patent-093-gui.cjs`、`/tmp/patent-093-happy.cjs`。合成种子 `/tmp/patent-agent-v052/profiles`，未执行真实文件操作或业务写入。
 - 环境：WorkBuddy shell 带 `ELECTRON_RUN_AS_NODE=1`，Electron GUI 验收脚本须删除该变量并加 `--no-sandbox --disable-gpu`，否则 Electron 以纯 Node 运行、`app` 为 undefined 或渲染进程崩溃。
 - 版本 0.9.3：package.json、package-lock.json、README、本计划同步；双平台安装包构建及 release-manifest.json 校验见交付记录。Windows 真机、真实案件质量、真实贝思兰德写入、签名公证与自动更新仍待验收。
+
+## 0.9.4 LibreOffice 启动崩溃修复与任务时限放宽（当前）
+
+用户报告：Agent 任务中 soffice 意外退出（crash 报告 SIGABRT），并提示"后台任务达到运行时限，可导出最近 10 分钟日志后继续任务"。
+
+- 根因诊断（crash 栈）：soffice_main → ImplSVMain → InitVCL → `desktop::Desktop::Init()` → `ConfigurationProperty<OfficeRestartInProgress>::get` → `ConfigurationWrapper` → `ReadWriteAccess::create` 抛 C++ 异常 → `__cxa_rethrow` → `std::__terminate` → abort。即 soffice 启动读 `OfficeRestartInProgress` 配置项时配置层初始化失败。
+- 父进程证据：crash 报告 `Parent Process: bash`，说明 soffice 由 execute_command 在 shell 手动启动，非 convertOldDoc 直接 spawn（document-converter.ts:32 直接 spawn 父进程应是 Electron）。execute_command 把 HOME/XDG_CONFIG_HOME 设为案件工作根下的 `.home`（agent-local-tools.ts:62），soffice 不传 UserInstallation 用默认 profile；profile 因上次被 SIGKILL 强杀损坏、`OfficeRestartInProgress` 残留 → 配置层初始化失败 → abort。
+- 修复 A（agent-local-tools.ts executeLocalCommand）：检测命令含 `soffice`/`libreoffice` 时，执行前清理 `$XDG_CONFIG_HOME/libreoffice` 默认 profile 目录，让 soffice 用全新干净 profile 启动，绕开损坏拖留。应用内置 read_material 转换路径用独立 UserInstallation，不受影响。
+- 修复 B（agent-runner.ts buildSystemPrompt:409）：系统提示明确——旧 DOC 转换优先 read_material；不要用 execute_command 直接跑 soffice/libreoffice（会因 profile 损坏崩溃），改用 WPS/pandoc/antiword 等非 LibreOffice 工具。
+- 修复 C（agent-runner.ts:68）：`DEFAULT_RUN_DEADLINE_MS` 由 `600_000`（10 分钟）改为 `3_600_000`（60 分钟），减少长任务撞时限。`:372` 的 `timeout: 600_000` 是 MCP 连接超时，语义不同，保留。
+- 验证：tsc 通过；400/400 自动化通过（新增 LibreOffice profile 清理回归测试，desktop/agent-local-tools.test.ts）。手动复现：白名单 env + 独立 UserInstallation、临时 HOME + XDG 不传 UserInstallation 两种方式均转换成功，印证干净 profile 不崩。0.2.8 历史段"任务上限 10 分钟"保留为历史事实。
+- 版本 0.9.4：package.json、package-lock.json、README、本计划同步；双平台安装包构建及 release-manifest.json 校验见交付记录。Windows 真机、真实案件质量、真实贝思兰德写入、签名公证与自动更新仍待验收。
