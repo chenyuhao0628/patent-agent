@@ -28,6 +28,7 @@ export class DesktopService {
   storageState:StorageState={running:false,message:'选择总工作文件夹后读取本工作台的案件索引、材料和稿件。'};
   generation=0; controller:AbortController|null=null; changed:()=>void=()=>{}; loginBusy=false; syncPreparing=false;
   submissionCache=new Map<string,{at:number;submission:Submission;handId?:string;currentFlow?:CurrentFlowInfo;needSendOfficial?:boolean;canEdit?:boolean}>();
+  caseClosureCache=new Map<string,{closure:Case['remoteClosure'];at:number}>();
   migrationLock=false; migrationQueued=false; migrationAbort:AbortController|null=null; migrationTask:Promise<void>|null=null;
   preparedPreview:PreparedMigration|null=null;
   migrationState:MigrationState={running:false,phase:'idle',canCancel:false,message:''};
@@ -107,7 +108,7 @@ export class DesktopService {
       await this.persist();
       if(account.remembered)await atomicJSON(path.join(this.root,'session.json'),{key:nextKey,account,encrypted});
       else await fs.rm(path.join(this.root,'session.json'),{force:true});
-      this.controller?.abort();this.generation++;this.verification=undefined;this.submissionCache.clear();
+      this.controller?.abort();this.generation++;this.verification=undefined;this.submissionCache.clear();this.caseClosureCache.clear();
       this.key=nextKey;this.client=client;this.account=account;this.workspace=nextWorkspace;this.auth={phase:'authenticated',message:'登录已验证',attempts:0,lastCheckedAt:new Date().toISOString()};
       this.syncState={running:false,message:'已登录，准备读取工作目录。'};
       this.storageState={running:false,message:'请选择当前账号的总工作文件夹。'};
@@ -124,7 +125,7 @@ export class DesktopService {
   private filesystemBusy(){return this.storageState.running||this.syncPreparing||this.syncState.running||this.flowFileWrites>0;}
   async logout(){
     this.assertNotMigrating();
-    this.generation++;this.verification=undefined;this.controller?.abort();this.submissionCache.clear();await this.persist();await fs.rm(path.join(this.root,'session.json'),{force:true});
+    this.generation++;this.verification=undefined;this.controller?.abort();this.submissionCache.clear();this.caseClosureCache.clear();await this.persist();await fs.rm(path.join(this.root,'session.json'),{force:true});
     this.client=null;this.account=null;this.auth={phase:'signed-out',message:'已退出登录',attempts:0};this.key='local';this.workspace=await readJSON(this.profileFile(),empty());
     this.syncState={running:false,message:'已退出账号。'};this.storageState={running:false,message:'请选择总工作文件夹。'};if(this.workspace.settings.workRoot)await this.refreshShared(this.key);
     this.syncState={running:false,message:'已退出账号；原账号的本机记录已保留。'};this.changed();return this.state();
@@ -205,7 +206,13 @@ export class DesktopService {
       for(const c of cases){
         if(controller.signal.aborted||generation!==this.generation)return this.state();
         let closure:Case['remoteClosure'];
-        if(c.remote){try{closure=await client.caseClosure(c,controller.signal);}catch(e){if(controller.signal.aborted)return this.state();failures.push(c.number+' / 结案核验：'+(e as Error).message);}}
+        if(c.remote){
+          // 已结案件（finished=true）5 分钟内复用上次 caseClosure 结果，避免每轮 sync 都对每案调 GetUpdateCaseInfo；
+          // 未结案件每轮查（及时检测结案）。结案后不会撤销，缓存安全。
+          const cacheKey=c.remote.caseId,cached=this.caseClosureCache.get(cacheKey);
+          if(cached&&cached.closure?.finished&&Date.now()-cached.at<5*60*1000){closure=cached.closure;}
+          else{try{closure=await client.caseClosure(c,controller.signal);if(closure?.finished)this.caseClosureCache.set(cacheKey,{closure,at:Date.now()});}catch(e){if(controller.signal.aborted)return this.state();failures.push(c.number+' / 结案核验：'+(e as Error).message);}}
+        }
         const currentProc=c.remote?.processes.find(p=>p.id===c.current?.processId);
         if(currentProc&&shouldQueryOfficial(currentProc,rowByProc.get(currentProc.id)))await this.refreshProcessOfficial(c,currentProc,client,controller.signal,generation,false);
         if(generation!==this.generation)return this.state();
