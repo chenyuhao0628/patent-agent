@@ -204,11 +204,13 @@ export class ProfessionalHost {
     return source?.files[0]?structuredClone(source.files[0]):undefined;
   });}
   async fileAllowed(key:string,id:string,relative:string){this.guard(key,id);const generation=this.service.generation;const store=await this.store(key);this.guard(key,id);if(generation!==this.service.generation)throw new Error('账号已变化，请重新打开成果。');return materialList(this.service.findCase(id)).some(m=>m.relativePath===relative&&m.ready)||store.records.filter(r=>r.caseId===id).some(r=>r.jobs.some(j=>j.artifactPath===relative)||r.sources.some(s=>s.files.some(f=>f.relativePath===relative)));}
+  beforeWriting?:(key:string,id:string)=>Promise<void>;
   private async start(key:string,c:Case,record:ProfessionalRecord,kind:'writing'|'review',message:string,files:WorkFile[],source?:ReviewSource){
     const generation=this.service.generation,root=this.service.workspace.settings.workRoot;
     if(!root)throw new Error('请先设置工作目录。');
     const runId=randomUUID(),controller=new AbortController(),skill=await loadStandardSkill(path.join(this.resources,'standard-skills'),kind==='writing'?'draft':'review');
     const runtime=await this.models.resolveRuntimeConfig(key,runId);this.guard(key,c.id,record.processKey);
+    if(kind==='writing'&&this.beforeWriting){await this.beforeWriting(key,c.id);this.guard(key,c.id,record.processKey);}
     if(runtime.profileKey!==key||generation!==this.service.generation||root!==this.service.workspace.settings.workRoot)throw new Error('账号或目录已变化。');
     const runRoot=path.join(this.service.root,'profiles',key,'professional-runs',runId),snapshotDir=path.join(runRoot,'snapshot'),outputDir=path.join(runRoot,'output');await fs.mkdir(snapshotDir,{recursive:true,mode:0o700});
     const materials:AgentHostMaterialSnapshot[]=[];

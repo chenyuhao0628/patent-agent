@@ -71,9 +71,9 @@ export function AgentTasks({
 
   if (!api) return <div className="page-pad"><h1>工作任务</h1><p>当前程序尚未连接任务列表。请使用桌面程序查看进行中的任务。</p></div>;
   if (error && !tasks) return <div className="page-pad"><h1>工作任务</h1><p className="inline-warning" role="alert">{error}</p></div>;
-  const shown = tasks ?? [];
+  const shown = [...(tasks ?? [])].sort((a,b)=>b.startedAt.localeCompare(a.startedAt)||b.runId.localeCompare(a.runId));
   return <div className="page-pad">
-    <div className="page-heading"><div><h1>工作任务</h1><p>显示进行中、已完成、已停止和失败的任务，可打开所属案件或讨论。</p></div></div>
+    <div className="page-heading"><div><h1>工作任务</h1><p>按任务开始时间从新到旧排列，可打开所属案件或讨论。</p></div></div>
     {error && <p className="inline-warning" role="alert">{error}</p>}
     {shown.length ? <div className="agent-task-list">{shown.map(task => <div className="agent-task" key={task.runId}>
       <div>

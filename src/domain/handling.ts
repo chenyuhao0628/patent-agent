@@ -1,6 +1,6 @@
 import type { Case, RemoteProcess, Submission } from './workflow.ts';
 import {
-  caseStatus, currentWork, INTERNAL_ENDED_WAIT_LABEL, isConfirmedOfficialSubmission, processSubmission, UNVERIFIED_INTERNAL_LABEL, UNVERIFIED_OFFICIAL_LABEL,
+  caseStatus, currentWork, effectiveSubmission, INTERNAL_ENDED_WAIT_LABEL, isConfirmedOfficialSubmission, processSubmission, UNVERIFIED_INTERNAL_LABEL, UNVERIFIED_OFFICIAL_LABEL,
   WAITING_OFFICIAL_LABEL, workNames,
 } from './lifecycle.ts';
 import type { WorkKind } from './lifecycle.ts';
@@ -62,7 +62,7 @@ function liveInternalNode(hint?: HandlingFlowHint) {
 }
 
 function pendingWithoutInstance(process: RemoteProcess, hint?: HandlingFlowHint): boolean {
-  if (process.status !== 0) return false;
+  if (process.status !== 0 || process.handId) return false;
   if (process.currentFlow?.name) return false;
   if (hint?.currentFlow?.name) return false;
   if (hint?.nodes?.some(n => n.isCurrent && !n.finished && n.type !== 'official')) return false;
@@ -73,7 +73,7 @@ export function currentHandling(c: Case, hint?: HandlingFlowHint): CurrentHandli
   const work = currentWork(c);
   const processId = hint?.currentProcessId ?? work.processId;
   const process = processId ? (c.remote?.processes ?? []).find(p => p.id === processId) : undefined;
-  const sub = process?.submission ?? processSubmission(c);
+  const sub = process ? effectiveSubmission(process) : processSubmission(c);
   const name = processNameOf(c, process);
   const status = caseStatus(c);
   const currentFlow = hint?.currentFlow ?? process?.currentFlow;

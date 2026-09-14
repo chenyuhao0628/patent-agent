@@ -35,13 +35,19 @@ export type AgentTaskView = {
 };
 
 export type AgentCommand =
+  | { type:'queue'; discussionId:string; operation:'add'|'edit'|'remove'|'send'; id?:string; text?:string; purpose?:'workflow'|'discuss'; expectedRunId?:string }
+  | { type: 'conversation'; queueId?:string; discussionId: string; operation: 'continue' | 'retry' | 'edit' | 'regenerate'; runId?: string; messageId?: string; text?: string }
+  | { type: 'opened' }
+  | { type: 'clearConversation'; discussionId: string }
+  | { type: 'branch'; discussionId: string; branchId: string }
   | { type: 'classify'; classification: ClassificationInput }
   | { type: 'materials'; selectedIds: string[] }
   | { type: 'discussion'; title?: string }
   | { type: 'manageDiscussion'; discussionId:string; operation:'delete'|'archive'|'restore' }
-  | { type: 'run'; action: AgentAction; discussionId?: string; userMessage?: string; resumeFromRunId?: string }
+  | { type: 'run'; queueId?:string; action: AgentAction; discussionId?: string; userMessage?: string; resumeFromRunId?: string }
   | { type: 'stop'; runId?: string }
-  | { type: 'strategy'; strategyId: string }
+  | { type: 'strategy'; queueId?:string; strategyId: string; startDraft?:boolean; userMessage?:string }
+  | {type:'restoreDraft';versionId:string}
   | { type: 'adopt'; versionId: string }
   | { type: 'issues'; reviewId: string; issueIds: string[]; handled?: boolean }
   | { type: 'applicationParts'; parts:import('./domain/application-parts.ts').ApplicationParts }
@@ -49,6 +55,7 @@ export type AgentCommand =
   | { type: 'finalize' };
 
 export type AgentAPI = {
+  listProgress?: (profileKey: string) => Promise<import('./domain/local-progress.ts').LocalProgress[]>;
   getCase(profileKey: string, caseId: string): Promise<AgentCaseView>;
   command(profileKey: string, caseId: string, command: AgentCommand): Promise<AgentCaseView>;
   listTasks(profileKey: string): Promise<AgentTaskView[]>;

@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { FIVE_PARTS } from '../src/transfer-api.ts';
 import type { TransferRoute, TransferReview, TransferForm } from '../src/transfer-api.ts';
 import type { BaselandClient } from './baseland.ts';
-import { flag } from './baseland.ts';
+import { flag, combineOfficialSubmission, boolTri, sendStatusState } from './baseland.ts';
+import { assertWriteResult, businessCode } from './baseland-results.ts';
 import { digest } from './files.ts';
 import { validateCorrectionContents } from '../src/domain/correction.ts';
 type Obj = Record<string, any>;
@@ -21,7 +22,12 @@ export async function readRemoteTransfer(client:BaselandClient,processId:string,
   const hand=await q('GetHandInfo',{caseProcId:processId});
   const handId=id(hand?.HandInfo?.CaseHandId);
   if(!handId)return null;
-  if(flag(hand.IsPackageSendSuccess)||[2,6].includes(Number(hand.HandInfo?.SendStatus)))throw new Error('当前流程已经提交官方，不能重新整理本次材料。');
+  const send=await q('GetCaseHandSendInfo',{caseHandId:handId});
+  if(send!=null&&sendStatusState(send)===undefined&&!flag(hand.IsPackageSendSuccess))throw new Error('官方递交状态值尚未识别，请核对后再整理材料。');
+  const submission=combineOfficialSubmission(boolTri(hand.IsPackageSendSuccess),send,new Date().toISOString());
+  if(submission.state==='unknown')throw new Error('无法确认官方递交状态，请刷新核对后再整理材料。');
+  if(['queued','sending'].includes(submission.state))throw new Error('当前流程正在递交官方，暂不能整理材料，请刷新核对。');
+  if(['sent','received'].includes(submission.state))throw new Error('当前流程已经提交官方，不能重新整理本次材料。');
   const params={caseHandId:handId};
   const [original,middle,replacement,form,notice,files,rawSteps]=await Promise.all([
     q('GetOfficialFormList',{...params,fileType:'0'},'list'),q('GetOfficialFormList',{...params,fileType:'2'},'list'),q('GetOfficialFormList',{...params,fileType:'4'},'list'),
@@ -54,7 +60,7 @@ export function existingTransferParts(r:RemoteTransfer|null){
 }
 export function defaultTransferForm(r:RemoteTransfer|null):TransferForm{
   const f=r?.form??{},notice=r?.notice??{},o=f.OpinionStatement??{},c=f.Correction??{};
-  return {noticeDate:String(o.NoticeDate||c.NoticeDate||notice.PostDate||'').slice(0,10),noticeName:String(o.NoticeName||c.NoticeName||notice.NoticeName||''),noticeNo:String(o.NoticeNo||c.NoticeNo||notice.FaWenXLH||''),correctionReason:Number(c.CorrectionReasonType)===1?1:2,addEntrust:flag(c.IsAddEntrust),corrections:list(f.CorrectionContentList).map(x=>({...x,ChangeId:x.ChangeId||randomUUID()})) as TransferForm['corrections'],otherProof:flag(o.IsUseOtherProveFileHand),experimentData:flag(o.HasAddExperimentData),abstractFigure:String(f.SpecificationInfo?.AbstractDrawNumber??''),declarations:Object.fromEntries(Object.keys(REQUEST_DECLARATIONS).map(k=>[k,flag(f.RequestInfo?.[k])]))};
+  return {noticeDate:String(o.NoticeDate||c.NoticeDate||notice.PostDate||'').slice(0,10),noticeName:String(o.NoticeName||c.NoticeName||notice.NoticeName||''),noticeNo:String(o.NoticeNo||c.NoticeNo||notice.FaWenXLH||''),correctionReason:Number(c.CorrectionReasonType)===1?1:2,addEntrust:flag(c.IsAddEntrust),corrections:list(f.CorrectionContentList).map(x=>({...x,ChangeId:x.ChangeId||randomUUID()})) as TransferForm['corrections'],otherProof:flag(o.IsUseOtherProveFileHand),experimentData:flag(o.HasAddExperimentData),abstractFigure:String(f.SpecificationInfo?.AbstractDrawNumber||r?.hand?.HandInfo?.AbstractDrawNumber||'1'),declarations:Object.fromEntries(Object.keys(REQUEST_DECLARATIONS).map(k=>[k,flag(f.RequestInfo?.[k])]))};
 }
 // The user edits only the four content fields. Ancillary form values belong to
 // the current Baseland instance and cannot be overridden by a renderer draft.
@@ -84,7 +90,7 @@ export function validateReview(route:TransferRoute,r:RemoteTransfer,review:Trans
 
 export function transferPayload(route:TransferRoute,r:RemoteTransfer,review:TransferReview,replyFile?:{FileNo:string;FileName:string}):Obj{
   const f=reviewedForm(route,r,review),old=r.form??{},base:Obj={...old,CaseHandId:r.handId,FormCode:r.formCode};
-  if(route==='reply')return {...base,File:{...old.File,...replyFile},OpinionStatement:{...old.OpinionStatement,OpinionStatementType:1,NoticeDate:f.noticeDate,NoticeName:f.noticeName,NoticeNo:f.noticeNo,OpinionStatementContentType:0,IsUseOtherProveFileHand:f.otherProof,HasAddExperimentData:f.experimentData}};
+  if(route==='reply'){const opinion={...old.OpinionStatement};for(const key of ['NoticeDate1','NoticeDate2','NoticeDate3','NoticeName1','NoticeNo1','NoticeNo2','NoticeNo3'])delete opinion[key];return {...base,File:{...old.File,...replyFile},OpinionStatement:{...opinion,OpinionStatementType:1,NoticeDate:f.noticeDate,NoticeName:f.noticeName,NoticeNo:f.noticeNo,OpinionStatementContentType:0,IsUseOtherProveFileHand:f.otherProof,HasAddExperimentData:f.experimentData}};}
   if(route==='correction'){
     const {File:unusedFile,...correctionBase}=base;
     const contents=validateCorrectionContents(f.corrections);
@@ -101,17 +107,29 @@ function includesValues(actual:any,expected:any,key=''):boolean{
   return actual!=null&&Object.entries(expected).every(([k,v])=>includesValues(actual[k],v,k));
 }
 export type TransferUpload={name:string;bytes:Buffer};
-export async function saveRemoteTransfer(input:{client:BaselandClient;processId:string;caseTitle:string;route:TransferRoute;remote:RemoteTransfer;review:TransferReview;application?:TransferUpload;reply?:TransferUpload;guard:()=>void;onWrite:()=>void;checkpoint:(message:string)=>Promise<void>}):Promise<RemoteTransfer>{
+export async function saveRemoteTransfer(input:{client:BaselandClient;processId:string;caseTitle:string;route:TransferRoute;remote:RemoteTransfer;review:TransferReview;application?:TransferUpload;reply?:TransferUpload;guard:()=>void;onWrite:()=>void;checkpoint:(message:string)=>Promise<void>;confirmName?:(details:{applicationName:string;caseName:string})=>Promise<boolean>}):Promise<RemoteTransfer>{
   const {client,route,review,remote:r,guard,checkpoint}=input;
   if(route!=='reply'&&input.reply)throw new Error('补正通过表单字段保存，不能上传补正说明文件。');
   validateReview(route,r,review,!!input.application,!!input.reply);
-  const q=async(ep:string,body?:Obj,params?:Record<string,string>,kind:'data'|'list'='data')=>{guard();if(body||/^(Add|Delete)/.test(ep))input.onWrite();const result=await client.request('/CaseInfo/'+ep,body,params,undefined,kind);guard();return result;};
+  const q=async(ep:string,body?:Obj,params?:Record<string,string>,kind:'data'|'list'='data')=>{guard();if(body||/^(Add|Delete)/.test(ep))input.onWrite();const result=await client.request('/CaseInfo/'+ep,body,params,undefined,kind);guard();if(body||/^(Add|Delete)/.test(ep))assertWriteResult(ep,result);return result;};
   const fresh=await readRemoteTransfer(client,input.processId,route);guard();
   if(!fresh||fresh.fingerprint!==r.fingerprint)throw new Error('服务端文件或流程已变化，请重新读取并核对。');
   const params={caseHandId:r.handId};
   const ensure=async(formCode:string)=>{
+    const selected=(remote:RemoteTransfer)=>flag(remote.cards.find(c=>code(c.Code)===code(formCode))?.IsSelect);
+    if(selected(fresh))return;
     const has=await q('IsHasCaseHandForm',undefined,{...params,formCode});
-    if(has!==true){if(has!==false)throw new Error('无法确认表单是否已选中。');await q('AddCaseHandForm',undefined,{...params,formCode});}
+    if(has===true)return;
+    if(has!==false)throw new Error('无法确认表单是否已选中，请刷新回读。');
+    guard();input.onWrite();
+    const added=await client.request('/CaseInfo/AddCaseHandForm',undefined,{...params,formCode});guard();
+    // ExistsForm is not write success. Accept only a fresh, selected card on the
+    // same hand and unchanged form; never repeat Add or bypass another business error.
+    if(businessCode(added)!=='ExistsForm')assertWriteResult('AddCaseHandForm',added);
+    const checked=await readRemoteTransfer(client,input.processId,route);guard();
+    const createdBlank=businessCode(added)?.toLowerCase()==='success'&&!fresh.form&&!!checked?.form&&!checked.form.File?.FileNo&&!checked.form.OpinionStatement?.OpinionStatementText;
+    if(!checked||checked.handId!==fresh.handId||JSON.stringify(checked.hand.CurrentFlowInfo)!==JSON.stringify(fresh.hand.CurrentFlowInfo)||flag(checked.hand.IsReviewing)!==flag(fresh.hand.IsReviewing)||(!createdBlank&&JSON.stringify(checked.form)!==JSON.stringify(fresh.form))||!selected(checked))throw new Error('表单选中状态或内容发生变化，请刷新回读后核对，已停止后续保存。');
+    if(createdBlank&&code(formCode)===code(r.formCode))r.form=checked.form;
   };
   if(input.application){
     if(!r.instructionsCode)throw new Error('未找到申请原文卡片，不能上传拆分。');
@@ -119,7 +137,8 @@ export async function saveRemoteTransfer(input:{client:BaselandClient;processId:
     guard();input.onWrite();const fileNo=await client.uploadDocument(input.application.name,input.application.bytes);guard();
     await checkpoint('申请文件已上传，等待本次材料解析。');
     const parsed=await q('UploadExistFileFormInstructionsAndImage',{FileNo:fileNo,CaseHandId:r.handId});
-    const parsedFiles=list(parsed?.FileList);
+    const figure=review.form.abstractFigure?.trim()||'1';
+    const parsedFiles=list(parsed?.FileList).map(f=>code(f.FormCode)==='100003'||f.FormName==='说明书附图'?{...f,AbstractDrawNumber:figure}:f);
     const requiredParts=route==='application'?FIVE_PARTS:FIVE_PARTS.filter(p=>review.keepCodes.includes(p.code));
     const expectedFiles=new Map(requiredParts.map(p=>{const matches=parsedFiles.filter(f=>String(f.FormName||f.FileName)===p.name);const no=matches[0]?.FileNo??matches[0]?.File?.FileNo;if(matches.length!==1||!id(no))throw new Error('贝思兰德未明确解析出本次所选部分，已停止保存：'+p.name);return [p.code,id(no)];}));
     await q('ModifyFormInstructionsAndImage',{CaseHandId:r.handId,IsUseXmlHand:true,FileList:parsedFiles,MixFile:{fileNo,fileName:input.application.name}});
@@ -128,7 +147,31 @@ export async function saveRemoteTransfer(input:{client:BaselandClient;processId:
     for(const p of requiredParts){if(!initialGroup.some(g=>code(g.FormCode)===p.code&&id(g.File?.FileNo)===expectedFiles.get(p.code)))throw new Error('保存的五书不是本次解析文件，停止整理：'+p.name);}
     if(!initialGroup.some(g=>flag(g.IsMixFile)&&id(g.File?.FileNo)===fileNo))throw new Error('完整申请文件回读未匹配，停止整理。');
     const setting=card?.Setting??card?.InstructionsAndImageSetting??card??{};
-    await q(setting.CaseHandFormInstructionsAndImageSettingId?'UpdateFormInstructionsAndImageSetting':'InsertFormInstructionsAndImageSetting',{CaseHandFormInstructionsAndImageSettingId:setting.CaseHandFormInstructionsAndImageSettingId,CaseHandId:r.handId,IsUseXmlFormatHand:true,CaseName:setting.CaseName||input.caseTitle,HasConfirmCaseNameIsNotSame:setting.HasConfirmCaseNameIsNotSame===true});
+    const showName=boolTri(setting.IsShowCaseName);
+    if(showName===undefined)throw new Error('服务端未提供名称设置条件，停止设置，请刷新核对。');
+    const specification=parsedFiles.find(f=>code(f.FormCode)==='100002'||f.FormName==='说明书');
+    const caseName=showName?String(specification?.CaseName??'').trim():null;
+    if(showName&&!caseName)throw new Error('未能从本次说明书解析出案件名称，请核对说明书抬头；文件已上传，尚未转交。');
+    const endpoint=setting.CaseHandFormInstructionsAndImageSettingId?'UpdateFormInstructionsAndImageSetting':'InsertFormInstructionsAndImageSetting';
+    const body={CaseHandFormInstructionsAndImageSettingId:setting.CaseHandFormInstructionsAndImageSettingId,CaseHandId:r.handId,IsUseXmlFormatHand:true,CaseName:caseName,HasConfirmCaseNameIsNotSame:false};
+    guard();input.onWrite();
+    let result=await client.request('/CaseInfo/'+endpoint,body);guard();
+    if(businessCode(result)==='NeedConfirmCaseNameIsNotSame'){
+      const snapshot=await readRemoteTransfer(client,input.processId,route);guard();
+      if(!snapshot||digest(JSON.stringify(snapshot.instructions))!==digest(JSON.stringify(card)))throw new Error('设置请求后服务端材料或设置已变化，请重新核对。');
+      await checkpoint('文件已上传；设置需要确认名称差异，尚未完成保存或转交。');
+      if(!snapshot||!caseName||!input.confirmName||!await input.confirmName({applicationName:caseName,caseName:input.caseTitle}))throw new Error('未确认名称差异，设置未完成；此前文件可能已保存，尚未转交。');
+      guard();const current=await readRemoteTransfer(client,input.processId,route);guard();
+      if(!current||current.fingerprint!==snapshot.fingerprint)throw new Error('确认期间服务端材料或流程已变化，未重试设置，请重新核对。');
+      input.onWrite();result=await client.request('/CaseInfo/'+endpoint,{...body,HasConfirmCaseNameIsNotSame:true});guard();
+    }
+    assertWriteResult(endpoint,result);
+    const settingsCard=await q('GetFormInstructionsAndImage',undefined,{...params,formCode:r.instructionsCode});
+    const checked=settingsCard?.Setting??settingsCard?.InstructionsAndImageSetting??settingsCard??{};
+    if(!flag(checked.IsUseXmlFormatHand)||!id(checked.CaseHandFormInstructionsAndImageSettingId)||showName&&String(checked.CaseName??'').trim()!==caseName)throw new Error('五书设置回读未匹配，文件可能已保存，尚未转交。');
+    const drawing=list(settingsCard?.FormGroup).find(g=>code(g.FormCode)==='100003');
+    if(requiredParts.some(p=>p.code==='100003')&&String(drawing?.AbstractDrawNumber??'').trim()!==figure)throw new Error('指定摘要附图回读未匹配，文件已保存但尚未转交。');
+    await checkpoint('五书 XML 设置、说明书名称及指定摘要附图已回读核对。');
     if(route!=='application'){
       for(const p of FIVE_PARTS.filter(p=>!review.keepCodes.includes(p.code)&&initialGroup.some(g=>code(g.FormCode)===p.code&&g.File?.FileNo)))await q('DeleteFormFile',undefined,{...params,formCode:p.code});
       await q('DeleteFormInstructionsAndImageMixFile',undefined,params);
@@ -167,14 +210,16 @@ export async function saveRemoteTransfer(input:{client:BaselandClient;processId:
   const after=await readRemoteTransfer(client,input.processId,route);guard();if(!after||after.handId!==r.handId)throw new Error('保存后递交实例发生变化。');return after;
 }
 
-export async function submitRemoteTransfer(client:BaselandClient,processId:string,route:TransferRoute,r:RemoteTransfer,review:TransferReview,guard:()=>void){
+export async function submitRemoteTransfer(client:BaselandClient,processId:string,route:TransferRoute,r:RemoteTransfer,review:TransferReview,guard:()=>void,onSend?:()=>Promise<void>){
   const fresh=await readRemoteTransfer(client,processId,route);guard();
   if(!fresh||fresh.fingerprint!==r.fingerprint)throw new Error('保存后服务端流程或材料已变化，请重新核对。');
   if(!flag(fresh.hand.IsReviewing))throw new Error('当前账号已不能办理此节点，请刷新流程。');
   const step=fresh.steps.find(s=>s.id===review.stepId),user=step?.users.find(u=>u.id===review.userId);
   if(!step||!user)throw new Error('下一办理人已不在候选列表中。');
-  await client.request('/CaseInfo/SubmitHandFlow',{CaseHandId:r.handId,IsOutSideSend:false,CaseHandStepId:step.id,NextFlowUserid:user.id,CCUserIdList:[],Remark:review.remark});guard();
+  if(id(fresh.hand.CurrentFlowInfo?.CaseHandStepId)===step.id&&id(fresh.hand.CurrentFlowInfo?.FlowUserId)===user.id)throw new Error('当前已位于所选节点和办理人，请核对流程，不能重复转交。');
+  await onSend?.();guard();
+  const result=await client.request('/CaseInfo/SubmitHandFlow',{CaseHandId:r.handId,IsOutSideSend:false,CaseHandStepId:step.id,NextFlowUserid:user.id,CCUserIdList:[],Remark:review.remark});guard();assertWriteResult('SubmitHandFlow',result);
   const hand=await client.request('/CaseInfo/GetHandInfo',undefined,{caseProcId:processId});guard();
-  if(id(hand?.HandInfo?.CaseHandId)!==r.handId||hand?.CurrentFlowInfo?.FlowNodeName!==step.name||hand?.CurrentFlowInfo?.FlowUserName!==user.name)throw new Error('已发送内部转交请求，但下一节点回读未匹配；请刷新核对，不要重复转交。');
+  if(id(hand?.HandInfo?.CaseHandId)!==r.handId||id(hand?.CurrentFlowInfo?.CaseHandStepId)!==step.id||id(hand?.CurrentFlowInfo?.FlowUserId)!==user.id)throw new Error('已发送内部转交请求，但下一节点回读未匹配；请刷新核对，不要重复转交。');
   return {node:step.name,user:user.name};
 }

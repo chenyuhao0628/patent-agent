@@ -610,7 +610,7 @@ test('定稿写入版本目录，不覆盖用户已编辑成果，索引可查�
   assert.equal(await fs.readFile(userFinal, 'utf8'), '用户已编辑的定稿，不能覆盖');
   const generated=view.artifacts.find(item=>item.kind==='final-word'&&item.relativePath.endsWith('.docx'))!;
   assert.ok(generated);
-  assert.equal(generated.relativePath.includes(view.processKey),true);
+  assert.match(generated.relativePath,/03_定稿[/\\].*[/\\].*用户定稿/);
   assert.notEqual(path.resolve(caseRoot,generated.relativePath),path.resolve(userFinal));
   assert.match((await mammoth.extractRawText({buffer:await fs.readFile(path.join(caseRoot,generated.relativePath))})).value,/尊敬的审查员/);
 });
@@ -830,4 +830,184 @@ test('同流程普通手工稿保存不断；变 workRoot 或案件消失则 abo
   assert.ok(gone);
   assert.ok(gone.jobs.every(item => item.state !== 'running'));
   assert.match(gone.jobs.at(-1)?.error ?? gone.jobs.at(-1)?.state ?? '', /不存在|范围|failed|stopped/);
+});
+
+test('0.4: stopped partial and thoughts persist; continue excludes thoughts; editing forks without old replies', async t => {
+  const inputs: AgentHostRunInput[] = [];
+  const { service, host } = await setup(t, undefined, { run: input => {
+    inputs.push(input);
+    const wait = new Promise<void>(resolve => input.signal.addEventListener('abort', () => resolve(), { once: true }));
+    return { wait, abort() {} };
+  } });
+  const c = await prepareCase(service, 'V040');
+  const initial = await host.command('local', c.id, { type: 'run', action: 'discuss', userMessage: '原问题' });
+  const discussionId = initial.process.mainDiscussionId;
+  const first = inputs[0];
+  await first.onEvent({ type: 'partial', text: '未完成旧回复' });
+  await first.onEvent({ type: 'thinking', text: '供应商返回的分析摘要' });
+  await host.command('local', c.id, { type: 'stop', runId: first.runId });
+  await host.waitIdle();
+  let view = await host.getCase('local', c.id);
+  assert.equal(view.process.jobs[0].thinkingText, '供应商返回的分析摘要');
+  assert.ok(view.process.discussions[0].messages.some(m => m.incomplete && m.text === '未完成旧回复'));
+  const saved = JSON.parse(await fs.readFile(path.join(service.root, 'profiles/local/agent/state.json'), 'utf8'));
+  assert.ok(saved.processes[0].jobs[0].partialText);
+  await host.command('local', c.id, { type: 'conversation', discussionId, operation: 'continue', runId: first.runId });
+  assert.ok(inputs[1].messages.some(m => m.text.includes('未完成旧回复')));
+  assert.equal(JSON.stringify(inputs[1].messages).includes('供应商返回的分析摘要'), false);
+  await inputs[1].onEvent({ type: 'partial', text: '第二次尚未完成' });
+  const user = view.process.discussions[0].messages.find(m => m.role === 'user')!;
+  await host.command('local', c.id, { type: 'conversation', discussionId, operation: 'edit', messageId: user.id, text: '修改后的问题' });
+  assert.equal(inputs[1].signal.aborted, true);
+  assert.equal(inputs.length, 3);
+  assert.deepEqual(inputs[2].messages.map(m => m.text), ['修改后的问题']);
+  await inputs[1].onEvent({ type: 'partial', text: '迟到污染' });
+  await host.command('local', c.id, { type: 'stop', runId: inputs[2].runId });
+  await host.waitIdle();
+  view = await host.getCase('local', c.id);
+  assert.equal(view.process.discussions[0].messages.some(m => m.text === '迟到污染'), false);
+  const branches = view.process.discussions[0].branches!;
+  assert.equal(branches.length, 2);
+  view = await host.command('local', c.id, { type: 'branch', discussionId, branchId: 'original' });
+  assert.ok(view.process.discussions[0].messages.some(m => m.text === '原问题'));
+  assert.ok(view.process.discussions[0].messages.some(m => m.text === '第二次尚未完成'));
+  await host.shutdown();
+});
+
+test('0.4: formal failure followed by a user message completes analysis and unlocks explicit strategy selection', async t => {
+  const { workflowMessageCommand } = await import('../src/domain/conversation.ts');
+  const ctl: RunnerCtl = { starts: 0, gate: new Promise(() => {}) };
+  const { service, host } = await setup(t, ctl);
+  const c = await prepareCase(service, 'FLOW040');
+  await readyAnalysis(host, c.id, ['n-FLOW040', 'a-FLOW040']);
+  let view = await host.command('local', c.id, { type: 'run', action: 'analysis' });
+  await host.command('local', c.id, { type: 'stop', runId: view.process.activeRunId! });
+  await host.waitIdle();
+  ctl.gate = undefined;
+  // An intervening discussion must not hide the interrupted formal action.
+  await host.command('local', c.id, { type: 'run', action: 'discuss', userMessage: '分析失败后补充方向' });
+  await host.waitIdle();
+  view = await host.getCase('local', c.id);
+  const command = workflowMessageCommand(view.process, view.process.mainDiscussionId, '继续分析，给出可选方向');
+  assert.equal(command.type, 'conversation');
+  await host.command('local', c.id, command);
+  await host.waitIdle();
+  view = await host.getCase('local', c.id);
+  assert.equal(ctl.last?.action, 'analysis');
+  assert.ok(ctl.last?.prompt.combined.includes('至少两个'));
+  assert.equal(view.process.stage, 'strategy');
+  assert.equal(view.process.analysis?.strategies.length, 2);
+  assert.throws(() => workflowMessageCommand(view.process, view.process.mainDiscussionId, '直接开始'), /选定策略/);
+  view = await host.command('local', c.id, { type: 'strategy', strategyId: view.process.analysis!.strategies[0].id });
+  assert.equal(view.process.stage, 'draft');
+  assert.equal(workflowMessageCommand(view.process, view.process.mainDiscussionId, '按已选方向起草').type, 'run');
+  await host.shutdown();
+});
+
+test('0.4: progress listing is local and does not mark cases opened; explicit opening persists', async t => {
+  const { service, host } = await setup(t);
+  const c = await prepareCase(service, 'LOCAL040');
+  await host.getCase('local', c.id);
+  let rows = await host.listProgress('local');
+  assert.equal(rows[0].steps[0].done, false);
+  await host.command('local', c.id, { type: 'opened' });
+  await readyAnalysis(host, c.id, ['n-LOCAL040', 'a-LOCAL040']);
+  rows = await host.listProgress('local');
+  assert.equal(rows[0].steps[0].done, true);
+  assert.equal(rows[0].steps[1].done, true);
+  assert.equal(rows[0].steps[3].done, false);
+  await host.shutdown();
+  const reopened = new AgentHost({ desktopService: service, modelService: modelStub(), serialize: serial(), rulesRoot, run: mockRunner({ starts: 0 }) });
+  assert.equal((await reopened.listProgress('local'))[0].openedAt, rows[0].openedAt);
+  await reopened.shutdown();
+});
+
+
+test('0.5 queue: completed run delivers in order; stopped run preserves editable queue across reopen',async t=>{
+  let release!:()=>void;const ctl:RunnerCtl={starts:0,gate:new Promise(resolve=>{release=resolve;})};
+  const {service,host}=await setup(t,ctl);const c=await prepareCase(service,'QUEUE050');
+  let v=await host.command('local',c.id,{type:'run',action:'discuss',userMessage:'first'});const discussionId=v.process.mainDiscussionId;
+  v=await host.command('local',c.id,{type:'queue',operation:'add',discussionId,text:'second',purpose:'discuss',expectedRunId:v.process.activeRunId!});
+  assert.equal(ctl.starts,1);assert.equal(v.process.discussions[0].queuedMessages!.length,1);
+  ctl.gate=undefined;release();await host.waitIdle();v=await host.getCase('local',c.id);
+  assert.equal(ctl.starts,2);assert.equal(v.process.discussions[0].queuedMessages!.length,0);assert.equal(ctl.last?.messages.at(-1)?.text,'second');
+  ctl.gate=new Promise(()=>{});v=await host.command('local',c.id,{type:'run',action:'discuss',userMessage:'third'});
+  v=await host.command('local',c.id,{type:'queue',operation:'add',discussionId,text:'retained'});const id=v.process.discussions[0].queuedMessages![0].id;
+  await host.command('local',c.id,{type:'stop',runId:v.process.activeRunId!});await host.waitIdle();await host.shutdown();
+  const reopened=new AgentHost({desktopService:service,modelService:modelStub(),serialize:serial(),rulesRoot,run:mockRunner({starts:0})});
+  v=await reopened.getCase('local',c.id);assert.equal(v.process.discussions[0].queuedMessages![0].text,'retained');
+  v=await reopened.command('local',c.id,{type:'queue',operation:'edit',discussionId,id,text:'edited'});assert.equal(v.process.discussions[0].queuedMessages![0].text,'edited');
+  v=await reopened.command('local',c.id,{type:'queue',operation:'remove',discussionId,id});assert.equal(v.process.discussions[0].queuedMessages!.length,0);await reopened.shutdown();
+});
+
+test('0.5 queue: formal continuation waits for human strategy; selected strategy starts drafting in one action',async t=>{
+  let release!:()=>void;const ctl:RunnerCtl={starts:0,gate:new Promise(resolve=>{release=resolve;})};
+  const {service,host}=await setup(t,ctl);const c=await prepareCase(service,'STRATEGY050');await readyAnalysis(host,c.id,['n-STRATEGY050','a-STRATEGY050']);
+  let v=await host.command('local',c.id,{type:'run',action:'analysis'});const discussionId=v.process.mainDiscussionId;
+  await host.command('local',c.id,{type:'queue',operation:'add',discussionId,text:'start drafting',purpose:'workflow'});
+  ctl.gate=undefined;release();await host.waitIdle();v=await host.getCase('local',c.id);
+  assert.equal(ctl.starts,1);assert.match(v.process.discussions[0].queuedMessages![0].error!,/选定策略/);assert.equal(v.process.userSelectedStrategyId,null);
+  await host.command('local',c.id,{type:'strategy',strategyId:'s2',startDraft:true});await host.waitIdle();v=await host.getCase('local',c.id);
+  assert.equal(ctl.starts,2);assert.equal(v.process.drafts.length,1);assert.equal(v.process.currentDraftVersionId,null);await host.shutdown();
+});
+
+test('0.5 restore: explicit restoration creates a new version and preserves current manual text',async t=>{
+  const {service,host}=await setup(t);const c=await prepareCase(service,'RESTORE050');await readyAnalysis(host,c.id,['n-RESTORE050','a-RESTORE050']);
+  await host.command('local',c.id,{type:'run',action:'analysis'});await host.waitIdle();
+  await host.command('local',c.id,{type:'strategy',strategyId:'s2',startDraft:true});await host.waitIdle();
+  let v=await host.getCase('local',c.id);const old=v.process.drafts[0];await host.command('local',c.id,{type:'adopt',versionId:old.id});
+  const workspace=structuredClone(service.workspace);workspace.cases.find(x=>x.id===c.id)!.localDraft='用户最新手工修改，恢复前必须保留';await service.save('local',workspace);
+  v=await host.getCase('local',c.id);const previousId=v.process.currentDraftVersionId;
+  v=await host.command('local',c.id,{type:'restoreDraft',versionId:old.id});
+  assert.notEqual(v.process.currentDraftVersionId,old.id);assert.notEqual(v.process.currentDraftVersionId,previousId);
+  assert.equal(v.process.drafts.find(d=>d.id===v.process.currentDraftVersionId)!.basedOnVersionId,old.id);
+  assert.equal(service.findCase(c.id).localDraft,old.text);
+  assert(v.process.drafts.some(d=>d.text==='用户最新手工修改，恢复前必须保留'));
+  assert(service.findCase(c.id).localVersions!.some(d=>d.text==='用户最新手工修改，恢复前必须保留'));
+  await host.shutdown();
+});
+
+test('0.5 queue and natural strategy: branches isolate pending instructions; ambiguous choices never select a strategy',async t=>{
+  const ctl:RunnerCtl={starts:0};const {service,host}=await setup(t,ctl);const c=await prepareCase(service,'BRANCH050');
+  await host.command('local',c.id,{type:'run',action:'discuss',userMessage:'original'});await host.waitIdle();
+  let v=await host.getCase('local',c.id);const discussionId=v.process.mainDiscussionId;const message=v.process.discussions[0].messages.find(m=>m.role==='user')!;
+  v=await host.command('local',c.id,{type:'queue',operation:'add',discussionId,text:'original branch only'});const id=v.process.discussions[0].queuedMessages![0].id;
+  await host.command('local',c.id,{type:'conversation',operation:'edit',discussionId,messageId:message.id,text:'edited'});await host.waitIdle();assert.equal(ctl.starts,2);
+  await assert.rejects(host.command('local',c.id,{type:'queue',operation:'send',discussionId,id}),/当前分支/);
+  await host.command('local',c.id,{type:'branch',discussionId,branchId:'original'});await host.command('local',c.id,{type:'queue',operation:'send',discussionId,id});await host.waitIdle();assert.equal(ctl.starts,3);
+  await readyAnalysis(host,c.id,['n-BRANCH050','a-BRANCH050']);await host.command('local',c.id,{type:'run',action:'analysis'});await host.waitIdle();v=await host.getCase('local',c.id);
+  const {workflowMessageCommand}=await import('../src/domain/conversation.ts');
+  assert.deepEqual(workflowMessageCommand(v.process,discussionId,'按方案一开始'),{type:'strategy',strategyId:'s1',startDraft:true,userMessage:'按方案一开始'});
+  assert.deepEqual(workflowMessageCommand(v.process,discussionId,'选择策略二'),{type:'strategy',strategyId:'s2',startDraft:false,userMessage:'选择策略二'});
+  assert.throws(()=>workflowMessageCommand(v.process,discussionId,'不要按方案一开始'),/选定策略/);
+  assert.throws(()=>workflowMessageCommand(v.process,discussionId,'方案一是不是不好'),/选定策略/);
+  await host.shutdown();
+});
+
+
+test('formal analysis waits for business startup; failed startup never calls model; discussion bypasses startup',async t=>{
+ const {service,host,ctl}=await setup(t);const c=await prepareCase(service,'START');await readyAnalysis(host,c.id,['n-START','a-START']);let calls=0;
+ host.beforeFormalRun=async()=>{calls++;assert.equal(ctl.starts,0);throw Error('启动结果待核对');};
+ await assert.rejects(host.command('local',c.id,{type:'run',action:'analysis'}),/启动结果待核对/);assert.equal(ctl.starts,0);assert.equal(calls,1);
+ host.beforeFormalRun=async()=>{calls++;assert.equal(ctl.starts,0);};
+ await host.command('local',c.id,{type:'run',action:'analysis'});await host.waitIdle();assert.equal(ctl.starts,1);assert.equal(calls,2);
+ await host.command('local',c.id,{type:'run',action:'discuss',userMessage:'仅讨论'});await host.waitIdle();assert.equal(calls,2);await host.shutdown();
+});
+
+test('completion preflight returns missing reads and duplicate ids to agent without committing state', {timeout:8000},async t=>{
+ let captured: Parameters<AgentHostRun>[0]|undefined;
+ let finish!:()=>void;
+ const {service,host}=await setup(t,undefined,{run:input=>{captured=input;return {wait:new Promise<void>(resolve=>{finish=resolve;}),abort(){finish();}};}});
+ const c=await prepareCase(service,'PREFLIGHT');
+ await readyAnalysis(host,c.id,['n-PREFLIGHT','a-PREFLIGHT']);
+ await host.command('local',c.id,{type:'run',action:'analysis'});
+ const input=captured!;
+ assert.match(await input.validateArtifact!(analysisJson())??'',/读取/);
+ for(const m of input.materials) await input.onEvent({type:'tool',filename:m.name,readRange:'全文',status:'ok',materialId:m.id,toolKind:'read_material'});
+ const duplicate=JSON.parse(analysisJson());duplicate.strategies[1].id=duplicate.strategies[0].id;
+ assert.match(await input.validateArtifact!(JSON.stringify(duplicate))??'',/重复/);
+ assert.equal(await input.validateArtifact!(analysisJson()),undefined);
+ assert.equal((await host.getCase('local',c.id)).process.analysis,null);
+ await input.onEvent({type:'completed',outputText:analysisJson()});finish();await host.waitIdle();
+ assert.equal((await host.getCase('local',c.id)).process.stage,'strategy');
 });

@@ -1,0 +1,16 @@
+{
+  "deletion": {
+    "Data": true,
+    "IsSuccess": true,
+    "Code": 0,
+    "Message": null,
+    "Ext": null
+  },
+  "afterDelete": {
+    "Data": [],
+    "IsSuccess": true,
+    "Code": 0,
+    "Message": null,
+    "Ext": null
+  }
+}

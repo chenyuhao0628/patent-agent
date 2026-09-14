@@ -37,3 +37,15 @@ test('standalone claim and description keep selected headers, inherited page foo
  const source=await JSZip.loadAsync(await fs.readFile(path.join(root,'application.docx')));for(const name of Object.keys(source.files).filter(n=>n!=='word/document.xml'&&!source.files[n].dir))assert.deepEqual(await z.file(name)!.async('nodebuffer'),await source.file(name)!.async('nodebuffer'));
  const correction=await JSZip.loadAsync(await exportNoteDocx(root,'补正说明','针对通知补正如下。'));const cx=await correction.file('word/document.xml')!.async('string');assert.match(cx,/补正说明/);assert.doesNotMatch(cx,/第1次意见陈述书/);
 });
+
+test('application exports discard whitespace-only source lines while preserving content and section breaks',async()=>{
+ const {exportApplicationParts,exportApplicationText}=await import('./document-export.ts');
+ const parts={CLAIMS:'\n\n1. 装置。\n \n\t\n2. 根据权利要求1所述的装置。\n',DESCRIPTION:'\n一种装置\n\n技术领域\n\n涉及装置。\n'};
+ for(const bytes of [await exportApplicationParts(root,parts),await exportApplicationText(root,{...parts,ABSTRACT:'\n合成摘要。\n\n',ABSTRACT_IMAGE:'合成图1',DRAWINGS:'合成图1'})]){
+  const z=await JSZip.loadAsync(bytes),xml=await z.file('word/document.xml')!.async('string');
+  const d=new DOMParser().parseFromString(xml,'application/xml');
+  const paragraphs=Array.from(d.getElementsByTagNameNS(W,'p'));
+  assert(paragraphs.some(p=>p.textContent==='涉及装置。'));
+  assert(paragraphs.every(p=>p.textContent?.trim()||p.getElementsByTagNameNS(W,'sectPr').length));
+ }
+});

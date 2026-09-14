@@ -4,7 +4,7 @@ import * as fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { DesktopService } from './service.ts';
-import { CaseFiles, atomicJSON, digest } from './files.ts';
+import { CaseFiles, atomicJSON, datedFolder, digest, processFolder } from './files.ts';
 import { selectCurrentProcess } from './baseland.ts';
 import { WAITING_OFFICIAL_LABEL } from '../src/domain/lifecycle.ts';
 import type { Case, RemoteProcess, Submission } from '../src/domain/workflow.ts';
@@ -139,14 +139,14 @@ test('admitted stage-change flow finishes drafts while migration waits; re-previ
   assert.equal(manifest.current.processId,'p2');
   assert.equal(JSON.parse(await fs.readFile(path.join(caseDir,'02_工作稿',digest('p2').slice(0,10),'工作稿.json'),'utf8')).text,'');
   const oldVersion=live.localVersions!.find(v=>v.processId==='p1'&&v.text==='必须保留的旧阶段正文')!;
-  assert.equal(await fs.readFile(path.join(caseDir,'02_工作稿',digest('p1').slice(0,10),`版本_${oldVersion.id}.txt`),'utf8'),'必须保留的旧阶段正文');
+  assert.equal(await fs.readFile(path.join(caseDir,'02_工作稿',processFolder(live,'p1'),`${datedFolder('手工稿版本',oldVersion.id,oldVersion.at)}.txt`),'utf8'),'必须保留的旧阶段正文');
   const dest2=await emptyDir(root,'target-2');
   const preview2=await s.previewWorkMigration(s.key,dest2);
   const migrated=await s.startWorkMigration(s.key,preview2.id);
   const destCase=path.join(migrated.workspace.settings.workRoot!,c.directory!);
   assert.equal(JSON.parse(await fs.readFile(path.join(destCase,'案件信息.json'),'utf8')).current.processId,'p2');
   assert.equal(JSON.parse(await fs.readFile(path.join(destCase,'02_工作稿',digest('p2').slice(0,10),'工作稿.json'),'utf8')).text,'');
-  assert.equal(await fs.readFile(path.join(destCase,'02_工作稿',digest('p1').slice(0,10),`版本_${oldVersion.id}.txt`),'utf8'),'必须保留的旧阶段正文');
+  assert.equal(await fs.readFile(path.join(destCase,'02_工作稿',processFolder(live,'p1'),`${datedFolder('手工稿版本',oldVersion.id,oldVersion.at)}.txt`),'utf8'),'必须保留的旧阶段正文');
 });
 
 test('repeated flow query keeps personal process scope and does not adopt another-person active main',async t=>{
@@ -223,4 +223,22 @@ test('stale flow view is rejected after current stage or personal scope changed 
   const disk=JSON.parse(await fs.readFile(s.profileFile(),'utf8'));
   assert.equal(disk.cases[0].current.processId,'p2');
   assert.deepEqual(disk.cases[0].remote.processes.map((p:{id:string})=>p.id),['p1','p2']);
+});
+
+test('repeated case refresh shares one in-flight request and never refreshes another case',async t=>{
+ const {root,work,vault}=await tempService(t),s=new DesktopService(path.join(root,'data'),vault);s.key='synthetic';s.workspace.settings.workRoot=work;
+ await s.createCase({title:'当前案件',number:'CURRENT',kind:'write'});await s.createCase({title:'其他案件',number:'OTHER',kind:'write'});
+ const c=s.workspace.cases[0],other=structuredClone(s.workspace.cases[1]);c.source='baseland';c.current={kind:'write',processId:'p',remoteStatus:0};c.remote={caseId:'one',syncedAt:'',processes:[proc({id:'p',name:'提出申请',status:0})]};
+ s.account={username:'a',displayName:'A',organization:'T',origin,userId:'u',status:'authenticated',remembered:false};
+ let release!:()=>void;const held=new Promise<void>(r=>release=r);const queried:string[]=[];
+ s.client={flow:async(item:Case)=>{queried.push(item.id);await held;return {at:new Date().toISOString(),currentProcessId:'p',processes:structuredClone(c.remote),nodes:[],history:[]};}} as never;
+ const first=s.flow(c.id),second=s.flow(c.id);assert.equal(first,second);release();await Promise.all([first,second]);assert.deepEqual(queried,[c.id]);assert.deepEqual(s.workspace.cases[1],other);
+});
+
+test('human-readable work directory guide includes historical files and skips external symlinks',async t=>{
+ const {root,work,vault}=await tempService(t),s=new DesktopService(path.join(root,'data'),vault);s.workspace.settings.workRoot=work;
+ await s.createCase({title:'合成<案件>',number:'QA',kind:'write'});const c=s.workspace.cases[0],dir=await s.casePath(c.id);
+ const historic=path.join(dir,'02_工作稿','old-uuid');await fs.mkdir(historic);await fs.writeFile(path.join(historic,'历史正文.txt'),'正文');
+ const external=path.join(root,'outside');await fs.mkdir(external);await fs.writeFile(path.join(external,'不可列出.txt'),'隔离');await fs.symlink(external,path.join(dir,'02_工作稿','外部目录'));
+ await s.files().writeFileGuide(c);const guide=await fs.readFile(path.join(dir,'工作文件目录.html'),'utf8');assert.match(guide,/历史正文.txt/);assert.match(guide,/合成&lt;案件&gt;/);assert.doesNotMatch(guide,/不可列出/);assert.equal(await fs.readFile(path.join(historic,'历史正文.txt'),'utf8'),'正文');
 });

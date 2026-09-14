@@ -97,3 +97,48 @@ test('reply and correction accept only the selected parsed parts; missing select
  await assert.rejects(saveRemoteTransfer({client,remote,review,route:'correction',processId:'proc-1',caseTitle:'缺少选中部分',application:{name:'申请.docx',bytes:Buffer.from('x')},guard,onWrite:()=>{},checkpoint:async()=>{}}),/权利要求书/);
  assert.equal(client.form,null);assert(!client.calls.some(c=>c.endpoint.endsWith('ModifyFormInstructionsAndImage')));
 });
+
+test('already selected opinion form skips duplicate add and selects notice statement type 1',async()=>{
+ const client=new Server();client.form={OpinionStatement:{OpinionStatementType:2,NoticeDate1:'old',NoticeNo1:'old',NoticeName1:'old'}};
+ const remote=(await readRemoteTransfer(client,'proc-1','reply'))!;
+ const review:TransferReview={keepCodes:[],form:defaultTransferForm(remote),stepId:'step-1',userId:'user-1',remark:''};
+ await saveRemoteTransfer({client,remote,review,route:'reply',processId:'proc-1',caseTitle:'合成案件',reply:{name:'意见.docx',bytes:Buffer.from('synthetic')},guard,onWrite:()=>{},checkpoint:async()=>{}});
+ assert(!client.calls.some(c=>/\/(AddCaseHandForm|IsHasCaseHandForm)$/.test(c.endpoint)));
+ assert.equal(client.form.OpinionStatement.OpinionStatementType,1);
+ assert.equal(client.form.OpinionStatement.NoticeNo,'NOTICE-QA');
+ assert.equal(client.form.OpinionStatement.NoticeNo1,undefined);
+});
+
+test('ExistsForm requires selected card readback; unconfirmed duplicate never saves content',async()=>{
+ for(const confirm of [true,false]){
+  class DuplicateServer extends Server {
+   selected=false;
+   override async request(endpoint:string,body?:any,params?:Record<string,string>){
+    if(endpoint.endsWith('/IsHasCaseHandForm'))return false;
+    if(endpoint.endsWith('/AddCaseHandForm')){this.calls.push({endpoint,params});this.selected=confirm;return 'ExistsForm';}
+    const result=await super.request(endpoint,body,params);
+    if(endpoint.endsWith('/GetOfficialFormList')&&this.selected)for(const card of result)if(card.Code===100012)card.IsSelect=true;
+    return result;
+   }
+  }
+  const client=new DuplicateServer(),remote=(await readRemoteTransfer(client,'proc-1','reply'))!;
+  const review:TransferReview={keepCodes:[],form:defaultTransferForm(remote),stepId:'step-1',userId:'user-1',remark:''};
+  const run=saveRemoteTransfer({client,remote,review,route:'reply',processId:'proc-1',caseTitle:'合成案件',reply:{name:'意见.docx',bytes:Buffer.from('synthetic')},guard,onWrite:()=>{},checkpoint:async()=>{}});
+  if(confirm){await run;assert.equal(client.form.OpinionStatement.OpinionStatementType,1);}else{await assert.rejects(run,/表单选中状态/);assert.equal(client.form,null);}
+  assert.equal(client.calls.filter(c=>c.endpoint.endsWith('/AddCaseHandForm')).length,1);
+ }
+});
+
+test('successful first selection accepts server-created blank form and preserves its identity on update',async()=>{
+ class NewFormServer extends Server {
+  override async request(endpoint:string,body?:any,params?:Record<string,string>){
+   if(endpoint.endsWith('/IsHasCaseHandForm'))return false;
+   if(endpoint.endsWith('/AddCaseHandForm')){this.calls.push({endpoint,params});this.form={OpinionStatement:{CaseHandOpinionStatementId:'new-form',OpinionStatementType:0}};return 'Success';}
+   return super.request(endpoint,body,params);
+  }
+ }
+ const client=new NewFormServer(),remote=(await readRemoteTransfer(client,'proc-1','reply'))!;
+ const review:TransferReview={keepCodes:[],form:defaultTransferForm(remote),stepId:'step-1',userId:'user-1',remark:''};
+ await saveRemoteTransfer({client,remote,review,route:'reply',processId:'proc-1',caseTitle:'合成案件',reply:{name:'意见.docx',bytes:Buffer.from('synthetic')},guard,onWrite:()=>{},checkpoint:async()=>{}});
+ assert(client.calls.some(c=>c.endpoint.endsWith('/UpdateFormOpinionStatement')));assert.equal(client.form.OpinionStatement.CaseHandOpinionStatementId,'new-form');assert.equal(client.form.OpinionStatement.OpinionStatementType,1);
+});

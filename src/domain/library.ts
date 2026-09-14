@@ -145,6 +145,7 @@ export function progressStatusLabel(status: ProgressStatus, module?: Module): st
 export function libraryStatus(c: Case): { short: string; full: string } {
   const full = caseStatus(c);
   if (c.archived) return { short: '已归档', full };
+  if(c.source==='baseland'&&/^(待处理|递交中|已完成) · /.test(full))return {short:full,full};
   if(c.remoteClosure?.finished)return {short:'已结案',full:'贝思兰德确认案件已结案'};
   if (/当前流程已办结|已结束，等待|内部流程已结束/.test(full)) return { short: inOfficialWaiting(c)?'等待官方':'流程已结束', full };
   const waiting = waitingOfficialLabel(c);

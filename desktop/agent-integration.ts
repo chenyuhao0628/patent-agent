@@ -189,7 +189,12 @@ export function createHostRun(runner: Pick<AgentRunner, 'run'>, extensions?:Exte
     const wait = (async () => {
       const custom=await extensions?.runtime(input.runtime.profileKey);
       const result: AgentRunResult = await runner.run({
-        customMcp:custom?.mcp,
+        artifactExpect:input.artifactExpect,
+        validateArtifact:input.validateArtifact,
+        artifactScope:input.artifactScope,
+        recoveryArtifactRoot: input.resumeFromRunId ? path.join(path.dirname(path.dirname(input.snapshotDir)), input.resumeFromRunId, 'engine', 'outputs') : undefined,
+        customMcp: input.resumeFromRunId ? undefined : custom?.mcp,
+        recoveryJournalPath: input.resumeFromRunId ? path.join(path.dirname(path.dirname(input.snapshotDir)), input.resumeFromRunId, 'engine', 'operation-journal.json') : undefined,
         runtime: input.runtime,
         runId: input.runId,
         discussionId: input.discussionId,
@@ -203,7 +208,7 @@ export function createHostRun(runner: Pick<AgentRunner, 'run'>, extensions?:Exte
           hash: item.hash,
         })),
         draftText: draftTextForRunner(input.draft),
-        productPrompt: input.prompt.combined+(custom?.prompt||''),
+        productPrompt: input.prompt.combined+(custom?.prompt||'')+(input.resumeFromRunId ? '\n本次恢复不自动重放自定义 MCP 操作；需要此类操作时说明已完成与待核对项，请用户核对后发起新的明确请求。相同命令、下载及安装由持久执行记录防止重复；先检查已有结果。' : ''),
         publicMessages: input.action === 'review'
           ? []
           : input.messages.map(item => ({ role: item.role, content: item.text })),
@@ -215,6 +220,7 @@ export function createHostRun(runner: Pick<AgentRunner, 'run'>, extensions?:Exte
         signal,
         onEvent(event) {
           if (aborted()) return;
+          if (event.type === 'thinking' || event.type === 'activity') { void input.onEvent(event); return; }
           if (event.type === 'delta') {
             partial = accumulatePartial(partial, event.text);
             void input.onEvent({ type: 'partial', text: partial });

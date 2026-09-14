@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { BaselandAuthError } from './baseland.ts';
 import { readSharedCases } from './shared.ts';
 import * as fs from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
@@ -26,7 +27,7 @@ export class DesktopService {
   syncState:SyncState={running:false,message:'登录并选择工作文件夹后自动同步个人案件。'};
   storageState:StorageState={running:false,message:'选择总工作文件夹后读取本工作台的案件索引、材料和稿件。'};
   generation=0; controller:AbortController|null=null; changed:()=>void=()=>{}; loginBusy=false; syncPreparing=false;
-  submissionCache=new Map<string,{at:number;submission:Submission;handId?:string;currentFlow?:CurrentFlowInfo;needSendOfficial?:boolean}>();
+  submissionCache=new Map<string,{at:number;submission:Submission;handId?:string;currentFlow?:CurrentFlowInfo;needSendOfficial?:boolean;canEdit?:boolean}>();
   migrationLock=false; migrationQueued=false; migrationAbort:AbortController|null=null; migrationTask:Promise<void>|null=null;
   preparedPreview:PreparedMigration|null=null;
   migrationState:MigrationState={running:false,phase:'idle',canCancel:false,message:''};
@@ -35,18 +36,52 @@ export class DesktopService {
   private persistGate:Promise<unknown>=Promise.resolve();
   constructor(root:string,vault:Vault,clientFactory=(origin:string,token?:string)=>new BaselandClient(origin,token)) {this.root=root;this.vault=vault;this.clientFactory=clientFactory;}
   profileFile(){return path.join(this.root,'profiles',this.key,'workspace.json');}
-  async init(){
+  async init(verify=true){
     const saved=await readJSON<{key:string;account:Account;encrypted:string}|null>(path.join(this.root,'session.json'),null);
     if(saved){
       try{if(!this.vault.available())throw new Error();const token=this.vault.decrypt(Buffer.from(saved.encrypted,'base64'));this.key=saved.key;this.account={...saved.account,status:'offline'};this.client=this.clientFactory(saved.account.origin,token);}
-      catch{this.account=null;this.key='local';this.client=null;}
+      catch{this.account=null;this.key=saved.key;this.client=null;this.auth={phase:'unreadable',message:'本机登录凭证无法读取，请重新登录；原账号案件记录已保留。',attempts:0};}
     }
     this.workspace=normalizeWorkspace(pauseRunning(await readJSON(this.profileFile(),empty())));
     if(this.workspace.settings.workRoot)await this.refreshShared(this.key);
-    if(this.client&&this.account){try{this.account={...await this.client.identity(this.account.username),remembered:true};}catch{this.account.status='offline';this.syncState.message='暂未验证登录，请检查网络或重新登录。';}}
+    if(this.client&&this.account){this.auth={phase:'verifying',message:'正在验证登录…',attempts:0};if(verify)await this.verifyLogin(true);}
+  }
+  auth:import('../src/desktop.ts').AuthState={phase:'signed-out',message:'未登录',attempts:0};
+  private verification?:Promise<DesktopState>;
+  async verifyLogin(force=false):Promise<DesktopState>{
+    if(this.verification)return this.verification;
+    if(!this.client||!this.account)return this.state();
+    if(!force&&(this.auth.phase==='expired'||this.auth.phase==='forbidden'||(this.auth.nextRetryAt&&Date.now()<Date.parse(this.auth.nextRetryAt))))return this.state();
+    const client=this.client,account=this.account,generation=this.generation;
+    const attempts=this.auth.attempts+1;
+    this.auth={...this.auth,phase:'verifying',message:'正在验证登录…',attempts,nextRetryAt:undefined};this.changed();
+    const task=(async()=>{
+      try{
+        const verified=await client.identity(account.username);
+        if(generation!==this.generation||client!==this.client)return this.state();
+        this.account={...verified,remembered:account.remembered};
+        this.auth={phase:'authenticated',message:'登录已验证',attempts:0,lastCheckedAt:new Date().toISOString()};
+        this.syncState.message='登录已验证，可以同步个人案件。';
+      }catch(e){
+        if(generation!==this.generation||client!==this.client)return this.state();
+        const phase=e instanceof BaselandAuthError?e.kind:'offline';
+        this.account={...account,status:phase==='expired'?'expired':'offline'};
+        this.auth={phase,attempts,lastCheckedAt:new Date().toISOString(),
+          message:phase==='expired'?'登录已过期，请重新登录。':phase==='forbidden'?'当前账号无权验证登录，请核对账号权限。':'暂时无法验证登录，可能是网络或服务异常。本机记录已保留。',
+          nextRetryAt:phase==='offline'&&attempts<4?new Date(Date.now()+[0,15000,30000,60000][attempts]).toISOString():undefined};
+        this.syncState.message=this.auth.message;
+      }
+      this.changed();return this.state();
+    })();
+    this.verification=task;
+    try{return await task;}finally{if(this.verification===task)this.verification=undefined;}
+  }
+  async retryLoginIfDue(){
+    if(this.auth.phase==='offline'&&this.auth.nextRetryAt&&Date.now()>=Date.parse(this.auth.nextRetryAt))return this.verifyLogin();
+    return this.state();
   }
   version='开发预览';
-  state():DesktopState {return structuredClone({profileKey:this.key,account:this.account,workspace:this.workspace,sync:this.syncState,storage:this.storageState,migration:this.migrationState,version:this.version,dataDirectory:path.join(this.root,'profiles',this.key)});}
+  state():DesktopState {return structuredClone({profileKey:this.key,account:this.account,auth:this.auth,workspace:this.workspace,sync:this.syncState,storage:this.storageState,migration:this.migrationState,version:this.version,dataDirectory:path.join(this.root,'profiles',this.key)});}
   assertNotMigrating(){if(this.migrationLock)throw new Error('正在迁移当前账号工作目录，无法进行该操作。');}
   isWorkMigrationBusy(){return this.migrationLock||this.migrationQueued;}
   assertMigrationNotAccepted(){if(this.isWorkMigrationBusy())throw new Error('正在迁移当前账号工作目录，无法进行该操作。');}
@@ -72,8 +107,8 @@ export class DesktopService {
       await this.persist();
       if(account.remembered)await atomicJSON(path.join(this.root,'session.json'),{key:nextKey,account,encrypted});
       else await fs.rm(path.join(this.root,'session.json'),{force:true});
-      this.controller?.abort();this.generation++;this.submissionCache.clear();
-      this.key=nextKey;this.client=client;this.account=account;this.workspace=nextWorkspace;
+      this.controller?.abort();this.generation++;this.verification=undefined;this.submissionCache.clear();
+      this.key=nextKey;this.client=client;this.account=account;this.workspace=nextWorkspace;this.auth={phase:'authenticated',message:'登录已验证',attempts:0,lastCheckedAt:new Date().toISOString()};
       this.syncState={running:false,message:'已登录，准备读取工作目录。'};
       this.storageState={running:false,message:'请选择当前账号的总工作文件夹。'};
       if(this.workspace.settings.workRoot)await this.refreshShared(this.key);
@@ -89,8 +124,8 @@ export class DesktopService {
   private filesystemBusy(){return this.storageState.running||this.syncPreparing||this.syncState.running||this.flowFileWrites>0;}
   async logout(){
     this.assertNotMigrating();
-    this.generation++;this.controller?.abort();this.submissionCache.clear();await this.persist();await fs.rm(path.join(this.root,'session.json'),{force:true});
-    this.client=null;this.account=null;this.key='local';this.workspace=await readJSON(this.profileFile(),empty());
+    this.generation++;this.verification=undefined;this.controller?.abort();this.submissionCache.clear();await this.persist();await fs.rm(path.join(this.root,'session.json'),{force:true});
+    this.client=null;this.account=null;this.auth={phase:'signed-out',message:'已退出登录',attempts:0};this.key='local';this.workspace=await readJSON(this.profileFile(),empty());
     this.syncState={running:false,message:'已退出账号。'};this.storageState={running:false,message:'请选择总工作文件夹。'};if(this.workspace.settings.workRoot)await this.refreshShared(this.key);
     this.syncState={running:false,message:'已退出账号；原账号的本机记录已保留。'};this.changed();return this.state();
   }
@@ -204,7 +239,7 @@ export class DesktopService {
         this.workspace.cases=[...this.workspace.cases.filter(x=>x.id!==c.id),c];await this.persist();
       }
       this.assertKey(key);this.syncState={running:false,lastAt:new Date().toISOString(),message:failures.length?`案件已保存，${failures.length} 项需重试：${failures.slice(0,3).join('；')}`:`已同步 ${rows.length} 条流程，归并为 ${cases.filter(c=>c.remote).length} 个案件。`};
-    }catch(e){if(generation===this.generation){this.syncState={...this.syncState,running:false,message:(e as Error).message};if(/登录/.test((e as Error).message)&&this.account)this.account.status='expired';}}
+    }catch(e){if(generation===this.generation){this.syncState={...this.syncState,running:false,message:(e as Error).message};if(e instanceof BaselandAuthError&&this.account){this.account.status=e.kind==='expired'?'expired':'offline';this.auth={phase:e.kind,message:e.kind==='expired'?'登录已过期，请重新登录。':'当前账号无权访问，请核对权限。',attempts:0,lastCheckedAt:new Date().toISOString()};}}}
     finally{if(generation===this.generation){this.syncState.running=false;this.changed();}}
     return this.state();
   }
@@ -213,6 +248,7 @@ export class DesktopService {
     const key=this.officialCacheKey(c,p.id);
     const cached=this.submissionCache.get(key);
     if(!force&&cached&&Date.now()-cached.at<5*60*1000){
+      p.canEdit=cached.canEdit;
       p.submission=cached.submission;if(cached.handId)p.handId=cached.handId;
       if('currentFlow' in cached)p.currentFlow=cached.currentFlow;
       if(cached.needSendOfficial!==undefined)p.needSendOfficial=cached.needSendOfficial;
@@ -223,14 +259,16 @@ export class DesktopService {
     if(official.ok){
       p.submission=official.submission;if(official.handId)p.handId=official.handId;
       p.currentFlow=official.currentFlow;
+      p.canEdit=official.canEdit;
       if(official.needSendOfficial!==undefined)p.needSendOfficial=official.needSendOfficial;
-      this.submissionCache.set(key,{at:Date.now(),submission:official.submission,handId:official.handId,currentFlow:official.currentFlow,needSendOfficial:official.needSendOfficial});
+      this.submissionCache.set(key,{at:Date.now(),submission:official.submission,handId:official.handId,currentFlow:official.currentFlow,needSendOfficial:official.needSendOfficial,canEdit:official.canEdit});
     }else if(p.submission&&(p.submission.state==='sent'||p.submission.state==='received')){
       p.submission={...p.submission,refreshError:SUBMISSION_REFRESH_ERROR};
       if(official.handId)p.handId=official.handId;
     }else{
       p.submission=official.submission;if(official.handId)p.handId=official.handId;
     }
+    if(!official.ok)p.canEdit=false;
     applySubmissionToCurrent(c,p);
   }
   private scopedPersonalProcesses(latest:Case,view:FlowView,personalIds:string[]){
@@ -267,7 +305,7 @@ export class DesktopService {
         applySubmissionToCurrent(latest,proc);
       }
       if(proc.submission&&!proc.submission.refreshError&&(proc.submission.state!=='unknown'||!/稍后重试/.test(proc.submission.message??''))){
-        this.submissionCache.set(this.officialCacheKey(latest,proc.id),{at:Date.now(),submission:proc.submission,handId:proc.handId,currentFlow:proc.currentFlow,needSendOfficial:proc.needSendOfficial});
+        this.submissionCache.set(this.officialCacheKey(latest,proc.id),{at:Date.now(),submission:proc.submission,handId:proc.handId,currentFlow:proc.currentFlow,needSendOfficial:proc.needSendOfficial,canEdit:proc.canEdit});
       }
     }else if(!blocked&&internallyActive.length>1){
       stageChanged=!!keepId;
@@ -275,7 +313,15 @@ export class DesktopService {
     }else applyCaseDeadline(latest);
     return stageChanged;
   }
-  async flow(id:string,enqueueWrite?:<T>(fn:()=>Promise<T>)=>Promise<T>){
+  private flowRequests=new Map<string,ReturnType<DesktopService['readCaseFlow']>>();
+  flow(id:string,enqueueWrite?:<T>(fn:()=>Promise<T>)=>Promise<T>){
+    const scope=`${this.generation}/${this.key}/${id}`;
+    const existing=this.flowRequests.get(scope);if(existing)return existing;
+    const request=this.readCaseFlow(id,enqueueWrite);this.flowRequests.set(scope,request);
+    void request.finally(()=>{if(this.flowRequests.get(scope)===request)this.flowRequests.delete(scope);}).catch(()=>{});
+    return request;
+  }
+  private async readCaseFlow(id:string,enqueueWrite?:<T>(fn:()=>Promise<T>)=>Promise<T>){
     this.assertMigrationNotAccepted();
     if(!this.client||this.account?.status!=='authenticated')throw new Error('请先登录贝思兰德。');
     const generation=this.generation,key=this.key,client=this.client;

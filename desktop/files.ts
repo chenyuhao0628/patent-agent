@@ -11,6 +11,16 @@ export function safeName(value:string,max=36) {
   if(/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(s))s='_'+s;
   return s;
 }
+// Human-readable folders retain a short identity suffix to avoid same-name collisions.
+export function processFolder(c:Case,processId:string):string {
+  const name=c.remote?.processes.find(p=>p.id===processId)?.name
+    ??c.rounds.find(r=>r.id===processId)?.name
+    ??({reply:'答复审查意见',correction:'补正',write:'专利撰写'} as Record<string,string>)[c.current?.kind??'']??'案件办理';
+  return `${safeName(name,24)}__${digest(processId).slice(0,8)}`;
+}
+export function datedFolder(label:string,id:string,at=new Date().toISOString()):string {
+  return `${safeName(at.replace('T','_').replace(/[:.]/g,'-').replace(/Z$/,''),23)}_${safeName(label,18)}__${safeName(id,8)}`;
+}
 export async function readJSON<T>(file:string,fallback:T):Promise<T> {
   try{return JSON.parse(await fs.readFile(file,'utf8'));}catch(e){if((e as NodeJS.ErrnoException).code==='ENOENT')return fallback;throw new Error('本地记录无法读取，原文件已保留。');}
 }
@@ -84,11 +94,32 @@ export class CaseFiles {
     const payload={caseId:c.id,processId:c.current?.processId,text,versions:c.localVersions??[]};
     await atomicJSON(file,payload);c.sharedDraftHash=digest(JSON.stringify(payload,null,2));
     for(const v of c.localVersions??[]){
-      const target=await managedPath(root,`02_工作稿/${digest(v.processId??'local').slice(0,10)}/版本_${safeName(v.id)}.txt`,true);
+      const target=await managedPath(root,`02_工作稿/${processFolder(c,v.processId??'local')}/${datedFolder('手工稿版本',v.id,v.at)}.txt`,true);
       try{await fs.writeFile(target,v.text,{flag:'wx',mode:0o600});}catch(e){if((e as NodeJS.ErrnoException).code!=='EEXIST')throw e;if(await fs.readFile(target,'utf8')!==v.text)throw new Error('已有稿件版本不能覆盖。');}
     }
     await this.ensureCase(c);
     return directory;
+  }
+  async writeFileGuide(c:Case) {
+    const directory=await this.ensureCase(c,false),root=path.resolve(this.settings.workRoot!,directory);
+    const escape=(value:string)=>value.replace(/[&<>"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[char]!));
+    const rows:Array<{name:string;relative:string;at:number}>=[];
+    const walk=async(relative:string,depth=0):Promise<void>=>{
+      if(depth>7||rows.length>=3000)return;
+      for(const entry of await fs.readdir(await managedPath(root,relative),{withFileTypes:true})){
+        if(entry.isSymbolicLink())continue;
+        const file=portable(path.join(relative,entry.name));
+        if(entry.isDirectory())await walk(file,depth+1);
+        else if(entry.isFile()&&/\.(docx?|pdf|txt|png|jpe?g)$/i.test(entry.name)){
+          const stat=await fs.stat(await managedPath(root,file));rows.push({name:entry.name,relative:file,at:stat.mtimeMs});
+        }
+        if(rows.length>=3000)break;
+      }
+    };
+    for(const folder of ['00_原始申请','01_通知与材料','02_工作稿','03_定稿'])await walk(folder);
+    rows.sort((a,b)=>b.at-a.at);
+    const html='<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>案件工作文件目录</title><style>body{max-width:1100px;margin:32px auto;padding:0 24px;font:16px/1.8 system-ui;color:#222}li{margin:16px 0}small{display:block;color:#666;overflow-wrap:anywhere}</style><h1>'+escape(c.number+' '+c.title)+'</h1><p>工作文件按最近修改时间排列。新稿件使用中文办理名称和生成时间；历史路径保留以便恢复版本。04_内部说明内的索引由程序维护。</p><ul>'+rows.map(row=>'<li><a href="'+row.relative.split('/').map(encodeURIComponent).join('/')+'">'+escape(row.name)+'</a><small>'+escape(row.relative)+'</small></li>').join('')+'</ul></html>';
+    await fs.writeFile(await managedPath(root,'工作文件目录.html'),html,{mode:0o600});
   }
   async findOriginals(c:Case) {
     const {originalLibrary,workRoot}=await validateRoots(this.settings);if(!originalLibrary)return [];

@@ -252,7 +252,7 @@ test('同轮多个讨论隔离，讨论完成不跨阶段', () => {
   }));
   const main = afterB.state.discussions.find(item => item.id === state.mainDiscussionId)!;
   const other = afterB.state.discussions.find(item => item.id === second.value!.discussionId)!;
-  assert.equal(afterB.state.stage, 'strategy');
+  assert.equal(afterB.state.stage, state.stage); // Discussion must preserve the already-selected drafting stage.
   assert.equal(afterB.state.drafts.length, 0);
   assert.ok(main.messages.some(item => item.text === '主讨论问题'));
   assert.ok(main.messages.some(item => item.text.includes('主讨论回复')));
@@ -305,14 +305,13 @@ test('独立复核绑定版本并使用单独讨论；编辑后旧复核不能�
   };
   const reviewed = unwrap(completeAgentJob(tool, { ...scope, runId: started.state.activeRunId!, artifact: reviewArtifact }));
   assert.equal(reviewed.state.stage, 'review');
-  assert.equal(finalizeProcess(reviewed.state, scope).ok, false);
+  assert.equal(finalizeProcess(reviewed.state, scope).ok, true);
   const handled = unwrap(confirmReviewIssuesHandled(reviewed.state, { ...scope, reviewId: currentReview(reviewed.state)!.id, issueIds: ['i1'] }));
   assert.equal(finalizeProcess(handled.state, scope).ok, true);
   const edited = unwrap(recordUserDraft(handled.state, { ...scope, text: handled.state.drafts.at(-1)!.text + '\n人工改了一句' }));
   assert.equal(edited.state.reviews.every(item => item.invalidated), true);
   const blocked = finalizeProcess(edited.state, scope);
-  assert.equal(blocked.ok, false);
-  if (!blocked.ok) assert.equal(blocked.code, 'REVIEW_STALE');
+  assert.equal(blocked.ok, true);
 });
 
 test('无问题复核后由用户定稿，保留文本与时间且不声称 Word 已生成', () => {
@@ -548,7 +547,7 @@ test('复核绑定启动时版本；运行中可改用户稿，生成稿 basedOn
   assert.equal(stored.draftVersionId, live.currentDraftVersionId);
   assert.equal(stored.invalidated, true);
   assert.notEqual(reviewed.state.stage, 'review');
-  assert.equal(finalizeProcess(reviewed.state, scope).ok, false);
+  assert.equal(finalizeProcess(reviewed.state, scope).ok, true);
 
   const chosen = strategyChosen();
   const user = unwrap(recordUserDraft(chosen, { ...scope, text: '启动前用户稿' }));
@@ -586,7 +585,7 @@ test('复核问题可逐项保存；换策略解除当前稿候选且不能拿�
   const partial = unwrap(confirmReviewIssuesHandled(reviewed.state, { ...scope, reviewId, issueIds: ['i1'] }));
   assert.equal(partial.state.reviews.find(item => item.id === reviewId)!.issues.find(item => item.id === 'i1')!.handled, true);
   assert.equal(partial.state.reviews.find(item => item.id === reviewId)!.issues.find(item => item.id === 'i2')!.handled, false);
-  assert.equal(finalizeProcess(partial.state, scope).ok, false);
+  assert.equal(finalizeProcess(partial.state, scope).ok, true);
   const rest = unwrap(confirmReviewIssuesHandled(partial.state, { ...scope, reviewId, issueIds: ['i2'] }));
   assert.equal(finalizeProcess(rest.state, scope).ok, true);
 
@@ -725,7 +724,7 @@ test('editing only full application parts invalidates review and freezes the new
  const body=reviewed.state.drafts.at(-1)!.text;
  const edited=unwrap(recordUserDraft(reviewed.state,{...scope,text:body,applicationParts:{CLAIMS:'1. 一种新的完整权利要求。'}}));
  assert.equal(edited.state.drafts.at(-1)!.text,body);assert.notEqual(edited.state.currentDraftVersionId,live.currentDraftVersionId);
- assert.equal(edited.state.reviews[0].invalidated,true);assert.equal(finalizeProcess(edited.state,scope).ok,false);
+ assert.equal(edited.state.reviews[0].invalidated,true);assert.equal(finalizeProcess(edited.state,scope).ok,true);
  const next=unwrap(openReviewDiscussion(edited.state,{...scope,draftVersionId:edited.state.currentDraftVersionId!}));
  const run=unwrap(startAgentJob(next.state,{...scope,action:'review',discussionId:next.value!.discussionId,draftVersionId:edited.state.currentDraftVersionId!}));
  assert.equal(run.promptContext?.draftVersion?.applicationParts?.CLAIMS,'1. 一种新的完整权利要求。');
@@ -755,4 +754,10 @@ test('discussion cleanup preserves primary, messages, audit links and supports a
  state.discussions.push({id:'review',kind:'review',title:'复核',messages:[],toolEvents:[],parentDiscussionId:parent.id});
  assert.equal(discussionCanDelete(state,parent.id),false);
  assert.equal(manageDiscussion(state,{...scope,discussionId:'review',operation:'archive'}).ok,false);
+});
+
+test('independent review is optional, and finalizing without a report does not invent one',()=>{
+ const state=adopted();assert.equal(state.reviews.length,0);
+ const final=finalizeProcess(state,scope);assert.equal(final.ok,true);
+ if(final.ok){assert.equal(final.state.reviews.length,0);assert.equal(final.state.finalized?.draftVersionId,state.currentDraftVersionId);}
 });

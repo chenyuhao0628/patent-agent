@@ -467,3 +467,14 @@ test('close during body read does not forward the late payload', async () => {
     await proxy.close().catch(() => undefined);
   }
 });
+
+test('DeepSeek Responses adapter works on Node and fetch transports and restores tool-history reasoning',async()=>{
+ const expected='核对材料';let bodySeen:any;
+ const upstream=await listen((_req,res,body)=>{bodySeen=JSON.parse(body.toString());res.writeHead(200,{'Content-Type':'text/event-stream'});res.end('data: '+JSON.stringify({type:'response.reasoning_text.delta',item_id:'rs',output_index:0,content_index:0,delta:expected})+'\n\n');});
+ try{for(const fetchImpl of [undefined,((...args:Parameters<typeof fetch>)=>fetch(...args)) as typeof fetch]){
+ const cfg=runtime({baseURL:`${upstream.origin}/v1`});const proxy=await startAgentProxy({runtime:cfg,discussionId:'adapter-test',fetchImpl});
+ try{const response=await fetch(`${proxy.childBaseURL}/responses`,{method:'POST',headers:{Authorization:`Bearer ${DUMMY_UPSTREAM_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({input:[{type:'reasoning',id:'rs',summary:[{type:'summary_text',text:expected}]},{role:'user',content:'synthetic-image-payload '+ 'x'.repeat(1_100_000)}],stream:true})});
+ assert.equal(response.status,200);assert.match(await response.text(),/response.reasoning_summary_text.delta/);assert.deepEqual(bodySeen.input[0].content,[{type:'reasoning_text',text:expected}]);assert.equal(bodySeen.input[0].summary,undefined);
+ }finally{await proxy.close();}}
+ }finally{await upstream.close();}
+});

@@ -10,3 +10,5 @@
 .settings-notice.is-saving{color:#675ed3;background:#f4f3fd}
 
 .prior-art-panel,.prior-art-settings{margin:24px 0;padding:20px;border:1px solid #e4e2ed;border-radius:14px;background:#faf9ff}.prior-art-row{display:flex;gap:12px;align-items:center;padding:10px 0;flex-wrap:wrap}.prior-art-row small{flex:1;min-width:160px}
+
+.diagnostic-toolbar{display:flex;align-items:center;justify-content:flex-end;gap:12px;padding:0 4px 10px;color:#788292;font-size:12px;flex-wrap:wrap}.diagnostic-toolbar button{font-size:12px;padding:5px 10px}

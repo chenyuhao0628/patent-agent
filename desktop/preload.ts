@@ -5,9 +5,10 @@ const call=async(name:string,...args:unknown[])=>{
 };
 const modelCall=(method:string,key:string,args:unknown[],requestId?:string)=>call('model',method,key,args,requestId);
 contextBridge.exposeInMainWorld('patentDesktop',{
+  diagnosticExport:()=>call('diagnosticExport'),diagnosticReport:(input:unknown)=>call('diagnosticReport',input),
   extensions:{test:(k:string,id:string)=>call('extensions','test',k,id),list:(k:string)=>call('extensions','list',k),toggle:(k:string,id:string,v:boolean)=>call('extensions','toggle',k,id,v),remove:(k:string,id:string)=>call('extensions','remove',k,id),saveMcp:(k:string,raw:string,id?:string)=>call('extensions','saveMcp',k,raw,id),saveSkill:(k:string,n:string,t:string,id?:string)=>call('extensions','saveSkill',k,n,t,id),importSkill:(k:string)=>call('extensions','importSkill',k)},
   priorArt:{status:(k:string)=>call('priorArt','status',k),save:(k:string,v:string)=>call('priorArt','save',k,v),clear:(k:string)=>call('priorArt','clear',k),importLegacy:(k:string)=>call('priorArt','importLegacy',k),test:(k:string)=>call('priorArt','test',k),prepare:(k:string,id:string,v:string)=>call('priorArt','prepare',k,id,v)},
-  bootstrap:()=>call('bootstrap'),login:(input:unknown)=>call('login',input),logout:()=>call('logout'),
+  verifyLogin:()=>call('verifyLogin'),bootstrap:()=>call('bootstrap'),login:(input:unknown)=>call('login',input),logout:()=>call('logout'),
   selectDirectory:(kind:string)=>call('selectDirectory',kind),saveSettings:(key:string,s:unknown)=>call('saveSettings',key,s),saveWorkspace:(key:string,w:unknown)=>call('saveWorkspace',key,w),
   refreshShared:(key:string)=>call('refreshShared',key),sync:()=>call('sync'),createCase:(input:unknown)=>call('createCase',input),flow:(id:string)=>call('flow',id),
   caseInfo:(key:string,id:string)=>call('caseInfo',key,id),
@@ -30,6 +31,7 @@ contextBridge.exposeInMainWorld('patentDesktop',{
     selectDshDirectory:()=>call('selectDshDirectory'),
   },
   agent:{
+    listProgress:(key:string)=>call('agentProgress',key),
     getCase:(key:string,id:string)=>call('agentGetCase',key,id),
     command:(key:string,id:string,cmd:unknown)=>call('agentCommand',key,id,cmd),
     listTasks:(key:string)=>call('agentTasks',key),
@@ -40,7 +42,7 @@ contextBridge.exposeInMainWorld('patentDesktop',{
     },
   },
   transfer:{
-    prepare:(key:string,id:string)=>call('transferPrepare',key,id),
+    prepare:(key:string,id:string,sourceMode?:string)=>call('transferPrepare',key,id,sourceMode),
     pickFile:(key:string,id:string,role:string)=>call('transferPickFile',key,id,role),
     startHand:(key:string,id:string)=>call('transferStartHand',key,id),
     save:(key:string,id:string,review:unknown)=>call('transferSave',key,id,review),

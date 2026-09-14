@@ -1,3 +1,5 @@
+export type AuthState={phase:'signed-out'|'verifying'|'authenticated'|'offline'|'expired'|'forbidden'|'unreadable';message:string;attempts:number;lastCheckedAt?:string;nextRetryAt?:string};
+import { discussionJobs } from './domain/conversation.ts';
 import type { Settings, Workspace, Case } from './domain/workflow.ts';
 import type { ModelAPI } from './model-api.ts';
 import type { AgentAPI, AgentCaseView } from './agent-api.ts';
@@ -26,13 +28,16 @@ export type MigrationState={
   running:boolean; phase:MigrationPhase; canCancel:boolean; preview?:MigrationPreview; progress?:MigrationProgress;
   message:string; error?:string;
 };
-export type DesktopState = {profileKey:string;account:Account|null;workspace:Workspace;sync:SyncState;storage:StorageState;migration:MigrationState;version:string;dataDirectory:string};
+export type DesktopState = {
+  auth?:AuthState;profileKey:string;account:Account|null;workspace:Workspace;sync:SyncState;storage:StorageState;migration:MigrationState;version:string;dataDirectory:string};
 export type FlowNode={name:string;user:string;running:boolean;finished:boolean;start:string;end:string;stayHours?:number;type?:string;isCurrent?:boolean;sort?:number;serial?:number;total?:number};
 export type FlowView={at:string;currentProcessId?:string;processes:Case['remote'];nodes:FlowNode[];history:{name:string;created:string;finished:string}[];currentFlow?:{name:string;user:string;serial?:number;total?:number}};
 export type DesktopAPI={
+  diagnosticExport:()=>Promise<{canceled:boolean;path?:string;count?:number;droppedWrites?:number}>;
+  diagnosticReport:(input:{type:string;line?:number;column?:number})=>Promise<void>;
   extensions:{test:(key:string,id:string)=>Promise<{tools:number}>,list:(key:string)=>Promise<import('../desktop/extensions.ts').Extension[]>,toggle:(key:string,id:string,value:boolean)=>Promise<import('../desktop/extensions.ts').Extension[]>,remove:(key:string,id:string)=>Promise<import('../desktop/extensions.ts').Extension[]>,saveMcp:(key:string,raw:string,id?:string)=>Promise<import('../desktop/extensions.ts').Extension[]>,saveSkill:(key:string,name:string,text:string,id?:string)=>Promise<import('../desktop/extensions.ts').Extension[]>,importSkill:(key:string)=>Promise<import('../desktop/extensions.ts').Extension[]>};
   priorArt:{status:(key:string)=>Promise<{configured:boolean}>,save:(key:string,value:string)=>Promise<{configured:boolean}>,clear:(key:string)=>Promise<{configured:boolean}>,importLegacy:(key:string)=>Promise<{configured:boolean}>,test:(key:string)=>Promise<{configured:boolean}>,prepare:(key:string,id:string,value:string)=>Promise<DesktopState>};
-  bootstrap:()=>Promise<DesktopState>; login:(input:{origin:string;username:string;password:string;remember:boolean})=>Promise<DesktopState>; logout:()=>Promise<DesktopState>;
+  verifyLogin?:()=>Promise<DesktopState>; bootstrap:()=>Promise<DesktopState>; login:(input:{origin:string;username:string;password:string;remember:boolean})=>Promise<DesktopState>; logout:()=>Promise<DesktopState>;
   selectDirectory:(kind:'originalLibrary'|'workRoot')=>Promise<string|null>;
   saveSettings:(key:string,settings:Settings)=>Promise<DesktopState>; saveWorkspace:(key:string,workspace:Workspace)=>Promise<void>;
   refreshShared:(key:string)=>Promise<DesktopState>; sync:()=>Promise<DesktopState>; createCase:(input:{title:string;number:string;kind:'write'|'review'})=>Promise<DesktopState>;
@@ -203,7 +208,8 @@ export function sanitizeAgentError(raw: string): string {
 
 export function latestDiscussionJob(process: AgentProcessState, discussionId: string | undefined): AgentJob | undefined {
   if (!discussionId) return;
-  const jobs = process.jobs.filter(job => job.discussionId === discussionId);
+  const discussion = process.discussions.find(d => d.id === discussionId);
+  const jobs = discussion ? discussionJobs(process, discussion) : [];
   if (!jobs.length) return;
   return jobs.reduce((latest, job) => {
     const left = latest.endedAt || latest.startedAt;

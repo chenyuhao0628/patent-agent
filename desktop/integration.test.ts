@@ -24,6 +24,7 @@ async function fixture(t:test.TestContext){
     let data:unknown={};
     if(u.pathname.endsWith('/Auth/GetToken')){if(body.Password==='bad')return Response.json({IsSuccess:false,Message:'bad secret-token-DO-NOT-ECHO'});data={Token:'secret-token-'+body.UserName};}
     else if(u.pathname.endsWith('/Auth/GetLoginInfo')||u.pathname.endsWith('/TenantUser/GetCurrentUserInfo'))data={UserName:user,RealName:'测试同事 '+user,UserId:'user-'+user,TenantName:'隔离测试机构'};
+    else if(u.pathname.endsWith('/GetPersonalCaseCount'))data=body.ActiveName==='waitHand'?1:0;
     else if(u.pathname.endsWith('/GetPersonalCase'))data={List:body.ActiveName==='waitHand'?[{CaseId:'case-'+user,CaseProcId:'proc-'+user,CaseName:'夹持装置',CaseNo:'202612345678.9',CaseProcName:'第一次审查意见答复',CaseProcUndertakerUserName:user,CaseProcLegalDate:'2026-10-01',CaseHandId:'hand-'+user}]:[],Total:body.ActiveName==='waitHand'?1:0};
     else if(u.pathname.endsWith('/GetCaseProcFileList'))data=[{FileNo:'notice-'+user,FileName:'审查意见.pdf'},{FileNo:'retry-'+user,FileName:'对比文件.pdf'}];
     else if(u.pathname.endsWith('/FileStorageGetFile'))return new Response(u.searchParams.get('fileNo')?.startsWith('retry')&&broken?Buffer.from('<html>failed</html>'):pdf);
@@ -113,6 +114,7 @@ test('personal-case pagination accepts top-level DataList without losing the nex
   const pages:number[]=[];
   const client=new BaselandClient(origin,'fixture',async(_input,init)=>{
     const b=JSON.parse(String(init?.body)),page=b.PagedInfo.pageIndex;
+    if(String(_input).includes('/GetPersonalCaseCount'))return Response.json({IsSuccess:true,Data:b.ActiveName==='waitHand'?101:0});
     if(b.ActiveName==='waitHand')pages.push(page);
     return Response.json({IsSuccess:true,Data:null,DataList:b.ActiveName==='waitHand'?Array.from({length:page===1?100:1},(_,i)=>({CaseId:`case-${page}-${i}`,CaseProcId:`proc-${page}-${i}`})):[]});
   });
@@ -291,4 +293,38 @@ test('ClientName and process remarks persist, preserve omitted values and accept
  const calls:string[]=[];const client=new BaselandClient(origin,'test',async(input,init)=>{assert.equal(init?.method,'GET');const u=new URL(String(input));calls.push(u.pathname);return Response.json({IsSuccess:true,Data:u.pathname.endsWith('GetUpdateCaseInfo')?{CaseInfo:{CaseId:'meta-case',Remark:'最新案件备注'}}:{CaseProc:{CaseProcId:'meta-proc',OfficeNote:'最新内勤备注',ProcNote:''}}});});
  const info=await client.caseInfo(c);assert.equal(info.caseRemark,'最新案件备注');assert.equal(info.process?.officeNote,'最新内勤备注');assert.equal(info.process?.procNote,'');assert.equal(calls.length,2);
  const wrong=new BaselandClient(origin,'test',async()=>Response.json({IsSuccess:true,Data:{CaseInfo:{CaseId:'other'},CaseProc:{CaseProcId:'other'}}}));await assert.rejects(wrong.caseInfo(c),/不一致/);
+});
+
+
+test('0.5 login: startup is nonblocking, transient failures recover, expiration stops retries, credentials survive',async t=>{
+  const f=await fixture(t),service=f.make();await service.init();
+  await service.login({origin,username:'alice',password:'fixture-password',remember:true});
+  const sessionFile=path.join(service.root,'session.json'),before=await fs.readFile(sessionFile);
+  const reopened=f.make();await reopened.init(false);
+  assert.equal(reopened.auth.phase,'verifying');assert.equal(reopened.account?.status,'offline');
+  const client=reopened.client!,identity=client.identity.bind(client);let calls=0;
+  client.identity=async()=>{calls++;throw new Error('network secret should not leak');};
+  await reopened.verifyLogin(true);assert.equal(reopened.auth.phase,'offline');assert.ok(reopened.auth.nextRetryAt);
+  assert(!JSON.stringify(reopened.state()).includes('secret should'));
+  await reopened.retryLoginIfDue();assert.equal(calls,1);
+  reopened.auth.nextRetryAt=new Date(0).toISOString();client.identity=identity;
+  await reopened.retryLoginIfDue();assert.equal(reopened.account?.status,'authenticated');
+  const {BaselandAuthError}=await import('./baseland.ts');
+  client.identity=async()=>{throw new BaselandAuthError('expired','expired');};
+  await reopened.verifyLogin(true);assert.equal(reopened.auth.phase,'expired');assert.equal(reopened.auth.nextRetryAt,undefined);
+  assert.deepEqual(await fs.readFile(sessionFile),before);
+  client.identity=async()=>{throw new Error('offline');};
+  for(let i=0;i<4;i++)await reopened.verifyLogin(true);
+  assert.equal(reopened.auth.nextRetryAt,undefined);
+});
+
+test('0.5 login: late validation cannot restore logged-out identity, unreadable credentials retain account workspace',async t=>{
+  const f=await fixture(t),service=f.make();await service.init();await service.login({origin,username:'alice',password:'fixture-password',remember:true});
+  const original={...service.account!};let release!:(v:typeof original)=>void;
+  service.client!.identity=()=>new Promise(resolve=>{release=resolve;});
+  const pending=service.verifyLogin(true);await service.logout();release(original);await pending;
+  assert.equal(service.account,null);assert.equal(service.auth.phase,'signed-out');
+  const saved=f.make();await saved.init();await saved.login({origin,username:'alice',password:'fixture-password',remember:true});
+  const key=saved.key;const reopened=f.make();reopened.vault={...reopened.vault,decrypt:()=>{throw new Error('unavailable');}};
+  await reopened.init();assert.equal(reopened.key,key);assert.equal(reopened.auth.phase,'unreadable');assert.equal(reopened.client,null);
 });

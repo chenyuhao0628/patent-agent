@@ -1,11 +1,13 @@
+import { AgentRunStatus } from './AgentRunStatus.tsx';
+import { discussionJobs, workflowMessageCommand } from '../domain/conversation.ts';
 import { discussionCanDelete } from '../domain/agent.ts';
 import {CorrectionContentsEditor} from './CorrectionContentsEditor.tsx';
 import { ApplicationPartsEditor } from './ApplicationPartsEditor.tsx';
 import { PriorArtPanel } from './PriorArt.tsx';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { FolderOpen, PanelRight, Square } from 'lucide-react';
 import type { Case } from '../domain/workflow.ts';
-import type { AgentMessage, Discussion, MaterialEntry, ToolEvent } from '../domain/agent.ts';
+import type { AgentJob, AgentMessage, Discussion, MaterialEntry, ToolEvent } from '../domain/agent.ts';
 import { activeJob, currentDraft, currentReview, selectedMaterials, selectedStrategy, unhandledIssues } from '../domain/agent.ts';
 import { currentWork } from '../domain/lifecycle.ts';
 import { desktop } from '../desktop.ts';
@@ -23,7 +25,6 @@ import {
   pickedFromMaterials,
   reviseRunDiscussionId,
   sanitizeAgentError,
-  sendAgentMessage,
   serverFormFingerprint,
   shouldAcceptAgentView,
   shouldInitLocalForm,
@@ -33,7 +34,7 @@ import {
 import { Modal, Note } from './Primitives.tsx';
 import '../agent-workbench.css';
 
-const STAGES = ['材料核对', '选定策略', '起草修改', '独立复核', '用户定稿'] as const;
+const STAGES = ['材料核对', '策略讨论', '起草修改', '独立复核（可选）', '用户定稿'] as const;
 
 function stageIndex(view: AgentCaseView | undefined): number {
   const stage = view?.process.stage;
@@ -50,10 +51,11 @@ function materialGroup(role: string): string {
   return role || '其他';
 }
 
-function timeline(discussion: Discussion | undefined, partial?: string, pending?: string): Array<{ key: string; kind: 'message' | 'tool' | 'partial' | 'pending'; at: string; message?: AgentMessage; tool?: ToolEvent; text?: string }> {
+function timeline(discussion: Discussion | undefined, partial?: string, pending?: string, jobs:AgentJob[]=[]): Array<{ key: string; kind: 'message' | 'tool' | 'partial' | 'pending' | 'run'; job?:AgentJob; at: string; message?: AgentMessage; tool?: ToolEvent; text?: string }> {
   const rows: ReturnType<typeof timeline> = [];
   for (const message of discussion?.messages ?? []) rows.push({ key: 'm-' + message.id, kind: 'message', at: message.at, message });
-  for (const tool of discussion?.toolEvents ?? []) rows.push({ key: 't-' + tool.id, kind: 'tool', at: tool.at, tool });
+  for(const job of jobs) rows.push({key:'run-'+job.runId,kind:'run',at:job.startedAt,job});
+  for (const tool of discussion?.toolEvents ?? []) if(!jobs.some(j=>j.runId===tool.runId)) rows.push({ key: 't-' + tool.id, kind: 'tool', at: tool.at, tool });
   rows.sort((a, b) => a.at.localeCompare(b.at));
   if (pending) rows.push({ key: 'pending', kind: 'pending', at: '', text: pending });
   if (partial) rows.push({ key: 'partial', kind: 'partial', at: '', text: partial });
@@ -74,12 +76,23 @@ export function AgentWorkbench({
   const kind = currentWork(item).kind;
   const gen = useRef(0);
   const formSync = useRef<ServerFormFingerprint | undefined>(undefined);
+  const frame = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
+  const followOutput = useRef(true);
   const [view, setView] = useState<AgentCaseView | null>(null);
   const [error, setError] = useState('');
+  const [clearConfirm, setClearConfirm] = useState(false);
   const [discussionId, setDiscussionId] = useState<string>();
   const [showArchived,setShowArchived]=useState(false);
   const [input, setInput] = useState('');
+  const [discussionListOpen,setDiscussionListOpen]=useState(()=>window.innerWidth>=1250);
+  const [hasNewContent,setHasNewContent]=useState(false);
+  const [queueEditing,setQueueEditing]=useState<{id:string;text:string}>();
+  const [compare,setCompare]=useState(false);
+  const [restoreId,setRestoreId]=useState<string>();
+  const [discussionOnly, setDiscussionOnly] = useState(false);
+  const [editing, setEditing] = useState<{ id: string; text: string }>();
+  const [commandBusy, setCommandBusy] = useState(false);
   const [pending, setPending] = useState('');
   const [pendingDiscussionId, setPendingDiscussionId] = useState<string>();
   const [patentType, setPatentType] = useState('');
@@ -128,6 +141,8 @@ export function AgentWorkbench({
     setInput('');
     setDiscussionId(undefined);
     setPreviewId(undefined);
+    setEditing(undefined);
+    setCommandBusy(false);
     setPatentType('');
     setNoticeCategory('');
     setRound('1');
@@ -149,30 +164,46 @@ export function AgentWorkbench({
   }, [api, profileKey, caseId, processKey]);
 
   useEffect(() => {
-    scroller.current?.scrollTo({ top: scroller.current.scrollHeight });
+    if (followOutput.current) scroller.current?.scrollTo({ top: scroller.current.scrollHeight });
+    else setHasNewContent(true);
   }, [view, pending, discussionId]);
 
+  useEffect(() => { setEditing(undefined);setQueueEditing(undefined); followOutput.current = true;setHasNewContent(false); }, [discussionId]);
+  useEffect(()=>{const resize=()=>{if(window.innerWidth<1100)setDiscussionListOpen(false);};resize();window.addEventListener('resize',resize);return()=>window.removeEventListener('resize',resize);},[]);
+
+  useLayoutEffect(() => {
+    const resize = () => { if (frame.current) frame.current.style.height = `${Math.max(260, window.innerHeight - frame.current.getBoundingClientRect().top - 16)}px`; };
+    resize();
+    window.addEventListener('resize', resize);
+    return () => window.removeEventListener('resize', resize);
+  }, [!!view, caseId, formal]);
+
   const run = async (command: AgentCommand) => {
-    if (!api) return;
+    if (!api || commandBusy) return;
+    setCommandBusy(true);
     const token = gen.current;
     const errorDiscussion = command.type === 'run' ? (command.discussionId ?? discussionId) : discussionId;
     setCommandError(null);
     try {
       const next = await api.command(profileKey, caseId, command);
       apply(next, token);
+      if (command.type === 'conversation') setEditing(undefined);
+      if(command.type==='queue')setQueueEditing(undefined);
       if(command.type==='discussion')setDiscussionId(next.process.discussions.at(-1)?.id);
       if(command.type==='manageDiscussion')setDiscussionId(command.operation==='restore'?command.discussionId:next.process.mainDiscussionId);
       if (command.type === 'run' && command.action !== 'discuss') { setStageOpen(false); setSelectedStage(undefined); }
       if (command.type === 'adopt') setSelectedStage(3);
+      if(command.type==='restoreDraft')setRestoreId(undefined);
+      if(command.type==='strategy'&&command.startDraft)setStageOpen(false);
       if (command.type === 'finalize') setSelectedStage(4);
     } catch (err) {
       if (token !== gen.current) return;
       setCommandError({ text: sanitizeAgentError((err as Error).message), discussionId: errorDiscussion });
-    }
+    } finally { if (token === gen.current) setCommandBusy(false); }
   };
 
   const send = async () => {
-    if (!api || !input.trim() || view?.busy) return;
+    if (!api || !input.trim() || commandBusy) return;
     const text = input;
     const token = gen.current;
     const sentDiscussion = discussionId;
@@ -180,14 +211,20 @@ export function AgentWorkbench({
     setPending(text);
     setPendingDiscussionId(sentDiscussion);
     setCommandError(null);
-    const result = await sendAgentMessage(api, profileKey, caseId, text, sentDiscussion);
-    if (token !== gen.current) return;
-    setPending('');
-    setPendingDiscussionId(undefined);
-    if (result.ok) apply(result.view, token);
-    else {
-      setInput(result.restore);
-      setCommandError({ text: sanitizeAgentError(result.error), discussionId: sentDiscussion });
+    setCommandBusy(true);
+    try {
+      const command: AgentCommand = view?.busy ? {type:'queue',operation:'add',discussionId:sentDiscussion??view.process.mainDiscussionId,text:text.trim(),purpose:formal&&!discussionOnly?'workflow':'discuss',expectedRunId:view.process.activeRunId??undefined} : formal && !discussionOnly && view
+        ? workflowMessageCommand(view.process, sentDiscussion ?? view.process.mainDiscussionId, text.trim())
+        : { type: 'run', action: 'discuss', discussionId: sentDiscussion, userMessage: text.trim() };
+      const next = await api.command(profileKey, caseId, command);
+      if (token === gen.current) apply(next, token);
+    } catch (err) {
+      if (token === gen.current) {
+        setInput(text);
+        setCommandError({ text: sanitizeAgentError((err as Error).message), discussionId: sentDiscussion });
+      }
+    } finally {
+      if (token === gen.current) { setPending(''); setPendingDiscussionId(undefined); setCommandBusy(false); }
     }
   };
 
@@ -197,9 +234,11 @@ export function AgentWorkbench({
 
   const process = view.process;
   const discussion = process.discussions.find(item => item.id === discussionId) ?? process.discussions.find(item => item.id === process.mainDiscussionId);
-  const busy = view.busy;
+  const busy = view.busy || commandBusy;
   const current = stageIndex(view);
   const shownStage = selectedStage ?? current;
+  const showProgress=formal||!!process.analysis||process.drafts.length>0||['reply','correction'].includes(currentWork(item).kind);
+
   const openStage = (index: number) => { setSelectedStage(index); setStageOpen(true); };
   const analysisBlock = agentActionBlocker(view, 'analysis', formal);
   const draftBlock = agentActionBlocker(view, 'draft', formal);
@@ -230,7 +269,12 @@ export function AgentWorkbench({
   const partial = partialTextForDiscussion(view, discussion?.id);
   const pendingText = pending && pendingDiscussionId === discussion?.id ? pending : undefined;
   const runningOnThis = busy && activeJob(process)?.discussionId === discussion?.id;
-  const jobAlert = discussionJobAlert(latestDiscussionJob(process, discussion?.id));
+  const latestJob = latestDiscussionJob(process, discussion?.id);
+  const jobs = discussion ? discussionJobs(process, discussion) : [];
+  const jobAlert = discussionJobAlert(latestJob);
+  const queue=discussion?.queuedMessages?.filter(q=>q.branchId===(discussion.activeBranchId??'original'))??[];
+  const branchPicker=discussion?.branches?.length?<label className="agent-branch-picker">对话版本<select aria-label="对话分支" disabled={busy} value={discussion.activeBranchId??'original'} onChange={e=>void run({type:'branch',discussionId:discussion.id,branchId:e.target.value})}>{discussion.branches.map((b,i)=><option key={b.id} value={b.id}>{i+1} · {b.title}</option>)}</select></label>:null;
+  const nextAction=discussionOnly||discussion?.kind!=='main'?'仅讨论':!process.materialsConfirmed||process.classification.status!=='classified'?'先核对材料':!process.analysis?'继续意见分析':!process.userSelectedStrategyId?'先选定策略':process.currentDraftVersionId?'修订当前稿件':'起草答复';
   const visibleCommandError = commandError && (!commandError.discussionId || commandError.discussionId === discussion?.id)
     ? commandError.text
     : '';
@@ -245,22 +289,26 @@ export function AgentWorkbench({
     });
   };
 
-  return <div className={`agent-workbench${stageOpen ? ' is-stage-open' : ''}`}>
+  return <div ref={frame} className={`agent-workbench${stageOpen ? ' is-stage-open' : ''}`}>
     <header className="agent-workbench-head">
       <div>
         <h3>{formal ? (process.classification.noticeCategory==='补正通知书'?'本案对话 · 补正办理':'本案对话 · 答复办理') : '本案对话'}</h3>
-        <nav className="agent-stage-path" aria-label="答复阶段">{formal && STAGES.map((label, index) => <button type="button" key={label} className={index === current ? 'is-current' : ''} onClick={() => openStage(index)}>{index + 1} · {label}</button>)}</nav>
-        {!formal && <p>{writeIncomplete ? '完整撰写申请文件尚未完成，当前只开放围绕本案材料的讨论。' : reviewIncomplete ? '独立导入审查尚未完成，当前只开放围绕本案材料的讨论。' : '本页用于材料讨论，正式办理请进入本案对应业务。'}</p>}
+        <p className="agent-current-stage">{showProgress?`当前阶段：${STAGES[current]}`:"材料讨论"}</p>
+        {!formal && !showProgress && <p>{writeIncomplete ? '完整撰写申请文件尚未完成，当前只开放围绕本案材料的讨论。' : reviewIncomplete ? '独立导入审查尚未完成，当前只开放围绕本案材料的讨论。' : '本页用于材料讨论，正式办理请进入本案对应业务。'}</p>}
       </div>
-      <div className="agent-head-actions">
-        <p>本次任务：{modelSnapshotLabel(view)}</p>
-        <p><a href="#/settings/model">打开模型设置</a> · 新设置只影响下一次任务</p>
+      <div className="agent-head-actions">{branchPicker}
+        <button type="button" disabled={busy || !discussion || !!discussion.archived} onClick={()=>setClearConfirm(true)}>清理会话</button><details className="agent-model-details"><summary>模型与设置</summary><p>{modelSnapshotLabel(view)}</p><a href="#/settings/model">模型设置</a></details>
+        <button type="button" aria-expanded={discussionListOpen} onClick={()=>setDiscussionListOpen(v=>!v)}>讨论列表</button>
         <button type="button" className={stageOpen ? 'primary' : ''} onClick={() => { setSelectedStage(undefined); setStageOpen(open => !open); }}>
-          <PanelRight size={14}/>{formal ? '办理步骤' : '选用材料'}
+          <PanelRight size={14}/>{showProgress ? '办理步骤' : '选用材料'}
         </button>
       </div>
     </header>
-    <div className="agent-workbench-body">
+    {showProgress&&<nav className="agent-progress-nav" aria-label="当前办理进度">{STAGES.map((label,index)=>{
+      const done=index===0?process.materialsConfirmed:index===1?!!process.userSelectedStrategyId:index===2?!!adopted:index===3?!!review&&!review.invalidated&&!unhandledIssues(process).length:!!process.finalized;
+      return <button type="button" key={label} className={`${done?'is-done':''} ${index===current?'is-current':''}`} aria-current={index===current?'step':undefined} onClick={()=>openStage(index)}><span>{done?'✓':index+1}</span><b>{label}</b><small>{done?'已完成':index===3?'可跳过':index===current?'当前办理':'查看步骤'}</small></button>;
+    })}</nav>}
+    <div className={`agent-workbench-body${discussionListOpen?'':' discussions-collapsed'}`}>
       <nav className="agent-discussions" aria-label="讨论">
         <h4>讨论</h4>
         {process.discussions.filter(item=>showArchived?item.archived:!item.archived).map(item => <button key={item.id} type="button" className={item.id === discussion?.id ? 'active' : ''} onClick={() => setDiscussionId(item.id)}>
@@ -274,12 +322,20 @@ export function AgentWorkbench({
           <button disabled={busy} onClick={()=>{void run({type:'manageDiscussion',discussionId:discussion.id,operation:discussion.archived?'restore':'archive'});if(discussion.archived)setShowArchived(false);}}>{discussion.archived?'恢复讨论':'归档讨论'}</button>
         </div>}
       </nav>
+      {clearConfirm && discussion && <Modal title="清理当前会话" onClose={()=>setClearConfirm(false)}><p>清空当前对话上下文，旧消息保存在对话版本中，可切换恢复。材料、策略、稿件和办理进度保留。</p><div className="button-row"><button onClick={()=>setClearConfirm(false)}>取消</button><button disabled={busy} onClick={()=>{setClearConfirm(false);void run({type:'clearConversation',discussionId:discussion.id});}}>清理并开始新上下文</button></div></Modal>}
       <section className="agent-thread">
-        <div className="agent-messages" ref={scroller}>
+        <div className="agent-messages" ref={scroller} onScroll={e => { const el = e.currentTarget; followOutput.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;if(followOutput.current)setHasNewContent(false); }}>
           {discussion?.archived&&<p className="note">此讨论已归档，恢复后可以继续发送消息。</p>}
-          {timeline(discussion, partial, pendingText).map(row => {
+          {timeline(discussion, partial, pendingText,jobs).map(row => {
+            if(row.kind==='run'&&row.job)return <div className="agent-turn" key={row.key}><AgentRunStatus job={row.job} tools={discussion?.toolEvents.filter(t=>t.runId===row.job!.runId)}/>{row.job.error&&<p className="agent-error">{row.job.error}</p>}{!busy&&['failed','stopped'].includes(row.job.state)&&row.job.runId===latestJob?.runId&&<div className="agent-recovery-actions"><button onClick={()=>void run({type:'conversation',discussionId:discussion!.id,runId:row.job!.runId,operation:'continue'})}>继续{row.job.action==='analysis'?'意见分析':'任务'}</button><button onClick={()=>void run({type:'conversation',discussionId:discussion!.id,runId:row.job!.runId,operation:'retry'})}>重新尝试</button></div>}</div>;
             if (row.kind === 'message' && row.message) {
-              return <div key={row.key} className={`agent-bubble is-${row.message.role}`}>{row.message.text}</div>;
+              return <div key={row.key} className={`agent-message-group is-${row.message.role}`}><div className={`agent-bubble is-${row.message.role}`}>
+                {row.message.incomplete && <small className="agent-incomplete">未完成的输出</small>}{row.message.text}
+                {!discussion?.archived && <div className="agent-message-actions">
+                  {row.message.role === 'user' ? <button type="button" disabled={commandBusy} onClick={() => setEditing({ id: row.message!.id, text: row.message!.text })}>编辑并重新发送</button>
+                    : row.message.runId && <button type="button" disabled={commandBusy} onClick={() => void run({ type: 'conversation', discussionId: discussion!.id, operation: 'regenerate', messageId: row.message!.id })}>重新生成</button>}
+                </div>}
+              </div></div>;
             }
             if (row.kind === 'tool' && row.tool) {
               return <div key={row.key} className={`agent-tool${row.tool.status === 'error' ? ' is-error' : row.tool.status === 'ok' ? ' is-ok' : ''}`}>
@@ -289,22 +345,32 @@ export function AgentWorkbench({
             if (row.kind === 'pending') return <div key={row.key} className="agent-bubble is-user is-pending">{row.text}</div>;
             return <div key={row.key} className="agent-partial">{row.text}</div>;
           })}
-          {formal && process.analysis && <button type="button" className="agent-result-link" onClick={() => openStage(current)}>{current === 1 ? '查看意见与策略' : current === 2 ? '查看稿件与修改' : current === 3 ? '查看独立复核' : '查看办理结果'}</button>}
+
+          {formal&&discussion?.id===process.mainDiscussionId&&process.analysis&&!process.userSelectedStrategyId&&<section className="agent-strategy-results"><h3>选定答复策略</h3><p>比较方向后，选择本次答复采用的策略。</p>{process.analysis.strategies.map((strategy,index)=><article className="agent-card" key={strategy.id}><h4>方案 {index+1} · {strategy.title}</h4><p>{strategy.summary}</p><details><summary>查看收益、风险与依据</summary><p>收益：{strategy.benefits}</p><p>风险：{strategy.risks}</p><p>依据：{strategy.basis}</p></details><button className="primary" disabled={busy||!!strategyBlock} onClick={()=>void run({type:'strategy',strategyId:strategy.id,startDraft:true})}>选定此策略并开始起草</button></article>)}</section>}
+          {formal&&process.drafts.length>0&&<section className="agent-artifact-card"><b>{pendingDrafts.length?`有 ${pendingDrafts.length} 份稿件待采用`:'当前正式稿件'}</b><p>{pendingDrafts.length?'下一步：查看与比较稿件，采用需要的版本后，可选独立复核或直接核对定稿。':'下一步：核对修改文件并定稿；独立复核可按需进行。'}</p><button onClick={()=>openStage(2)}>查看与比较稿件</button>{!pendingDrafts.length&&adopted&&<button disabled={busy} onClick={()=>openStage(3)}>查看独立复核与待办</button>}</section>}
           {jobAlert && <div className="agent-tool is-error" role="alert">{jobAlert.text}</div>}
-          {!discussion?.messages.length && !pendingText && !partial && !jobAlert && <div className="agent-empty">还没有消息。可以先提问；只有已选并完成读取的材料才会作为依据。</div>}
+          {!discussion?.messages.length && !pendingText && !partial && !jobAlert && !jobs.length && !runningOnThis && <div className="agent-empty">还没有消息。可以先提问；只有已选并完成读取的材料才会作为依据。</div>}
         </div>
-        <form className="agent-composer" onSubmit={e => { e.preventDefault(); void send(); }}>
+        {hasNewContent&&<button className="agent-jump-latest" onClick={()=>{followOutput.current=true;setHasNewContent(false);scroller.current?.scrollTo({top:scroller.current.scrollHeight,behavior:'smooth'});}}>回到最新内容 ↓</button>}
+        {runningOnThis&&!editing&&<div className="agent-live-strip" role="status">正在工作 · {latestJob?.activity??'等待模型响应'}<button onClick={()=>{followOutput.current=false;const panel=scroller.current?.querySelector<HTMLElement>('.agent-run-status.is-running');if(panel){const detail=panel.querySelectorAll('details')[1];if(detail)detail.open=true;panel.scrollIntoView({block:'center',behavior:'smooth'});}}}>查看进展</button></div>}
+        {queue.length>0&&<details className="agent-queue" open><summary>待发送（{queue.length}） · {busy?'当前任务完成后按序发送':'已保留，请继续发送'}</summary><div>{queue.map(q=><div key={q.id}><span>{q.text}</span>{q.error&&<small role="alert">{q.error}</small>}{queueEditing?.id===q.id?<><textarea aria-label="编辑待发送消息" value={queueEditing.text} onChange={e=>setQueueEditing({id:q.id,text:e.target.value})}/><button onClick={()=>void run({type:'queue',discussionId:discussion!.id,operation:'edit',id:q.id,text:queueEditing.text})}>保存</button><button onClick={()=>setQueueEditing(undefined)}>取消</button></>:<><button disabled={commandBusy} onClick={()=>setQueueEditing({id:q.id,text:q.text})}>编辑</button><button disabled={commandBusy} onClick={()=>void run({type:'queue',discussionId:discussion!.id,operation:'remove',id:q.id})}>移除</button>{!busy&&<button onClick={()=>void run({type:'queue',discussionId:discussion!.id,operation:'send',id:q.id})}>发送此条</button>}</>}</div>)}</div></details>}
+        {editing && <div className="agent-edit-message"><label>编辑历史消息<textarea aria-label="编辑历史消息" value={editing.text} onChange={e => setEditing({ ...editing, text: e.target.value })}/></label>
+          <small>重发后保留原分支及文件。{view.busy ? '将先停止当前任务。' : ''}</small>
+          <div><button disabled={commandBusy || !editing.text.trim()} onClick={() => void run({ type: 'conversation', discussionId: discussion!.id, operation: 'edit', messageId: editing.id, text: editing.text })}>{commandBusy ? '正在处理…' : view.busy ? '停止并重新发送' : '重新发送'}</button><button disabled={commandBusy} onClick={() => setEditing(undefined)}>取消编辑</button></div>
+        </div>}
+        {!editing && <form className="agent-composer" onSubmit={e => { e.preventDefault(); void send(); }}>
           {visibleCommandError && <p className="agent-error" role="alert">{visibleCommandError}</p>}
-          <textarea disabled={!!discussion?.archived} value={input} onChange={e => setInput(e.target.value)} placeholder={runningOnThis ? '任务进行中，仍可查看历史。' : discussion?.kind === 'review' ? '在独立复核中讨论…正式修改请回主讨论。' : '围绕本案提问…'} />
-          <button className="primary" type="submit" disabled={busy || !!discussion?.archived || !input.trim()}>发送</button>
-          <button type="button" disabled={!busy} onClick={() => void run({ type: 'stop', runId: process.activeRunId ?? undefined })}><Square size={14}/>停止</button>
-        </form>
+          <label className="agent-send-mode">本次发送：{formal ? nextAction : '仅讨论（当前流程不可办理）'}<select aria-label="发送用途" disabled={commandBusy} value={!formal || discussionOnly ? 'discuss' : 'workflow'} onChange={e => setDiscussionOnly(e.target.value === 'discuss')}><option value="workflow" disabled={!formal}>办理当前步骤</option><option value="discuss">仅讨论</option></select></label>
+          <textarea disabled={!!discussion?.archived} value={input} onChange={e => setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();void send();}}} placeholder={runningOnThis ? '补充要求将排队；当前后台不支持途中追加。' : discussion?.kind === 'review' ? '在独立复核中讨论…正式修改请回主讨论。' : '围绕本案提问…'} />
+          <button className="primary" type="submit" disabled={commandBusy || !!discussion?.archived || !input.trim()}>{view.busy?'完成后发送':'发送'}</button>
+          <button type="button" disabled={!view.busy||commandBusy} onClick={() => void run({ type: 'stop', runId: process.activeRunId ?? undefined })}><Square size={14}/>停止</button>
+        </form>}
       </section>
-      {stageOpen && <Modal title={formal ? '办理步骤' : '选用讨论材料'} onClose={() => setStageOpen(false)}>
+      {stageOpen && <Modal title={showProgress ? '办理步骤' : '选用讨论材料'} onClose={() => setStageOpen(false)}>
       <div className="agent-stage">
-        {formal && <nav className="agent-stage-tabs" aria-label="查看办理步骤">{STAGES.map((label, index) => <button type="button" key={label} aria-pressed={index === shownStage} onClick={() => setSelectedStage(index)}>{index + 1} · {label}</button>)}</nav>}
+        {showProgress && <nav className="agent-stage-tabs" aria-label="查看办理步骤">{STAGES.map((label, index) => <button type="button" key={label} aria-pressed={index === shownStage} onClick={() => setSelectedStage(index)}>{index + 1} · {label}</button>)}</nav>}
         {visibleCommandError && <p className="agent-error" role="alert">{visibleCommandError}</p>}
-        {(!formal || shownStage === 0) && <>
+        {(!showProgress || shownStage === 0) && <>
         <PriorArtPanel item={item} profileKey={profileKey} onUpdated={()=>void api!.getCase(profileKey,caseId).then(v=>apply(v,gen.current))}/>
 
         <div className="agent-card">
@@ -329,18 +395,18 @@ export function AgentWorkbench({
           <button type="button" disabled={!canEditMaterials} onClick={() => void run({ type: 'materials', selectedIds: Object.keys(picked).filter(id => picked[id]) })}>{formal ? '确认用于分析的材料' : '保存讨论用材料'}</button>
         </div>
         </>}
-        {formal && <>
+        {showProgress && <>
           {shownStage === 0 && <>
           <div className="agent-card">
             <h4>{process.classification.status === 'classified' ? '已确认分类' : '自动核对结果'}</h4>
             <p>系统已根据当前流程和通知材料提出建议，请确认；不确定或冲突的字段会留空。</p>
             {view.classificationSuggestion?.evidence.length ? <ul>{view.classificationSuggestion.evidence.map((text, i) => <li key={i}>{text}</li>)}</ul> : null}
             {view.classificationSuggestion?.warnings.map((text, i) => <p className="agent-note" key={i}>{text}</p>)}
-            <label className="field">专利类型<select value={patentType} onChange={e => setPatentType(e.target.value)} disabled={busy}><option value="">待核对</option><option>发明</option><option>实用新型</option></select></label>
-            <label className="field">通知类型<select value={noticeCategory} onChange={e => setNoticeCategory(e.target.value)} disabled={busy}><option value="">待核对</option><option>审查意见通知书</option><option>补正通知书</option></select></label>
-            <label className="field">轮次<input inputMode="numeric" value={round} onChange={e => setRound(e.target.value)} disabled={busy}/></label>
-            <label className="field">补正基线<select value={basis} onChange={e => setBasis(e.target.value)} disabled={busy}><option value="original">原始申请</option><option value="other">其他文本</option>{[1, 2, 3, 4, 5].map(n => <option key={n} value={`round_${n}`}>第 {n} 轮文本</option>)}</select></label>
-            <button type="button" disabled={busy} onClick={() => void run({
+            <label className="field">专利类型<select value={patentType} onChange={e => setPatentType(e.target.value)} disabled={busy || !formal}><option value="">待核对</option><option>发明</option><option>实用新型</option></select></label>
+            <label className="field">通知类型<select value={noticeCategory} onChange={e => setNoticeCategory(e.target.value)} disabled={busy || !formal}><option value="">待核对</option><option>审查意见通知书</option><option>补正通知书</option></select></label>
+            <label className="field">轮次<input inputMode="numeric" value={round} onChange={e => setRound(e.target.value)} disabled={busy || !formal}/></label>
+            <label className="field">补正基线<select value={basis} onChange={e => setBasis(e.target.value)} disabled={busy || !formal}><option value="original">原始申请</option><option value="other">其他文本</option>{[1, 2, 3, 4, 5].map(n => <option key={n} value={`round_${n}`}>第 {n} 轮文本</option>)}</select></label>
+            <button type="button" disabled={busy || !formal} onClick={() => void run({
               type: 'classify',
               classification: {
                 patentType: patentType === '发明' || patentType === '实用新型' ? patentType : '待核对',
@@ -351,7 +417,7 @@ export function AgentWorkbench({
             })}>确认分类</button>
           </div>
           <div className="agent-card">
-            <h4>开始答复</h4>
+            <h4>开始答复</h4><p className="agent-note">待处理案件将在开始时启动贝思兰德递交流程；确认进入本人办理后再分析，不会转交或提交官方。</p>
             <button className="primary" type="button" disabled={!!analysisBlock || busy} onClick={() => void run({ type: 'run', action: 'analysis', discussionId: mainId })}>开始答复</button>
             {analysisBlock && <p className="agent-note">{analysisBlock}</p>}
             {!process.analysis && process.stage !== 'materials' && <p className="agent-note">分类或材料已变化，需要重新分析。</p>}
@@ -368,21 +434,23 @@ export function AgentWorkbench({
               <small>风险：{item.risks}</small>
               <small>依据：{item.basis}</small>
             </button>)}
-            {selectedStrategy(process) ? <p>已选定：{selectedStrategy(process)!.title}</p> : <p className="agent-note">必须由你点选策略后才能起草。</p>}
+            {selectedStrategy(process) ? <p>已选定：{selectedStrategy(process)!.title}</p> : <p className="agent-note">必须由你明确选定策略后才能起草。</p>}
             <button type="button" disabled={!!draftBlock || busy} onClick={() => { setDiscussionId(mainId); void run({ type: 'run', action: 'draft', discussionId: mainId }); }}>起草</button>
             {draftBlock && <p className="agent-note">{draftBlock}</p>}
           </div>}
           {shownStage === 2 && !pendingDrafts.length && !adopted && <p className="agent-note">选定策略并起草后，稿件将在这里显示。</p>}
-          {shownStage === 2 && (pendingDrafts.length > 0 || adopted) && <div className="agent-card">
+          {shownStage === 2 && (process.drafts.length > 0 || adopted) && <div className="agent-card">
             <h4>生成结果</h4>
             <p>待采用版本不会写入手工稿。修订始终在主讨论中进行。</p>
-            {pendingDrafts.map(item => <button key={item.id} type="button" onClick={() => setPreviewId(item.id)}>{item.source === 'generated-revise' ? '修改稿' : '初稿'} · {new Date(item.at).toLocaleString('zh-CN')}</button>)}
+            {process.drafts.map(item => <button key={item.id} type="button" onClick={() => setPreviewId(item.id)}>{item.source === 'generated-revise' ? '修改稿' : '初稿'} · {new Date(item.at).toLocaleString('zh-CN')}</button>)}
             {preview && <>
-              <div className="agent-preview">{preview.text}</div>
+              {adopted&&preview.id!==adopted.id&&<label className="checkbox"><input type="checkbox" checked={compare} onChange={e=>setCompare(e.target.checked)}/>与当前采用稿并排比较</label>}
+              <div className={compare&&adopted&&preview.id!==adopted.id?'agent-version-compare':''}>{compare&&adopted&&preview.id!==adopted.id&&<section><h4>当前采用稿</h4><pre className="agent-preview">{adopted.text}</pre></section>}<section><h4>预览版本 · {new Date(preview.at).toLocaleString()}</h4><pre className="agent-preview">{preview.text}</pre></section></div>
               {preview.amendmentText && <p><b>修改文本</b><br/>{preview.amendmentText}</p>}{preview.applicationParts&&Object.entries(preview.applicationParts).map(([part,text])=><div key={part}><b>{part==='CLAIMS'?'权利要求书':part==='DESCRIPTION'?'说明书':part} · 完整正文</b><pre className="agent-preview">{text}</pre></div>)}
               {preview.amendmentBasis && <p><b>依据</b><br/>{preview.amendmentBasis}</p>}
               {preview.reviewNotes && <p><b>内部说明</b><br/>{preview.reviewNotes}</p>}
-              {preview.adoptStatus === 'pending' && <button className="primary" type="button" disabled={busy} onClick={() => void run({ type: 'adopt', versionId: preview.id })}>采用此版本</button>}
+              {preview.adoptStatus==='adopted'&&preview.id!==adopted?.id&&<div>{restoreId===preview.id?<><p>恢复将建立一个新版本，并保留当前稿件；已有复核需要重新核对。</p><button disabled={busy || !formal} onClick={()=>void run({type:'restoreDraft',versionId:preview.id})}>确认恢复为当前稿</button><button onClick={()=>setRestoreId(undefined)}>取消</button></>:<button disabled={busy||!formal||!!process.finalized} onClick={()=>setRestoreId(preview.id)}>恢复此历史稿件</button>}</div>}
+              {preview.adoptStatus === 'pending' && <button className="primary" type="button" disabled={busy || !formal} onClick={() => void run({ type: 'adopt', versionId: preview.id })}>采用此版本</button>}
             </>}
             {adopted && <>
               <button type="button" disabled={!!reviseBlock || busy} onClick={startRevise}>回主讨论修订</button>
@@ -390,25 +458,25 @@ export function AgentWorkbench({
             </>}
           </div>}
           {shownStage === 3 && <div className="agent-card">
-            <h4>独立复核</h4>
-            <p>复核使用单独上下文。正式修改请回到主讨论。</p>
+            <h4>独立复核（可选）</h4>
+            <p>可按需进行独立复核，使用单独上下文。报告供参考，不阻止定稿或提交。正式修改请回主讨论。</p>
             <button type="button" disabled={!!reviewBlock || busy} onClick={() => void run({ type: 'run', action: 'review' })}>开始独立复核</button>
-            {reviewBlock && <p className="agent-note">{reviewBlock}</p>}
+            {reviewBlock && <p className="agent-note">{reviewBlock}</p>}{adopted&&<button disabled={busy} onClick={()=>openStage(4)}>前往定稿（可跳过复核）</button>}
             {review && <>
               <p>{review.invalidated ? '该复核已过时。' : review.summary}</p>
               {review.issues.map(issue => <label key={issue.id} className="checkbox">
-                <input type="checkbox" checked={issue.handled} disabled={busy || review.invalidated} onChange={e => void run({ type: 'issues', reviewId: review.id, issueIds: [issue.id], handled: e.target.checked })}/>
+                <input type="checkbox" checked={issue.handled} disabled={busy || !formal || review.invalidated} onChange={e => void run({ type: 'issues', reviewId: review.id, issueIds: [issue.id], handled: e.target.checked })}/>
                 <span><b>{issue.severity === 'error' ? '需修正' : issue.severity === 'warning' ? '需核对' : '提示'}</b> · {issue.finding}<small>依据：{issue.basis}</small><small>建议：{issue.suggestion}</small><small>{issue.handled ? '已确认处理' : '核对后勾选为已处理'}</small></span>
               </label>)}
               <p>{unhandledIssues(process).length ? `未处理 ${unhandledIssues(process).length} 项` : '问题已勾选处理'}</p>
               {adopted && <button type="button" disabled={!!reviseBlock || busy} onClick={startRevise}>回主讨论修订</button>}
             </>}
           </div>}
-          {adopted&&[2,3,4].includes(shownStage)&&!process.finalized&&process.classification.noticeCategory==='补正通知书'&&<CorrectionContentsEditor draft={adopted} busy={busy} onSave={async items=>{const next=await api!.command(profileKey,caseId,{type:'correctionContents',items});apply(next,gen.current);}}/>}
-          {adopted&&[2,3,4].includes(shownStage)&&!process.finalized&&<ApplicationPartsEditor draft={adopted} busy={busy} onSave={async parts=>{const next=await api!.command(profileKey,caseId,{type:'applicationParts',parts});apply(next,gen.current);}}/>}
+          {adopted&&[2,3,4].includes(shownStage)&&!process.finalized&&process.classification.noticeCategory==='补正通知书'&&<CorrectionContentsEditor draft={adopted} busy={busy || !formal} onSave={async items=>{const next=await api!.command(profileKey,caseId,{type:'correctionContents',items});apply(next,gen.current);}}/>}
+          {adopted&&[2,3,4].includes(shownStage)&&!process.finalized&&<ApplicationPartsEditor draft={adopted} busy={busy || !formal} onSave={async parts=>{const next=await api!.command(profileKey,caseId,{type:'applicationParts',parts});apply(next,gen.current);}}/>}
           {shownStage === 4 && <div className="agent-card">
             <h4>用户定稿</h4>{adopted?.applicationParts===undefined&&<p>请先在上方核对本次修改文件；没有修改也要明确保存。</p>}
-            <p>核对当前稿件及复核结果后，由你确认定稿。</p>
+            <p>核对当前稿件后，由你确认定稿。独立复核可选；已有报告和未处理问题保留供参考。</p>
             <button className="primary" type="button" disabled={!!finalizeBlock || busy || adopted?.applicationParts===undefined || process.classification.noticeCategory==='补正通知书'&&!adopted?.correctionContents?.length} onClick={() => void run({ type: 'finalize' })}>定稿</button>
             {finalizeBlock && <p className="agent-note">{finalizeBlock}</p>}
             {process.finalized && <p>{process.classification.noticeCategory==='补正通知书'?'已保存补正字段和本次修改的申请文件。':process.finalized.word.generated?'已生成正式 Word 文件并归档。':'已保存历史定稿。'}{process.finalized.word.message ? ` ${process.finalized.word.message}` : ''}</p>}
@@ -423,6 +491,7 @@ export function AgentWorkbench({
 export function AgentArtifacts({ view, caseId }: { view: AgentCaseView; caseId: string }) {
   const [preview, setPreview] = useState<AgentCaseView['artifacts'][number]>();
   const [error, setError] = useState('');
+  const [clearConfirm, setClearConfirm] = useState(false);
   const draft = view.process.drafts.find(item => item.id === preview?.versionId);
   const text = preview?.kind === 'body' || preview?.kind === 'final-body' ? draft?.text
     : preview?.kind === 'amendmentText' || preview?.kind === 'final-amendment' ? draft?.amendmentText

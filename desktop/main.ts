@@ -1,3 +1,6 @@
+import { initializeDiagnostics, diagnostic, diagnosticError } from './diagnostics.ts';
+import { writeFile } from 'node:fs/promises';
+import { ensureCaseStarted } from './start-work.ts';
 import { probeMcp } from './mcp-probe.ts';
 import { ExtensionService } from './extensions.ts';
 import { PatsnapService } from './patsnap.ts';
@@ -34,10 +37,22 @@ if(!app.requestSingleInstanceLock())app.quit();
 else {
 app.on('second-instance',()=>{window?.show();window?.focus();});
 app.whenReady().then(async()=>{
+  const diagnostics=initializeDiagnostics(path.join(app.getPath('userData'),'diagnostics'));
+  diagnostic('app','started',{version:app.getVersion(),platform:process.platform});
+  process.on('uncaughtExceptionMonitor',error=>diagnostic('main','uncaught',diagnosticError(error)));
+  process.on('unhandledRejection',error=>diagnostic('main','unhandled_rejection',diagnosticError(error)));
+  const exportDiagnostics=async()=>{
+    const snapshot=diagnostics.snapshot(app.getVersion());
+    const choice=await dialog.showSaveDialog({title:'导出最近 10 分钟诊断日志',defaultPath:`专利工作台-诊断-${new Date().toISOString().replace(/[:.]/g,'-')}.json`,filters:[{name:'诊断日志',extensions:['json']}]});
+    if(choice.canceled||!choice.filePath)return {canceled:true};
+    await writeFile(choice.filePath,JSON.stringify(snapshot,null,2),{mode:0o600});
+    return {canceled:false,path:choice.filePath,count:snapshot.records.length,droppedWrites:snapshot.droppedWrites};
+  };
+
   service=new DesktopService(app.getPath('userData'),{available:()=>safeStorage.isEncryptionAvailable()&&(process.platform!=='linux'||safeStorage.getSelectedStorageBackend()!=='basic_text'),encrypt:text=>safeStorage.encryptString(text),decrypt:data=>safeStorage.decryptString(data)});
   service.version=app.getVersion();
   modelService=new ModelService({root:service.root,profileKey:()=>service.key,generation:()=>service.generation,getVault:()=>service.vault});
-  try{await service.init();}catch(e){dialog.showErrorBox('本机记录读取失败',(e as Error).message);app.quit();return;}
+  try{await service.init(false);}catch(e){dialog.showErrorBox('本机记录读取失败',(e as Error).message);app.quit();return;}
   const startupSupported=process.platform==='darwin'||process.platform==='win32';
   const loginOptions=loginArguments(process.platform,process.execPath,process.env.PORTABLE_EXECUTABLE_FILE);
   const applicationSettings=new ApplicationSettings(path.join(service.root,'application-settings.json'),{
@@ -65,6 +80,7 @@ app.whenReady().then(async()=>{
   }
   agentHost=new AgentHost({
     desktopService:service,
+    beforeFormalRun:(key,id)=>ensureCaseStarted(service,key,id),
     modelService,
     serialize:agentSerial,
     rulesRoot:replyRulesRoot(app.getAppPath()),
@@ -72,9 +88,13 @@ app.whenReady().then(async()=>{
     run:hostRun,
   });
   const professionalHost=new ProfessionalHost(service,agentHost,modelService,hostRun,path.join(app.getAppPath(),'resources'));
+  professionalHost.beforeWriting=(key,id)=>ensureCaseStarted(service,key,id);
   professionalHost.changed=key=>{if(window&&!window.isDestroyed())window.webContents.send('desktop:professionalState',key);};
-  const transferHost=new TransferHost(service,agentHost,{templatesRoot:path.join(app.getAppPath(),'resources','document-templates'),applicationFile:(key,id)=>professionalHost.submissionApplication(key,id)});
+  const transferHost=new TransferHost(service,agentHost,{confirmName:async({applicationName,caseName})=>{const answer=await dialog.showMessageBox({type:'question',title:'确认申请文件名称差异',message:'贝思兰德要求确认申请文件名称与系统案件名称不一致。',detail:`申请文件名称：${applicationName}\n当前案件显示名称：${caseName}\n确认后仅重试本次设置；此前上传文件保留。请核对服务端案件名称后决定。`,buttons:['暂不确认','确认名称差异并保存设置'],defaultId:0,cancelId:0,noLink:true});return answer.response===1;},templatesRoot:path.join(app.getAppPath(),'resources','document-templates'),applicationFile:(key,id)=>professionalHost.submissionApplication(key,id)});
   window=new BrowserWindow({show:!startHidden,width:1400,height:940,minWidth:900,minHeight:650,title:'专利工作台',icon:path.join(app.getAppPath(),'resources/branding/icon.png'),backgroundColor:'#f6f7f9',webPreferences:{preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true}});
+  window.on('unresponsive',()=>diagnostic('renderer','unresponsive'));
+  window.on('responsive',()=>diagnostic('renderer','responsive'));
+  window.webContents.on('render-process-gone',(_e,details)=>diagnostic('renderer','process_gone',{state:details.reason,exitCode:details.exitCode}));
   const showWindow=()=>{if(window?.isMinimized())window.restore();window?.show();window?.focus();};
   let tray:Tray|null=null;
   const configureTray=()=>{
@@ -90,7 +110,7 @@ app.whenReady().then(async()=>{
   };
   configureTray();
   app.on('activate',showWindow);
-  Menu.setApplicationMenu(Menu.buildFromTemplate([{label:'专利工作台',submenu:[{role:'about'},{type:'separator'},{role:'hide'},{role:'unhide'},{type:'separator'},{role:'quit'}]},{label:'编辑',submenu:[{role:'undo'},{role:'redo'},{type:'separator'},{role:'cut'},{role:'copy'},{role:'paste'},{role:'selectAll'}]},{label:'窗口',submenu:[{role:'minimize'},{role:'zoom'}]}]));
+  Menu.setApplicationMenu(Menu.buildFromTemplate([{label:'专利工作台',submenu:[{role:'about'},{type:'separator'},{role:'hide'},{role:'unhide'},{type:'separator'},{role:'quit'}]},{label:'帮助',submenu:[{label:'导出最近 10 分钟日志…',click:()=>{void exportDiagnostics().catch(()=>dialog.showErrorBox('日志导出失败','请检查保存位置和磁盘空间。'));}}]},{label:'编辑',submenu:[{role:'undo'},{role:'redo'},{type:'separator'},{role:'cut'},{role:'copy'},{role:'paste'},{role:'selectAll'}]},{label:'窗口',submenu:[{role:'minimize'},{role:'zoom'}]}]));
   const page=path.join(__dirname,'../dist/index.html');
   window.webContents.setWindowOpenHandler(()=>({action:'deny'}));
   window.webContents.on('will-navigate',e=>e.preventDefault());
@@ -110,12 +130,22 @@ app.whenReady().then(async()=>{
   });
   function handle(name:string,fn:(...args:any[])=>unknown,queued=false,rejectIfMigrating=false){ipcMain.handle('desktop:'+name,async(event,...args)=>{
     if(event.sender!==window?.webContents||event.senderFrame!==window.webContents.mainFrame)throw new Error('不接受非应用窗口请求。');
+    const started=Date.now();
+    if(name!=='diagnosticReport')diagnostic('ipc','started',{operation:name});
     try{
       if(quitting)throw new Error('应用正在退出。');
       if(rejectIfMigrating)service.assertMigrationNotAccepted();
       return await (queued?serial(async()=>fn(...args)):fn(...args));
-    }catch(e){throw new Error((e as Error).message||'操作未完成。');}
+    }catch(e){diagnostic('ipc','failed',{operation:name,...diagnosticError(e)});throw new Error((e as Error).message||'操作未完成。');}finally{if(name!=='diagnosticReport')diagnostic('ipc','finished',{operation:name,durationMs:Date.now()-started});}
   });}
+  handle('diagnosticExport',exportDiagnostics);
+  let rendererReports=0,rendererWindow=0;
+  handle('diagnosticReport',(input:unknown)=>{
+    if(Date.now()-rendererWindow>60000){rendererWindow=Date.now();rendererReports=0;}
+    if(++rendererReports>60)return;
+    const v=input as {type?:string;line?:number;column?:number};
+    if(v&&['error','unhandledrejection','react_error'].includes(v.type||''))diagnostic('renderer','error',{type:v.type,line:v.line,column:v.column});
+  });
   const chosen=new Set<string>();
   handle('applicationGet',()=>applicationSettings.view());
   handle('applicationSave',async(input:unknown)=>{const view=await applicationSettings.save(input);configureTray();return view;},true);
@@ -123,6 +153,7 @@ app.whenReady().then(async()=>{
   handle('applicationQuit',()=>{app.quit();});
   handle('caseInfo',(key:string,id:string)=>service.caseInfo(key,id));
   handle('bootstrap',()=>service.state());
+  handle('verifyLogin',async()=>{const s=await service.verifyLogin(true);if(s.account?.status==='authenticated'&&s.workspace.settings.workRoot&&!service.isWorkMigrationBusy())void service.sync().catch(()=>{});return s;});
   handle('extensions',async(method:string,key:string,...args:any[])=>{
     service.assertKey(key);
     if(method==='list')return extensions.list(key);
@@ -197,7 +228,7 @@ app.whenReady().then(async()=>{
   handle('flow',id=>service.flow(id,fn=>serial(fn)),false,true);
   handle('findOriginals',id=>service.findOriginals(id),false,true);
   handle('copyOriginal',(id,source)=>service.copyOriginal(id,source),true,true);
-  handle('openCaseDirectory',async id=>{const error=await shell.openPath(await service.casePath(id));if(error)throw new Error('系统未能打开案件目录。');},false,true);
+  handle('openCaseDirectory',async id=>{await service.files().writeFileGuide(service.findCase(id));const error=await shell.openPath(await service.casePath(id));if(error)throw new Error('系统未能打开案件目录。');},false,true);
   handle('openMaterial',async(id,rel)=>{
     const key=service.key,c=service.findCase(id);
     const material=[...(c.materials??[]),...c.rounds.flatMap(r=>r.materials)].some(m=>m.relativePath===rel&&m.ready);
@@ -230,6 +261,7 @@ app.whenReady().then(async()=>{
   handle('professionalOpen',async(key:string,id:string,rel:string)=>{const generation=service.generation;if(!await professionalHost.fileAllowed(key,id,rel))throw new Error('文件不属于本案成果。');const target=await service.casePath(id,rel);service.assertKey(key);if(generation!==service.generation)throw new Error('账号已变化，请重新打开成果。');const error=await shell.openPath(target);if(error)throw new Error('文件未能打开。');});
   handle('agentGetCase',(profileKey:string,caseId:string)=>agentHost.getCase(profileKey,caseId));
   handle('agentCommand',(profileKey:string,caseId:string,command:AgentCommand)=>agentHost.command(profileKey,caseId,command));
+  handle('agentProgress',(profileKey:string)=>agentHost.listProgress(profileKey));
   handle('agentTasks',async(profileKey:string)=>[...await agentHost.listTasks(profileKey),...await professionalHost.listTasks(profileKey)]);
   let detectedTools=await detectLocalTools();
   const documentStatus=async()=>({permissions:localToolPermissions(),detectedTools,converter:await findDocumentConverter()??null,vision:true,managed:managedToolsStatus(),webEnabled:converterConfig.webEnabled!==false,autoInstall:converterConfig.autoInstall!==false});
@@ -249,7 +281,7 @@ app.whenReady().then(async()=>{
     const next={...converterConfig,webEnabled:value.webEnabled,autoInstall:value.autoInstall,commandsEnabled:value.commandsEnabled,downloadsEnabled:value.downloadsEnabled};await atomicJSON(converterFile,next);converterConfig=next;configureConverter();return documentStatus();
   },true,true);
   handle('documentToolsOpen',async()=>{await import('node:fs/promises').then(fs=>fs.mkdir(path.join(service.root,'tools'),{recursive:true}));await shell.openPath(path.join(service.root,'tools'));});
-  handle('transferPrepare',(key,id)=>transferHost.prepare(key,id),true,true);
+  handle('transferPrepare',(key,id,sourceMode)=>transferHost.prepare(key,id,false,sourceMode),true,true);
   handle('transferPickFile',async(key,id,role)=>{
     const selected=await dialog.showOpenDialog(window!,{title:role==='baseline'?'选择本次修改所基于的完整申请文件':role==='reply'?'选择本次定稿意见陈述书':'选择完整修改后的申请文件',filters:[{name:'Word 文档',extensions:['docx']}],properties:['openFile']});
     if(selected.canceled)return transferHost.refresh(key,id);
@@ -262,6 +294,9 @@ app.whenReady().then(async()=>{
   handle('transferReprepare',(key,id)=>transferHost.reprepare(key,id),true,true);
   ipcMain.handle('desktop:model',async(event,method,profileKey,args,requestId)=>{
     if(event.sender!==window?.webContents||event.senderFrame!==window.webContents.mainFrame)throw new Error('不接受非应用窗口请求。');
+    const name='model';
+    const started=Date.now();
+    diagnostic('ipc','started',{operation:name});
     try{
       if(quitting)throw new Error('应用正在退出。');
       return await handleModelIpc({
@@ -272,7 +307,7 @@ app.whenReady().then(async()=>{
         getGeneration:()=>service.generation,
         chosenDsh,
       },modelRequests,event.sender,event.senderFrame,String(method),String(profileKey??''),Array.isArray(args)?args:[],typeof requestId==='string'?requestId:undefined);
-    }catch(e){throw new Error((e as Error).message||'操作未完成。');}
+    }catch(e){diagnostic('ipc','failed',{operation:name,...diagnosticError(e)});throw new Error((e as Error).message||'操作未完成。');}finally{diagnostic('ipc','finished',{operation:name,durationMs:Date.now()-started});}
   });
   ipcMain.handle('desktop:modelCancel',async(event,requestId)=>{
     if(event.sender!==window?.webContents||event.senderFrame!==window.webContents.mainFrame)throw new Error('不接受非应用窗口请求。');
@@ -281,6 +316,9 @@ app.whenReady().then(async()=>{
   });
   await window.loadFile(page);
   if(service.account?.status==='authenticated'&&service.workspace.settings.workRoot&&!service.isWorkMigrationBusy())void service.sync();
+  void service.verifyLogin(true).then(s=>{if(s.account?.status==='authenticated'&&s.workspace.settings.workRoot&&!service.isWorkMigrationBusy())void service.sync().catch(()=>{});}).catch(()=>{});
+  const authTimer=setInterval(()=>{const was=service.account?.status;void service.retryLoginIfDue().then(s=>{if(was!=='authenticated'&&s.account?.status==='authenticated'&&s.workspace.settings.workRoot&&!service.isWorkMigrationBusy())void service.sync().catch(()=>{});}).catch(()=>{});},5000);
+  app.on('before-quit',()=>clearInterval(authTimer));
   const timer=setInterval(()=>{if(service.account?.status==='authenticated'&&service.workspace.settings.workRoot&&!service.isWorkMigrationBusy())void service.sync();},5*60*1000);
   window.on('minimize',()=>{if(applicationSettings.preferences.minimizeToTray&&!quitting)window?.hide();});
   window.on('close',e=>{

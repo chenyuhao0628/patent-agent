@@ -12,6 +12,7 @@ export const INTERNAL_ENDED_WAIT_LABEL = '内部流程已结束，等待后续�
 export const OFFICIAL_PARTY = '官方';
 
 export function processBusinessKind(name:string):'write'|'reply'|'correction'|undefined {
+  if(/^取消提出申请(?:$|[（(\s])/.test(name.trim()))return undefined;
   if(/补正/.test(name))return 'correction';
   if(/复审/.test(name))return 'reply';
   if(/答复|审查意见/.test(name))return 'reply';
@@ -22,7 +23,12 @@ export function processBusinessKind(name:string):'write'|'reply'|'correction'|un
 export function processSubmission(c:Case):Submission|undefined {
   const id=currentWork(c).processId;
   if(!id)return undefined;
-  return (c.remote?.processes??[]).find(p=>p.id===id)?.submission;
+  const p=(c.remote?.processes??[]).find(p=>p.id===id);
+  return p?effectiveSubmission(p):undefined;
+}
+export function effectiveSubmission(p:RemoteProcess):Submission|undefined {
+  if(p.personalStatus===500&&processBusinessKind(p.name))return p.submission?.state==='received'?p.submission:{state:'sent',source:'personal-status',checkedAt:p.submission?.checkedAt??'',message:'个人案件已完成，已提交官方'};
+  return p.submission;
 }
 export function isConfirmedOfficialSubmission(sub?:Submission):boolean {
   return sub?.state==='sent'||sub?.state==='received';
@@ -67,7 +73,8 @@ export function editableCurrent(c:Case) {
   if(c.remoteClosure?.finished)return false;
   const w=currentWork(c),sub=processSubmission(c);
   if(isConfirmedOfficialSubmission(sub)||w.kind==='waiting')return false;
-  return !c.archived && ['write','reply','correction','review'].includes(w.kind) && (w.remoteStatus === undefined || w.remoteStatus===0);
+  const p=c.remote?.processes.find(p=>p.id===w.processId);
+  return !c.archived && ['write','reply','correction','review'].includes(w.kind) && (w.remoteStatus === undefined || w.remoteStatus===0 || ([200,300,400].includes(w.remoteStatus)&&p?.canEdit===true));
 }
 export function internalTransferAvailable(c:Case){
   const w=currentWork(c),status=w.remoteStatus??c.remote?.processes.find(p=>p.id===w.processId)?.status;
@@ -102,6 +109,11 @@ export function caseStatus(c:Case) {
   if(c.archived)return '已归档';
   const w=currentWork(c),r=activeRound(c),sub=processSubmission(c),process=currentRemoteOf(c,w);
   const title=w.label??workNames[w.kind];
+  if(c.source==='baseland'&&process&&!['queued','sending','failed'].includes(sub?.state??'')){
+    if(process.personalStatus===500||isConfirmedOfficialSubmission(sub))return '已完成 · 已提交官方';
+    if(process.status===0&&!process.handId)return '待处理 · 尚未启动递交';
+    if([200,300,400].includes(process.status)||process.handId)return `递交中 · ${process.currentFlow?.user||'办理人待核对'} · ${process.currentFlow?.name||'节点待核对'}`;
+  }
   if(sub&&(sub.state==='queued'||sub.state==='sending'||sub.state==='failed'||sub.state==='sent'||sub.state==='received')){
     if(sub.state==='received')return '已收到回执，等待官方处理结果';
     if(sub.state==='sent')return sub.source==='send-status'?'递交成功，等待回执':officialStatusLabel(sub);
@@ -144,7 +156,7 @@ function applyProcessStage(next:Case,current:CurrentWork,process:RemoteProcess|u
 
 export function normalizeCase(c:Case):Case {
   const next={...c};
-  if(next.remote?.processes)next.remote={...next.remote,processes:next.remote.processes.map(p=>mergeRemoteProcess(undefined,p))};
+  if(next.remote?.processes)next.remote={...next.remote,processes:next.remote.processes.map(p=>({...mergeRemoteProcess(undefined,p),submission:effectiveSubmission(p)}))};
   const current=currentWork(next);
   const processes=next.remote?.processes??[];
   const internallyActive=processes.filter(isInternallyActiveProcess);

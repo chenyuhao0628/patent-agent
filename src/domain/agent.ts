@@ -63,6 +63,7 @@ export type AgentMessage = {
   text: string;
   at: string;
   runId?: string;
+  incomplete?: boolean;
 };
 
 export type ToolEvent = {
@@ -77,7 +78,15 @@ export type ToolEvent = {
   toolKind?: ToolKind;
 };
 
+export type DiscussionBranch = { id: string; title: string; messages: AgentMessage[]; toolEvents: ToolEvent[]; runIds: string[] };
+
+export type QueuedMessage = { id:string; text:string; purpose:'workflow'|'discuss'; analysisRunId?:string; branchId:string; at:string; error?:string };
+
 export type Discussion = {
+  queuedMessages?:QueuedMessage[];
+  activeBranchId?: string;
+  branches?: DiscussionBranch[];
+  branchRunIds?: string[];
   archived?: boolean;
   id: string;
   kind: DiscussionKind;
@@ -96,6 +105,14 @@ export type PublicRuntimeSnapshot = {
 };
 
 export type AgentJob = {
+  queueId?:string;
+  branchId?: string;
+  userMessage?: string;
+  partialText?: string;
+  thinkingText?: string;
+  activity?: string;
+  lastActivityAt?: string;
+  steps?: Array<{ id: string; label: string; status: string; at: string; endedAt?: string }>;
   runId: string;
   discussionId: string;
   action: AgentAction;
@@ -221,6 +238,7 @@ export type PromptContext = {
 };
 
 export type AgentProcessState = {
+  openedAt?: string;
   scope: AgentScope;
   classification: NoticeClassification;
   access: ProcessAccess;
@@ -777,7 +795,7 @@ export function openDiscussion(state: AgentProcessState, cmd: ScopeCommand & { t
 
 export function discussionCanDelete(state: AgentProcessState, id: string): boolean {
   const d=state.discussions.find(d=>d.id===id);
-  return !!d && id!==state.mainDiscussionId && d.kind==='main' && !d.messages.length && !d.toolEvents.length
+  return !!d && id!==state.mainDiscussionId && d.kind==='main' && !d.queuedMessages?.length&&!d.messages.length && !d.toolEvents.length
     && !state.jobs.some(j=>j.discussionId===id) && !state.discussions.some(d=>d.parentDiscussionId===id);
 }
 
@@ -922,6 +940,10 @@ export function startAgentJob(state: AgentProcessState, cmd: StartJobCommand): A
     action: cmd.action,
     state: 'running',
     startedAt: at,
+    branchId: discussionOf(next, cmd.discussionId)?.activeBranchId,
+    userMessage: cmd.userMessage,
+    activity: '连接模型',
+    lastActivityAt: at,
     resumeFromRunId: cmd.resumeFromRunId,
     publicRuntime: cmd.publicRuntime ? {
       profileKey: cmd.publicRuntime.profileKey,
@@ -933,6 +955,7 @@ export function startAgentJob(state: AgentProcessState, cmd: StartJobCommand): A
     baseDraftVersionId: cmd.action === 'draft' || cmd.action === 'revise' ? state.currentDraftVersionId ?? undefined : undefined,
   };
   next.jobs.push(job);
+  discussionOf(next, cmd.discussionId)?.branchRunIds?.push(runId);
   next.activeRunId = runId;
   const discussion = discussionOf(next, cmd.discussionId)!;
   if (filled(cmd.userMessage)) {
@@ -1106,7 +1129,6 @@ export function missingFormalReads(state: AgentProcessState, runId: string): Age
   const readIds = new Set(materialReads.map(event => event.materialId!));
   const missing = required.filter(item => !readIds.has(item.id));
   if (missing.length) {
-    if (!materialReads.length) return agentFail('MATERIALS_UNREAD');
     return agentFail('MATERIALS_UNREAD', `正式任务完成前必须实际读取：${missing.map(item => item.name).join('、')}。`);
   }
   if (job.action === 'review' && !reads.some(event => event.toolKind === 'read_draft')) {
@@ -1220,7 +1242,7 @@ export function completeAgentJob(state: AgentProcessState, cmd: ScopeCommand & {
     appendAssistant(next, job.discussionId, cmd.assistantText?.trim() || (
       !matchesCurrent
         ? '复核所绑定的稿件已不是当前稿，该复核不能当作当前稿已审。'
-        : issues.length ? '独立复核已完成，请回到主讨论处理问题后再定稿。' : '独立复核未发现问题。定稿仍需用户确认。'
+        : issues.length ? '独立复核已完成，可回主讨论处理问题，也可由用户核对后定稿。' : '独立复核未发现问题。定稿仍需用户确认。'
     ), at, cmd.runId);
     return ok(next, { value: { reviewId: review.id, invalidated: review.invalidated } });
   }
@@ -1246,6 +1268,7 @@ export function selectStrategy(state: AgentProcessState, cmd: ScopeCommand & { s
     });
     next.stage = 'strategy';
   }
+  if (!next.currentDraftVersionId) next.stage = 'draft';
   return ok(next, { value: { strategy } });
 }
 
@@ -1369,10 +1392,7 @@ export function finalizeBlocker(state: AgentProcessState): AgentFailure | null {
   if (state.userSelectedStrategyId && draft.strategyId && draft.strategyId !== state.userSelectedStrategyId) {
     return agentFail('STRATEGY_INVALID', '当前稿件不属于用户选定的策略，请按新策略起草并复核。');
   }
-  const matching = [...state.reviews].reverse().find(review => review.draftVersionId === draft.id);
-  if (!matching) return state.reviews.length ? agentFail('REVIEW_STALE') : agentFail('REVIEW_REQUIRED');
-  if (matching.invalidated) return agentFail('REVIEW_STALE');
-  if (matching.issues.some(issue => !issue.handled)) return agentFail('UNHANDLED_ISSUES');
+  // Independent review is optional; findings remain visible without blocking user finalization.
   return null;
 }
 

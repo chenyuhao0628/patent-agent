@@ -131,7 +131,7 @@ export function mergeProcessDeadlines(previous: ProcessDeadlineInput | undefined
   };
 }
 
-function keepOptionalField<K extends 'currentFlow' | 'needSendOfficial'>(merged: RemoteProcess, previous: RemoteProcess | undefined, incoming: RemoteProcess, key: K) {
+function keepOptionalField<K extends 'currentFlow' | 'needSendOfficial' | 'canEdit' | 'personalStatus'>(merged: RemoteProcess, previous: RemoteProcess | undefined, incoming: RemoteProcess, key: K) {
   if (!Object.prototype.hasOwnProperty.call(incoming, key) && previous && Object.prototype.hasOwnProperty.call(previous, key)) {
     merged[key] = previous[key];
   }
@@ -140,6 +140,8 @@ function keepOptionalField<K extends 'currentFlow' | 'needSendOfficial'>(merged:
 export function mergeRemoteProcess(previous: RemoteProcess | undefined, incoming: RemoteProcess): RemoteProcess {
   const merged: RemoteProcess = { ...incoming, ...mergeProcessDeadlines(previous, incoming) };
   keepOptionalField(merged, previous, incoming, 'currentFlow');
+  keepOptionalField(merged, previous, incoming, 'canEdit');
+  keepOptionalField(merged, previous, incoming, 'personalStatus');
   keepOptionalField(merged, previous, incoming, 'needSendOfficial');
   for (const key of ['flowRemark', 'officeNote', 'procNote', 'procCode'] as const) {
     if (!Object.prototype.hasOwnProperty.call(incoming, key) && previous?.[key] !== undefined) merged[key] = previous[key];

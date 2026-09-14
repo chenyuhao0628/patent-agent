@@ -17,10 +17,10 @@ export type Round = {
   finalHistory: { versionId: string; text: string; at: string }[];
 };
 export type SubmissionState = 'unknown'|'draft'|'queued'|'sending'|'sent'|'received'|'failed';
-export type Submission = {state:SubmissionState;checkedAt:string;message?:string;source?:'hand'|'send-status';refreshError?:string};
+export type Submission = {state:SubmissionState;checkedAt:string;message?:string;source?:'hand'|'send-status'|'personal-status';refreshError?:string};
 export type OfficialDeadlineSource = 'cpc'|'official-document';
 export type CurrentFlowInfo = {name:string;user:string;serial?:number;total?:number};
-export type RemoteProcess = {procCode?:string;flowRemark?:string;officeNote?:string;procNote?:string;id:string;name:string;status:number;node:string;undertaker:string;deadline:string;officialDeadline?:string;officialDeadlineSource?:OfficialDeadlineSource;baselandDeadline?:string;internalDeadline?:string;handId?:string;submission?:Submission;currentFlow?:CurrentFlowInfo;needSendOfficial?:boolean};
+export type RemoteProcess = {personalStatus?:number;canEdit?:boolean;procCode?:string;flowRemark?:string;officeNote?:string;procNote?:string;id:string;name:string;status:number;node:string;undertaker:string;deadline:string;officialDeadline?:string;officialDeadlineSource?:OfficialDeadlineSource;baselandDeadline?:string;internalDeadline?:string;handId?:string;submission?:Submission;currentFlow?:CurrentFlowInfo;needSendOfficial?:boolean};
 export type Case = { remoteClosure?:{finished:boolean;checkedAt:string}; companyName?:string;caseRemark?:string;caseInfoAt?:string; id: string; title: string; number: string; type: string; deadline: string; archived: boolean; tags: string[]; rounds: Round[]; design?: CaseDesign; current?:CurrentWork; source?:'baseland'|'local'; materials?:Material[]; applicationNumber?:string; directory?:string; remote?:{caseId:string;processes:RemoteProcess[];syncedAt:string}; localDraft?:string; sharedDraftHash?:string; localVersions?:{id:string;text:string;at:string;processId?:string}[] };
 export type Settings = {provider:string;baseUrl:string;model:string;originalLibrary?:string;workRoot?:string;sharedDirectory?:string;localDirectory?:string;templatePath?:string;extensions?:{id:string;name:string;kind:'技能'|'MCP';enabled:boolean}[]};
 export type Workspace = { schema: 1; cases: Case[]; settings: Settings };

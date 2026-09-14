@@ -1,3 +1,5 @@
+import { DeepseekEventAdapter, deepseekResponses, restoreDeepseekReasoning } from './deepseek-responses.ts';
+import { diagnostic, withDiagnostics } from './diagnostics.ts';
 import http from 'node:http';
 import https from 'node:https';
 import { Buffer } from 'node:buffer';
@@ -14,8 +16,8 @@ import {
 export const DUMMY_UPSTREAM_KEY = 'patent-workbench-dummy-key';
 export const DEFAULT_CONTEXT_WINDOW = 128_000;
 export const DEFAULT_MAX_OUTPUT = 8_192;
-export const PROXY_BODY_MAX_BYTES = 1_000_000;
-export const PROXY_RESPONSE_MAX_BYTES = 8_000_000;
+export const PROXY_BODY_MAX_BYTES = 16 * 1024 * 1024;
+export const PROXY_RESPONSE_MAX_BYTES = 64 * 1024 * 1024;
 export const PROVIDER_NPM = {
   'openai-responses': '@ai-sdk/openai',
   'openai-chat-completions': '@ai-sdk/openai-compatible',
@@ -67,6 +69,7 @@ export type SafeProxyRequest = {
 };
 
 export type AgentProxyOptions = {
+  runId?: string;
   runtime: RuntimeModelConfig;
   discussionId: string;
   fetchImpl?: typeof fetch;
@@ -300,7 +303,7 @@ export function applyWirePolicy(protocol: ModelProtocol, body: JsonObject, runti
       }
     }
   }
-  return next;
+  return deepseekResponses(runtime)?restoreDeepseekReasoning(next):next;
 }
 
 function safeErrorPayload(code: string, requestId?: string) {
@@ -335,6 +338,7 @@ function headerRecord(headers: Headers): Record<string, string> {
 }
 
 function safeLog(message: string, extra?: { code?: string; requestId?: string }) {
+  diagnostic('model',message.replaceAll(' ','_'),extra);
   const code = extra?.code ? ` code=${extra.code}` : '';
   const id = extra?.requestId ? ` request_id=${extra.requestId}` : '';
   console.error(`[agent-proxy] ${message}${code}${id}`);
@@ -401,6 +405,7 @@ async function forwardViaFetch(
   req: http.IncomingMessage,
   res: http.ServerResponse,
   responseLimit: number,
+  adapter?: DeepseekEventAdapter,
 ) {
   if (controller.signal.aborted) {
     if (!res.headersSent && !res.destroyed) res.destroy();
@@ -431,7 +436,7 @@ async function forwardViaFetch(
     writeJson(res, 502, safeErrorPayload('upstream_error'));
     return;
   }
-  await writeUpstreamResponse(upstream.status, upstream.headers, upstream.body, req, res, controller.signal, responseLimit);
+  await writeUpstreamResponse(upstream.status, upstream.headers, upstream.body, req, res, controller.signal, responseLimit, adapter);
 }
 
 function forwardViaNode(
@@ -443,6 +448,7 @@ function forwardViaNode(
   req: http.IncomingMessage,
   res: http.ServerResponse,
   responseLimit: number,
+  adapter?: DeepseekEventAdapter,
 ): Promise<void> {
   return new Promise(resolve => {
     let url: URL;
@@ -489,7 +495,7 @@ function forwardViaNode(
         if (value === undefined) continue;
         webHeaders.set(key, Array.isArray(value) ? value.join(', ') : value);
       }
-      await writeNodeStream(status, webHeaders, upstream, req, res, signal, responseLimit);
+      await writeNodeStream(status, webHeaders, upstream, req, res, signal, responseLimit, adapter);
       resolve();
     });
     const onAbort = () => {
@@ -531,8 +537,10 @@ async function writeUpstreamResponse(
   res: http.ServerResponse,
   signal: AbortSignal,
   responseLimit: number,
+  adapter?: DeepseekEventAdapter,
 ) {
   const rid = requestIdOf(headers);
+  diagnostic('model','upstream_headers',{statusCode:status,requestId:rid});
   if (status >= 300 && status < 400) {
     void body?.cancel();
     safeLog('upstream redirect rejected', { code: 'redirect', requestId: rid });
@@ -541,11 +549,13 @@ async function writeUpstreamResponse(
   }
   if (status >= 400) {
     const code = status === 401 || status === 403 || status === 429 ? `http_${status}` : 'upstream_error';
+    diagnostic('model','upstream_status',{statusCode:status,code,requestId:rid});
     safeLog('upstream error', { code, requestId: rid });
     writeJson(res, status >= 500 ? 502 : status, safeErrorPayload(code, rid));
     void body?.cancel();
     return;
   }
+  if(!/text\/event-stream/i.test(headers.get('content-type')||''))adapter=undefined;
   copySafeHeaders(status, headers, res);
   if (!body) {
     res.end();
@@ -569,9 +579,10 @@ async function writeUpstreamResponse(
         void reader.cancel().catch(() => undefined);
         return;
       }
-      res.write(Buffer.from(value));
+      res.write(adapter?adapter.push(value):Buffer.from(value));
     }
-    res.end();
+    res.end(adapter?.end());
+    if(adapter)diagnostic('model','thinking_adapter',{thinkingChars:adapter.thinkingChars});
   } catch {
     void reader.cancel().catch(() => undefined);
     if (!res.writableEnded) res.destroy();
@@ -586,19 +597,23 @@ function writeNodeStream(
   res: http.ServerResponse,
   signal: AbortSignal,
   responseLimit: number,
+  adapter?: DeepseekEventAdapter,
 ): Promise<void> {
   const rid = requestIdOf(headers);
+  diagnostic('model','upstream_headers',{statusCode:status,requestId:rid});
   if (status >= 400) {
     upstream.resume();
     const code = status === 401 || status === 403 || status === 429 ? `http_${status}` : 'upstream_error';
+    diagnostic('model','upstream_status',{statusCode:status,code,requestId:rid});
     safeLog('upstream error', { code, requestId: rid });
     writeJson(res, status >= 500 ? 502 : status, safeErrorPayload(code, rid));
     return Promise.resolve();
   }
+  if(!/text\/event-stream/i.test(headers.get('content-type')||''))adapter=undefined;
   copySafeHeaders(status, headers, res);
   (res as http.ServerResponse & { shouldKeepAlive?: boolean }).shouldKeepAlive = false;
   const lengthHeader = headers.get('content-length');
-  const known = lengthHeader !== null && /^\d+$/.test(lengthHeader) ? Number(lengthHeader) : -1;
+  const known = !adapter && lengthHeader !== null && /^\d+$/.test(lengthHeader) ? Number(lengthHeader) : -1;
   return new Promise(resolve => {
     let sent = 0;
     const buffered: Buffer[] = [];
@@ -618,7 +633,8 @@ function writeNodeStream(
         return;
       }
       if (known >= 0) res.end(buffered.length ? Buffer.concat(buffered) : undefined);
-      else res.end();
+      else res.end(adapter?.end());
+      if(adapter)diagnostic('model','thinking_adapter',{thinkingChars:adapter.thinkingChars});
       resolve();
     };
     upstream.on('data', (chunk: Buffer | string) => {
@@ -634,7 +650,7 @@ function writeNodeStream(
         return;
       }
       if (known >= 0) buffered.push(buf);
-      else res.write(buf);
+      else {try{res.write(adapter?adapter.push(buf):buf);}catch{safeLog('response adapter failed',{code:'event_frame_limit'});fail();}}
     });
     upstream.on('end', flushEnd);
     upstream.on('error', fail);
@@ -671,7 +687,7 @@ export function startAgentProxy(options: AgentProxyOptions): Promise<AgentProxy>
   let closed = false;
 
   const server = http.createServer((req, res) => {
-    void handle(req, res).catch(() => {
+    void withDiagnostics({runId:options.runId,discussionId,requestId:randomBytes(16).toString('hex')},()=>handle(req, res)).catch(() => {
       if (!res.headersSent) writeJson(res, 500, safeErrorPayload('internal_error'));
       else if (!res.writableEnded) res.destroy();
     });
@@ -721,6 +737,7 @@ export function startAgentProxy(options: AgentProxyOptions): Promise<AgentProxy>
       raw = method === 'GET' ? Buffer.alloc(0) : await readLimited(req, bodyLimit);
     } catch (error) {
       if (refuseClosed()) return;
+      diagnostic('model','request_rejected',{runId:options.runId,code:(error as {code?:string}).code,bytes:bodyLimit,statusCode:413});
       writeJson(res, (error as { code?: string }).code === 'payload_too_large' ? 413 : 400, safeErrorPayload((error as { code?: string }).code || 'bad_request'));
       return;
     }
@@ -752,6 +769,9 @@ export function startAgentProxy(options: AgentProxyOptions): Promise<AgentProxy>
       writeJson(res, 403, safeErrorPayload('forbidden_endpoint'));
       return;
     }
+    const requestStarted=Date.now();
+    diagnostic('model','request_started',{runId:options.runId,discussionId,protocol:runtime.protocol,model:runtime.modelId,bytes:raw.length});
+    res.once('close',()=>diagnostic('model','request_finished',{runId:options.runId,discussionId,statusCode:res.headersSent?res.statusCode:0,durationMs:Date.now()-requestStarted,state:res.writableFinished?'completed':'interrupted'}));
     options.onSafeRequest?.(redactCapture(req.headers, pathnameOf(stripped) + queryStringOf(stripped), method, body, raw.length));
     const controller = new AbortController();
     controllers.add(controller);
@@ -776,10 +796,11 @@ export function startAgentProxy(options: AgentProxyOptions): Promise<AgentProxy>
         writeJson(res, 503, safeErrorPayload('proxy_closed'));
         return;
       }
+      const adapter=deepseekResponses(runtime)?new DeepseekEventAdapter():undefined;
       if (fetchImpl !== defaultFetch) {
-        await forwardViaFetch(fetchImpl, target, method, headers, raw, controller, req, res, responseLimit);
+        await forwardViaFetch(fetchImpl, target, method, headers, raw, controller, req, res, responseLimit, adapter);
       } else {
-        await forwardViaNode(target, method, headers, raw, controller.signal, req, res, responseLimit);
+        await forwardViaNode(target, method, headers, raw, controller.signal, req, res, responseLimit, adapter);
       }
     } finally {
       controllers.delete(controller);

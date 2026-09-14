@@ -213,8 +213,8 @@ test('submission source distinguishes hand delivery from send-status; archived d
     { officialDeadline: '2026-09-11', submission: { state: 'sent', source: 'send-status', checkedAt: '2026-09-12T00:00:00.000Z' } },
   );
   assert.equal(waitingOfficialLabel(hand), '已递交，等待官方处理结果');
-  assert.equal(libraryStatus(hand).short, '等待官方');
-  assert.match(libraryStatus(hand).full,/已递交/);
+  assert.equal(libraryStatus(hand).short, '已完成 · 已提交官方');
+  assert.match(libraryStatus(hand).full,/已提交官方/);
   assert.equal(waitingOfficialLabel(sendStatus), '递交成功，等待回执');
   assert.equal(waitingOfficialLabel(received), '已收到回执，等待官方处理结果');
   assert.equal(isConfirmedWaitingOfficial(hand), true);

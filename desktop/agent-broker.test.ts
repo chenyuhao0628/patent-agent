@@ -343,3 +343,41 @@ test('standard skill resources are immutable allowlisted run inputs, not filesys
  const read=await callTool(broker.url,token,'read_skill',{path:'review/references/source.md'});assert.match(read.text,/来源与程序阶段/);assert.equal(events.at(-1)?.status,'success');
  const denied=await callTool(broker.url,token,'read_skill',{path:'../../session.json'});assert.match(denied.text,/不在|不属于|未授权/);assert.doesNotMatch(denied.text,/encrypted/);
 });
+
+test('artifact validation feeds errors back, preserves prior bytes, and accepts corrected structured content',async()=>{
+ const root=await tmpDir('repair');const token=randomRunToken();const out=path.join(root,'out');
+ const broker=await startAgentBroker({token,snapshotRoot:path.join(root,'snap'),outputsRoot:out,materials:[],allowedArtifacts:['result.json'],artifactExpect:{kind:'draft',strategyId:'s2'}});
+ const draft={kind:'draft',strategyId:'s2',body:'正文含"引用"\n第二段',amendmentText:'建议',amendmentBasis:'说明书0018段',reviewNotes:'待核对'};
+ const save=async(content:unknown)=>(await callTool(broker.url,token,TOOL_WRITE_ARTIFACT,{name:'result.json',content})).parsed as {result:{isError?:boolean;content:Array<{text:string}>}};
+ try{
+ const syntax=await save('{"kind":"draft",');assert(syntax.result.isError);assert.match(syntax.result.content[0].text,/JSON 语法错误/);assert.equal(broker.artifacts().length,0);
+ const missing=await save({...draft,body:''});assert(missing.result.isError);assert.match(missing.result.content[0].text,/正文/);
+ const wrong=await save({...draft,strategyId:'s1'});assert(wrong.result.isError);assert.match(wrong.result.content[0].text,/策略/);
+ const good=await save(draft);assert(!good.result.isError);assert.equal(broker.artifacts().length,1);assert.deepEqual(JSON.parse(await fs.readFile(path.join(out,'result.json'),'utf8')),draft);
+ const rejected=await save('{broken');assert(rejected.result.isError);assert.equal(broker.artifacts().length,0);assert.deepEqual(JSON.parse(await fs.readFile(path.join(out,'result.json'),'utf8')),draft);assert.equal(JSON.parse(await fs.readFile(path.join(out,'result.json.rejected.json'),'utf8')).content,'{broken');
+ assert(!(await save({...draft,body:'修正正文'})).result.isError);assert.equal(broker.artifacts().length,1);
+ }finally{await broker.close();await fs.rm(root,{recursive:true,force:true});}
+});
+
+test('incremental artifact saves survive restart, isolate inputs, and require completion feedback',async t=>{
+ const root=await tmpDir('checkpoint');t.after(()=>fs.rm(root,{recursive:true,force:true}));
+ const token=randomRunToken(), out=path.join(root,'out'), snap=path.join(root,'snap');
+ const mat=await writeMaterial(snap,'notice.txt','notice','n1');let read=false;
+ const options={token,snapshotRoot:snap,outputsRoot:out,materials:[mat],artifactExpect:{kind:'draft' as const,strategyId:'s2'},validateArtifact:async()=>read?undefined:'请读取 notice.txt',onToolEvent:(e:ToolEvent)=>{if(e.name==='read_material'&&e.success)read=true;}};
+ let broker=await startAgentBroker(options);t.after(()=>broker.close());
+ const save=(content:unknown)=>callTool(broker.url,token,TOOL_WRITE_ARTIFACT,{name:'result.json',mode:'merge',content});
+ const partial=await save({kind:'draft',strategyId:'s2',body:'保留的正文'});assert.match(partial.text,/分项已保存/);assert.equal(broker.artifacts().length,0);
+ // Concurrent independent fields must not overwrite each other's checkpoint.
+ await Promise.all([save({amendmentText:'修改文本'}),save({amendmentBasis:'修改依据'})]);
+ await broker.close();
+ broker=await startAgentBroker({...options,outputsRoot:path.join(root,'resumed'),recoveryArtifactRoot:out,materials:[{...mat,id:'renewed-n1'}]});
+ const inspect=await callTool(broker.url,token,'inspect_artifact',{field:'body'});assert.match(inspect.text,/保留的正文/);assert.match(inspect.text,/amendmentBasis/);
+ const gated=await save({reviewNotes:'复核说明'});assert.match(gated.text,/请读取 notice/);assert.equal((gated.parsed as any).result.isError,true);assert.equal(broker.artifacts().length,0);
+ await callTool(broker.url,token,'read_material',{materialId:'renewed-n1'});
+ const done=await save({});assert.match(done.text,/已写入并通过校验/);assert.equal(broker.artifacts().length,1);
+ assert.equal(JSON.parse(await fs.readFile(broker.artifacts()[0].absolutePath,'utf8')).body,'保留的正文');
+ await broker.close();
+ broker=await startAgentBroker({...options,outputsRoot:path.join(root,'different'),recoveryArtifactRoot:out,artifactExpect:{kind:'draft',strategyId:'other'}});
+ const isolated=await callTool(broker.url,token,'inspect_artifact',{field:'body'});assert.doesNotMatch(isolated.text,/保留的正文/);
+ const invalid=await save({'unexpected':'x'});assert.equal((invalid.parsed as any).result.isError,true);
+});

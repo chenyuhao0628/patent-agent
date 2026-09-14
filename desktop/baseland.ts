@@ -1,8 +1,11 @@
+import { diagnostic, diagnosticError } from './diagnostics.ts';
+export class BaselandAuthError extends Error { kind:'expired'|'forbidden';constructor(kind:'expired'|'forbidden',message:string){super(message);this.kind=kind;this.name='BaselandAuthError';} }
+import { businessCode } from './baseland-results.ts';
 import type { Account, FlowNode } from '../src/desktop.ts';
 import type { Case, RemoteProcess, Submission, SubmissionState } from '../src/domain/workflow.ts';
 import { makeRound } from '../src/domain/workflow.ts';
 import { applyCaseDeadline, calendarDate, mergeRemoteProcess } from '../src/domain/deadlines.ts';
-import { applyOfficialWaiting, archiveDraftIfProcessChanged, INTERNAL_ENDED_WAIT_LABEL, isAuxiliaryProcess, isConfirmedOfficialSubmission, isInternallyActiveProcess, processBusinessKind, UNVERIFIED_OFFICIAL_LABEL } from '../src/domain/lifecycle.ts';
+import { applyOfficialWaiting, archiveDraftIfProcessChanged, effectiveSubmission, INTERNAL_ENDED_WAIT_LABEL, isAuxiliaryProcess, isConfirmedOfficialSubmission, isInternallyActiveProcess, processBusinessKind, UNVERIFIED_OFFICIAL_LABEL } from '../src/domain/lifecycle.ts';
 import { stampCurrentHandling } from '../src/domain/handling.ts';
 import { digest } from './files.ts';
 export { isAuxiliaryProcess, isInternallyActiveProcess };
@@ -114,6 +117,8 @@ export function processRow(r:Obj,previous?:RemoteProcess):RemoteProcess {
   const raw=r._status??r.ProcStatusCode??r.StatusCode??previous?.status;
   const status=typeof raw==='number'&&Number.isFinite(raw)?raw:Number(raw);
   const incoming:RemoteProcess={
+    personalStatus:typeof r._status==='number'?r._status:previous?.personalStatus,
+    canEdit:previous?.canEdit,
     id:clean(r.CaseProcId),
     name:clean(r.CaseProcName??r.CaseProcNameInfo?.CaseProcName),
     ...(r.CaseProcNameInfo?.ProcCode != null ? {procCode:clean(r.CaseProcNameInfo.ProcCode)} : r.ProcCode != null ? {procCode:clean(r.ProcCode)} : {}),
@@ -193,19 +198,26 @@ export class BaselandClient {
     const response=await this.fetcher(API+'/NoPermissionRequired/FileStorageUploadFile?1=1',{method:'POST',headers:{Origin:this.origin,Referer:this.origin+'/login.html',Language:'zh-CN',Authorization:this.token},body:form,redirect:'error',signal:signal?AbortSignal.any([signal,AbortSignal.timeout(90000)]):AbortSignal.timeout(90000)});
     if(!response.ok)throw new Error(`文件上传未完成（HTTP ${response.status}）。`);
     const data=await response.json() as Obj;
+    const code=businessCode(data.Data);
+    if(code!==undefined&&code.toLowerCase()!=='success')throw new Error('服务端未确认文件上传成功，结果待核验，请勿直接重复上传。');
     if(data.IsSuccess!==true||typeof data.Data?.FileNo!=='string'||!data.Data.FileNo)throw new Error('贝思兰德未返回上传文件编号。');
     return data.Data.FileNo;
   }
   async request(endpoint:string,body?:unknown,params?:Record<string,string>,signal?:AbortSignal,kind:'data'|'list'='data') {
+    const started=Date.now();
+    diagnostic('baseland','request_started',{operation:endpoint});
     const url=new URL(API+endpoint);for(const [k,v] of Object.entries(params??{}))url.searchParams.set(k,v);
     let response:Response;
-    try{response=await this.fetcher(url,{method:body?'POST':'GET',headers:{Origin:this.origin,Referer:this.origin+'/login.html',Language:'zh-CN','Content-Type':'application/json',...(this.token?{Authorization:this.token}:{})},body:body?JSON.stringify(body):undefined,redirect:'error',signal:signal?AbortSignal.any([signal,AbortSignal.timeout(30000)]):AbortSignal.timeout(30000)});}catch{throw new Error(signal?.aborted?'操作已停止。':'无法连接贝思兰德，请检查网络后重试。');}
-    if(response.status===401||response.status===403)throw new Error('登录已失效或账号无权限，请重新登录。');
+    try{response=await this.fetcher(url,{method:body?'POST':'GET',headers:{Origin:this.origin,Referer:this.origin+'/login.html',Language:'zh-CN','Content-Type':'application/json',...(this.token?{Authorization:this.token}:{})},body:body?JSON.stringify(body):undefined,redirect:'error',signal:signal?AbortSignal.any([signal,AbortSignal.timeout(30000)]):AbortSignal.timeout(30000)});}catch(error){diagnostic('baseland','request_failed',{operation:endpoint,durationMs:Date.now()-started,...diagnosticError(error)});throw new Error(signal?.aborted?'操作已停止。':'无法连接贝思兰德，请检查网络后重试。');}
+    diagnostic('baseland','response',{operation:endpoint,statusCode:response.status,durationMs:Date.now()-started});
+    if(response.status===401||response.status===403)throw new BaselandAuthError(response.status===401?'expired':'forbidden','登录已失效或账号无权限，请重新登录。');
     if(!response.ok)throw new Error(`贝思兰德请求失败（HTTP ${response.status}）。`);
     const data=await response.json() as Obj;
-    if(data.IsSuccess!==true){if(endpoint==='/Auth/GetToken')throw loginFailure(data.Message);throw new Error(/权限/.test(data.Message??'')?'当前账号无权访问该数据。':/登录|Token|token|认证|过期/.test(data.Message??'')?'登录已失效，请重新登录。':'贝思兰德未确认请求成功，请核对账号或稍后重试。');}
+    if(data.IsSuccess!==true){if(endpoint==='/Auth/GetToken')throw loginFailure(data.Message);if(/权限/.test(data.Message??''))throw new BaselandAuthError('forbidden','当前账号无权访问该数据。');if(/登录|Token|token|认证|过期/.test(data.Message??''))throw new BaselandAuthError('expired','登录已失效，请重新登录。');throw new Error(/权限/.test(data.Message??'')?'当前账号无权访问该数据。':/登录|Token|token|认证|过期/.test(data.Message??'')?'登录已失效，请重新登录。':'贝思兰德未确认请求成功，请核对账号或稍后重试。');}
     // Login/detail objects must never be replaced by a default empty DataList.
-    return kind==='list'?(data.DataList??data.ListData??data.Data):data.Data;
+    const result=kind==='list'?(data.DataList??data.ListData??data.Data):data.Data;
+    if(typeof result==='string'&&/^[A-Za-z][A-Za-z0-9_]{1,90}$/.test(result)&&/\/(?:AddCaseHandForm|IsHasCaseHandForm|InsertFormOpinionStatement|UpdateFormOpinionStatement|SubmitHandFlow)$/.test(endpoint))diagnostic('baseland','business_result',{operation:endpoint,code:result});
+    return result;
   }
   async identity(username:string):Promise<Account> {
     const raw=await this.request('/Auth/GetLoginInfo',undefined,{checkVersion:'false',isLogin:'true'});
@@ -222,15 +234,26 @@ export class BaselandClient {
   async personalCases(signal:AbortSignal) {
     const rows:Obj[]=[];
     for(const [name,table,status] of [['waitHand',50010,0],['auditing',50011,200],['waitDeliver',50012,300],['delivering',50013,400],['finish',50014,500]] as const){
-      for(let page=1;page<=500;page++){
-        const data=await this.request('/CaseInfo/GetPersonalCase',{PagedInfo:{pageIndex:page,pageSize:100},ProcStatusTypeList:[status],TableType:table,ActiveName:name,SelectedProcIdGroup:[]},undefined,signal,'list');
-        const list=listOf(data);
-        if(!Array.isArray(list))throw new Error('个人案件列表结构尚未识别，本次未写入案件。');
-        rows.push(...list.map((r:Obj)=>({...r,_status:status})));
-        const total=Number(data?.Total??data?.TotalCount??data?.RecordCount);
-        if(list.length<100||Number.isFinite(total)&&page*100>=total)break;
-        if(page===500)throw new Error('案件分页达到保护上限，本次未标为同步完成。');
+      const body={PagedInfo:{pageIndex:1,pageSize:100},ProcStatusTypeList:[status],TableType:table,ActiveName:name,SelectedProcIdGroup:[]};
+      const count=async()=>{
+        const value=await this.request('/CaseInfo/GetPersonalCaseCount',body,undefined,signal);
+        if(typeof value!=='number'||!Number.isSafeInteger(value)||value<0)throw new Error('个人流程数量未能确认，本次同步未完成。');
+        return value;
+      };
+      let complete=false;
+      for(let attempt=0;attempt<2&&!complete;attempt++){
+        const expected=await count(),pageRows:Obj[]=[],seen=new Set<string>();let consistent=true;
+        for(let page=1;page<=500;page++){
+          const data=listOf(await this.request('/CaseInfo/GetPersonalCase',{...body,PagedInfo:{pageIndex:page,pageSize:100}},undefined,signal,'list'));
+          if(!Array.isArray(data))throw new Error('个人案件列表结构尚未识别，本次未写入案件。');
+          for(const row of data){const id=clean(row.CaseProcId);if(!id||seen.has(id)){consistent=false;break;}seen.add(id);pageRows.push({...row,_status:status});}
+          if(!consistent||data.length===0||pageRows.length>=expected)break;
+          if(page===500)consistent=false;
+        }
+        const after=await count();
+        if(consistent&&expected===after&&pageRows.length===expected){rows.push(...pageRows);complete=true;}
       }
+      if(!complete)throw new Error('个人流程数量与分页结果不一致，可能正在变化；本次同步未完成，本地案件与稿件保留，请稍后重试。');
     }
     return rows;
   }
@@ -256,7 +279,7 @@ export class BaselandClient {
       return {label,value,state:SEND_STATUS[value] as SubmissionState|undefined};
     });
   }
-  async queryOfficial(processId:string,handId?:string,signal?:AbortSignal,previous?:Submission):Promise<{submission:Submission;handId?:string;currentFlow?:{name:string;user:string;serial?:number;total?:number};needSendOfficial?:boolean;ok:boolean}> {
+  async queryOfficial(processId:string,handId?:string,signal?:AbortSignal,previous?:Submission):Promise<{submission:Submission;handId?:string;currentFlow?:{name:string;user:string;serial?:number;total?:number};needSendOfficial?:boolean;canEdit?:boolean;ok:boolean}> {
     const checkedAt=new Date().toISOString();
     try{
       const data=await this.request('/CaseInfo/GetHandInfo',undefined,{caseProcId:processId},signal);
@@ -266,6 +289,7 @@ export class BaselandClient {
       const currentFlow=mapCurrentFlow(obj?.CurrentFlowInfo);
       const needSendOfficial=obj?boolTri(obj.IsNeedSendToOfficail):undefined;
       const primary=obj?boolTri(obj.IsPackageSendSuccess):undefined;
+      const canEdit=obj?boolTri(obj.IsReviewing):undefined;
       let send:unknown=undefined,sendFailed=false;
       if(id){
         try{send=await this.request('/CaseInfo/GetCaseHandSendInfo',undefined,{caseHandId:id},signal);}
@@ -275,9 +299,9 @@ export class BaselandClient {
         }
       }
       if(sendFailed&&previous&&(previous.state==='sent'||previous.state==='received')){
-        return {submission:{...previous,refreshError:SUBMISSION_REFRESH_ERROR},handId:id,currentFlow,needSendOfficial,ok:true};
+        return {submission:{...previous,refreshError:SUBMISSION_REFRESH_ERROR},handId:id,currentFlow,needSendOfficial,canEdit,ok:true};
       }
-      return {submission:combineOfficialSubmission(primary,sendFailed?undefined:send,checkedAt),handId:id,currentFlow,needSendOfficial,ok:true};
+      return {submission:combineOfficialSubmission(primary,sendFailed?undefined:send,checkedAt),handId:id,currentFlow,needSendOfficial,canEdit,ok:true};
     }catch(e){
       if(signal?.aborted)throw e;
       return {submission:{state:'unknown',checkedAt,message:'未能确认官方递交状态，请稍后重试。'},handId,ok:false};
@@ -331,6 +355,8 @@ export class BaselandClient {
       if(official.handId)selected.handId=official.handId;
       currentFlow=official.currentFlow;
       selected.currentFlow=official.currentFlow;
+      selected.canEdit=official.ok?official.canEdit:false;
+      selected.submission=effectiveSubmission(selected);
       if(official.needSendOfficial!==undefined)selected.needSendOfficial=official.needSendOfficial;
     }
     let nodes=mapFlowNodes(records,currentFlow);
@@ -363,6 +389,7 @@ export function assignCurrentProcess(c:Case,p:RemoteProcess|undefined,at:string)
   else{applyCaseDeadline(c);stampCurrentHandling(c);}
 }
 export function applySubmissionToCurrent(c:Case,p:RemoteProcess) {
+  p.submission=effectiveSubmission(p);
   if(!c.current?.processId||c.current.processId!==p.id)return;
   if(isConfirmedOfficialSubmission(p.submission)){
     applyOfficialWaiting(c,p.id);

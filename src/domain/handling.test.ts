@@ -58,7 +58,7 @@ test('sent and received are official waiting, not case end', () => {
   })));
   assert.equal(received.node, OFFICIAL_WAIT_NODE);
   assert.equal(received.officialWaiting, true);
-  assert.match(received.status, /等待官方处理结果/);
+  assert.match(received.status, /已完成.*已提交官方/);
   assert.doesNotMatch(received.status, /授权|驳回|100%/);
 });
 

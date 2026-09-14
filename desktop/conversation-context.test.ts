@@ -1,0 +1,6 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {fitConversation} from './conversation-context.ts';
+import {classifySessionError} from './agent-errors.ts';
+test('context compacts model input without altering original or latest instruction',()=>{const m=[{role:'assistant' as const,content:'旧'.repeat(20000)},{role:'user' as const,content:'保持最后指令'}];const c=fitConversation(m,v=>JSON.stringify(v).length<2000);assert(c.compressed);assert.equal(c.messages.at(-1)?.content,'保持最后指令');assert.equal(m[0].content.length,20000);assert.match(c.messages[0].content,/节选/);});
+test('single oversized current instruction is never silently truncated',()=>{const m=[{role:'user' as const,content:'长'.repeat(20000)}];assert.deepEqual(fitConversation(m,v=>JSON.stringify(v).length<2000),{messages:m,compressed:false});});
+test('session errors retain useful categories without leaking upstream data',()=>{assert.equal(classifySessionError({message:'context_length_exceeded secret-key'}).code,'context_limit');assert.equal(classifySessionError({message:'401 Bearer private'}).code,'authentication');assert.equal(classifySessionError('429').code,'rate_limit');assert.doesNotMatch(classifySessionError('unknown secret-key').message,/secret-key/);});

@@ -1,0 +1,68 @@
+{
+  "check": {
+    "Data": false,
+    "IsSuccess": true,
+    "Code": 0,
+    "Message": null,
+    "Ext": null
+  },
+  "deletion": {
+    "Data": "NotPermission",
+    "IsSuccess": true,
+    "Code": 0,
+    "Message": null,
+    "Ext": null
+  },
+  "after": {
+    "Data": [
+      {
+        "CaseFileId": "08df1217-b6ae-4bdb-8704-f8ccb493ffb2",
+        "CaseId": "dea01908-8a21-490c-868a-cff148138d63",
+        "CaseFileRelationTypeCode": 1,
+        "FileRelationId": "ca1942f9-3085-4fdb-b035-a8d939567535",
+        "FileNo": "74ed57d0-d5da-4aa8-a091-98f35243fec3",
+        "FileName": "同步验证_202608262-1258_20260914.txt",
+        "FileRemark": "同步验证合成文件，仅供 Mac / Windows 下载测试，不作为申请稿件，不递交流程。",
+        "FileTypeId": "6d7ad129-057b-4d2a-a6ef-f1b0a3512e03",
+        "FileTypeCode": 0,
+        "FileTypeName": "内部文件",
+        "FileTypeDescriptionId": null,
+        "FileTypeDescriptionName": null,
+        "UploadUserType": 0,
+        "UploadUserId": "cc5618f6-8082-4956-9551-e5b06e1910d3",
+        "UploadUsername": "陈雨浩",
+        "ThridPartyUploadUserName": null,
+        "UploadDate": "2026-09-14T12:21:56.835228",
+        "IsCanDelete": false,
+        "IsCanSelect": true,
+        "CaseProcId": "ca1942f9-3085-4fdb-b035-a8d939567535",
+        "CaseProcNameInfo": null,
+        "NoticeName": null,
+        "NoticeTypeId": null,
+        "TransferStatus": 0,
+        "TransferStatusName": null,
+        "TransferDate": null,
+        "TransferRemark": null,
+        "SourceTypeCode": 1,
+        "SourceTypeName": null,
+        "SourceRelationId": "dea01908-8a21-490c-868a-cff148138d63",
+        "IsCanLink": false,
+        "LinkId": null,
+        "LinkTitle": null,
+        "EmailSendReceiveTypeCode": null,
+        "TicketCode": null,
+        "TicketNo": null,
+        "FileTypeIsNeedTtansfer": false,
+        "FileTypeTtansferValidDate": null,
+        "IsCanTransfer": false,
+        "PostDate": null
+      }
+    ],
+    "IsSuccess": true,
+    "Code": 0,
+    "Message": null,
+    "Ext": null
+  },
+  "oldAbsent": false,
+  "processUnchanged": true
+}

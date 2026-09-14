@@ -11,3 +11,4 @@ release/
 release-staging/
 .package-release.lock
 resources/agent-runtime/
+.workbuddy/

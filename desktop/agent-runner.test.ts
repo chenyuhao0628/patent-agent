@@ -127,7 +127,7 @@ function applyMode(ses) {
   const text = mode.startsWith('reason-') ? 'visible-only' : 'done-ok';
   ses.status = 'idle';
   ses.messages = [{
-    info: { id: 'msg_a', role: 'assistant', time: { created: 1, completed: Date.now() } },
+    info: { id: 'msg_a'+(mode.startsWith('repair-')?String(ses.turns):''), role: 'assistant', time: { created: 1, completed: Date.now() } },
     parts: [
       ...(mode.startsWith('reason-') ? [{ id: 'r1', type: 'reasoning', text: 'secret-cot' }] : []),
       { id: 'p1', type: 'text', text },
@@ -177,6 +177,7 @@ const server = http.createServer((req, res) => {
     const ses = sessions.get(sid);
     if (pathname.endsWith('/prompt_async') && req.method === 'POST') {
       if (!ses) { send(res, 404, { error: 'missing' }); return; }
+      ses.turns=(ses.turns||0)+1;
       setTimeout(() => applyMode(ses), 30);
       send(res, 204);
       return;
@@ -656,4 +657,66 @@ test('live OpenCode + mock Responses: read_material then write result.json, abor
 
 test('Responses output length stop explains the model limit instead of claiming completion',()=>{
  const inspected=inspectAssistantTurn([{info:{role:'assistant',finish:'length',time:{completed:1}},parts:[]}]);assert.equal(inspected.error?.code,'output_limit');assert.match(inspected.error!.message,/最大输出/);
+});
+
+test('0.4 reasoning is emitted separately, deduped and never enters final text or cross-session content', () => {
+  let text = '', thinking = '';
+  const accumulator = createPartTextAccumulator(value => { text += value; }, value => { thinking = value; });
+  const accept = createAssistantEventFilter('ours', accumulator);
+  accept({ type: 'message.updated', properties: { info: { sessionID: 'ours', id: 'a', role: 'assistant' } } });
+  const part = (sessionID: string, type: string, value: string) => accept({ type: 'message.part.updated', properties: { part: { sessionID, messageID: 'a', id: type, type, text: value } } });
+  part('other', 'reasoning', 'foreign');
+  part('ours', 'reasoning', 'summary');
+  part('ours', 'reasoning', 'summary');
+  part('ours', 'text', 'answer');
+  assert.equal(thinking, 'summary');
+  assert.equal(text, 'answer');
+  assert.equal(accumulator.snapshot(), 'answer');
+});
+
+test('compaction summary is neither answer text nor task completion',()=>{const x=inspectAssistantTurn([{info:{role:'assistant',summary:true,time:{completed:1}},parts:[{type:'text',text:'internal compact summary'}]}]);assert.equal(x.assistantCompleted,false);assert.equal(x.textParts.length,0);});
+
+test('event stream keeps receiving valid events after more than 1 MB cumulative traffic',async()=>{
+ let index=0;const encoder=new TextEncoder();const events:unknown[]=[];
+ const stream=new ReadableStream<Uint8Array>({pull(controller){
+   if(index++<1200)controller.enqueue(encoder.encode('data: '+JSON.stringify({type:'ignored',padding:'x'.repeat(1000)})+'\n\n'));
+   else {controller.enqueue(encoder.encode('data: '+JSON.stringify({type:'session.compacted',properties:{sessionID:'session'}})+'\n\n'));controller.close();}
+ }});
+ const runner=new OpenCodeRunner({binaryPath:process.execPath,fetchImpl:async()=>new Response(stream)});
+ const consume=(runner as unknown as {consumeEvents:(...args:unknown[])=>Promise<void>}).consumeEvents.bind(runner);
+ await consume('http://127.0.0.1','test',new AbortController().signal,'session',createPartTextAccumulator(()=>{}),{idleObserved:false,sessionError:false},(event:unknown)=>events.push(event));
+ assert(events.some(e=>(e as {type:string;label:string}).label==='上下文已自动压缩'));
+});
+
+test('runner automatically resumes missing-artifact completion twice in the same session then pauses',async()=>{
+ const root=await tmpDir('repair-limit');const bin=await writeFakeOpenCode(root);const events:AgentEvent[]=[];
+ const runner=new OpenCodeRunner({binaryPath:bin});
+ const result=await runner.run({runtime:runtime("http://127.0.0.1:9/v1"),runId:'repair-limit',discussionId:'repair-limit',localRunDirectory:root,materials:[],productPrompt:'test',publicMessages:[],artifactExpect:{kind:'discuss'},deadlineMs:10000,onEvent:e=>events.push(e)});
+ assert.equal(result.status,'failed');assert.equal(result.error?.code,'artifact_repair_exhausted');assert.equal(events.filter(e=>e.type==='activity'&&e.stepId?.startsWith('artifact-repair-')).length,2);
+});
+test('user cancellation stops automatic artifact repair',async()=>{
+ const root=await tmpDir('repair-cancel');const bin=await writeFakeOpenCode(root);const abort=new AbortController();
+ const runner=new OpenCodeRunner({binaryPath:bin});
+ const result=await runner.run({runtime:runtime("http://127.0.0.1:9/v1"),runId:'repair-cancel',discussionId:'repair-cancel',localRunDirectory:root,materials:[],productPrompt:'test',publicMessages:[],artifactExpect:{kind:'discuss'},deadlineMs:10000,signal:abort.signal,onEvent:e=>{if(e.type==='activity'&&e.stepId?.startsWith('artifact-repair-'))abort.abort();}});
+ assert.equal(result.status,'aborted');
+});
+
+test('incremental progress continues beyond two turns and stops only after repeated stagnation', {timeout:20000},async()=>{
+ const root=await tmpDir('repair-progress');const bin=await writeFakeOpenCode(root);let prompts=0;
+ const events:AgentEvent[]=[];
+ const fetchImpl:typeof fetch=async(input,init)=>{
+   if(String(input).includes('/prompt_async')){
+     prompts++;
+     if(prompts<=4){
+       const cfg=JSON.parse(await fs.readFile(path.join(root,'xdg-config','opencode','opencode.json'),'utf8'));
+       const mcp=cfg.mcp.case_tools;
+       await fetch(mcp.url,{method:'POST',headers:{...mcp.headers,'Content-Type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:prompts,method:'tools/call',params:{name:'write_artifact',arguments:{name:'result.json',mode:'merge',content:{kind:'draft',body:'progress-'+prompts}}}})});
+     }
+   }
+   return fetch(input,init);
+ };
+ const runner=new OpenCodeRunner({binaryPath:bin,fetchImpl});
+ const result=await runner.run({runtime:runtime('http://127.0.0.1:9/v1'),runId:'repair-progress',discussionId:'repair-progress',localRunDirectory:root,materials:[],productPrompt:'test',publicMessages:[],artifactExpect:{kind:'draft',strategyId:'s'},deadlineMs:15000,onEvent:e=>events.push(e)});
+ assert.equal(result.error?.code,'artifact_repair_exhausted');assert.equal(prompts,6);
+ assert.equal(events.filter(e=>e.type==='activity'&&e.stepId?.startsWith('artifact-repair-')).length,5);
 });

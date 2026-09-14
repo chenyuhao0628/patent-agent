@@ -114,13 +114,13 @@ test('caseStatus prefers CurrentFlowInfo.name over 200/300/400 dictionary labels
     submission: undefined,
     currentFlow: { name: '客户审核', user: '甲', serial: 2, total: 4 },
   });
-  assert.equal(caseStatus(c), '第一次审查意见答复 · 客户审核');
-  assert.equal(libraryStatus(c).short, '客户审核');
-  assert.equal(libraryStatus(c).full, '第一次审查意见答复 · 客户审核');
+  assert.equal(caseStatus(c), '递交中 · 甲 · 客户审核');
+  assert.equal(libraryStatus(c).short, '递交中 · 甲 · 客户审核');
+  assert.equal(libraryStatus(c).full, '递交中 · 甲 · 客户审核');
   const dictOnly = remoteCase({
     current: { kind: 'reply', processId: 'p1', remoteStatus: 200, label: '第一次审查意见答复' },
   }, { status: 200, submission: undefined });
-  assert.equal(caseStatus(dictOnly), '第一次审查意见答复 · 审核中');
+  assert.equal(caseStatus(dictOnly), '递交中 · 办理人待核对 · 节点待核对');
   const official = remoteCase({
     current: { kind: 'reply', processId: 'p1', remoteStatus: 400, label: '第一次审查意见答复' },
   }, {
@@ -128,7 +128,7 @@ test('caseStatus prefers CurrentFlowInfo.name over 200/300/400 dictionary labels
     currentFlow: { name: '递交官方', user: '乙' },
     submission: { state: 'received', source: 'send-status', checkedAt: '2026-09-12T00:00:00.000Z', message: '已收到回执' },
   });
-  assert.match(caseStatus(official), /等待官方处理结果/);
+  assert.match(caseStatus(official), /已完成.*已提交官方/);
   assert.doesNotMatch(caseStatus(official), /客户审核|递交官方/);
 });
 
@@ -204,3 +204,14 @@ test('previous completed receipt does not hide a new OA on another current proce
   assert.equal(next.deadline, '2026-10-01');
 });
 
+
+
+test('personal pending, own started work, next handler and completed are distinct',()=>{
+  const base=seedWorkspace().cases[0];
+  const make=(status:number,canEdit?:boolean,user='陈雨浩')=>normalizeCase({...base,source:'baseland',archived:false,current:{kind:'write',processId:'p',remoteStatus:status},remote:{caseId:'c',syncedAt:'now',processes:[{id:'p',name:'提出申请',status,personalStatus:status,node:'',undertaker:'陈雨浩',deadline:'',canEdit,handId:status?'h':undefined,currentFlow:status?{name:user==='杨佳'?'递交官方':'开始',user}:undefined,submission:{state:'draft',source:'hand',checkedAt:'now'}}]}} as Case);
+  assert.match(caseStatus(make(0)),/^待处理/);
+  const own=make(400,true);assert.equal(editableCurrent(own),true);assert.match(caseStatus(own),/递交中.*陈雨浩/);
+  const handed=make(400,false,'杨佳');assert.equal(editableCurrent(handed),false);assert.match(libraryStatus(handed).short,/递交中.*杨佳/);
+  assert.equal(editableCurrent(make(400,undefined)),false);
+  const done=make(500,false,'杨佳');assert.equal(done.current?.kind,'waiting');assert.match(caseStatus(done),/已完成.*已提交官方/);assert.equal(editableCurrent(done),false);
+});

@@ -1,0 +1,26 @@
+{
+  "name": "同步验证_其他文件_v2_202608262-1258.txt",
+  "fileNo": "e1e5ebd6-985d-4f18-b75d-575a8e9b502a",
+  "row": {
+    "CaseHandOtherFileListId": "4d1c2d92-6428-4285-8c0b-8cb2707da141",
+    "CaseHandId": "69e7fe3d-058d-4944-8125-2f8eeb26eadf",
+    "FileTypeId": "6d7ad129-057b-4d2a-a6ef-f1b0a3512e03",
+    "FileTypeName": "内部文件",
+    "FileTypeDescriptionId": null,
+    "FileTypeDescriptionName": null,
+    "FileNo": "e1e5ebd6-985d-4f18-b75d-575a8e9b502a",
+    "FileName": "同步验证_其他文件_v2_202608262-1258.txt",
+    "UploadUserName": "陈雨浩",
+    "FileRemark": "合成同步验证，测试后清理，不递交",
+    "UploadDate": "2026-09-14T12:31:05.809716",
+    "IsEdit": true,
+    "IsDelete": true,
+    "Sort": 0
+  },
+  "sha256": "4829a1adbe02e29e1c5b5f687630f49f3dd38b14f76743f35ad41c0ad6a06f08",
+  "caseId": "dea01908-8a21-490c-868a-cff148138d63",
+  "caseProcId": "ca1942f9-3085-4fdb-b035-a8d939567535",
+  "handId": "69e7fe3d-058d-4944-8125-2f8eeb26eadf",
+  "v1Deleted": true,
+  "processUnchanged": true
+}

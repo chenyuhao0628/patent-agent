@@ -3,6 +3,7 @@ export const FIVE_PARTS = [
   { code: '100003', name: '说明书附图' }, { code: '100004', name: '说明书摘要' },
   { code: '100005', name: '摘要附图' },
 ] as const;
+export type TransferSource = 'workbench' | 'local';
 export type TransferRoute = 'application' | 'reply' | 'correction';
 export type TransferFileRole = 'baseline' | 'application' | 'reply';
 export type CorrectionRow = { ChangeId: string; Sort: number; FileName: string; PositionInFile: string; CorrectionBefore: string; CorrectionAfter: string };
@@ -13,18 +14,19 @@ export type TransferForm = {
   otherProof: boolean; experimentData: boolean; abstractFigure: string;
   declarations: Record<string, boolean>;
 };
-export type TransferReview = { keepCodes: string[]; form: TransferForm; stepId: string; userId: string; remark: string };
+export type TransferReview = { confirmedDraftId?: string; keepCodes: string[]; form: TransferForm; stepId: string; userId: string; remark: string };
 export type TransferView = {
-  id: string; profileKey: string; caseId: string; caseNumber: string; caseTitle: string; processId: string; processName: string;
+  sourceDraft?: {id:string;at?:string;pending:boolean};
+  sourceMode?: TransferSource; id: string; profileKey: string; caseId: string; caseNumber: string; caseTitle: string; processId: string; processName: string;
   route: TransferRoute; canEditRemote?: boolean; handId?: string; currentNode?: string; currentUser?: string;
   files: Array<{ role: TransferFileRole; name: string; relativePath: string; hash: string }>;
   parts: PartComparison[]; review: TransferReview;
   steps: Array<{ id: string; name: string; users: Array<{ id: string; name: string }> }>;
   phase: 'draft' | 'saved' | 'submitted' | 'uncertain' | 'superseded';
-  results: string[]; error?: string; existingFileNames: string[]; at: string;
+  results: string[]; error?: string; submissionAttempted?: boolean; submissionRetryable?: boolean; submissionFingerprint?: string; existingFileNames: string[]; at: string;
 };
 export type TransferAPI = {
-  prepare(profileKey: string, caseId: string): Promise<TransferView>;
+  prepare(profileKey: string, caseId: string, sourceMode?: TransferSource): Promise<TransferView>;
   pickFile(profileKey: string, id: string, role: TransferFileRole): Promise<TransferView>;
   startHand(profileKey: string, id: string): Promise<TransferView>;
   save(profileKey: string, id: string, review: TransferReview): Promise<TransferView>;

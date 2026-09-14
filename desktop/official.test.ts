@@ -112,12 +112,12 @@ test('F1 processSubmission only matches the explicit current process and does no
 test('F2 unknown and draft keep local progress except meaningful 300/400 递交办理',()=>{
   const base:Case={id:'c',title:'合成装置',number:'SYN-2',type:'发明',deadline:'2026-10-01',archived:false,tags:[],rounds:[{id:'r',name:'第一次审查意见',stage:'materials',confirmed:false,materials:[],strategy:null,draft:'',versions:[],discussions:[],review:null,job:null,final:null,finalHistory:[]}],source:'baseland'};
   const unknown:Case={...base,current:{kind:'reply',processId:'p',roundId:'r',remoteStatus:0,label:'第一次审查意见答复'},remote:{caseId:'r',syncedAt:'',processes:[proc({id:'p',name:'第一次审查意见答复',status:0,submission:{state:'unknown',checkedAt:'2026-09-12T00:00:00.000Z',message:'官方递交状态未确认'}})]}};
-  assert.match(caseStatus(unknown),/待核对/);
+  assert.match(caseStatus(unknown),/待处理/);
   assert.equal(processSubmission(unknown)?.state,'unknown');
   const draftWait:Case={...unknown,current:{...unknown.current!,remoteStatus:0},remote:{caseId:'r',syncedAt:'',processes:[proc({id:'p',name:'第一次审查意见答复',status:0,submission:{state:'draft',source:'hand',checkedAt:'2026-09-12T00:00:00.000Z',message:'未递交官方'}})]}};
-  assert.match(caseStatus(draftWait),/待核对/);
+  assert.match(caseStatus(draftWait),/待处理/);
   const delivering:Case={...unknown,current:{kind:'reply',processId:'p',roundId:'r',remoteStatus:400,label:'第一次审查意见答复'},remote:{caseId:'r',syncedAt:'',processes:[proc({id:'p',name:'第一次审查意见答复',status:400,node:'递交官方',undertaker:'PersonB',submission:{state:'draft',source:'hand',checkedAt:'2026-09-12T00:00:00.000Z',message:'未递交官方'}})]}};
-  assert.equal(caseStatus(delivering),'未递交官方');
+  assert.match(caseStatus(delivering),/^递交中/);
   assert.equal(editableCurrent(delivering),false);
   const queued:Case={...delivering,remote:{caseId:'r',syncedAt:'',processes:[proc({id:'p',name:'第一次审查意见答复',status:400,submission:{state:'queued',source:'send-status',checkedAt:'2026-09-12T00:00:00.000Z'}})]}};
   assert.equal(caseStatus(queued),'准备递交中');
@@ -126,7 +126,7 @@ test('F2 unknown and draft keep local progress except meaningful 300/400 递交�
   assert.equal(sentCase.current?.kind,'waiting');
   assert.equal(sentCase.current?.label,WAITING_OFFICIAL_LABEL);
   assert.equal(sentCase.current?.processId,'p');
-  assert.equal(caseStatus(sentCase),'已递交，等待官方处理结果');
+  assert.equal(caseStatus(sentCase),'已完成 · 已提交官方');
   assert.equal(editableCurrent(sentCase),false);
   assert.equal(businessKind(sentCase),'审查意见');
 });
@@ -545,4 +545,16 @@ test('send-status dictionary endpoint is optional and does not invent unknown co
   assert.deepEqual(list.map(x=>x.value),[0,1,2,3,6,100]);
   assert.equal(list.find(x=>x.value===2)?.state,'sent');
   assert.equal(sendStatusState(4),undefined);
+});
+
+
+test('started hand edit permission is read from server and personal completion has separate provenance',async()=>{
+  for(const permission of [true,false,undefined]){
+    const client=new BaselandClient(origin,'fixture',async(input)=>Response.json({IsSuccess:true,Data:String(input).includes('GetHandInfo')?{HandInfo:{CaseHandId:'h'},IsReviewing:permission,IsPackageSendSuccess:false,CurrentFlowInfo:{FlowNodeName:'开始',FlowUserName:'陈雨浩'}}:null}));
+    const result=await client.queryOfficial('p');assert.equal(result.canEdit,permission);assert.equal(result.submission.state,'draft');
+  }
+  const completed=processRow({CaseProcId:'p',CaseProcName:'提出申请',_status:500});
+  assert.equal(completed.personalStatus,500);
+  const ordinaryEnd=processRow({CaseProcId:'p',CaseProcName:'提出申请',StatusCode:500});
+  assert.equal(ordinaryEnd.personalStatus,undefined);
 });

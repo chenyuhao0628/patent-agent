@@ -81,7 +81,7 @@ export async function exportApplicationText(templateRoot: string, parts: Applica
     const key = /^\{\{([A-Z_]+)\}\}$/.exec(proto.textContent ?? '')?.[1] as ApplicationPart | undefined;
     if (!key) continue;
     if (typeof parts[key] !== 'string') throw new Error('申请文件缺少完整部分：' + key);
-    for (const [i,line] of parts[key].replace(/\r\n?/g, '\n').split('\n').entries()) body.insertBefore(applicationParagraph(proto,line,key,i,formats), proto);
+    for (const [i,line] of parts[key].replace(/\r\n?/g, '\n').split('\n').filter(line=>line.trim()).entries()) body.insertBefore(applicationParagraph(proto,line,key,i,formats), proto);
     body.removeChild(proto);
   }
   zip.file('word/document.xml', new XMLSerializer().serializeToString(doc));
@@ -121,7 +121,7 @@ export async function exportApplicationParts(templateRoot:string,parts:import('.
   for(const n of Array.from(body.childNodes))body.removeChild(n);
   for(const [index,s]of chosen.entries()){
     for(const proto of s.nodes){
-      if(/^\{\{[A-Z_]+\}\}$/.test(proto.textContent||''))for(const [i,line]of parts[s.key]!.replace(/\r\n?/g,'\n').split('\n').entries())body.appendChild(applicationParagraph(proto,line,s.key,i,formats));
+      if(/^\{\{[A-Z_]+\}\}$/.test(proto.textContent||''))for(const [i,line]of parts[s.key]!.replace(/\r\n?/g,'\n').split('\n').filter(line=>line.trim()).entries())body.appendChild(applicationParagraph(proto,line,s.key,i,formats));
       else body.appendChild(proto.cloneNode(true));
     }
     const section=s.section.cloneNode(true) as XmlElement;
