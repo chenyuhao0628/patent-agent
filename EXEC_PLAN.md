@@ -1,6 +1,6 @@
 # 专利工作台实施计划
 
-更新日期：2026-09-14，当前源码版本 0.9.4。登录恢复、对话布局、逐轮执行卡、策略入口、消息队列与版本恢复、分项保存与完成检查闭环、可选独立复核、提交稿件自动获取、意见陈述书表单核验、材料核对匹配入口与 LibreOffice 启动崩溃修复已实现；完整自动化 400 项通过、双平台 0.9.4 安装包已构建、任务运行时限 60 分钟。Windows 实机、真实案件质量及外部写入仍需独立验收。
+更新日期：2026-09-14，当前源码版本 0.9.5。登录恢复、对话布局、逐轮执行卡、策略入口、消息队列与版本恢复、分项保存与完成检查闭环、可选独立复核、提交稿件自动获取、意见陈述书表单核验、材料核对匹配入口、LibreOffice 启动崩溃修复与贝思兰德同步优化已实现；完整自动化 400 项通过、双平台 0.9.5 安装包已构建、任务运行时限 60 分钟。Windows 实机、真实案件质量及外部写入仍需独立验收。
 
 ## 0.4.0 Agent 对话体验（2026-09-14，已实现并打包）
 
@@ -548,3 +548,19 @@ GUI 使用 `.lab/desktop-qa` 及 `.lab/gui-*` 独立测试数据，不包含真�
 - 修复 C（agent-runner.ts:68）：`DEFAULT_RUN_DEADLINE_MS` 由 `600_000`（10 分钟）改为 `3_600_000`（60 分钟），减少长任务撞时限。`:372` 的 `timeout: 600_000` 是 MCP 连接超时，语义不同，保留。
 - 验证：tsc 通过；400/400 自动化通过（新增 LibreOffice profile 清理回归测试，desktop/agent-local-tools.test.ts）。手动复现：白名单 env + 独立 UserInstallation、临时 HOME + XDG 不传 UserInstallation 两种方式均转换成功，印证干净 profile 不崩。0.2.8 历史段"任务上限 10 分钟"保留为历史事实。
 - 版本 0.9.4：package.json、package-lock.json、README、本计划同步；双平台安装包构建及 release-manifest.json 校验见交付记录。Windows 真机、真实案件质量、真实贝思兰德写入、签名公证与自动更新仍待验收。
+
+## 0.9.5 贝思兰德同步优化：跳过已就绪流程的文件列表查询（当前）
+
+用户附诊断日志（专利工作台-诊断-2026-09-14T14-54-15-641Z，appVersion 0.9.3，14:44-14:54）问"为什么案件分析那么久、是否太强制看图"。分析：
+
+- 诊断 631 条记录：629 条贝思兰德请求（GetCaseProcFileList 125 + GetUpdateCaseInfo 101 + GetPersonalCaseCount 30 + GetHandInfo 22 + GetCaseHandSendInfo 22 + GetPersonalCase 15）、2 条 ipc、**0 条 model**。即模型根本没开始分析，卡在程序侧自动同步。
+- 架构确认：模型不接触贝思兰德接口——agent-broker 工具集只有 read_material/write_artifact/execute_command/download_file/web_search/web_fetch/discover_tools/prepare_material/read_work_file/ensure_tool/inspect_artifact，无贝思兰德 API 工具。226 次调用全是程序同步（service.ts sync，由 main.ts 登录后/5 分钟定时/获焦节流/手动刷新触发）。
+- 看图不强制：agent-broker.ts:191 visual 默认 false；agent-document-reader.ts:509 只有 visual=true 才看图，:511 仅扫描 PDF 无文字层时自动 fallback 看图（必要）。普通 PDF/DOCX 返回文字不看图。
+
+根因：service.ts:191 sync() :213-215 对每个案的每个流程都无条件调 client.files(p.id)（GetCaseProcFileList），即使该流程所有文件已就绪。40 案 × 多流程 = 125 次，串行，10 分钟跑满。
+
+修复（第 1 步，低风险）：service.ts:213 在 for(const p of c.remote.processes) 进入后、client.files 调用前加跳过判断——该流程已有 round 且材料非空且全部 ready、且不是当前办理流程时，本轮 continue 跳过 files 查询。当前办理流程必查（最可能有新文件）；首次同步（无 round 或材料未就绪）也会查；手动刷新或退出重登可重新拉取全量。
+
+- 预期：GetCaseProcFileList 从约 125 次降至 40-50 次（只查当前流程 + 未就绪流程），同步耗时显著下降。GetUpdateCaseInfo 缓存与并行化留作后续第 2/3 步。
+- 验证：tsc 通过；400/400 自动化通过（含 integration.test.ts:83 现有 sync 两次/下载/重试集成测试，证明不破坏基本同步流程）。多流程跳过回归因 fixture FileNo 去重易脆未加单测，靠代码审查 + 现有集成测试 + 实际使用验证。
+- 版本 0.9.5：package.json、package-lock.json、README、本计划同步；双平台安装包构建及 release-manifest.json 校验见交付记录。Windows 真机、真实案件质量、真实贝思兰德写入、签名公证与自动更新仍待验收。

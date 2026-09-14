@@ -211,6 +211,10 @@ export class DesktopService {
         if(generation!==this.generation)return this.state();
         c.directory=await this.files().ensureCase(c);
         if(c.remote)for(const p of c.remote.processes){
+          // 非当前办理流程、且该流程已有材料全部就绪时，本轮跳过文件列表查询，减少无效 GetCaseProcFileList 调用。
+          // 当前办理流程必查（最可能有新文件）；首次同步（无 round 或材料未就绪）也会查；手动刷新或退出重登可重新拉取全量。
+          const round=c.rounds.find(r=>r.id==='proc-'+p.id);
+          if(round&&c.current?.processId!==p.id&&round.materials.length>0&&round.materials.every(m=>m.ready))continue;
           try{
             const list=await client.files(p.id,controller.signal);
             for(const f of list){
