@@ -37,3 +37,4 @@
 .flow-history-row b{display:block;font-size:13px;overflow-wrap:anywhere}
 .flow-history-row p{margin:6px 0 0;color:#767d88;font-size:12px;line-height:1.7;overflow-wrap:anywhere;white-space:normal}
 @media(max-width:700px){.flow-official{padding:16px}.remote-flow .remote-processes{grid-template-columns:1fr}}
+.flow-official-conclusion{margin:0 0 14px;padding:11px 14px;border:1px solid #d9e6df;border-left:3px solid #4f9c78;border-radius:8px;background:#f4faf7;color:#2f6047;font-size:12px;line-height:1.75}

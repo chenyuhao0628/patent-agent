@@ -1,9 +1,10 @@
 import type { Case, RemoteProcess, Submission } from './workflow.ts';
 import {
-  caseStatus, currentWork, effectiveSubmission, INTERNAL_ENDED_WAIT_LABEL, isConfirmedOfficialSubmission, processSubmission, UNVERIFIED_INTERNAL_LABEL, UNVERIFIED_OFFICIAL_LABEL,
+  caseStatus, currentWork, effectiveSubmission, INTERNAL_ENDED_WAIT_LABEL, isConfirmedOfficialSubmission, officialStatusLabel, processSubmission, UNVERIFIED_INTERNAL_LABEL, UNVERIFIED_OFFICIAL_LABEL,
   WAITING_OFFICIAL_LABEL, workNames,
 } from './lifecycle.ts';
 import type { WorkKind } from './lifecycle.ts';
+import { hasOfficialOutcome, outcomeLabels, outcomeView } from './outcome.ts';
 
 export type HandlingFlowHint = {
   currentProcessId?: string;
@@ -78,6 +79,23 @@ export function currentHandling(c: Case, hint?: HandlingFlowHint): CurrentHandli
   const status = caseStatus(c);
   const currentFlow = hint?.currentFlow ?? process?.currentFlow;
   const live = liveInternalNode(hint);
+
+  // 官方结论优先于"等待官方处理结果"：授权/驳回通知已经到案，就不该再显示在等官方给结果。
+  // 只覆盖显示与本机的等待判定，不改变贝思兰德流程页展示的真实递交与回执字段。
+  if (hasOfficialOutcome(c)) {
+    return {
+      kind: work.kind,
+      processId: process?.id ?? work.processId,
+      processName: name,
+      node: outcomeLabels[outcomeView(c)],
+      party: OFFICIAL_PARTY,
+      handlerKind: 'none',
+      officialWaiting: false,
+      unverified: false,
+      status,
+      showStepFraction: false,
+    };
+  }
 
   if (isOfficialWaitingSubmission(sub) && (!processId || !work.processId || processId === work.processId || process?.id === work.processId)) {
     return {
@@ -246,6 +264,26 @@ export function handlingHandlerText(h: CurrentHandling): string | undefined {
   if (h.handlerKind === 'flow-user' && h.handler) return h.handler;
   if (h.handlerKind === 'official') return OFFICIAL_PARTY;
   return undefined;
+}
+
+// 案件概览用的一句话流程状态：流程名 · 节点 · 办理人，外加官方递交状态。
+// 只做展示拼装，不产生新的业务判断；办理主体为官方时不重复显示「办理人：官方」。
+export type FlowStatusSummary = { process: string; node: string; handler?: string; submission?: string; officialWaiting: boolean; unverified: boolean };
+
+export function flowStatusSummary(c: Case): FlowStatusSummary {
+  const h = currentHandling(c);
+  const handler = handlingHandlerText(h);
+  const sub = processSubmission(c);
+  return {
+    process: h.processName,
+    node: h.node,
+    handler: handler && h.handlerKind !== 'official' ? handler : undefined,
+    // 已出官方结论时不再显示"等待官方处理结果"这类递交文案，避免和结论自相矛盾；
+    // 真实的递交与回执记录仍在贝思兰德流程页展示。
+    submission: hasOfficialOutcome(c) || !sub ? undefined : officialStatusLabel(sub),
+    officialWaiting: h.officialWaiting,
+    unverified: h.unverified,
+  };
 }
 
 export function processRowHandling(p: RemoteProcess, currentProcessId?: string): ProcessRowHandling {

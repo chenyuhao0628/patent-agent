@@ -1,5 +1,6 @@
 import { currentHandling } from './handling.ts';
 import type { Case, RemoteProcess } from './workflow.ts';
+import { hasOfficialOutcome, outcomeLabels, outcomeView } from './outcome.ts';
 import { internalTransferAvailable, activeRound, caseStatus, currentWork, processBusinessKind, workModule } from './lifecycle.ts';
 import {
   currentRemoteProcess, deadlineView as caseDeadlineView, DEADLINE_HEADER, localDayOrdinal, MS_PER_DAY, parseCalendarDay,
@@ -91,6 +92,8 @@ export function businessKind(c: Case): BusinessKind {
 }
 
 export function isConfirmedWaitingOfficial(c: Case): boolean {
+  // 已出官方结论（授权/驳回）的案件不再算"等待官方"：结果已经到案，等的是后续处理而不是结果。
+  if (hasOfficialOutcome(c)) return false;
   const state = processFields(c).submissionState;
   return state === 'sent' || state === 'received';
 }
@@ -145,6 +148,8 @@ export function progressStatusLabel(status: ProgressStatus, module?: Module): st
 export function libraryStatus(c: Case): { short: string; full: string } {
   const full = caseStatus(c);
   if (c.archived) return { short: '已归档', full };
+  // 官方结论优先：列表里直接显示"已授权/已驳回"，不再显示为等待官方。
+  if (hasOfficialOutcome(c)) return { short: outcomeLabels[outcomeView(c)], full };
   if(c.source==='baseland'&&/^(待处理|递交中|已完成) · /.test(full))return {short:full,full};
   if(c.remoteClosure?.finished)return {short:'已结案',full:'贝思兰德确认案件已结案'};
   if (/当前流程已办结|已结束，等待|内部流程已结束/.test(full)) return { short: inOfficialWaiting(c)?'等待官方':'流程已结束', full };

@@ -27,6 +27,8 @@ async function fixture(t:test.TestContext){
   ];
   const calls:string[]=[];let extra=false,closed=false,processCount=1,fileCount=2;
   let officialState:'draft'|'sent'|'received'='draft';
+  let outcomeState:'granted'|'rejected'|'none'='none';
+  let outcomeThrows=false;
   const client={
     personalCases:async()=>{calls.push('personal');return rows;},
     personalCasesSnapshot:async(_signal:AbortSignal,initial?:{code:number;count:number}[])=>{
@@ -37,6 +39,11 @@ async function fixture(t:test.TestContext){
     fileCount:async()=>{calls.push('file-count');return fileCount;},
     queryOfficial:async()=>{calls.push('official');return {submission:{state:officialState,source:'send-status' as const,checkedAt:new Date().toISOString(),message:'fixture'},handId:'hand-1',canEdit:false,ok:true};},
     caseClosure:async()=>{calls.push('closure');return {finished:closed,checkedAt:new Date().toISOString()};},
+    officialOutcome:async()=>{
+      calls.push('outcome');
+      if(outcomeThrows)throw new Error('fixture outcome failure');
+      return {state:outcomeState,noticeName:outcomeState==='granted'?'办理登记手续通知书':outcomeState==='rejected'?'驳回决定':undefined,postDate:outcomeState==='none'?undefined:'2026-09-14',checkedAt:new Date().toISOString()};
+    },
     files:async(id:string)=>{calls.push('files:'+id);return [{FileNo:id+'-notice',FileName:'notice.pdf'},...(id==='old'&&extra?[{FileNo:'late',FileName:'late.pdf'}]:[])];},
     download:async()=>Buffer.from('%PDF-1.7\nfixture\n%%EOF'),
     flow:async(item:Case)=>{const processes=structuredClone(item.remote)!;processes.processes.find(p=>p.id==='new')!.submission={state:'sent',source:'hand',checkedAt:new Date().toISOString()};return {at:new Date().toISOString(),currentProcessId:'new',processes,nodes:[],history:[]};},
@@ -45,7 +52,7 @@ async function fixture(t:test.TestContext){
   const c=s.workspace.cases[0],old=makeRound('第一次审查意见答复');old.id='proc-old';
   old.materials=c.materials!.filter(m=>m.id==='file-old-notice');c.materials=c.materials!.filter(m=>m.id!=='file-old-notice');c.rounds.push(old);
   await s.files().ensureCase(c);await s.persist();calls.length=0;
-  return {s,root,work,originals,c,client,calls,rows,official:(value:'draft'|'sent'|'received')=>{officialState=value;},extra:()=>{extra=true;},closed:(value:boolean)=>{closed=value;},changeSignals:()=>{processCount++;fileCount++;}};
+  return {s,root,work,originals,c,client,calls,rows,official:(value:'draft'|'sent'|'received')=>{officialState=value;},outcome:(value:'granted'|'rejected'|'none')=>{outcomeState=value;},outcomeFails:(value:boolean)=>{outcomeThrows=value;},extra:()=>{extra=true;},closed:(value:boolean)=>{closed=value;},changeSignals:()=>{processCount++;fileCount++;}};
 }
 
 test('old sync preserves newer official flow in memory, shared index and after reopen',async t=>{
@@ -80,7 +87,10 @@ test('manual original import during sync survives final merge and subsequent sha
 });
 
 test('unchanged aggregate signals skip automatic detail sync',async t=>{
-  const {s,calls,c}=await fixture(t);
+  const {s,calls,c,outcome,changeSignals}=await fixture(t);
+  // 先让案件拿到官方结论；已出结论的案件在门控命中时既不查明细也不重复判读。
+  outcome('granted');changeSignals();
+  await s.sync({source:'manual',full:false});
   calls.length=0;
   await s.sync({source:'manual',full:false});
   assert.deepEqual(calls,['process-stats']);
@@ -244,4 +254,87 @@ test('cache expires and evicts oldest entries with a strict upper bound',()=>{
   assert.equal(cache.size,2);assert.equal(cache.get('a'),undefined);
   now=1100;assert.equal(cache.get('b'),undefined);assert.equal(cache.size,0);
   cache.set('future',{at:1200});assert.equal(cache.size,0);
+});
+
+test('routine sync judges the official outcome together with the case data',async t=>{
+  const {s,calls,changeSignals,outcome}=await fixture(t);
+  changeSignals();await s.sync({source:'manual',full:false});
+  assert.equal(calls.filter(x=>x==='outcome').length,1,'未出结论的案件与案件数据同一次同步判读');
+  assert.equal(s.workspace.cases[0].officialOutcome?.state,'none');
+  calls.length=0;outcome('granted');changeSignals();await s.sync({source:'manual',full:false});
+  assert.equal(calls.filter(x=>x==='outcome').length,1);
+  assert.equal(s.workspace.cases[0].officialOutcome?.state,'granted');
+  assert.equal(s.workspace.cases[0].officialOutcome?.postDate,'2026-09-14');
+  calls.length=0;changeSignals();await s.sync({source:'manual',full:false});
+  assert.equal(calls.filter(x=>x==='outcome').length,0,'已出结论的案件在 7 天内不再重复判读');
+  const manifest=JSON.parse(await fs.readFile(await s.casePath(s.workspace.cases[0].id,'案件信息.json'),'utf8'));
+  assert.equal(manifest.officialOutcome.state,'granted','shared index carries the conclusion for other devices');
+  calls.length=0;
+  const state=await s.refreshCaseOutcomes(s.key);
+  assert.equal(calls.filter(x=>x==='outcome').length,1,'手动重新判读忽略 7 天缓存');
+  assert.equal(state.workspace.cases[0].officialOutcome?.state,'granted');
+});
+
+test('aggregate gate hit skips details but still judges undecided cases',async t=>{
+  const {s,calls,outcome}=await fixture(t);
+  await s.sync({source:'manual',full:false});
+  calls.length=0;
+  await s.sync({source:'manual',full:false});
+  assert.deepEqual(calls,['process-stats','outcome'],'统计未变化时明细被跳过，但结论判读继续');
+  assert.match(s.syncState.message,/案件状态已判读/);
+  outcome('rejected');
+  await s.refreshCaseOutcomes(s.key);
+  calls.length=0;
+  await s.sync({source:'manual',full:false});
+  assert.deepEqual(calls,['process-stats'],'已出结论的案件在门控命中时不再判读');
+});
+
+test('outcome failure during explicit judging reports error and never writes corrupted conclusion',async t=>{
+  const {s,calls,outcome,outcomeFails}=await fixture(t);
+  outcome('none');
+  await s.refreshCaseOutcomes(s.key);
+  assert.equal(s.workspace.cases[0].officialOutcome?.state,'none');
+  calls.length=0;outcomeFails(true);
+  await s.refreshCaseOutcomes(s.key).then(()=>{throw new Error('expected rejection');},e=>assert.match((e as Error).message,/待重试/));
+  assert.equal(s.workspace.cases[0].officialOutcome?.state,'none','a failed judge never overwrites the stored conclusion');
+  outcomeFails(false);outcome('granted');
+  const state=await s.refreshCaseOutcomes(s.key);
+  assert.equal(state.workspace.cases[0].officialOutcome?.state,'granted');
+});
+
+test('outcome judging stays inside the account and is skipped for local cases',async t=>{
+  const {s,calls,outcomeFails}=await fixture(t);
+  await s.createCase({title:'本机案件',number:'LOCAL-9',kind:'write'});
+  calls.length=0;
+  await s.refreshCaseOutcomes(s.key);
+  assert.equal(calls.filter(x=>x==='outcome').length,1,'only the Baseland case is judged');
+  assert.equal(s.workspace.cases.find(c=>c.source==='local')?.officialOutcome,undefined);
+  outcomeFails(true);calls.length=0;
+  await s.logout();
+  assert.equal(s.workspace.cases.length,0);
+  assert.equal(calls.filter(x=>x==='outcome').length,0,'no judgement runs after the account is switched away');
+});
+
+test('single-case re-judge only touches that case and refuses without a Baseland link',async t=>{
+  const {s,calls,client}=await fixture(t);
+  const target=s.workspace.cases[0];
+  await s.createCase({title:'本机案件',number:'LOCAL-10',kind:'write'});
+  const local=s.workspace.cases.find(c=>c.source==='local')!;
+  await assert.rejects(s.refreshCaseOutcome(s.key,local.id),/没有贝思兰德官文清单/);
+  calls.length=0;
+  const state=await s.refreshCaseOutcome(s.key,target.id);
+  assert.deepEqual(calls,['outcome']);
+  assert.equal(state.workspace.cases.find(c=>c.id===target.id)?.officialOutcome?.state,'none');
+  const manifest=JSON.parse(await fs.readFile(await s.casePath(target.id,'案件信息.json'),'utf8'));
+  assert.equal(manifest.officialOutcome.state,'none');
+  assert.equal(s.workspace.cases.find(c=>c.id===local.id)?.officialOutcome,undefined);
+});
+
+test('outcome judging refuses early without workRoot and makes zero network calls',async t=>{
+  const {s,calls}=await fixture(t);
+  s.workspace.settings.workRoot=undefined;
+  calls.length=0;
+  await assert.rejects(s.refreshCaseOutcome(s.key,s.workspace.cases[0].id),/请先选择总工作文件夹/);
+  await assert.rejects(s.refreshCaseOutcomes(s.key),/请先选择总工作文件夹/);
+  assert.equal(calls.length,0,'no network requests are fired when workRoot is missing');
 });

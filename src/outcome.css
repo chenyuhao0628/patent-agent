@@ -1,0 +1,30 @@
+.outcome-center{max-width:1180px}
+.outcome-center .heading-actions{display:flex;align-items:center;gap:12px}
+.outcome-search{display:flex;align-items:center;gap:8px;border:1px solid #dfe3ea;border-radius:9px;background:#fff;padding:0 10px}
+.outcome-search input{border:0;outline:0;background:transparent;padding:8px 0;width:260px;font-size:13px;color:#252b36}
+.outcome-catalog{display:flex;flex-direction:column;gap:10px;margin-top:16px}
+.outcome-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 16px;border:1px solid #e4e7ed;border-radius:12px;background:#fff}
+.outcome-row.is-rejected{border-left:3px solid #d27a72}
+.outcome-row.is-granted{border-left:3px solid #4f9c78}
+.outcome-row.is-none,.outcome-row.is-unknown{border-left:3px solid #d8dce4}
+.outcome-row-main{display:flex;flex-direction:column;gap:8px;min-width:0}
+.outcome-row-title{display:flex;flex-direction:column;gap:3px;min-width:0}
+.outcome-row-title b{font-size:14px;font-weight:600;color:#252b36;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.outcome-row-title small{font-size:12px;color:#7d8493;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.outcome-badge{align-self:flex-start;font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px;background:#f1f2f5;color:#5f6573}
+.outcome-badge.is-granted{background:#e4f2ea;color:#2f7355}
+.outcome-badge.is-rejected{background:#fbe9e7;color:#a8443c}
+.outcome-badge.is-none{background:#f2f3f6;color:#5f6573}
+.outcome-badge.is-unknown{background:#f5f4ef;color:#8a8471}
+.outcome-facts{display:flex;flex-wrap:wrap;gap:4px 22px;margin:0}
+.outcome-facts>div{display:flex;gap:6px;font-size:12px;color:#697386}
+.outcome-facts dt{color:#9aa0ad}
+.outcome-facts dd{margin:0;color:#3f4653}
+.outcome-open{flex-shrink:0;display:flex;align-items:center;gap:6px;font-size:12px}
+@media(max-width:900px){.outcome-row{flex-direction:column;align-items:flex-start}.outcome-search input{width:100%}}
+.case-intro p .outcome-badge{margin:0}
+.case-aside dd small{display:block;color:#9298a5;margin-top:5px}
+.case-aside dd .outcome-badge{margin-right:6px}
+.case-aside dd .text-button{display:block;margin-top:4px}
+.case-aside dd .outcome-error{color:#a8443c}
+@media(max-width:540px){.outcome-badge{font-size:11px;padding:3px 8px}.case-aside dd small{font-size:11px}}

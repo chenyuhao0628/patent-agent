@@ -28,6 +28,7 @@ async function fixture(t:test.TestContext){
     else if(u.pathname.endsWith('/GetPersonalCaseCount'))data=body.ActiveName==='waitHand'?1:0;
     else if(u.pathname.endsWith('/GetPersonalCase'))data={List:body.ActiveName==='waitHand'?[{CaseId:'case-'+user,CaseProcId:'proc-'+user,CaseName:'夹持装置',CaseNo:'202612345678.9',CaseProcName:'第一次审查意见答复',CaseProcUndertakerUserName:user,CaseProcLegalDate:'2026-10-01',CaseHandId:'hand-'+user}]:[],Total:body.ActiveName==='waitHand'?1:0};
     else if(u.pathname.endsWith('/GetCaseProcFileList'))data=[{FileNo:'notice-'+user,FileName:'审查意见.pdf'},{FileNo:'retry-'+user,FileName:'对比文件.pdf'}];
+    else if(u.pathname.endsWith('/GetNoticeListByCaseId')){assert.equal(typeof body.caseId,'string');assert.ok(body.PagedInfo,'the notice list endpoint rejects an empty body');data=[{NoticeName:'办理登记手续通知书',NoticeTypeCode:'200602',PostDate:'2026-09-14T00:00:00',NoticeStatusName:'待导入'},{NoticeName:'第一次审查意见通知书',NoticeTypeCode:'210401',PostDate:'2026-08-26T00:00:00'}];}
     else if(u.pathname.endsWith('/FileStorageGetFile'))return new Response(u.searchParams.get('fileNo')?.startsWith('retry')&&broken?Buffer.from('<html>failed</html>'):pdf);
     else if(u.pathname.endsWith('/GetCaseDetailProcList')){assert.equal(body.TableType,80001);assert(Array.isArray(body.UserTableTitleColumnList));data=[{CaseProcId:'proc-'+user,CaseProcName:'第一次审查意见答复',ProcStatusCode:200,StatusCode:200,CaseProcCurrentFlowName:'最新核稿节点',CaseProcUndertakerUserName:'主管',CaseProcLegalDate:'2026-10-01',CaseProcCustomDate:'2026-09-28',CaseProcNameInfo:{CaseProcName:'第一次审查意见答复'}}];}
     else if(u.pathname.endsWith('/GetCaseAllFlowHistoryInfo'))data={List:[{CaseProcName:'提出申请',ProcCreateDate:'2026-01-01',FinishDate:'2026-02-01'}]};
@@ -86,6 +87,10 @@ test('login, personal sync, retry, native draft persistence and account switchin
   await service.login({origin,username:'alice',password:'fixture-password',remember:true});const aliceKey=service.key;
   await service.settings(aliceKey,{...service.workspace.settings,originalLibrary:f.originals,workRoot:f.work});
   await service.sync();assert.equal(service.workspace.cases.length,1);const c=service.workspace.cases[0];
+  assert.equal(c.officialOutcome?.state,'granted','官方结论与案件数据在同一轮同步里判读并落库');
+  assert.equal(c.officialOutcome?.noticeTypeCode,'200602');
+  await service.refreshCaseOutcomes(aliceKey);
+  assert.equal(service.workspace.cases[0].officialOutcome?.state,'granted','手动重新判读同样只读官文清单');
   assert.equal(c.rounds[0].materials.filter(m=>m.ready).length,1);assert.match(service.syncState.message,/需重试/);
   f.repair();await service.sync();assert.equal(service.workspace.cases[0].rounds[0].materials.filter(m=>m.ready).length,2);
   const edit=structuredClone(service.workspace);edit.cases[0].localDraft='用户亲自撰写的工作稿';edit.cases[0].localVersions=[{id:randomUUID(),text:edit.cases[0].localDraft,at:new Date().toISOString(),processId:c.current?.processId}];

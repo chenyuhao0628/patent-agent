@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { Case, RemoteProcess } from './workflow.ts';
-import { currentHandling, processRowHandling, OFFICIAL_WAIT_NODE, PENDING_NODE, PENDING_UNDERTAKER_NOTE } from './handling.ts';
+import { currentHandling, flowStatusSummary, processRowHandling, OFFICIAL_WAIT_NODE, PENDING_NODE, PENDING_UNDERTAKER_NOTE } from './handling.ts';
 import { UNVERIFIED_OFFICIAL_LABEL, normalizeCase } from './lifecycle.ts';
 
 function proc(over: Partial<RemoteProcess> & Pick<RemoteProcess, 'id' | 'name'>): RemoteProcess {
@@ -143,4 +143,42 @@ test('IsCurrentFlowNode live node is current handling, not undertaker', () => {
   assert.equal(h.handler, '乙');
   assert.equal(h.handlerKind, 'flow-user');
   assert.equal(h.showStepFraction, true);
+});
+
+test('flow status summary shows process, node, handler and official submission without duplicating 官方', () => {
+  const running = flowStatusSummary(fixture({}, { status: 200, node: '核稿', undertaker: '甲', currentFlow: { name: '核稿', user: '乙', serial: 2, total: 4 } }));
+  assert.equal(running.process, '第一次审查意见答复');
+  assert.equal(running.node, '核稿');
+  assert.equal(running.handler, '乙');
+  assert.equal(running.submission, undefined);
+  assert.equal(running.officialWaiting, false);
+
+  const waiting = flowStatusSummary(fixture({
+    current: { kind: 'reply', processId: 'p1', remoteStatus: 200 },
+  }, { status: 200, submission: { state: 'sent', source: 'send-status', checkedAt: '', message: '递交成功' } }));
+  assert.equal(waiting.officialWaiting, true);
+  assert.equal(waiting.handler, undefined, 'once the official party is handling it, no internal handler is shown');
+  assert.match(waiting.submission ?? '', /递交成功/);
+});
+
+test('an official conclusion replaces 等待官方 handling and is never shown as still waiting', () => {
+  const waiting = fixture({ current: { kind: 'waiting', processId: 'p1', remoteStatus: 500 } }, {
+    status: 500, submission: { state: 'received', source: 'send-status', checkedAt: '2026-09-10T00:00:00.000Z', message: '已收到回执' },
+  });
+  assert.equal(currentHandling(waiting).node, OFFICIAL_WAIT_NODE);
+  assert.equal(currentHandling(waiting).officialWaiting, true);
+
+  for (const [state, label] of [['granted', '已授权'], ['rejected', '已驳回']] as const) {
+    const decided = { ...structuredClone(waiting), officialOutcome: { state, noticeName: state === 'granted' ? '办理登记手续通知书' : '驳回决定', noticeTypeCode: state === 'granted' ? '200602' : '200305', postDate: '2026-09-14', checkedAt: '2026-09-15T00:00:00.000Z' } };
+    const handling = currentHandling(decided);
+    assert.equal(handling.officialWaiting, false, '结果已到，不再算等待官方');
+    assert.equal(handling.node, label);
+    assert.equal(handling.party, '官方');
+    assert.equal(handling.handler, undefined);
+    assert.match(handling.status, new RegExp(label));
+    assert.equal(flowStatusSummary(decided).submission, undefined, '概览不再显示与结论矛盾的等待官方文案');
+  }
+
+  const unlisted = { ...structuredClone(waiting), officialOutcome: { state: 'none' as const, checkedAt: '2026-09-15T00:00:00.000Z' } };
+  assert.equal(currentHandling(unlisted).officialWaiting, true, '未见结果仍然按等待官方处理');
 });

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import type { Case, RemoteProcess } from './workflow.ts';
 import type { CurrentWork } from './lifecycle.ts';
 import {
-  businessKind, daysUntilDeadline, deadlineView, isActiveWork, isConfirmedWaitingOfficial, isUrgencyEligible,
+  businessKind, daysUntilDeadline, deadlineView, inOfficialWaiting, isActiveWork, isConfirmedWaitingOfficial, isUrgencyEligible,
   libraryStatus, localDayOrdinal, nextLibrarySort, parseCalendarDay, progressStatus, progressStatusLabel, queryLibrary, waitingOfficialLabel,
 } from './library.ts';
 import { normalizeCase, WAITING_OFFICIAL_LABEL } from './lifecycle.ts';
@@ -353,4 +353,25 @@ test('internal transfer lists active remote flows without legacy finals and excl
  cases.push(baseland({id:'official'},{status:400,submission:{state:'sent',checkedAt:''}}));
  cases.push(baseland({id:'archived',archived:true},{status:0}));
  assert.deepEqual(new Set(queryLibrary(cases,{module:'transfer'}).rows.map(c=>c.id)),new Set(['0','200','300','400']));
+});
+
+test('a case with an official conclusion leaves waiting-official and shows the conclusion itself', () => {
+  const waiting = baseland({ id: 'waiting' }, { status: 500, submission: { state: 'received', checkedAt: '', source: 'send-status' } });
+  const granted: Case = { ...structuredClone(waiting), id: 'granted', officialOutcome: { state: 'granted', noticeName: '办理登记手续通知书', noticeTypeCode: '200602', postDate: '2026-09-14', checkedAt: '2026-09-15T00:00:00.000Z' } };
+  const rejected: Case = { ...structuredClone(waiting), id: 'rejected', officialOutcome: { state: 'rejected', noticeName: '驳回决定', noticeTypeCode: '200305', postDate: '2026-08-27', checkedAt: '2026-09-15T00:00:00.000Z' } };
+  const unlisted: Case = { ...structuredClone(waiting), id: 'unlisted', officialOutcome: { state: 'none', checkedAt: '2026-09-15T00:00:00.000Z' } };
+  const all = [waiting, granted, rejected, unlisted];
+
+  assert.deepEqual(new Set(queryLibrary(all, { scope: 'official' }).rows.map(c => c.id)), new Set(['waiting', 'unlisted']));
+  assert.deepEqual(new Set(queryLibrary(all, { scope: 'workspace' }).rows.map(c => c.id)), new Set(['granted', 'rejected']));
+  assert.equal(queryLibrary(all, { scope: 'official' }).counts.waitingOfficial, 2, '只有真正的等待官方计入卡片');
+  assert.equal(queryLibrary(all, { scope: 'workspace' }).counts.waitingOfficial, 0);
+  assert.equal(isConfirmedWaitingOfficial(granted), false);
+  assert.equal(isConfirmedWaitingOfficial(unlisted), true, '未见结果不等于官方没有结论，仍按等待官方处理');
+
+  assert.deepEqual(libraryStatus(granted), { short: '已授权', full: '已授权 · 办理登记手续通知书（200602） 2026-09-14' });
+  assert.deepEqual(libraryStatus(rejected).short, '已驳回');
+  assert.equal(libraryStatus(waiting).short, '已完成 · 已提交官方');
+  assert.equal(inOfficialWaiting(granted), false);
+  assert.equal(inOfficialWaiting(unlisted), true);
 });

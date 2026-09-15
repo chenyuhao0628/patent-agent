@@ -72,7 +72,7 @@ export async function readSharedCases(workRoot:string,profile:string,existing:Ca
       const id=text(m.id),index=cases.findIndex(c=>c.id===id),old=cases[index];
       if(seen.has(id)||old?.directory&&portable(old.directory)!==directory)throw new Error('同一案件存在多个目录，未自动合并');seen.add(id);
       const source=m.source==='baseland'||m.remoteCaseId?'baseland':'local';
-      const c:Case={...(old??{id,archived:false,tags:[],rounds:[]}),id,title:text(m.title),number:text(m.number),type:text(m.type)||old?.type||'未分类',deadline:source==='local'?(calendarDate(m.deadline)||(text(m.deadline)?'':'')):'',applicationNumber:text(m.applicationNumber)||undefined,companyName:'companyName' in m?text(m.companyName,2000):old?.companyName,caseRemark:'caseRemark' in m?text(m.caseRemark,20000):old?.caseRemark,caseInfoAt:'caseInfoAt' in m?text(m.caseInfoAt,100):old?.caseInfoAt,remoteClosure:readClosure(m.remoteClosure)??old?.remoteClosure,directory,source,current:current(m.current,old?.current)};
+      const c:Case={...(old??{id,archived:false,tags:[],rounds:[]}),id,title:text(m.title),number:text(m.number),type:text(m.type)||old?.type||'未分类',deadline:source==='local'?(calendarDate(m.deadline)||(text(m.deadline)?'':'')):'',applicationNumber:text(m.applicationNumber)||undefined,companyName:'companyName' in m?text(m.companyName,2000):old?.companyName,caseRemark:'caseRemark' in m?text(m.caseRemark,20000):old?.caseRemark,caseInfoAt:'caseInfoAt' in m?text(m.caseInfoAt,100):old?.caseInfoAt,remoteClosure:readClosure(m.remoteClosure)??old?.remoteClosure,officialOutcome:readOfficialOutcome(m.officialOutcome)??old?.officialOutcome,directory,source,current:current(m.current,old?.current)};
       if(c.remoteClosure?.finished&&!old)c.archived=true;
       const stageChanged=!!old&&(old.current?.processId??old.current?.roundId??'local')!==(c.current?.processId??c.current?.roundId??'local');
       if(stageChanged){
@@ -110,3 +110,17 @@ export async function readSharedCases(workRoot:string,profile:string,existing:Ca
 }
 
 function readClosure(value:unknown):Case['remoteClosure']{if(!value||typeof value!=='object')return;const v=value as Record<string,unknown>;if(typeof v.finished==='boolean'&&typeof v.checkedAt==='string')return {finished:v.finished,checkedAt:v.checkedAt};}
+// 官方结论来自远程判读：只接受已知结论值与判读时间，字段缺失或类型不符时忽略，不猜测、不补默认值。
+function readOfficialOutcome(value:unknown):Case['officialOutcome']{
+  if(!value||typeof value!=='object')return;
+  const v=value as Record<string,unknown>;
+  if(!['granted','rejected','none'].includes(String(v.state))||typeof v.checkedAt!=='string'||!v.checkedAt)return;
+  return {
+    state:v.state as NonNullable<Case['officialOutcome']>['state'],
+    noticeName:text(v.noticeName,200)||undefined,
+    noticeTypeCode:text(v.noticeTypeCode,40)||undefined,
+    postDate:text(v.postDate,40)||undefined,
+    checkedAt:v.checkedAt,
+    ...(v.incomplete===true?{incomplete:true}:{}),
+  };
+}

@@ -215,3 +215,16 @@ test('personal pending, own started work, next handler and completed are distinc
   assert.equal(editableCurrent(make(400,undefined)),false);
   const done=make(500,false,'杨佳');assert.equal(done.current?.kind,'waiting');assert.match(caseStatus(done),/已完成.*已提交官方/);assert.equal(editableCurrent(done),false);
 });
+
+test('case status shows the official conclusion instead of the waiting-for-official text', () => {
+  const make = (outcome?: Case['officialOutcome']): Case => ({
+    id: 'bs-1', title: '合成案件', number: 'SYN-1', type: '发明', deadline: '', archived: false, tags: [], rounds: [],
+    source: 'baseland', current: { kind: 'waiting', processId: 'p1', remoteStatus: 500 },
+    remote: { caseId: 'r1', syncedAt: '', processes: [{ id: 'p1', name: '第一次审查意见答复', status: 500, node: '结束', undertaker: '甲', deadline: '', submission: { state: 'received', source: 'send-status', checkedAt: '', message: '已收到回执' } }] },
+    ...(outcome ? { officialOutcome: outcome } : {}),
+  });
+  assert.equal(caseStatus(make()), '已完成 · 已提交官方');
+  assert.equal(caseStatus(make({ state: 'none', checkedAt: '2026-09-15T00:00:00.000Z' })), '已完成 · 已提交官方', '未见结果不改写过程状态');
+  assert.equal(caseStatus(make({ state: 'granted', noticeName: '办理登记手续通知书', noticeTypeCode: '200602', postDate: '2026-09-14', checkedAt: '2026-09-15T00:00:00.000Z' })), '已授权 · 办理登记手续通知书（200602） 2026-09-14');
+  assert.equal(caseStatus(make({ state: 'rejected', noticeName: '驳回决定', noticeTypeCode: '300305', checkedAt: '2026-09-15T00:00:00.000Z' })), '已驳回 · 驳回决定（300305）');
+});

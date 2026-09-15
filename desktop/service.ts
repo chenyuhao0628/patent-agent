@@ -31,10 +31,20 @@ type SyncSignals={processes:string;detailedAt:number};
 // queryOfficial = 26 次 HTTP；而 SendStatus 取值只有 0/1/2/3/6/100，6 是终值，不会回退。
 const SUBMISSION_TTL=5*60*1000;
 const TERMINAL_SUBMISSION_TTL=60*60*1000;
+// 官方结论（授权/驳回）已判定后 7 天内不重复判读：结论不会自行回退，未出结论的案件才需要每轮判读。
+// 判读跟随正常同步执行（含聚合门控命中），不再需要用户手动点「重新判读」才能看到结果。
+const OUTCOME_SETTLED_TTL=7*24*60*60*1000;
+export function outcomeSettled(c:Case,now=Date.now()):boolean{
+  const outcome=c.officialOutcome;
+  if(!outcome||outcome.incomplete)return false;
+  if(outcome.state!=='granted'&&outcome.state!=='rejected')return false;
+  const at=Date.parse(outcome.checkedAt);
+  return Number.isFinite(at)&&now-at<OUTCOME_SETTLED_TTL;
+}
 export function isTerminalSubmission(sub:Submission|undefined):boolean{
   return sub?.state==='received';
 }
-const syncFingerprint=(c:Case|undefined)=>JSON.stringify(c&&[c.current,c.remote,c.remoteClosure,c.caseInfoAt,c.caseRemark]);
+const syncFingerprint=(c:Case|undefined)=>JSON.stringify(c&&[c.current,c.remote,c.remoteClosure,c.caseInfoAt,c.caseRemark,c.officialOutcome]);
 export async function mapLimit<T>(items:T[],limit:number,run:(item:T)=>Promise<void>){
   let next=0,failed=false;
   let failure:unknown;
@@ -346,7 +356,9 @@ export class DesktopService {
           const processKey=processes.map(row=>`${row.code}:${row.count}`).join(',');
           if(!forceDetails&&this.syncSignals&&processKey===this.syncSignals.processes){
             diagnostic('sync','aggregate_gate_hit',{ageMs:Date.now()-this.syncSignals.detailedAt});
-            this.syncState={running:false,lastAt:new Date().toISOString(),message:'贝思兰德统计未变化，已跳过本轮明细同步。'};
+            // 门控只跳过明细同步，不跳过官方结论判读：授权/驳回通知不一定会新建流程，统计不变也可能刚出结果。
+            const held=await this.judgeOutcomes(client,check,controller.signal,key,generation);
+            this.syncState={running:false,lastAt:new Date().toISOString(),message:held.length?`贝思兰德统计未变化，已跳过本轮明细同步。案件状态判读 ${held.length} 项待重试：${held.slice(0,2).join('；')}`:'贝思兰德统计未变化，已跳过本轮明细同步，案件状态已判读。'};
             outcome='completed';return this.state();
           }
           initialStats=processes;
@@ -357,7 +369,7 @@ export class DesktopService {
       const detailedAt=forceDetails?Date.now():previousSignals!.detailedAt;
       const snapshot=await client.personalCasesSnapshot(controller.signal,initialStats);check();
       const rows=snapshot.rows;
-      const cases=mergePersonalRows(rows,baseline,new Date().toISOString());const failures:string[]=[];
+      const cases=mergePersonalRows(rows,baseline,new Date().toISOString());const failures:string[]=[];const outcomeFailures:string[]=[];
       const rowByProc=new Map(rows.map(r=>[String(r.CaseProcId),r]));
       await mapLimit(cases,4,async c=>{
         check();
@@ -371,6 +383,11 @@ export class DesktopService {
           const reusable=cached?.closure&&(cached.closure.finished||Date.now()-cached.at<3*60*1000)&&cached.processKey===processKey;
           if(!forceDetails&&reusable){closure=cached!.closure;diagnostic('sync','closure_cache_hit');}
           else{try{closure=await client.caseClosure(c,controller.signal);check();if(this.caseClosureCache.get(cacheKey)===cached&&syncFingerprint(this.workspace.cases.find(x=>x.id===c.id))===syncFingerprint(base)){if(closure)this.caseClosureCache.set(cacheKey,{closure,at:Date.now(),processKey});else this.caseClosureCache.delete(cacheKey);}}catch(e){check();failures.push(c.number+' / 结案核验：'+(e as Error).message);}}
+        }
+        // 官方授权/驳回结论与案件数据同一次同步判读；失败保留上次结论，绝不写入「未授权」。
+        if(c.remote&&!c.archived&&!c.remoteClosure?.finished&&!outcomeSettled(c)){
+          try{c.officialOutcome=await client.officialOutcome(c,controller.signal);check();}
+          catch(e){check();outcomeFailures.push(c.number+' / 案件状态判读：'+(e as Error).message);}
         }
         const currentProc=c.remote?.processes.find(p=>p.id===c.current?.processId);
         if(currentProc&&shouldQueryOfficial(currentProc,rowByProc.get(currentProc.id))){
@@ -431,7 +448,11 @@ export class DesktopService {
         });
         });
       });
-      this.assertKey(key);this.syncState={running:false,lastAt:new Date().toISOString(),message:failures.length?`案件已保存，${failures.length} 项需重试：${failures.slice(0,3).join('；')}`:`已同步 ${rows.length} 条流程，归并为 ${cases.filter(c=>c.remote).length} 个案件。`};
+      this.assertKey(key);
+      // 判读失败单独计数：保留上次结论、不参与聚合门控快照判定，下一轮同步继续重试。
+      const retryCount=failures.length+outcomeFailures.length;
+      const retryNotes=[...failures.slice(0,3),...(outcomeFailures.length?[`案件状态判读 ${outcomeFailures.length} 项待重试：${outcomeFailures.slice(0,2).join('；')}`]:[])];
+      this.syncState={running:false,lastAt:new Date().toISOString(),message:retryCount?`案件已保存，${retryCount} 项需重试：${retryNotes.join('；')}`:`已同步 ${rows.length} 条流程，归并为 ${cases.filter(c=>c.remote).length} 个案件。`};
       if(!failures.length){
         this.syncSignals={processes:snapshot.stats.map(row=>`${row.code}:${row.count}`).join(','),detailedAt};
       }else{
@@ -582,6 +603,85 @@ export class DesktopService {
       try { await this.files().ensureCase(latest); await atomicJSON(this.profileFile(),structuredClone(this.workspace)); this.changed(); return this.state(); }
       finally { this.flowFileWrites--; }
     });
+  }
+  // 聚合门控命中时的判读：明细被跳过，但官方结论仍然要跟得上——授权/驳回通知不一定新建流程。
+  // 只处理未出结论、未归档、未结案的案件；已出结论的按 OUTCOME_SETTLED_TTL 跳过。
+  private async judgeOutcomes(client:BaselandClient,check:()=>void,signal:AbortSignal,key:string,generation:number):Promise<string[]>{
+    const targets=this.workspace.cases.filter(c=>c.source==='baseland'&&c.remote&&!c.archived&&!c.remoteClosure?.finished&&!outcomeSettled(c));
+    if(!targets.length)return [];
+    const failures:string[]=[],results=new Map<string,Case['officialOutcome']>();
+    await mapLimit(targets,4,async c=>{
+      check();
+      try{results.set(c.id,await client.officialOutcome(c,signal));check();}
+      catch(e){check();failures.push(c.number+' / 案件状态判读：'+(e as Error).message);}
+    });
+    if(!results.size)return failures;
+    await this.enqueuePersist(async()=>{
+      if(generation!==this.generation)return;
+      this.assertKey(key);
+      for(const c of this.workspace.cases){
+        const value=results.get(c.id);
+        if(value&&c.remote)c.officialOutcome=value;
+      }
+      await atomicJSON(this.profileFile(),structuredClone(this.workspace));
+    });
+    return failures;
+  }
+  // 单案「重新判读」：只读这一案的官文清单，按需显式调用。
+  async refreshCaseOutcome(key:string,id:string){
+    this.assertKey(key);this.assertNotMigrating();
+    if(!this.client||this.account?.status!=='authenticated')throw new Error('请先登录贝思兰德。');
+    if(!this.workspace.settings.workRoot)throw new Error('请先选择总工作文件夹。');
+    if(this.syncState.running||this.syncPreparing)throw new Error('正在同步案件，请同步完成后再重新判读。');
+    const generation=this.generation,client=this.client,c=this.findCase(id);
+    if(!c.remote)throw new Error('本机案件没有贝思兰德官文清单，无法判读官方结论。');
+    const caseId=c.remote.caseId;
+    const value=await client.officialOutcome(c);
+    if(generation!==this.generation)throw new Error('账号已切换，本次判读结果未保存。');
+    await this.enqueuePersist(async()=>{
+      this.assertKey(key);this.assertNotMigrating();
+      const latest=this.findCase(id);
+      if(generation!==this.generation||latest.remote?.caseId!==caseId)throw new Error('案件或账号已变化，请重新判读。');
+      latest.officialOutcome=value;
+      await this.files().ensureCase(latest);
+      await atomicJSON(this.profileFile(),structuredClone(this.workspace));
+    });
+    this.changed();
+    return this.state();
+  }
+  // 手动「重新判读全部案件」：仅由用户在案件状态中心显式点击触发，逐案只读判读官方结论后一次性落盘，绝不混入常规同步。
+  async refreshCaseOutcomes(key:string){
+    this.assertKey(key);this.assertNotMigrating();
+    if(!this.client||this.account?.status!=='authenticated')throw new Error('请先登录贝思兰德。');
+    if(!this.workspace.settings.workRoot)throw new Error('请先选择总工作文件夹。');
+    if(this.syncState.running||this.syncPreparing)throw new Error('正在同步案件，请同步完成后再重新判读。');
+    const generation=this.generation,client=this.client,controller=new AbortController();
+    const targets=this.workspace.cases.filter(c=>c.source==='baseland'&&c.remote);
+    if(!targets.length)return this.state();
+    const failures:string[]=[],results=new Map<string,Case['officialOutcome']>();
+    await mapLimit(targets,4,async c=>{
+      try{results.set(c.id,await client.officialOutcome(c,controller.signal));}
+      catch(e){failures.push(c.number+' / '+(e as Error).message);}
+    });
+    if(generation!==this.generation)throw new Error('账号已切换，本次判读结果未保存。');
+    await this.enqueuePersist(async()=>{
+      this.assertKey(key);this.assertNotMigrating();
+      if(generation!==this.generation)throw new Error('账号已切换，本次判读结果未保存。');
+      for(const c of this.workspace.cases){
+        const value=results.get(c.id);
+        if(value&&c.remote){
+          c.officialOutcome=value;
+          await this.files().ensureCase(c);
+        }
+      }
+      await atomicJSON(this.profileFile(),structuredClone(this.workspace));
+    });
+    this.changed();
+    if(failures.length){
+      const msg=results.size?`已判读 ${results.size} 个案件，${failures.length} 项待重试：${failures.slice(0,2).join('；')}`:`判读未能完成，${failures.length} 项待重试：${failures.slice(0,2).join('；')}`;
+      throw new Error(msg);
+    }
+    return this.state();
   }
   async updateReferences(key:string,id:string,expected:{generation:number;root:string|undefined;process:string},added:Case['materials'],removeId?:string){
     return this.enqueuePersist(async()=>{

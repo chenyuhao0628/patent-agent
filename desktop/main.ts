@@ -155,6 +155,8 @@ app.whenReady().then(async()=>{
   handle('applicationMinimize',()=>window?.minimize());
   handle('applicationQuit',()=>{app.quit();});
   handle('caseInfo',(key:string,id:string)=>service.caseInfo(key,id));
+  handle('refreshCaseOutcomes',(key:string)=>service.refreshCaseOutcomes(key),true,true);
+  handle('refreshCaseOutcome',(key:string,id:string)=>service.refreshCaseOutcome(key,id),true,true);
   handle('bootstrap',()=>service.state());
   handle('verifyLogin',async()=>{const s=await service.verifyLogin(true);if(s.account?.status==='authenticated'&&s.workspace.settings.workRoot&&!service.isWorkMigrationBusy())void service.sync({source:'login'}).catch(()=>{});return s;});
   handle('extensions',async(method:string,key:string,...args:any[])=>{
@@ -324,11 +326,17 @@ app.whenReady().then(async()=>{
     modelRequests.cancel(requestId,event.sender.id);
   });
   await window.loadFile(page);
-  if(service.account?.status==='authenticated'&&service.workspace.settings.workRoot&&!service.isWorkMigrationBusy())void service.sync({source:'startup'}).catch(()=>{});
-  void service.verifyLogin(true).then(s=>{if(s.account?.status==='authenticated'&&s.workspace.settings.workRoot&&!service.isWorkMigrationBusy())void service.sync({source:'startup'}).catch(()=>{});}).catch(()=>{});
+  void service.verifyLogin(true).then(s=>{
+    if(s.account?.status==='authenticated'&&s.workspace.settings.workRoot&&!service.isWorkMigrationBusy()){
+      void service.sync({source:'startup'}).catch(()=>{});
+    }
+  }).catch(()=>{
+    if(service.account?.status==='authenticated'&&service.workspace.settings.workRoot&&!service.isWorkMigrationBusy()){
+      void service.sync({source:'startup'}).catch(()=>{});
+    }
+  });
   const authTimer=setInterval(()=>{const was=service.account?.status;void service.retryLoginIfDue().then(s=>{if(was!=='authenticated'&&s.account?.status==='authenticated'&&s.workspace.settings.workRoot&&!service.isWorkMigrationBusy())void service.sync({source:'login'}).catch(()=>{});}).catch(()=>{});},5000);
   app.on('before-quit',()=>clearInterval(authTimer));
-  const timer=setInterval(()=>{if(service.account?.status==='authenticated'&&service.workspace.settings.workRoot&&!service.isWorkMigrationBusy())void service.sync({source:'timer'}).catch(()=>{});},30000);
   window.on('minimize',()=>{if(applicationSettings.preferences.minimizeToTray&&!quitting)window?.hide();});
   window.on('close',e=>{
     if(readyToQuit)return;
@@ -342,7 +350,6 @@ app.whenReady().then(async()=>{
     if(closing)return;
     closing=true;
     quitting=true;
-    clearInterval(timer);
     service.controller?.abort();
     service.abortWorkMigration();
     modelService.abortRequests();

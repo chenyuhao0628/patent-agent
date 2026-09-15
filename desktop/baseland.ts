@@ -21,6 +21,42 @@ export const KNOWN_SEND_STATUS=[{label:'待递交',value:0},{label:'准备递交
 export const SUBMISSION_REFRESH_ERROR='未能刷新官方递交状态，仍显示上次确认结果。';
 
 export const officialDate=calendarDate;
+// 官方结论判读表（0001《只读-授权与获证检测》§3.7）：授权类官文名叫「办理登记手续通知书」，不叫「授权通知书」；
+// 专利证书只可能出现在授权之后，因此同样判为已授权。驳回决定有三个同义码。本表只用于官文清单，不改写贝思兰德。
+export const OUTCOME_NOTICE_TYPES={granted:['200602'],grantedByCertificate:['400001','400002','400003'],rejected:['200305','210407','210408']} as const;
+export type OfficialOutcomeState='granted'|'rejected'|'none';
+export type OfficialOutcomeVerdict={state:OfficialOutcomeState;noticeName?:string;noticeTypeCode?:string;postDate?:string};
+const OUTCOME_PAGE_SIZE=100;
+const OUTCOME_PAGE_LIMIT=5;
+function newestNotice(list:{name:string;code:string;postDate:string}[]){
+  const known=list.filter(row=>row.postDate);
+  if(!known.length)return list[0];
+  return [...known].sort((a,b)=>b.postDate.localeCompare(a.postDate))[0];
+}
+export function judgeOfficialOutcome(rows:Obj[]):OfficialOutcomeVerdict {
+  const matched=(codes:readonly string[])=>rows.flatMap(row=>{
+    const code=clean(row.NoticeTypeCode??row.NoticeCode);
+    return codes.includes(code)?[{name:clean(row.NoticeName),code,postDate:officialDate(row.PostDate)||clean(row.PostDate)}]:[];
+  });
+  const rejected=newestNotice(matched(OUTCOME_NOTICE_TYPES.rejected));
+  const granted=newestNotice([...matched(OUTCOME_NOTICE_TYPES.granted),...matched(OUTCOME_NOTICE_TYPES.grantedByCertificate)]);
+  // 若同时存在授权与驳回，以发文日 postDate 较新者为准（复审撤销驳回后授权为专利实务常规）；
+  // 日期相同或均无日期时，依 0001 §3.7 建议优先判定办登/证书（先看 200602/40000x，再看驳回）。
+  let winner:{name:string;code:string;postDate:string;state:OfficialOutcomeState}|undefined;
+  if(rejected&&granted){
+    if(rejected.postDate&&granted.postDate){
+      winner=granted.postDate>=rejected.postDate?{...granted,state:'granted'}:{...rejected,state:'rejected'};
+    }else{
+      winner={...granted,state:'granted'};
+    }
+  }else if(rejected){
+    winner={...rejected,state:'rejected'};
+  }else if(granted){
+    winner={...granted,state:'granted'};
+  }
+  if(!winner)return {state:'none'};
+  return {state:winner.state,noticeName:winner.name||undefined,noticeTypeCode:winner.code,postDate:winner.postDate||undefined};
+}
 export function mainProcessKind(name:string){return processBusinessKind(name);}
 export function flag(value:unknown):boolean {
   return value===true||value===1||value==='true'||value==='True'||value==='1';
@@ -386,6 +422,22 @@ export class BaselandClient {
     if(!info||typeof info!=='object'||info.CaseId&&clean(info.CaseId)!==c.remote.caseId)throw new Error('案件结案信息与当前案件不匹配。');
     const finished=boolTri(info.IsFinishCase);
     return finished===undefined?undefined:{finished,checkedAt:new Date().toISOString()};
+  }
+  // 只读：按案件官文清单判读官方结论（授权/驳回），不下载、不导入、不写回贝思兰德。
+  // 请求体必须带 PagedInfo，空对象服务端会返回「系统错误: e」；命中结论即停止翻页。
+  async officialOutcome(c:Case,signal?:AbortSignal):Promise<OfficialOutcomeVerdict&{checkedAt:string;incomplete?:boolean}> {
+    if(!c.remote)throw new Error('案件未关联贝思兰德。');
+    const caseId=c.remote.caseId,rows:Obj[]=[];
+    for(let page=1;page<=OUTCOME_PAGE_LIMIT;page++){
+      const data=listOf(await this.request('/CaseInfo/GetNoticeListByCaseId',{caseId,PagedInfo:{PageIndex:page,PageSize:OUTCOME_PAGE_SIZE}},undefined,signal,'list'));
+      if(!Array.isArray(data))throw new Error('案件官文清单结构尚未识别。');
+      rows.push(...data);
+      const verdict=judgeOfficialOutcome(rows);
+      if(verdict.state!=='none')return {...verdict,checkedAt:new Date().toISOString()};
+      if(data.length<OUTCOME_PAGE_SIZE)return {state:'none',checkedAt:new Date().toISOString()};
+    }
+    // 到翻页上限仍未判定：保留「未见结果」，但标记清单未取完，界面必须提示结果待复核。
+    return {state:'none',checkedAt:new Date().toISOString(),incomplete:true};
   }
   async caseInfo(c:Case,signal?:AbortSignal) {
     if (!c.remote) throw new Error('本地案件尚未关联贝思兰德。');

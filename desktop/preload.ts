@@ -12,6 +12,8 @@ contextBridge.exposeInMainWorld('patentDesktop',{
   selectDirectory:(kind:string)=>call('selectDirectory',kind),saveSettings:(key:string,s:unknown)=>call('saveSettings',key,s),saveWorkspace:(key:string,w:unknown)=>call('saveWorkspace',key,w),
   refreshShared:(key:string)=>call('refreshShared',key),sync:(source?:'manual'|'focus')=>call('sync',source),createCase:(input:unknown)=>call('createCase',input),flow:(id:string)=>call('flow',id),
   caseInfo:(key:string,id:string)=>call('caseInfo',key,id),
+  refreshCaseOutcomes:(key:string)=>call('refreshCaseOutcomes',key),
+  refreshCaseOutcome:(key:string,id:string)=>call('refreshCaseOutcome',key,id),
   openCaseDirectory:(id:string)=>call('openCaseDirectory',id),openMaterial:(id:string,rel:string)=>call('openMaterial',id,rel),findOriginals:(id:string)=>call('findOriginals',id),copyOriginal:(id:string,source:string)=>call('copyOriginal',id,source),
   previewWorkMigration:(key:string,destination:string)=>call('previewWorkMigration',key,destination),
   startWorkMigration:(key:string,previewId:string)=>call('startWorkMigration',key,previewId),

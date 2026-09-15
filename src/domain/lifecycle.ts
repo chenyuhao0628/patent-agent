@@ -1,5 +1,6 @@
 import type { Case, RemoteProcess, Submission, Workspace } from './workflow.ts';
 import { applyCaseDeadline, mergeRemoteProcess } from './deadlines.ts';
+import { outcomeStatement } from './outcome.ts';
 
 export type WorkKind = 'write' | 'reply' | 'correction' | 'review' | 'waiting' | 'external' | 'needs-confirmation';
 export type CurrentWork = { kind: WorkKind; roundId?: string; processId?: string; label?: string; remoteStatus?: number; node?: string; party?: string; handler?: string };
@@ -107,6 +108,9 @@ export function applyOfficialWaiting(c:Case,processId:string):void {
 export function workModule(c:Case) { const k=currentWork(c).kind; return k==='correction'?'reply':k; }
 export function caseStatus(c:Case) {
   if(c.archived)return '已归档';
+  // 官方结论已知时，案件不再停留在"等待官方"之类的过程文案上，直接显示结论本身。
+  const statement=outcomeStatement(c);
+  if(statement)return statement;
   const w=currentWork(c),r=activeRound(c),sub=processSubmission(c),process=currentRemoteOf(c,w);
   const title=w.label??workNames[w.kind];
   if(c.source==='baseland'&&process&&!['queued','sending','failed'].includes(sub?.state??'')){
