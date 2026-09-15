@@ -28,7 +28,8 @@ export function processSubmission(c:Case):Submission|undefined {
   return p?effectiveSubmission(p):undefined;
 }
 export function effectiveSubmission(p:RemoteProcess):Submission|undefined {
-  if(p.personalStatus===500&&processBusinessKind(p.name))return p.submission?.state==='received'?p.submission:{state:'sent',source:'personal-status',checkedAt:p.submission?.checkedAt??'',message:'个人案件已完成，已提交官方'};
+  // Personal-complete (_status/personalStatus=500) is a hint only. Official submission
+  // requires send/hand evidence already recorded on p.submission — never invent "sent".
   return p.submission;
 }
 export function isConfirmedOfficialSubmission(sub?:Submission):boolean {
@@ -114,9 +115,10 @@ export function caseStatus(c:Case) {
   const w=currentWork(c),r=activeRound(c),sub=processSubmission(c),process=currentRemoteOf(c,w);
   const title=w.label??workNames[w.kind];
   if(c.source==='baseland'&&process&&!['queued','sending','failed'].includes(sub?.state??'')){
-    if(process.personalStatus===500||isConfirmedOfficialSubmission(sub))return '已完成 · 已提交官方';
+    if(isConfirmedOfficialSubmission(sub))return '已完成 · 已提交官方';
     if(process.status===0&&!process.handId)return '待处理 · 尚未启动递交';
-    if([200,300,400].includes(process.status)||process.handId)return `递交中 · ${process.currentFlow?.user||'办理人待核对'} · ${process.currentFlow?.name||'节点待核对'}`;
+    // status 500 is handled below via needSendOfficial / unverified paths; handId alone must not elevate it to 递交中 or 已交官方.
+    if(process.status!==500&&([200,300,400].includes(process.status)||process.handId))return `递交中 · ${process.currentFlow?.user||'办理人待核对'} · ${process.currentFlow?.name||'节点待核对'}`;
   }
   if(sub&&(sub.state==='queued'||sub.state==='sending'||sub.state==='failed'||sub.state==='sent'||sub.state==='received')){
     if(sub.state==='received')return '已收到回执，等待官方处理结果';

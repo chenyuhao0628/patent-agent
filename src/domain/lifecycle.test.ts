@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { seedWorkspace, updateRound } from './workflow.ts';
 import type { Case, RemoteProcess } from './workflow.ts';
-import { caseStatus, currentWork, editableCurrent, historyRecords, normalizeCase, normalizeWorkspace, WAITING_OFFICIAL_LABEL, workModule } from './lifecycle.ts';
+import { caseStatus, currentWork, editableCurrent, effectiveSubmission, historyRecords, isConfirmedOfficialSubmission, INTERNAL_ENDED_WAIT_LABEL, normalizeCase, normalizeWorkspace, processSubmission, WAITING_OFFICIAL_LABEL, workModule } from './lifecycle.ts';
 import { currentHandling } from './handling.ts';
 import { libraryStatus } from './library.ts';
 import { initialDesign } from './designFlows.ts';
@@ -213,7 +213,8 @@ test('personal pending, own started work, next handler and completed are distinc
   const own=make(400,true);assert.equal(editableCurrent(own),true);assert.match(caseStatus(own),/递交中.*陈雨浩/);
   const handed=make(400,false,'杨佳');assert.equal(editableCurrent(handed),false);assert.match(libraryStatus(handed).short,/递交中.*杨佳/);
   assert.equal(editableCurrent(make(400,undefined)),false);
-  const done=make(500,false,'杨佳');assert.equal(done.current?.kind,'waiting');assert.match(caseStatus(done),/已完成.*已提交官方/);assert.equal(editableCurrent(done),false);
+  // personalStatus/draft alone is not official submission evidence
+  const done=make(500,false,'杨佳');assert.equal(done.current?.kind,'needs-confirmation');assert.doesNotMatch(caseStatus(done),/已提交官方|已交官方/);assert.equal(editableCurrent(done),false);
 });
 
 test('case status shows the official conclusion instead of the waiting-for-official text', () => {
@@ -227,4 +228,30 @@ test('case status shows the official conclusion instead of the waiting-for-offic
   assert.equal(caseStatus(make({ state: 'none', checkedAt: '2026-09-15T00:00:00.000Z' })), '已完成 · 已提交官方', '未见结果不改写过程状态');
   assert.equal(caseStatus(make({ state: 'granted', noticeName: '办理登记手续通知书', noticeTypeCode: '200602', postDate: '2026-09-14', checkedAt: '2026-09-15T00:00:00.000Z' })), '已授权 · 办理登记手续通知书（200602） 2026-09-14');
   assert.equal(caseStatus(make({ state: 'rejected', noticeName: '驳回决定', noticeTypeCode: '300305', checkedAt: '2026-09-15T00:00:00.000Z' })), '已驳回 · 驳回决定（300305）');
+});
+
+test('A1 personalStatus/_status 500 + needSendOfficial:false is not officially submitted', () => {
+  const draft = { state: 'draft' as const, source: 'hand' as const, checkedAt: '2026-09-12T00:00:00.000Z', message: '未递交官方' };
+  const p: RemoteProcess = {
+    id: 'app', name: '提出申请', status: 500, personalStatus: 500, needSendOfficial: false,
+    node: '', undertaker: '甲', deadline: '', handId: 'h1', submission: draft,
+  };
+  assert.equal(effectiveSubmission(p)?.state, 'draft');
+  assert.notEqual(effectiveSubmission(p)?.source, 'personal-status');
+  assert.equal(isConfirmedOfficialSubmission(effectiveSubmission(p)), false);
+
+  const c = normalizeCase({
+    id: 'c', title: '合成装置', number: 'SYN-A1', type: '发明', deadline: '', archived: false, tags: [], rounds: [],
+    source: 'baseland',
+    current: { kind: 'write', processId: 'app', remoteStatus: 500, label: '提出申请' },
+    remote: { caseId: 'r', syncedAt: '', processes: [p] },
+  } as Case);
+  assert.equal(c.remote?.processes[0].submission?.state, 'draft');
+  assert.equal(isConfirmedOfficialSubmission(processSubmission(c)), false);
+  assert.doesNotMatch(caseStatus(c), /已提交官方|已交官方/);
+  assert.equal(c.current?.kind, 'waiting');
+  assert.equal(c.current?.party, '内部');
+  assert.match(c.current?.node ?? '', /内部流程已结束|等待后续/);
+  assert.match(caseStatus(c), /内部流程已结束/);
+  assert.equal(c.current?.node, INTERNAL_ENDED_WAIT_LABEL);
 });

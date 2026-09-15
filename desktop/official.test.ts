@@ -9,7 +9,7 @@ import {
   applySubmissionToCurrent, assignCurrentProcess, BaselandClient, combineOfficialSubmission, mapFlowNodes, mergePersonalRows, officialDate,
   preserveStale, processRow, selectCurrentProcess, sendStatusState, SUBMISSION_REFRESH_ERROR, withOfficialWait,
 } from './baseland.ts';
-import { caseStatus, editableCurrent, historyRecords, processSubmission, UNVERIFIED_OFFICIAL_LABEL, WAITING_OFFICIAL_LABEL } from '../src/domain/lifecycle.ts';
+import { caseStatus, editableCurrent, effectiveSubmission, historyRecords, isConfirmedOfficialSubmission, processSubmission, UNVERIFIED_OFFICIAL_LABEL, WAITING_OFFICIAL_LABEL } from '../src/domain/lifecycle.ts';
 import { businessKind } from '../src/domain/library.ts';
 import type { Case, RemoteProcess, Submission } from '../src/domain/workflow.ts';
 import { readSharedCases } from './shared.ts';
@@ -557,4 +557,21 @@ test('started hand edit permission is read from server and personal completion h
   assert.equal(completed.personalStatus,500);
   const ordinaryEnd=processRow({CaseProcId:'p',CaseProcName:'提出申请',StatusCode:500});
   assert.equal(ordinaryEnd.personalStatus,undefined);
+});
+
+test('A1 _status:500 + needSendOfficial:false must NOT count as officially submitted',()=>{
+  const row=processRow({CaseProcId:'app',CaseProcName:'提出申请',_status:500});
+  assert.equal(row.personalStatus,500);
+  row.needSendOfficial=false;
+  row.submission={state:'draft',source:'hand',checkedAt:'2026-09-12T00:00:00.000Z',message:'未递交官方'};
+  assert.equal(effectiveSubmission(row)?.state,'draft');
+  assert.equal(isConfirmedOfficialSubmission(effectiveSubmission(row)),false);
+  const c:Case={id:'c',title:'合成装置',number:'SYN-A1',type:'发明',deadline:'',archived:false,tags:[],rounds:[],source:'baseland',
+    current:{kind:'write',processId:'app',remoteStatus:500,label:'提出申请'},
+    remote:{caseId:'r',syncedAt:'',processes:[row]}};
+  applySubmissionToCurrent(c,c.remote!.processes[0]);
+  assert.equal(isConfirmedOfficialSubmission(c.remote!.processes[0].submission),false);
+  assert.notEqual(c.current?.party,'官方');
+  assert.doesNotMatch(caseStatus(c),/已提交官方|已交官方/);
+  assert.match(c.current?.node??'',/内部流程已结束|等待后续/);
 });

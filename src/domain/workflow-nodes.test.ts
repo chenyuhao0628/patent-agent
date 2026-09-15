@@ -16,8 +16,14 @@ test('own work and downstream official submission are distinct',()=>{
  assert.equal(next.find(x=>x.label==='提交官方')?.state,'current');assert.equal(next.find(x=>x.label==='确认材料')?.state,'unknown');
 });
 test('completed preserves complete chain and unknown history without new pending work',()=>{
- const n=workflowNodes(fixture({status:500,personalStatus:500}));
+ // Official completion requires send/hand evidence, not personalStatus alone.
+ const n=workflowNodes(fixture({status:500,submission:{state:'sent',source:'hand',checkedAt:'2026-09-12T00:00:00.000Z'}}));
  assert(n.length>10);assert.equal(n.filter(x=>x.state==='pending'||x.state==='current').length,0);assert.equal(n.find(x=>x.label==='提交官方')?.state,'done');assert(n.every(x=>x.state==='done'));assert.equal(n.find(x=>x.label==='选定策略')?.closedBySubmission,true);assert.equal(n.find(x=>x.label==='选定策略')?.at,undefined);
+});
+test('personalStatus 500 alone does not mark official submission done',()=>{
+ const n=workflowNodes(fixture({status:500,personalStatus:500,submission:{state:'draft',source:'hand',checkedAt:'2026-09-12T00:00:00.000Z'}}));
+ assert.notEqual(n.find(x=>x.label==='提交官方')?.state,'done');
+ assert.notEqual(n.find(x=>x.label==='已完成')?.state,'done');
 });
 test('known local evidence survives official completion; writing uses its own phases',()=>{
  const c=fixture({status:500,personalStatus:500});
