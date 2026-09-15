@@ -7,7 +7,7 @@ import { Buffer } from 'node:buffer';
 import { randomBytes } from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import path from 'node:path';
-import { digest, managedPath, safeName, atomicJSON } from './files.ts';
+import { digest, managedPath, safeName, atomicJSON, atomicWrite } from './files.ts';
 import { callWebTool } from './agent-web.ts';
 import { ensureDocumentTool, managedToolsStatus } from './managed-tools.ts';
 import { LOCAL_TOOL_NAMES, LOCAL_TOOL_SCHEMAS, localToolAllowed, localToolPermissions, localToolDirectories, detectLocalTools, executeLocalCommand, downloadToolFile, redactToolText } from './agent-local-tools.ts';
@@ -590,7 +590,7 @@ export async function startAgentBroker(options: AgentBrokerOptions): Promise<Age
           }
           if(!problem&&options.artifactExpect){const checked=parseAgentArtifact(normalized,options.artifactExpect);if(!checked.ok)problem=checked.error;}
         }
-        if(!merge&&fileName===PREFERRED_ARTIFACT&&options.artifactExpect){
+        if(!problem&&!merge&&fileName===PREFERRED_ARTIFACT&&options.artifactExpect){
           try{const value=JSON.parse(normalized);if(value&&typeof value==='object'&&!Array.isArray(value)) await checkpoint.save(value);}catch(error){if(!(error instanceof SyntaxError))throw error;}
         }
         let checkpointOnly=false;
@@ -613,7 +613,8 @@ export async function startAgentBroker(options: AgentBrokerOptions): Promise<Age
         if(fileName===PREFERRED_ARTIFACT&&options.artifactExpect) await checkpoint.save(JSON.parse(normalized));
         validationProblem=undefined;
         const buffer = Buffer.from(normalized, 'utf8');
-        await fs.writeFile(target, buffer, { mode: 0o600 });
+        // Same-class atomic adopt as checkpoint (temp + rename); only after validation above.
+        await atomicWrite(target, buffer);
         if (closed) {
           await fs.rm(target, { force: true }).catch(() => undefined);
           return closedResult(name, { artifactName: fileName });

@@ -26,10 +26,13 @@ export function datedFolder(label:string,id:string,at=new Date().toISOString()):
 export async function readJSON<T>(file:string,fallback:T):Promise<T> {
   try{return JSON.parse(await fs.readFile(file,'utf8'));}catch(e){if((e as NodeJS.ErrnoException).code==='ENOENT')return fallback;throw new Error('本地记录无法读取，原文件已保留。');}
 }
-export async function atomicJSON(file:string,data:unknown) {
+export async function atomicWrite(file:string,data:string|Buffer) {
   await fs.mkdir(path.dirname(file),{recursive:true,mode:0o700});
   const temp=file+'.'+randomUUID()+'.tmp';
-  try{await fs.writeFile(temp,JSON.stringify(data,null,2),{mode:0o600,flag:'wx'});await fs.rename(temp,file);}finally{await fs.rm(temp,{force:true});}
+  try{await fs.writeFile(temp,data,{mode:0o600,flag:'wx'});await fs.rename(temp,file);}finally{await fs.rm(temp,{force:true});}
+}
+export async function atomicJSON(file:string,data:unknown) {
+  await atomicWrite(file,JSON.stringify(data,null,2));
 }
 // Keep allocation bounded even if a selected file grows or is replaced after lstat.
 export async function readBoundedFile(file:string,maxBytes:number,signal?:AbortSignal):Promise<Buffer>{

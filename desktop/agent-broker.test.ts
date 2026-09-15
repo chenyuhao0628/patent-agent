@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import * as fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { digest } from './files.ts';
+import { digest, atomicWrite } from './files.ts';
 import {
   MCP_BODY_MAX_BYTES,
   PREFERRED_ARTIFACT,
@@ -380,4 +380,58 @@ test('incremental artifact saves survive restart, isolate inputs, and require co
  broker=await startAgentBroker({...options,outputsRoot:path.join(root,'different'),recoveryArtifactRoot:out,artifactExpect:{kind:'draft',strategyId:'other'}});
  const isolated=await callTool(broker.url,token,'inspect_artifact',{field:'body'});assert.doesNotMatch(isolated.text,/保留的正文/);
  const invalid=await save({'unexpected':'x'});assert.equal((invalid.parsed as any).result.isError,true);
+});
+
+test('result.json adopt is atomic (temp+rename class) and rejects invalid before accept', async t => {
+  const root = await tmpDir('atomic-adopt'); t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const out = path.join(root, 'out');
+  const token = randomRunToken();
+  const draft = { kind: 'draft', strategyId: 's2', body: '正文一段', amendmentText: '改', amendmentBasis: '依据', reviewNotes: '核' };
+  const broker = await startAgentBroker({
+    token,
+    snapshotRoot: path.join(root, 'snap'),
+    outputsRoot: out,
+    materials: [],
+    allowedArtifacts: ['result.json'],
+    artifactExpect: { kind: 'draft', strategyId: 's2' },
+  });
+  t.after(() => broker.close());
+  const save = async (content: unknown) =>
+    (await callTool(broker.url, token, TOOL_WRITE_ARTIFACT, { name: 'result.json', content })).parsed as {
+      result: { isError?: boolean; content: Array<{ text: string }> };
+    };
+
+  // Invalid shape must not create or register result.json.
+  const bad = await save({ kind: 'draft', strategyId: 's2', body: '' });
+  assert(bad.result.isError);
+  assert.equal(broker.artifacts().length, 0);
+  assert.equal(await fs.access(path.join(out, 'result.json')).then(() => true, () => false), false);
+  const leftovers = (await fs.readdir(out).catch(() => [] as string[])).filter(n => n.endsWith('.tmp') || n === 'result.json');
+  assert.deepEqual(leftovers, []);
+
+  // Valid accept writes complete JSON via atomicWrite class; no temp leftovers.
+  const good = await save(draft);
+  assert(!good.result.isError);
+  assert.equal(broker.artifacts().length, 1);
+  const target = path.join(out, 'result.json');
+  assert.deepEqual(JSON.parse(await fs.readFile(target, 'utf8')), draft);
+  assert.equal((await fs.readdir(out)).filter(n => n.endsWith('.tmp')).length, 0);
+
+  // Failed replacement must keep prior accepted bytes (validate before accept).
+  const prior = await fs.readFile(target, 'utf8');
+  const rejected = await save({ ...draft, strategyId: 'wrong' });
+  assert(rejected.result.isError);
+  assert.equal(broker.artifacts().length, 0);
+  assert.equal(await fs.readFile(target, 'utf8'), prior);
+  assert.equal((await fs.readdir(out)).filter(n => n.endsWith('.tmp')).length, 0);
+});
+
+test('atomicWrite matches checkpoint class: rename replaces without partial final file', async t => {
+  const root = await tmpDir('atomic-write'); t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const file = path.join(root, 'result.json');
+  await atomicWrite(file, '{"a":1}');
+  assert.equal(await fs.readFile(file, 'utf8'), '{"a":1}');
+  await atomicWrite(file, Buffer.from('{"a":2,"b":"x"}'));
+  assert.equal(await fs.readFile(file, 'utf8'), '{"a":2,"b":"x"}');
+  assert.equal((await fs.readdir(root)).filter(n => n.endsWith('.tmp')).length, 0);
 });
