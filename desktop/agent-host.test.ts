@@ -1129,3 +1129,96 @@ test('C#3: emitTerminal persist succeeds after retry and clears live without 状
   assert.equal(disk.activeRunId, null);
   await host.shutdown();
 });
+
+test('C#4: partial/thinking ticks stay in memory; persist on boundary/terminal', async t => {
+  let release!: () => void;
+  let input!: AgentHostRunInput;
+  const { service, host } = await setup(t, undefined, {
+    run: runInput => {
+      input = runInput;
+      const wait = new Promise<void>(resolve => { release = resolve; });
+      return {
+        wait,
+        abort() { release(); },
+      };
+    },
+  });
+  const c = await prepareCase(service, 'PERSIST4');
+  await host.command('local', c.id, { type: 'run', action: 'discuss', userMessage: '流式落盘' });
+  assert.ok(input);
+
+  const hostAny = host as unknown as {
+    persistStore: (profileKey: string, store: unknown) => Promise<void>;
+  };
+  const original = hostAny.persistStore.bind(host);
+  let persistCount = 0;
+  hostAny.persistStore = async (profileKey, store) => {
+    persistCount += 1;
+    return original(profileKey, store);
+  };
+
+  const waitView = (pred: (view: Awaited<ReturnType<AgentHost['getCase']>>) => boolean) => new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => { off(); reject(new Error('view wait timeout')); }, 5000);
+    const off = host.onChanged(view => {
+      if (view.caseId !== c.id) return;
+      if (!pred(view)) return;
+      clearTimeout(timer);
+      off();
+      resolve();
+    });
+  });
+
+  const ticks = 40;
+  const beforeStream = persistCount;
+  let saw = waitView(v => v.process.jobs.at(-1)?.thinkingText === `思考-${ticks - 1}` && v.partialText === `部分-${ticks - 1}`);
+  for (let i = 0; i < ticks; i++) {
+    void input.onEvent({ type: 'partial', text: `部分-${i}` });
+    void input.onEvent({ type: 'thinking', text: `思考-${i}` });
+  }
+  await saw;
+  assert.equal(persistCount, beforeStream, `streaming ticks must not call persistStore; delta=${persistCount - beforeStream}`);
+
+  saw = waitView(v => v.partialText === '部分-最终内存');
+  void input.onEvent({ type: 'partial', text: '部分-最终内存' });
+  await saw;
+  assert.equal(persistCount, beforeStream, 'final memory partial must still skip persist');
+
+  const statePath = path.join(service.root, 'profiles/local/agent/state.json');
+  const midDisk = JSON.parse(await fs.readFile(statePath, 'utf8')) as {
+    processes: Array<{ scope: { caseId: string }; jobs: Array<{ partialText?: string; thinkingText?: string }> }>;
+  };
+  const midJob = midDisk.processes.find(p => p.scope.caseId === c.id)?.jobs.at(-1);
+  assert.notEqual(midJob?.partialText, '部分-最终内存');
+  assert.notEqual(midJob?.thinkingText, `思考-${ticks - 1}`);
+
+  const beforeBoundary = persistCount;
+  saw = waitView(v => v.process.jobs.at(-1)?.activity === '调用工具');
+  void input.onEvent({ type: 'activity', label: '调用工具', stepId: 's1', status: 'running' });
+  await saw;
+  assert.ok(persistCount > beforeBoundary, 'activity boundary must persist');
+
+  const afterBoundary = JSON.parse(await fs.readFile(statePath, 'utf8')) as {
+    processes: Array<{ scope: { caseId: string }; jobs: Array<{ partialText?: string; thinkingText?: string; activity?: string }> }>;
+  };
+  const flushed = afterBoundary.processes.find(p => p.scope.caseId === c.id)?.jobs.at(-1);
+  assert.equal(flushed?.partialText, '部分-最终内存');
+  assert.equal(flushed?.thinkingText, `思考-${ticks - 1}`);
+  assert.equal(flushed?.activity, '调用工具');
+
+  const beforeMore = persistCount;
+  saw = waitView(v => v.partialText === '续-11');
+  for (let i = 0; i < 12; i++) {
+    void input.onEvent({ type: 'partial', text: `续-${i}` });
+  }
+  await saw;
+  assert.equal(persistCount, beforeMore, 'post-boundary streaming ticks must not persist');
+
+  const beforeTerminal = persistCount;
+  await host.command('local', c.id, { type: 'stop', runId: input.runId });
+  await host.waitIdle();
+  assert.ok(persistCount > beforeTerminal, 'stop/terminal must persist');
+
+  const view = await host.getCase('local', c.id);
+  assert.ok(view.process.discussions.some(d => d.messages.some(m => m.incomplete && m.text === '续-11')));
+  await host.shutdown();
+});

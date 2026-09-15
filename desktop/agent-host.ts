@@ -1134,7 +1134,8 @@ export class AgentHost implements AgentAPI {
           else job.steps.push({ id: event.stepId, label: event.label, status: event.status ?? 'running', at, endedAt: event.status && event.status !== 'running' ? at : undefined });
         }
       }
-      await this.persistStore(live.profileKey, store);
+      // C#4: streaming partial/thinking stay in-memory; flush on activity/tool boundary or terminal.
+      if (event.type === 'activity') await this.persistStore(live.profileKey, store);
       if (this.liveScopeStillValid(live)) this.emit(await this.toView(live.profileKey, this.desktop.findCase(live.caseId), state, store));
       return;
     }
