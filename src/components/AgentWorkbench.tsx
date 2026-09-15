@@ -93,6 +93,7 @@ export function AgentWorkbench({
   const [discussionOnly, setDiscussionOnly] = useState(false);
   const [editing, setEditing] = useState<{ id: string; text: string }>();
   const [commandBusy, setCommandBusy] = useState(false);
+  const [preparation,setPreparation]=useState('');
   const [pending, setPending] = useState('');
   const [pendingDiscussionId, setPendingDiscussionId] = useState<string>();
   const [patentType, setPatentType] = useState('');
@@ -144,6 +145,7 @@ export function AgentWorkbench({
     setPreviewId(undefined);
     setEditing(undefined);
     setCommandBusy(false);
+    setPreparation('');
     setPatentType('');
     setNoticeCategory('');
     setRound('1');
@@ -162,7 +164,11 @@ export function AgentWorkbench({
       if (token !== gen.current) return;
       apply(next, token);
     });
-    return () => { gen.current++; unsub(); };
+    const unsubPreparation=api.onPreparation?.(event=>{
+      if(token!==gen.current||event.profileKey!==profileKey||event.caseId!==caseId||event.processKey!==processKey)return;
+      setPreparation(({queued:'等待本机任务队列',preparing:'正在核对本案任务',materials:'正在准备本次材料',permission:'正在核验本案办理权限',dispatch:'正在启动后台',done:''})[event.step]);
+    });
+    return () => { gen.current++; unsub();unsubPreparation?.(); };
   }, [api, profileKey, caseId, processKey]);
 
   useEffect(() => {
@@ -326,6 +332,7 @@ export function AgentWorkbench({
       </nav>
       {clearConfirm && discussion && <Modal title="清理当前会话" onClose={()=>setClearConfirm(false)}><p>清空当前对话上下文，旧消息保存在对话版本中，可切换恢复。材料、策略、稿件和办理进度保留。</p><div className="button-row"><button onClick={()=>setClearConfirm(false)}>取消</button><button disabled={busy} onClick={()=>{setClearConfirm(false);void run({type:'clearConversation',discussionId:discussion.id});}}>清理并开始新上下文</button></div></Modal>}
       <section className="agent-thread">
+        {commandBusy&&preparation&&<p className="agent-note" role="status">{preparation}</p>}
         <div className="agent-messages" ref={scroller} onScroll={e => { const el = e.currentTarget; followOutput.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;if(followOutput.current)setHasNewContent(false); }}>
           {discussion?.archived&&<p className="note">此讨论已归档，恢复后可以继续发送消息。</p>}
           {timeline(discussion, partial, pendingText,jobs).map(row => {

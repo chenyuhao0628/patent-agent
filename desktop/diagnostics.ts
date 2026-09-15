@@ -8,14 +8,14 @@ const MAX_BYTES = 1024 * 1024;
 const FILES = 5;
 const WINDOW_MS = 10 * 60 * 1000;
 // Only explicitly selected operational metadata is persisted. No messages, payloads or paths.
-const numberKeys = new Set(['durationMs','bytes','statusCode','exitCode','promptChars','contextWindow','textChars','thinkingChars','line','column','count']);
-const tokenKeys = new Set(['operation','state','type','code','protocol','tool','step','signal','version','platform','model','errorType','errorCode']);
+const numberKeys = new Set(['durationMs','bytes','statusCode','exitCode','promptChars','contextWindow','textChars','thinkingChars','line','column','count','eventLoopDelayMs','rssBytes']);
+const tokenKeys = new Set(['operation','state','type','code','protocol','tool','step','signal','version','platform','model','errorType','errorCode','source']);
 export function safeMetadata(input: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(input)) {
     if (numberKeys.has(key) && typeof value === 'number' && Number.isFinite(value)) out[key] = value;
     else if (tokenKeys.has(key) && typeof value === 'string' && /^[a-zA-Z0-9_.:/-]{1,100}$/.test(value) && !/sk-|bearer|token|password|secret/i.test(value)) out[key] = value;
-    else if (['runId','requestId','discussionId'].includes(key) && typeof value === 'string') out[key] = createHash('sha256').update(value).digest('hex').slice(0,16);
+    else if (['runId','requestId','upstreamRequestId','discussionId','syncId','caseId','processId'].includes(key) && typeof value === 'string') out[key] = createHash('sha256').update(value).digest('hex').slice(0,16);
   }
   return out;
 }
@@ -69,7 +69,27 @@ const context=new AsyncLocalStorage<Record<string,unknown>>();
 export function withDiagnostics<T>(metadata:Record<string,unknown>,fn:()=>T):T{return context.run(metadata,fn);}
 let active: DiagnosticLog | undefined;
 export function initializeDiagnostics(directory: string) { active = new DiagnosticLog(directory); return active; }
+export function stopDiagnostics(){active=undefined;}
+export function sampleRuntime(intervalMs=30000){
+  let expected=Date.now()+intervalMs;
+  const timer=setInterval(()=>{
+    const now=Date.now();
+    diagnostic('main','runtime_sample',{eventLoopDelayMs:Math.max(0,now-expected),rssBytes:process.memoryUsage().rss});
+    expected=now+intervalMs;
+  },intervalMs);
+  timer.unref();
+  return()=>clearInterval(timer);
+}
 export function diagnostic(component: string,event: string,metadata: Record<string,unknown> = {}) { active?.write(component,event,{...context.getStore(),...metadata}); }
+
+export async function diagnosticStage<T>(component:string,step:string,metadata:Record<string,unknown>,run:()=>Promise<T>):Promise<T>{
+  return withDiagnostics(metadata,async()=>{
+    const started=Date.now();
+    diagnostic(component,'stage_started',{step});
+    try{const result=await run();diagnostic(component,'stage_finished',{step,state:'completed',durationMs:Date.now()-started});return result;}
+    catch(error){diagnostic(component,'stage_finished',{step,state:'failed',durationMs:Date.now()-started,...diagnosticError(error)});throw error;}
+  });
+}
 
 export function sessionErrorMetadata(value:unknown):Record<string,unknown>{
  const e=value&&typeof value==='object'?value as Record<string,any>:{};const data=e.data&&typeof e.data==='object'?e.data:{};

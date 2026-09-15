@@ -10,12 +10,13 @@ contextBridge.exposeInMainWorld('patentDesktop',{
   priorArt:{status:(k:string)=>call('priorArt','status',k),save:(k:string,v:string)=>call('priorArt','save',k,v),clear:(k:string)=>call('priorArt','clear',k),importLegacy:(k:string)=>call('priorArt','importLegacy',k),test:(k:string)=>call('priorArt','test',k),prepare:(k:string,id:string,v:string)=>call('priorArt','prepare',k,id,v)},
   verifyLogin:()=>call('verifyLogin'),bootstrap:()=>call('bootstrap'),login:(input:unknown)=>call('login',input),logout:()=>call('logout'),
   selectDirectory:(kind:string)=>call('selectDirectory',kind),saveSettings:(key:string,s:unknown)=>call('saveSettings',key,s),saveWorkspace:(key:string,w:unknown)=>call('saveWorkspace',key,w),
-  refreshShared:(key:string)=>call('refreshShared',key),sync:()=>call('sync'),createCase:(input:unknown)=>call('createCase',input),flow:(id:string)=>call('flow',id),
+  refreshShared:(key:string)=>call('refreshShared',key),sync:(source?:'manual'|'focus')=>call('sync',source),createCase:(input:unknown)=>call('createCase',input),flow:(id:string)=>call('flow',id),
   caseInfo:(key:string,id:string)=>call('caseInfo',key,id),
   openCaseDirectory:(id:string)=>call('openCaseDirectory',id),openMaterial:(id:string,rel:string)=>call('openMaterial',id,rel),findOriginals:(id:string)=>call('findOriginals',id),copyOriginal:(id:string,source:string)=>call('copyOriginal',id,source),
   previewWorkMigration:(key:string,destination:string)=>call('previewWorkMigration',key,destination),
   startWorkMigration:(key:string,previewId:string)=>call('startWorkMigration',key,previewId),
   cancelWorkMigration:()=>call('cancelWorkMigration'),
+  organizeWorkFolders:(key:string)=>call('organizeWorkFolders',key),
   selectDshDirectory:()=>call('selectDshDirectory'),
   models:{
     list:(key:string)=>modelCall('list',key,[]),
@@ -31,6 +32,11 @@ contextBridge.exposeInMainWorld('patentDesktop',{
     selectDshDirectory:()=>call('selectDshDirectory'),
   },
   agent:{
+    onPreparation:(callback:(value:unknown)=>void)=>{
+      const listener=(_e:unknown,value:unknown)=>callback(value);
+      ipcRenderer.on('desktop:agentPreparation',listener);
+      return()=>ipcRenderer.removeListener('desktop:agentPreparation',listener);
+    },
     listProgress:(key:string)=>call('agentProgress',key),
     getCase:(key:string,id:string)=>call('agentGetCase',key,id),
     command:(key:string,id:string,cmd:unknown)=>call('agentCommand',key,id,cmd),

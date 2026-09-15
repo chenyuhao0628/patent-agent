@@ -135,9 +135,12 @@ export async function verifyAgentRuntime(sourceDir) {
   const license = path.join(resolved, LICENSE_NAME);
   try {
     const stat = await fs.lstat(license);
-    if (stat.isSymbolicLink() || !stat.isFile()) throw new Error('bad');
-  } catch {
-    throw new PrepareRuntimeError('missing_license', '缺少 OPENCODE-LICENSE.txt。');
+    if (stat.isSymbolicLink() || !stat.isFile()) throw new PrepareRuntimeError('invalid_license', 'OPENCODE-LICENSE.txt 必须是普通文件，不能是符号链接。');
+  } catch (error) {
+    if(error instanceof PrepareRuntimeError)throw error;
+    if(error.code==='ENOENT')throw new PrepareRuntimeError('missing_license', '缺少 OPENCODE-LICENSE.txt。');
+    const failure=new PrepareRuntimeError('license_unreadable', '无法检查 OPENCODE-LICENSE.txt，请检查目录权限。');
+    failure.cause=error;throw failure;
   }
   return {
     runtime: 'OpenCode',

@@ -1,4 +1,4 @@
-import { initializeDiagnostics, diagnostic, diagnosticError } from './diagnostics.ts';
+import { initializeDiagnostics, diagnostic, diagnosticError, sampleRuntime } from './diagnostics.ts';
 import { writeFile } from 'node:fs/promises';
 import { ensureCaseStarted } from './start-work.ts';
 import { probeMcp } from './mcp-probe.ts';
@@ -38,6 +38,8 @@ else {
 app.on('second-instance',()=>{window?.show();window?.focus();});
 app.whenReady().then(async()=>{
   const diagnostics=initializeDiagnostics(path.join(app.getPath('userData'),'diagnostics'));
+  const stopRuntimeSampling=sampleRuntime();
+  app.on('will-quit',stopRuntimeSampling);
   diagnostic('app','started',{version:app.getVersion(),platform:process.platform});
   process.on('uncaughtExceptionMonitor',error=>diagnostic('main','uncaught',diagnosticError(error)));
   process.on('unhandledRejection',error=>diagnostic('main','unhandled_rejection',diagnosticError(error)));
@@ -63,7 +65,7 @@ app.whenReady().then(async()=>{
   const autoStarted=process.argv.includes('--startup') || (process.platform==='darwin'&&app.getLoginItemSettings().wasOpenedAtLogin);
   const startHidden=autoStarted&&applicationSettings.preferences.startHidden;
   const patsnap=new PatsnapService(service.root,service.vault);
-  service.preparePriorArt=(c,key,signal)=>preparePriorArt(c,service.files(),patsnap,key,signal);
+  service.preparePriorArt=(c,key,signal,files)=>preparePriorArt(c,files??service.files(),patsnap,key,signal);
   const converterFile=path.join(service.root,'document-tools.json');
   let converterConfig=await readJSON<{executable?:string;webEnabled?:boolean;autoInstall?:boolean;commandsEnabled?:boolean;downloadsEnabled?:boolean}>(converterFile,{});
   configureManagedTools(path.join(service.root,'tools'));
@@ -128,6 +130,7 @@ app.whenReady().then(async()=>{
     if(quitting||view.profileKey!==service.key)return;
     if(window&&!window.isDestroyed())window.webContents.send('desktop:agentState',view);
   });
+  agentHost.preparationChanged=view=>{if(!quitting&&view.profileKey===service.key&&window&&!window.isDestroyed())window.webContents.send('desktop:agentPreparation',view);};
   function handle(name:string,fn:(...args:any[])=>unknown,queued=false,rejectIfMigrating=false){ipcMain.handle('desktop:'+name,async(event,...args)=>{
     if(event.sender!==window?.webContents||event.senderFrame!==window.webContents.mainFrame)throw new Error('不接受非应用窗口请求。');
     const started=Date.now();
@@ -153,7 +156,7 @@ app.whenReady().then(async()=>{
   handle('applicationQuit',()=>{app.quit();});
   handle('caseInfo',(key:string,id:string)=>service.caseInfo(key,id));
   handle('bootstrap',()=>service.state());
-  handle('verifyLogin',async()=>{const s=await service.verifyLogin(true);if(s.account?.status==='authenticated'&&s.workspace.settings.workRoot&&!service.isWorkMigrationBusy())void service.sync().catch(()=>{});return s;});
+  handle('verifyLogin',async()=>{const s=await service.verifyLogin(true);if(s.account?.status==='authenticated'&&s.workspace.settings.workRoot&&!service.isWorkMigrationBusy())void service.sync({source:'login'}).catch(()=>{});return s;});
   handle('extensions',async(method:string,key:string,...args:any[])=>{
     service.assertKey(key);
     if(method==='list')return extensions.list(key);
@@ -184,7 +187,7 @@ app.whenReady().then(async()=>{
     throw new Error('不支持的对比文件操作。');
   },true,true);
 
-  handle('login',async input=>{const s=await service.login(input);if(s.workspace.settings.workRoot&&!service.isWorkMigrationBusy())void service.sync();return s;},true,true);
+  handle('login',async input=>{const s=await service.login(input);if(s.workspace.settings.workRoot&&!service.isWorkMigrationBusy())void service.sync({source:'login'}).catch(()=>{});return s;},true,true);
   handle('logout',()=>service.logout(),true,true);
   handle('selectDirectory',async kind=>{
     if(!['originalLibrary','workRoot'].includes(kind))throw new Error('目录类型无效。');
@@ -206,6 +209,12 @@ app.whenReady().then(async()=>{
     finally{service.clearWorkMigrationQueued();}
   });
   handle('cancelWorkMigration',()=>service.cancelWorkMigration());
+  handle('organizeWorkFolders',async(key:string)=>{
+    agentHost.assertIdleForMigration();professionalHost.assertIdleForMigration();
+    service.markWorkMigrationQueued();
+    try{return await serial(()=>service.organizeFolders(key));}
+    finally{service.clearWorkMigrationQueued();}
+  },true,true);
   handle('saveSettings',async(key,settings)=>{
     for(const k of ['originalLibrary','workRoot'] as const)if(settings[k]&&settings[k]!==service.workspace.settings[k]&&!chosen.has(settings[k]))throw new Error('请使用系统文件夹选择器设置目录。');
     if(settings.workRoot&&settings.workRoot!==service.workspace.settings.workRoot){agentHost.assertIdleForMigration();professionalHost.assertIdleForMigration();}
@@ -215,7 +224,7 @@ app.whenReady().then(async()=>{
       const report=(e:unknown)=>{if(key!==service.key||quitting)return;service.storageState={running:false,message:'目录已保存，后续读取未完成：'+(e as Error).message};service.changed();};
       void serial(async()=>{
         if(quitting||key!==service.key||service.syncState.running||service.isWorkMigrationBusy())return;
-        if(service.account?.status==='authenticated')void service.sync().catch(report);
+        if(service.account?.status==='authenticated')void service.sync({source:'settings'}).catch(report);
         else await service.refreshShared(key);
       }).catch(report);
     });
@@ -224,7 +233,7 @@ app.whenReady().then(async()=>{
   handle('saveWorkspace',(key,w)=>service.save(key,w),true,true);
   handle('createCase',input=>service.createCase(input),true,true);
   handle('refreshShared',key=>service.refreshShared(key),true,true);
-  handle('sync',()=>{if(service.isWorkMigrationBusy())return service.state();return service.sync();});
+  handle('sync',(source:unknown)=>{if(service.isWorkMigrationBusy())return service.state();if(source!==undefined&&source!=='manual'&&source!=='focus')throw new Error('同步来源无效。');return service.sync({source:source==='focus'?'focus':'manual'});});
   handle('flow',id=>service.flow(id,fn=>serial(fn)),false,true);
   handle('findOriginals',id=>service.findOriginals(id),false,true);
   handle('copyOriginal',(id,source)=>service.copyOriginal(id,source),true,true);
@@ -315,11 +324,11 @@ app.whenReady().then(async()=>{
     modelRequests.cancel(requestId,event.sender.id);
   });
   await window.loadFile(page);
-  if(service.account?.status==='authenticated'&&service.workspace.settings.workRoot&&!service.isWorkMigrationBusy())void service.sync();
-  void service.verifyLogin(true).then(s=>{if(s.account?.status==='authenticated'&&s.workspace.settings.workRoot&&!service.isWorkMigrationBusy())void service.sync().catch(()=>{});}).catch(()=>{});
-  const authTimer=setInterval(()=>{const was=service.account?.status;void service.retryLoginIfDue().then(s=>{if(was!=='authenticated'&&s.account?.status==='authenticated'&&s.workspace.settings.workRoot&&!service.isWorkMigrationBusy())void service.sync().catch(()=>{});}).catch(()=>{});},5000);
+  if(service.account?.status==='authenticated'&&service.workspace.settings.workRoot&&!service.isWorkMigrationBusy())void service.sync({source:'startup'}).catch(()=>{});
+  void service.verifyLogin(true).then(s=>{if(s.account?.status==='authenticated'&&s.workspace.settings.workRoot&&!service.isWorkMigrationBusy())void service.sync({source:'startup'}).catch(()=>{});}).catch(()=>{});
+  const authTimer=setInterval(()=>{const was=service.account?.status;void service.retryLoginIfDue().then(s=>{if(was!=='authenticated'&&s.account?.status==='authenticated'&&s.workspace.settings.workRoot&&!service.isWorkMigrationBusy())void service.sync({source:'login'}).catch(()=>{});}).catch(()=>{});},5000);
   app.on('before-quit',()=>clearInterval(authTimer));
-  const timer=setInterval(()=>{if(service.account?.status==='authenticated'&&service.workspace.settings.workRoot&&!service.isWorkMigrationBusy())void service.sync();},5*60*1000);
+  const timer=setInterval(()=>{if(service.account?.status==='authenticated'&&service.workspace.settings.workRoot&&!service.isWorkMigrationBusy())void service.sync({source:'timer'}).catch(()=>{});},30000);
   window.on('minimize',()=>{if(applicationSettings.preferences.minimizeToTray&&!quitting)window?.hide();});
   window.on('close',e=>{
     if(readyToQuit)return;

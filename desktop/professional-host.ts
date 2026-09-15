@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import {diagnostic,diagnosticStage,withDiagnostics} from './diagnostics.ts';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { Case } from '../src/domain/workflow.ts';
@@ -9,7 +10,7 @@ import type { ProfessionalCaseView, ProfessionalCommand, ProfessionalJob, Profes
 import type { AgentHost, AgentHostRun, AgentHostRunHandle, AgentHostMaterialSnapshot } from './agent-host.ts';
 import type { DesktopService } from './service.ts';
 import type { ModelService } from './model-service.ts';
-import { atomicJSON, digest, readJSON, safeName, managedPath } from './files.ts';
+import { atomicJSON, digest, readJSON, readBoundedFile, safeName, managedPath } from './files.ts';
 import { exportApplicationText } from './document-export.ts';
 import type { ApplicationText } from './document-export.ts';
 import { loadStandardSkill, SKILL_ADAPTER } from './standard-skills.ts';
@@ -90,7 +91,10 @@ export class ProfessionalHost {
     const queue=(await this.queue(key)).filter(q=>q.source.caseId===id);this.guard(key,id,processKey);
     return {profileKey:key,caseId:id,processKey,record:structuredClone(record),materials:materialList(c).map(m=>({id:m.id,name:m.name,role:m.role,ready:m.ready,removable:m.id.startsWith('reference-'),relativePath:m.relativePath})),queue,busy:this.active.has(id),partial:this.active.get(id)?.partial};
   }
-  async command(key:string,id:string,command:ProfessionalCommand):Promise<ProfessionalCaseView>{return this.serial(async()=>{
+  async command(key:string,id:string,command:ProfessionalCommand):Promise<ProfessionalCaseView>{
+    const queued=Date.now();
+    return withDiagnostics({requestId:randomUUID(),caseId:id,operation:command.type},()=>diagnosticStage('professional','command',{},()=>this.serial(async()=>{
+    diagnostic('professional','command_dequeued',{durationMs:Date.now()-queued});
     const c=this.guard(key,id),store=await this.store(key),record=this.record(store,c);
     if(command.type==='stop'){const live=this.active.get(id);live?.abort.abort();live?.handle?.abort();return this.view(key,id);}
     if(this.active.has(id))throw new Error('本案有撰写或审查任务在运行。');
@@ -134,7 +138,7 @@ export class ProfessionalHost {
       await this.persist(key);
     }else throw new Error('操作无效。');
     return this.view(key,id);
-  });}
+  })));}
   private async saveFile(c:Case,name:string,bytes:Buffer){
     const key=this.service.key,generation=this.service.generation,root=this.service.workspace.settings.workRoot,processKey=keyOf(c);
     this.service.flowFileWrites++;
@@ -210,15 +214,15 @@ export class ProfessionalHost {
     if(!root)throw new Error('请先设置工作目录。');
     const runId=randomUUID(),controller=new AbortController(),skill=await loadStandardSkill(path.join(this.resources,'standard-skills'),kind==='writing'?'draft':'review');
     const runtime=await this.models.resolveRuntimeConfig(key,runId);this.guard(key,c.id,record.processKey);
-    if(kind==='writing'&&this.beforeWriting){await this.beforeWriting(key,c.id);this.guard(key,c.id,record.processKey);}
+    if(kind==='writing'&&this.beforeWriting){await diagnosticStage('professional','permission',{runId,caseId:c.id},()=>this.beforeWriting!(key,c.id));this.guard(key,c.id,record.processKey);}
     if(runtime.profileKey!==key||generation!==this.service.generation||root!==this.service.workspace.settings.workRoot)throw new Error('账号或目录已变化。');
     const runRoot=path.join(this.service.root,'profiles',key,'professional-runs',runId),snapshotDir=path.join(runRoot,'snapshot'),outputDir=path.join(runRoot,'output');await fs.mkdir(snapshotDir,{recursive:true,mode:0o700});
     const materials:AgentHostMaterialSnapshot[]=[];
-    for(const [i,f] of files.entries()){
+    await diagnosticStage('professional','materials',{runId,caseId:c.id},async()=>{for(const [i,f] of files.entries()){
       const file=await this.service.casePath(c.id,f.relativePath),stat=await fs.lstat(file);if(!stat.isFile()||stat.isSymbolicLink()||stat.size>20*1024*1024)throw new Error('稿件文件无效或过大。');
-      const bytes=await fs.readFile(file),hash=digest(bytes);if(f.hash&&f.hash!==hash)throw new Error('稿件已被外部修改，请重新选择确切版本。');
+      const bytes=await readBoundedFile(file,20*1024*1024,controller.signal),hash=digest(bytes);if(f.hash&&f.hash!==hash)throw new Error('稿件已被外部修改，请重新选择确切版本。');
       const snapshotPath=path.join(snapshotDir,`${i}${path.extname(f.name)}`);await fs.writeFile(snapshotPath,bytes,{flag:'wx',mode:0o600});materials.push({id:`m${i}`,name:f.name,role:f.role,relativePath:`${i}${path.extname(f.name)}`,snapshotPath,hash});
-    }
+    }});
     this.guard(key,c.id,record.processKey);if(generation!==this.service.generation||root!==this.service.workspace.settings.workRoot)throw new Error('账号或目录已变化。');
     const job:ProfessionalJob={id:runId,caseId:c.id,processKey:record.processKey,kind,sourceId:source?.id,phase:kind==='writing'?record.phase:undefined,state:'running',at:new Date().toISOString(),tools:[],skillName:skill.name,skillHash:skill.manifestHash};record.jobs.push(job);
     const live:Live={key,generation,root,caseId:c.id,processKey:record.processKey,job,abort:controller,partial:'',source};this.active.set(c.id,live);try{await this.persist(key);}catch(e){this.active.delete(c.id);record.jobs=record.jobs.filter(j=>j.id!==runId);throw e;}

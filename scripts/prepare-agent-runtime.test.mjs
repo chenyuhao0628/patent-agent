@@ -57,6 +57,16 @@ test('parsePrepareArgs requires injected paths and never reads HOME', () => {
   assert.throws(() => parsePrepareArgs(['--home', '/tmp']), PrepareRuntimeError);
 });
 
+test('runtime license errors distinguish missing from invalid file types',async()=>{
+ const root=await fixtureRuntime(),license=path.join(root,'OPENCODE-LICENSE.txt');
+ try{
+  await fs.unlink(license);
+  await assert.rejects(verifyAgentRuntime(root),e=>e.code==='missing_license');
+  await fs.mkdir(license);
+  await assert.rejects(verifyAgentRuntime(root),e=>e.code==='invalid_license');
+ }finally{await fs.rm(root,{recursive:true,force:true});}
+});
+
 test('copyAgentRuntime verifies pinned 1.18.30, copies, and does not mutate process.env', async () => {
   const source = await fixtureRuntime();
   const output = await fs.mkdtemp(path.join(os.tmpdir(), 'prepare-out-'));

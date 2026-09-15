@@ -7,6 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 import { DesktopService } from './service.ts';
+import {initializeDiagnostics,stopDiagnostics} from './diagnostics.ts';
 import { AgentHost, type AgentHostRun, type AgentHostRunInput } from './agent-host.ts';
 import type { AgentModelService } from './agent-host.ts';
 import type { Case } from '../src/domain/workflow.ts';
@@ -992,6 +993,25 @@ test('formal analysis waits for business startup; failed startup never calls mod
  host.beforeFormalRun=async()=>{calls++;assert.equal(ctl.starts,0);};
  await host.command('local',c.id,{type:'run',action:'analysis'});await host.waitIdle();assert.equal(ctl.starts,1);assert.equal(calls,2);
  await host.command('local',c.id,{type:'run',action:'discuss',userMessage:'仅讨论'});await host.waitIdle();assert.equal(calls,2);await host.shutdown();
+});
+
+test('pre-run diagnostics and UI phases distinguish material preparation from permission failure',async t=>{
+ const {root,service,host,ctl}=await setup(t),c=await prepareCase(service,'TRACE');
+ await readyAnalysis(host,c.id,['n-TRACE','a-TRACE']);
+ const log=initializeDiagnostics(path.join(root,'diagnostics')),phases:string[]=[];
+ host.preparationChanged=event=>{assert.equal(event.caseId,c.id);phases.push(event.step);};
+ host.beforeFormalRun=async()=>{await Promise.resolve();throw Object.assign(new Error('PRIVATE_AUTH_BODY'),{code:'ECONNRESET'});};
+ try{
+  await assert.rejects(host.command('local',c.id,{type:'run',action:'analysis'}));
+  assert.equal(ctl.starts,0);
+  assert.deepEqual(phases,['queued','preparing','materials','permission','done']);
+  const records=log.snapshot('test').records;
+  const stages=records.filter(r=>r.event==='stage_finished');
+  assert.ok(stages.some(r=>r.step==='materials'&&r.state==='completed'));
+  assert.ok(stages.some(r=>r.step==='permission'&&r.state==='failed'&&r.code==='ECONNRESET'));
+  assert.ok(records.some(r=>r.event==='command_dequeued'&&typeof r.durationMs==='number'));
+  assert.doesNotMatch(JSON.stringify(records),/PRIVATE_AUTH_BODY|memory-only-key/);
+ }finally{stopDiagnostics();await host.shutdown();}
 });
 
 test('completion preflight returns missing reads and duplicate ids to agent without committing state', {timeout:8000},async t=>{

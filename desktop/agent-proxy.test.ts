@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import {initializeDiagnostics,stopDiagnostics} from './diagnostics.ts';
 import { OPENCODE_SESSION_HEADER, OPENCODE_USER_AGENT } from '../src/domain/models.ts';
 import type { ModelProtocol } from '../src/domain/models.ts';
 import {
@@ -41,6 +45,27 @@ function runtime(partial: Partial<RuntimeModelConfig> = {}): RuntimeModelConfig 
     ...partial,
   };
 }
+
+test('stream timing retains local request correlation when upstream supplies its own request id',async()=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'proxy-timing-')),log=initializeDiagnostics(root);
+ const upstream=await listen((_req,res)=>{res.setHeader('Content-Type','text/event-stream');res.setHeader('x-request-id','upstream-private-id');res.write('data: {"test":true}\n\n');res.end('data: [DONE]\n\n');});
+ try{
+  for(const fetchImpl of [undefined,((...args:Parameters<typeof fetch>)=>fetch(...args)) as typeof fetch]){
+   const cfg=runtime({baseURL:`${upstream.origin}/v1`}),proxy=await startAgentProxy({runtime:cfg,discussionId:'timing',runId:'private-run',fetchImpl});
+   try{
+    const response=await fetch(`${proxy.childBaseURL}/responses`,{method:'POST',headers:{Authorization:`Bearer ${DUMMY_UPSTREAM_KEY}`,'Content-Type':'application/json'},body:JSON.stringify({model:cfg.modelId,input:'synthetic'})});
+    await response.text();
+   }finally{await proxy.close();}
+  }
+  const records=log.snapshot('test').records,starts=records.filter(r=>r.event==='request_started');
+  assert.equal(starts.length,2);
+  for(const start of starts){
+   assert.ok(records.some(r=>r.event==='first_response_chunk'&&r.requestId===start.requestId&&typeof r.durationMs==='number'));
+   assert.ok(records.some(r=>r.event==='upstream_headers'&&r.requestId===start.requestId&&r.upstreamRequestId!==start.requestId));
+  }
+  assert.doesNotMatch(JSON.stringify(records),/private-run|upstream-private-id|real-test-key/);
+ }finally{await upstream.close();stopDiagnostics();await fs.rm(root,{recursive:true,force:true});}
+});
 
 async function listen(handler: (req: http.IncomingMessage, res: http.ServerResponse, body: Buffer) => void) {
   const seen: { path: string; headers: http.IncomingHttpHeaders; body: string }[] = [];

@@ -8,7 +8,7 @@ import mammoth from 'mammoth';
 import JSZip from 'jszip';
 import { MCP_RESPONSE_MAX_BYTES } from './agent-broker.ts';
 import type { FrozenMaterial, McpContent, ReadMaterialCallback, ToolRange } from './agent-runner.ts';
-import { digest } from './files.ts';
+import { digest, readBoundedFile } from './files.ts';
 import { renderPdfPage } from './document-visual.ts';
 import { convertOldDoc } from './document-converter.ts';
 
@@ -410,7 +410,7 @@ export async function readFrozenMaterial(input: {
   const stat = await assertNotSymlink(snapshotPath);
   if (!stat.isFile()) throw new Error('材料快照不是普通文件。');
   if (stat.size > MAX_MATERIAL_BYTES) throw new Error(`材料超过 ${MAX_MATERIAL_BYTES / (1024 * 1024)}MB 上限，未读取。`);
-  const buffer = await fs.readFile(snapshotPath);
+  const buffer = await readBoundedFile(snapshotPath,MAX_MATERIAL_BYTES,input.signal);
   assertNotAborted(input.signal);
   const hash = digest(buffer);
   if (hash !== input.material.hash) throw new Error('材料快照哈希不一致，未读取。');
@@ -429,7 +429,7 @@ export async function readFrozenMaterial(input: {
   const againStat = await assertNotSymlink(snapshotPath);
   if (!againStat.isFile()) throw new Error('材料快照不是普通文件。');
   if (againStat.size > MAX_MATERIAL_BYTES) throw new Error(`材料超过 ${MAX_MATERIAL_BYTES / (1024 * 1024)}MB 上限，未读取。`);
-  const again = await fs.readFile(snapshotPath);
+  const again = await readBoundedFile(snapshotPath,MAX_MATERIAL_BYTES,input.signal);
   if (digest(again) !== hash) throw new Error('读取期间材料快照已变化，结果已丢弃。');
   assertNotAborted(input.signal);
   return contents;

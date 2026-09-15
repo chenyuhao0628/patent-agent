@@ -337,11 +337,10 @@ function headerRecord(headers: Headers): Record<string, string> {
   return out;
 }
 
-function safeLog(message: string, extra?: { code?: string; requestId?: string }) {
+function safeLog(message: string, extra?: { code?: string; upstreamRequestId?: string }) {
   diagnostic('model',message.replaceAll(' ','_'),extra);
   const code = extra?.code ? ` code=${extra.code}` : '';
-  const id = extra?.requestId ? ` request_id=${extra.requestId}` : '';
-  console.error(`[agent-proxy] ${message}${code}${id}`);
+  console.error(`[agent-proxy] ${message}${code}`);
 }
 
 function readLimited(req: http.IncomingMessage, limit: number): Promise<Buffer> {
@@ -540,17 +539,17 @@ async function writeUpstreamResponse(
   adapter?: DeepseekEventAdapter,
 ) {
   const rid = requestIdOf(headers);
-  diagnostic('model','upstream_headers',{statusCode:status,requestId:rid});
+  diagnostic('model','upstream_headers',{statusCode:status,upstreamRequestId:rid});
   if (status >= 300 && status < 400) {
     void body?.cancel();
-    safeLog('upstream redirect rejected', { code: 'redirect', requestId: rid });
+    safeLog('upstream redirect rejected', { code: 'redirect', upstreamRequestId: rid });
     writeJson(res, 502, safeErrorPayload('redirect_rejected', rid));
     return;
   }
   if (status >= 400) {
     const code = status === 401 || status === 403 || status === 429 ? `http_${status}` : 'upstream_error';
-    diagnostic('model','upstream_status',{statusCode:status,code,requestId:rid});
-    safeLog('upstream error', { code, requestId: rid });
+    diagnostic('model','upstream_status',{statusCode:status,code,upstreamRequestId:rid});
+    safeLog('upstream error', { code, upstreamRequestId: rid });
     writeJson(res, status >= 500 ? 502 : status, safeErrorPayload(code, rid));
     void body?.cancel();
     return;
@@ -570,7 +569,7 @@ async function writeUpstreamResponse(
       if (!value?.length) continue;
       sent += value.length;
       if (sent > responseLimit) {
-        safeLog('upstream response over limit', { code: 'response_too_large', requestId: rid });
+        safeLog('upstream response over limit', { code: 'response_too_large', upstreamRequestId: rid });
         void reader.cancel().catch(() => undefined);
         res.destroy();
         return;
@@ -600,12 +599,12 @@ function writeNodeStream(
   adapter?: DeepseekEventAdapter,
 ): Promise<void> {
   const rid = requestIdOf(headers);
-  diagnostic('model','upstream_headers',{statusCode:status,requestId:rid});
+  diagnostic('model','upstream_headers',{statusCode:status,upstreamRequestId:rid});
   if (status >= 400) {
     upstream.resume();
     const code = status === 401 || status === 403 || status === 429 ? `http_${status}` : 'upstream_error';
-    diagnostic('model','upstream_status',{statusCode:status,code,requestId:rid});
-    safeLog('upstream error', { code, requestId: rid });
+    diagnostic('model','upstream_status',{statusCode:status,code,upstreamRequestId:rid});
+    safeLog('upstream error', { code, upstreamRequestId: rid });
     writeJson(res, status >= 500 ? 502 : status, safeErrorPayload(code, rid));
     return Promise.resolve();
   }
@@ -641,7 +640,7 @@ function writeNodeStream(
       const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
       sent += buf.length;
       if (sent > responseLimit) {
-        safeLog('upstream response over limit', { code: 'response_too_large', requestId: rid });
+        safeLog('upstream response over limit', { code: 'response_too_large', upstreamRequestId: rid });
         fail();
         return;
       }
@@ -771,6 +770,12 @@ export function startAgentProxy(options: AgentProxyOptions): Promise<AgentProxy>
     }
     const requestStarted=Date.now();
     diagnostic('model','request_started',{runId:options.runId,discussionId,protocol:runtime.protocol,model:runtime.modelId,bytes:raw.length});
+    let firstResponse=true;
+    const write=res.write.bind(res);
+    res.write=((...args:Parameters<typeof res.write>)=>{
+      if(firstResponse){firstResponse=false;diagnostic('model','first_response_chunk',{runId:options.runId,durationMs:Date.now()-requestStarted});}
+      return write(...args);
+    }) as typeof res.write;
     res.once('close',()=>diagnostic('model','request_finished',{runId:options.runId,discussionId,statusCode:res.headersSent?res.statusCode:0,durationMs:Date.now()-requestStarted,state:res.writableFinished?'completed':'interrupted'}));
     options.onSafeRequest?.(redactCapture(req.headers, pathnameOf(stripped) + queryStringOf(stripped), method, body, raw.length));
     const controller = new AbortController();

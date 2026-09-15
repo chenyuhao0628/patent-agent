@@ -3,7 +3,11 @@ import path from 'node:path';
 export type PageImage={bytes:Buffer;page:number;pages:number;width:number;height:number};
 export async function renderPdfPage(bytes:Buffer,page:number,signal?:AbortSignal):Promise<PageImage>{
   if(signal?.aborted)throw new Error('读取已取消。');
-  const workerPath=typeof __dirname==='string'?path.join(__dirname,'document-visual-worker.cjs').replace(`.asar${path.sep}`,`.asar.unpacked${path.sep}`):new URL('./document-visual-worker.ts',import.meta.url);
+  // Packaged builds use the unpacked CJS worker. Source-level tests run from the
+  // repository, where this stable path avoids injecting import.meta into CJS.
+  const workerPath=typeof __dirname==='string'
+    ?path.join(__dirname,'document-visual-worker.cjs').replace(`.asar${path.sep}`,`.asar.unpacked${path.sep}`)
+    :path.resolve(process.cwd(),'desktop','document-visual-worker.ts');
   const worker=new Worker(workerPath,{workerData:{bytes,page},execArgv:typeof __dirname==='string'?[]:['--experimental-strip-types'],resourceLimits:{maxOldGenerationSizeMb:192}});
   return new Promise((resolve,reject)=>{
     let finished=false;

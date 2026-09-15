@@ -6,6 +6,7 @@ import type {
 } from './domain/agent.ts';
 
 export type ClassificationSuggestion = { classification: import('./domain/agent.ts').OpenClassification; evidence: string[]; warnings: string[] };
+export type AgentPreparation={profileKey:string;caseId:string;processKey:string;step:'queued'|'preparing'|'materials'|'permission'|'dispatch'|'done'};
 
 export type AgentCaseView = {
   classificationSuggestion?: ClassificationSuggestion;
@@ -55,6 +56,7 @@ export type AgentCommand =
   | { type: 'finalize' };
 
 export type AgentAPI = {
+  onPreparation?: (callback:(event:AgentPreparation)=>void)=>()=>void;
   listProgress?: (profileKey: string) => Promise<import('./domain/local-progress.ts').LocalProgress[]>;
   getCase(profileKey: string, caseId: string): Promise<AgentCaseView>;
   command(profileKey: string, caseId: string, command: AgentCommand): Promise<AgentCaseView>;

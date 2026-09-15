@@ -3,6 +3,7 @@ import { ExtensionSettings } from './ExtensionSettings.tsx';
 import { PatsnapSettings } from './PriorArt.tsx';
 import { ApplicationSettings } from './ApplicationSettings.tsx';
 import { DocumentTools } from './DocumentTools.tsx';
+import { FolderOrganization } from './FolderOrganization.tsx';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, Check, FileText, FolderOpen, KeyRound, Plug, Plus, RefreshCw, ShieldCheck } from 'lucide-react';
 import type { Settings } from '../domain/workflow.ts';

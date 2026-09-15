@@ -11,15 +11,17 @@ export function safeName(value:string,max=36) {
   if(/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(s))s='_'+s;
   return s;
 }
-// Human-readable folders retain a short identity suffix to avoid same-name collisions.
+// Keep generated process folders readable; the case identity is stored in 案件信息.json.
 export function processFolder(c:Case,processId:string):string {
   const name=c.remote?.processes.find(p=>p.id===processId)?.name
     ??c.rounds.find(r=>r.id===processId)?.name
     ??({reply:'答复审查意见',correction:'补正',write:'专利撰写'} as Record<string,string>)[c.current?.kind??'']??'案件办理';
-  return `${safeName(name,24)}__${digest(processId).slice(0,8)}`;
+  const kind=/补正/.test(name)?'答复补正':/答复|审查意见|复审/.test(name)?'答复审查意见':/撰写|申请/.test(name)?'撰写':safeName(name,24);
+  return `${kind}+${safeName(c.title,48)}`;
 }
 export function datedFolder(label:string,id:string,at=new Date().toISOString()):string {
-  return `${safeName(at.replace('T','_').replace(/[:.]/g,'-').replace(/Z$/,''),23)}_${safeName(label,18)}__${safeName(id,8)}`;
+  void at;
+  return `${safeName(label,42)}__${safeName(id,8)}`;
 }
 export async function readJSON<T>(file:string,fallback:T):Promise<T> {
   try{return JSON.parse(await fs.readFile(file,'utf8'));}catch(e){if((e as NodeJS.ErrnoException).code==='ENOENT')return fallback;throw new Error('本地记录无法读取，原文件已保留。');}
@@ -28,6 +30,32 @@ export async function atomicJSON(file:string,data:unknown) {
   await fs.mkdir(path.dirname(file),{recursive:true,mode:0o700});
   const temp=file+'.'+randomUUID()+'.tmp';
   try{await fs.writeFile(temp,JSON.stringify(data,null,2),{mode:0o600,flag:'wx'});await fs.rename(temp,file);}finally{await fs.rm(temp,{force:true});}
+}
+// Keep allocation bounded even if a selected file grows or is replaced after lstat.
+export async function readBoundedFile(file:string,maxBytes:number,signal?:AbortSignal):Promise<Buffer>{
+  const check=()=>{if(signal?.aborted)throw Object.assign(new Error('读取已取消。'),{name:'AbortError',code:'ABORT_ERR'});};
+  check();
+  const before=await fs.lstat(file);
+  if(!before.isFile()||before.isSymbolicLink())throw new Error('材料必须是普通文件，不能是符号链接。');
+  if(before.size>maxBytes)throw new Error(`材料超过 ${maxBytes/1024/1024}MB 上限，未读取。`);
+  const handle=await fs.open(file,'r');
+  try{
+    const opened=await handle.stat();
+    if(!opened.isFile()||opened.dev!==before.dev||opened.ino!==before.ino||opened.size!==before.size)throw new Error('读取期间材料文件已变化。');
+    const buffer=Buffer.alloc(Math.min(maxBytes,opened.size)+1);
+    let size=0;
+    while(size<buffer.length){
+      check();
+      const result=await handle.read(buffer,size,buffer.length-size,size);
+      if(!result.bytesRead)break;
+      size+=result.bytesRead;
+    }
+    check();
+    if(size>maxBytes)throw new Error(`材料超过 ${maxBytes/1024/1024}MB 上限，未读取。`);
+    const after=await handle.stat(),named=await fs.lstat(file);
+    if(size!==opened.size||after.size!==opened.size||after.mtimeMs!==opened.mtimeMs||after.ctimeMs!==opened.ctimeMs||named.isSymbolicLink()||named.dev!==opened.dev||named.ino!==opened.ino)throw new Error('读取期间材料文件已变化。');
+    return buffer.subarray(0,size);
+  }finally{await handle.close();}
 }
 const inside=(root:string,target:string)=>{const rel=path.relative(root,target);return rel===''||(!rel.startsWith('..'+path.sep)&&rel!=='..'&&!path.isAbsolute(rel));};
 export async function validateRoots(settings:Settings) {
@@ -56,8 +84,11 @@ export async function managedPath(root:string,relative:string,makeParents=false)
 }
 export class CaseFiles {
   settings:Settings; profile:string;
-  constructor(settings:Settings,profile:string){this.settings=settings;this.profile=profile;}
-  async ensureCase(c:Case,publish=true) {
+  private publishIndexes:boolean;
+  private guard:()=>void;
+  constructor(settings:Settings,profile:string,publishIndexes=true,guard=()=>{}){this.settings=settings;this.profile=profile;this.publishIndexes=publishIndexes;this.guard=guard;}
+  async ensureCase(c:Case,publish=this.publishIndexes) {
+    this.guard();
     const {workRoot}=await validateRoots(this.settings);
     if(!workRoot)throw new Error('请先在设置中选择总工作文件夹。');
     const relative=portable(c.directory??path.join('案件',this.profile,`${safeName(c.number,28)}_${safeName(c.title,36)}__${digest(c.id).slice(0,10)}`));
@@ -70,6 +101,7 @@ export class CaseFiles {
       const target=await managedPath(workRoot,path.join(relative,name));await fs.mkdir(target,{recursive:true,mode:0o700});
     }
     // Shared business index only. Conversations, jobs, model configuration and credentials stay local.
+    this.guard();
     if(publish)await atomicJSON(manifestPath,{schema:2,id:c.id,profile:this.profile,number:c.number,title:c.title,type:c.type,deadline:c.deadline,applicationNumber:c.applicationNumber,companyName:c.companyName,caseRemark:c.caseRemark,caseInfoAt:c.caseInfoAt,remoteClosure:c.remoteClosure,remoteCaseId:c.remote?.caseId,current:c.current,source:c.source,remote:c.remote,materials:(c.materials??[]).map(sharedMaterial),rounds:c.rounds.map(r=>({id:r.id,name:r.name,priorArt:r.priorArt,materials:r.materials.map(sharedMaterial)}))});
     return relative;
   }
@@ -81,6 +113,7 @@ export class CaseFiles {
     if(!content.length||ext==='.pdf'&&!prefix.toString().startsWith('%PDF-')||['.docx','.zip'].includes(ext)&&!prefix.toString().startsWith('PK')||ext==='.doc'&&!prefix.equals(Buffer.from([0xd0,0xcf,0x11,0xe0,0xa1,0xb1,0x1a,0xe1])))throw new Error('附件内容与文件格式不符，未标为下载成功。');
     const file=`${safeName(path.basename(name,ext),48)}__${digest(fileNo).slice(0,8)}_${digest(content).slice(0,12)}${ext}`;
     const relative=path.join(folder,file),target=await managedPath(path.resolve(this.settings.workRoot!,directory),relative,true);
+    this.guard();
     try{await fs.writeFile(target,content,{flag:'wx',mode:0o600});}catch(e){if((e as NodeJS.ErrnoException).code!=='EEXIST')throw e;if(digest(await fs.readFile(target))!==digest(content))throw new Error('已有同名文件不同，已保留原件。');}
     return {directory,relativePath:portable(relative),sha256:digest(content)};
   }
@@ -92,6 +125,7 @@ export class CaseFiles {
     let previous:Buffer|undefined;try{previous=await fs.readFile(file);}catch(e){if((e as NodeJS.ErrnoException).code!=='ENOENT')throw e;}
     if(previous&&digest(previous)!==c.sharedDraftHash)throw new Error('工作目录中的稿件已在其他位置更新。请先刷新读取工作目录，再编辑保存；本次未覆盖该稿件。');
     const payload={caseId:c.id,processId:c.current?.processId,text,versions:c.localVersions??[]};
+    this.guard();
     await atomicJSON(file,payload);c.sharedDraftHash=digest(JSON.stringify(payload,null,2));
     for(const v of c.localVersions??[]){
       const target=await managedPath(root,`02_工作稿/${processFolder(c,v.processId??'local')}/${datedFolder('手工稿版本',v.id,v.at)}.txt`,true);
@@ -118,7 +152,7 @@ export class CaseFiles {
     };
     for(const folder of ['00_原始申请','01_通知与材料','02_工作稿','03_定稿'])await walk(folder);
     rows.sort((a,b)=>b.at-a.at);
-    const html='<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>案件工作文件目录</title><style>body{max-width:1100px;margin:32px auto;padding:0 24px;font:16px/1.8 system-ui;color:#222}li{margin:16px 0}small{display:block;color:#666;overflow-wrap:anywhere}</style><h1>'+escape(c.number+' '+c.title)+'</h1><p>工作文件按最近修改时间排列。新稿件使用中文办理名称和生成时间；历史路径保留以便恢复版本。04_内部说明内的索引由程序维护。</p><ul>'+rows.map(row=>'<li><a href="'+row.relative.split('/').map(encodeURIComponent).join('/')+'">'+escape(row.name)+'</a><small>'+escape(row.relative)+'</small></li>').join('')+'</ul></html>';
+    const html='<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>案件工作文件目录</title><style>body{max-width:1100px;margin:32px auto;padding:0 24px;font:16px/1.8 system-ui;color:#222}li{margin:16px 0}small{display:block;color:#666;overflow-wrap:anywhere}</style><h1>'+escape(c.number+' '+c.title)+'</h1><p>工作文件按最近修改时间排列。文件夹按客户、专利名称、专利类型和办理业务整理；04_内部说明内的索引由程序维护。</p><ul>'+rows.map(row=>'<li><a href="'+row.relative.split('/').map(encodeURIComponent).join('/')+'">'+escape(row.name)+'</a><small>'+escape(row.relative)+'</small></li>').join('')+'</ul></html>';
     await fs.writeFile(await managedPath(root,'工作文件目录.html'),html,{mode:0o600});
   }
   async findOriginals(c:Case) {

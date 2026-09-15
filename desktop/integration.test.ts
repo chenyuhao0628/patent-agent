@@ -24,6 +24,7 @@ async function fixture(t:test.TestContext){
     let data:unknown={};
     if(u.pathname.endsWith('/Auth/GetToken')){if(body.Password==='bad')return Response.json({IsSuccess:false,Message:'bad secret-token-DO-NOT-ECHO'});data={Token:'secret-token-'+body.UserName};}
     else if(u.pathname.endsWith('/Auth/GetLoginInfo')||u.pathname.endsWith('/TenantUser/GetCurrentUserInfo'))data={UserName:user,RealName:'测试同事 '+user,UserId:'user-'+user,TenantName:'隔离测试机构'};
+    else if(u.pathname.endsWith('/GetPersonalProcStatistics'))data=[0,200,300,400,500].map(Code=>({Code,Count:Code===0?1:0}));
     else if(u.pathname.endsWith('/GetPersonalCaseCount'))data=body.ActiveName==='waitHand'?1:0;
     else if(u.pathname.endsWith('/GetPersonalCase'))data={List:body.ActiveName==='waitHand'?[{CaseId:'case-'+user,CaseProcId:'proc-'+user,CaseName:'夹持装置',CaseNo:'202612345678.9',CaseProcName:'第一次审查意见答复',CaseProcUndertakerUserName:user,CaseProcLegalDate:'2026-10-01',CaseHandId:'hand-'+user}]:[],Total:body.ActiveName==='waitHand'?1:0};
     else if(u.pathname.endsWith('/GetCaseProcFileList'))data=[{FileNo:'notice-'+user,FileName:'审查意见.pdf'},{FileNo:'retry-'+user,FileName:'对比文件.pdf'}];
@@ -104,8 +105,8 @@ test('login, personal sync, retry, native draft persistence and account switchin
 });
 test('a pending sync cannot import the previous account into a newly logged in workspace',async t=>{
   const f=await fixture(t),s=f.make();await s.init();await s.login({origin,username:'alice',password:'fixture',remember:false});await s.settings(s.key,{...s.workspace.settings,workRoot:f.work});
-  const client=s.client!,original=client.personalCases.bind(client);let release!:()=>void;let started!:()=>void;const begun=new Promise<void>(resolve=>{started=resolve;});
-  client.personalCases=async(signal)=>{const rows=await original(signal);started();await new Promise<void>(resolve=>{release=resolve;});return rows;};
+  const client=s.client!,original=client.personalCasesSnapshot.bind(client);let release!:()=>void;let started!:()=>void;const begun=new Promise<void>(resolve=>{started=resolve;});
+  client.personalCasesSnapshot=async(signal,initial)=>{const rows=await original(signal,initial);started();await new Promise<void>(resolve=>{release=resolve;});return rows;};
   const syncing=s.sync();await begun;await s.login({origin,username:'bob',password:'fixture',remember:false});release();await syncing;
   assert.equal(s.account?.username,'bob');assert.equal(s.workspace.cases.length,0);
 });
@@ -113,6 +114,7 @@ test('a pending sync cannot import the previous account into a newly logged in w
 test('personal-case pagination accepts top-level DataList without losing the next page',async()=>{
   const pages:number[]=[];
   const client=new BaselandClient(origin,'fixture',async(_input,init)=>{
+    if(String(_input).includes('/GetPersonalProcStatistics'))return Response.json({IsSuccess:true,Data:[0,200,300,400,500].map(Code=>({Code,Count:Code===0?101:0}))});
     const b=JSON.parse(String(init?.body)),page=b.PagedInfo.pageIndex;
     if(String(_input).includes('/GetPersonalCaseCount'))return Response.json({IsSuccess:true,Data:b.ActiveName==='waitHand'?101:0});
     if(b.ActiveName==='waitHand')pages.push(page);
@@ -237,8 +239,8 @@ test('saving settings during an active sync keeps unchanged roots, persists a mo
   const f=await fixture(t),s=f.make();await s.init();
   await s.login({origin,username:'alice',password:'fixture',remember:true});
   await s.settings(s.key,{...s.workspace.settings,originalLibrary:f.originals,workRoot:f.work});
-  const client=s.client!,original=client.personalCases.bind(client);let release!:()=>void;let started!:()=>void;const begun=new Promise<void>(resolve=>{started=resolve;});
-  client.personalCases=async(signal)=>{const rows=await original(signal);started();await new Promise<void>(resolve=>{release=resolve;});return rows;};
+  const client=s.client!,original=client.personalCasesSnapshot.bind(client);let release!:()=>void;let started!:()=>void;const begun=new Promise<void>(resolve=>{started=resolve;});
+  client.personalCasesSnapshot=async(signal,initial)=>{const rows=await original(signal,initial);started();await new Promise<void>(resolve=>{release=resolve;});return rows;};
   const syncing=s.sync();await begun;assert.equal(s.syncState.running,true);
   const saved=await s.settings(s.key,{...s.workspace.settings,model:'saved-during-sync'});
   assert.equal(saved.workspace.settings.model,'saved-during-sync');

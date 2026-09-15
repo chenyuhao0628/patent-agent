@@ -5,6 +5,7 @@ import { desktop } from '../desktop.ts';
 import type { DesktopState, MigrationPreview } from '../desktop.ts';
 import { Modal, Note } from './Primitives.tsx';
 import '../migration.css';
+import { FolderOrganization } from './FolderOrganization.tsx';
 
 function formatBytes(n: number) {
   if (n < 1024) return n.toLocaleString('zh-CN') + ' 字节';
@@ -83,6 +84,7 @@ export function DirectoryMigration({
   };
 
   return <div className="dir-migration">
+    <FolderOrganization state={nativeState}/>
     <h3>迁移当前账号工作目录</h3>
     <p className="lead">仅复制当前账号在「案件 / 当前账号标识」下的全部工作文件到新的总工作文件夹。原始申请文件库保持不动；本机对话、任务和凭证不随工作目录移动。其他账号的案件目录不会复制。</p>
     <dl className="dir-migration-facts">

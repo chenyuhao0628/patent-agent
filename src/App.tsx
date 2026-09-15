@@ -32,7 +32,7 @@ export function App({nativeState,refresh}:{nativeState?:DesktopState;refresh?:(s
   const [syncError,setSyncError] = useState('');
   useEffect(()=>{
     if(!desktop || nativeState?.account?.status !== 'authenticated') return;
-    const focus=()=>{if(document.hidden || Date.now()-lastFocusSync.current<300000)return;lastFocusSync.current=Date.now();void desktop!.sync().then(()=>setSyncError('')).catch(e=>setSyncError(e.message));};
+    const focus=()=>{if(document.hidden || Date.now()-lastFocusSync.current<300000)return;lastFocusSync.current=Date.now();void desktop!.sync('focus').then(()=>setSyncError('')).catch(e=>setSyncError(e.message));};
     window.addEventListener('focus',focus);return()=>window.removeEventListener('focus',focus);
   },[nativeState?.profileKey,nativeState?.account?.status]);
   const [importing, setImporting] = useState(false); const [notice, setNotice] = useState('');

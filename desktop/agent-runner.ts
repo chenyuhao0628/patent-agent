@@ -1,4 +1,5 @@
 import { diagnostic, diagnosticError, sessionErrorMetadata } from './diagnostics.ts';
+import { StringDecoder } from 'node:string_decoder';
 import { fitConversation } from './conversation-context.ts';
 import { classifySessionError } from './agent-errors.ts';
 import type { McpConfig } from './extensions.ts';
@@ -172,9 +173,24 @@ export function redactChildLog(text: string): string {
   return out.split('\n').map(line => line.length > LOG_LINE_MAX ? `${line.slice(0, LOG_LINE_MAX)}…` : line).join('\n');
 }
 
-function createCappedLogStream(file: string, maxBytes = LOG_MAX_BYTES, secrets:string[]=[] ): Writable {
+export function createCappedLogStream(file: string, maxBytes = LOG_MAX_BYTES, secrets:string[]=[] ): Writable {
   const fd = fsSync.openSync(file, 'a', 0o600);
-  let written = 0;
+  const decoder=new StringDecoder('utf8'),values=[...new Set(secrets.flatMap(value=>[value,...value.split(/\r?\n/)])).values()].filter(Boolean);
+  let written = 0,pending='',omitting=false,closed=false;
+  const close=()=>{if(!closed){closed=true;fsSync.closeSync(fd);}};
+  const append=(line:string)=>{
+    const clean=values.reduce((text,value)=>text.split(value).join('<redacted>'),line);
+    const slice=Buffer.from(redactChildLog(clean)).subarray(0,Math.max(0,maxBytes-written));
+    if(slice.length)fsSync.writeSync(fd,slice);written+=slice.length;
+  };
+  const consume=(text:string)=>{
+    for(const part of text.split(/(?<=\n)/)){
+      if(omitting){if(part.endsWith('\n'))omitting=false;continue;}
+      pending+=part;
+      if(pending.length>65536){append('<oversized log line omitted>\n');pending='';omitting=!part.endsWith('\n');}
+      else if(part.endsWith('\n')){append(pending);pending='';}
+    }
+  };
   return new Writable({
     write(chunk, _enc, cb) {
       try {
@@ -182,21 +198,17 @@ function createCappedLogStream(file: string, maxBytes = LOG_MAX_BYTES, secrets:s
           cb();
           return;
         }
-        const raw = Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk);
-        const clean=secrets.reduce((text,v)=>v?text.split(v).join('<redacted>'):text,raw);
-        const buf = Buffer.from(redactChildLog(clean));
-        const slice = buf.subarray(0, maxBytes - written);
-        if (slice.length) fsSync.writeSync(fd, slice);
-        written += slice.length;
+        consume(Buffer.isBuffer(chunk)?decoder.write(chunk):String(chunk));
         cb();
       } catch (error) {
         cb(error as Error);
       }
     },
     final(cb) {
-      try { fsSync.closeSync(fd); } catch { /* ignore */ }
-      cb();
+      try{consume(decoder.end());if(pending&&!omitting)append(pending);close();cb();}
+      catch(error){cb(error as Error);}
     },
+    destroy(error,cb){try{close();}catch{}cb(error);},
   });
 }
 

@@ -75,18 +75,62 @@ test('cancel application is external; normal application and reply remain unchan
 });
 for(const duplicate of [false,true])test(`count mismatch ${duplicate?'with repeated pages':'with early empty page'} never silently completes`,async()=>{
  const client=new BaselandClient('https://test.baselandtec.com','',async(url,init)=>{
-  const body=JSON.parse(String(init?.body));
-  return Response.json({IsSuccess:true,Data:String(url).includes('GetPersonalCaseCount')?2:body.PagedInfo.pageIndex===1||duplicate?[{CaseProcId:'one'}]:[]});
+  const body=init?.body?JSON.parse(String(init.body)):undefined;
+  if(String(url).includes('GetPersonalProcStatistics'))return Response.json({IsSuccess:true,Data:[{Code:0,Count:2},{Code:200,Count:0},{Code:300,Count:0},{Code:400,Count:0},{Code:500,Count:0}]});
+  return Response.json({IsSuccess:true,Data:body.PagedInfo.pageIndex===1||duplicate?[{CaseProcId:'one'}]:[]});
  });
  await assert.rejects(client.personalCases(new AbortController().signal),/数量与分页结果不一致/);
 });
 test('a count change retries boundedly and imports only the consistent snapshot',async()=>{
  let counts=0;const client=new BaselandClient('https://test.baselandtec.com','',async(url,init)=>{
-  const body=JSON.parse(String(init?.body));const active=body.ActiveName==='waitHand';
-  const count=String(url).includes('GetPersonalCaseCount');
-  return Response.json({IsSuccess:true,Data:count?(active?(++counts===1?2:1):0):active?[{CaseProcId:'one'}]:[]});
+  const body=init?.body?JSON.parse(String(init.body)):undefined;const active=body?.ActiveName==='waitHand';
+  if(String(url).includes('GetPersonalProcStatistics')){
+    counts++;
+    const value=counts===1?2:1;
+    return Response.json({IsSuccess:true,Data:[{Code:0,Count:value},{Code:200,Count:0},{Code:300,Count:0},{Code:400,Count:0},{Code:500,Count:0}]});
+  }
+  return Response.json({IsSuccess:true,Data:active?[{CaseProcId:'one'}]:[]});
  });
  const rows=await client.personalCases(new AbortController().signal);assert.equal(rows.length,1);assert.equal(counts,4);
+});
+
+test('五个页签并发拉取，行序仍按页签顺序',async()=>{
+  let active=0,peak=0;
+  const client=new BaselandClient('https://test.baselandtec.com','',async(url,init)=>{
+    const body=init?.body?JSON.parse(String(init.body)):undefined;
+    if(String(url).includes('GetPersonalProcStatistics'))return Response.json({IsSuccess:true,Data:[{Code:0,Count:1},{Code:200,Count:1},{Code:300,Count:1},{Code:400,Count:1},{Code:500,Count:1}]});
+    active++;peak=Math.max(peak,active);
+    await new Promise<void>(resolve=>setImmediate(resolve));
+    active--;
+    const tab=String(body.ActiveName);
+    return Response.json({IsSuccess:true,Data:[{CaseId:'case-'+tab,CaseNo:'X',CaseProcId:tab,CaseProcName:'答复审查意见'}]});
+  });
+  const rows=await client.personalCases(new AbortController().signal);
+  assert.ok(peak>1,`期望页签请求并发，实测峰值 ${peak}`);
+  assert.deepEqual(rows.map(row=>row.CaseProcId),['waitHand','auditing','waitDeliver','delivering','finish']);
+});
+test('incremental read signals use the documented methods and payloads',async()=>{
+ const calls:{path:string;method:string;body?:any}[]=[];
+ const client=new BaselandClient('https://test.baselandtec.com','fixture',async(input,init)=>{
+   const u=new URL(String(input));calls.push({path:u.pathname,method:init?.method??'GET',body:init?.body?JSON.parse(String(init.body)):undefined});
+   if(u.pathname.endsWith('GetPersonalProcStatistics'))return Response.json({IsSuccess:true,Data:[{Code:500,Count:2},{Code:0,Count:1},{Code:200,Count:0},{Code:300,Count:0},{Code:400,Count:0}]});
+   if(u.pathname.endsWith('GetFileCount'))return Response.json({IsSuccess:true,Data:7});
+   if(u.pathname.endsWith('GetFileList'))return Response.json({IsSuccess:true,Data:[{FileNo:'f-1',FileName:'notice.pdf'}]});
+   if(u.pathname.endsWith('GetCaseFileAllListCount'))return Response.json({IsSuccess:true,Data:3});
+   throw new Error('unexpected endpoint');
+ });
+ assert.deepEqual(await client.personalProcessStatistics(),[{code:0,count:1},{code:200,count:0},{code:300,count:0},{code:400,count:0},{code:500,count:2}]);
+ assert.equal(await client.fileCount(),7);
+ assert.deepEqual(await client.fileListSince('2026-09-14','2026-09-15'),[{FileNo:'f-1',FileName:'notice.pdf'}]);
+ assert.equal(await client.caseFileCount('case-1'),3);
+ assert.deepEqual(calls.map(x=>[x.path,x.method]),[
+   ['/v1/CaseInfo/GetPersonalProcStatistics','GET'],
+   ['/v1/CaseFile/GetFileCount','POST'],
+   ['/v1/CaseFile/GetFileList','POST'],
+   ['/v1/CaseInfo/GetCaseFileAllListCount','GET'],
+ ]);
+ assert.deepEqual(calls[1].body,{PagedInfo:{PageIndex:1,PageSize:1,SortField:null,SortType:null},UserTableTitleColumnList:[],TableType:20101});
+ assert.equal(calls[2].body.UploadDateStart,'2026-09-14');
 });
 
 test('upload must not accept a file number accompanying an explicit business failure',async()=>{

@@ -11,6 +11,7 @@ import { digest } from './files.ts';
 export { isAuxiliaryProcess, isInternallyActiveProcess };
 
 type Obj=Record<string,any>;
+export type PersonalProcessStatistic={code:number;count:number};
 export const API='https://cloudapi02.baselandtec.com/v1';
 const clean=(s:unknown)=>typeof s==='string'?s:typeof s==='number'?String(s):'';
 const listOf=(data:any):Obj[]|undefined=>Array.isArray(data)?data:data?.List??data?.Rows??data?.DataList??data?.ListData??data?.PageData??data?.Items;
@@ -231,31 +232,102 @@ export class BaselandClient {
     if(typeof data?.Token!=='string'||!data.Token.trim())throw new Error('贝思兰德登录响应格式未识别，尚未取得有效登录。请在机构网页确认能否正常登录。');
     this.token=data.Token;return this.identity(username);
   }
-  async personalCases(signal:AbortSignal) {
+  async personalCasesSnapshot(signal:AbortSignal,initial?:PersonalProcessStatistic[]) {
     const rows:Obj[]=[];
-    for(const [name,table,status] of [['waitHand',50010,0],['auditing',50011,200],['waitDeliver',50012,300],['delivering',50013,400],['finish',50014,500]] as const){
-      const body={PagedInfo:{pageIndex:1,pageSize:100},ProcStatusTypeList:[status],TableType:table,ActiveName:name,SelectedProcIdGroup:[]};
-      const count=async()=>{
-        const value=await this.request('/CaseInfo/GetPersonalCaseCount',body,undefined,signal);
-        if(typeof value!=='number'||!Number.isSafeInteger(value)||value<0)throw new Error('个人流程数量未能确认，本次同步未完成。');
-        return value;
-      };
-      let complete=false;
-      for(let attempt=0;attempt<2&&!complete;attempt++){
-        const expected=await count(),pageRows:Obj[]=[],seen=new Set<string>();let consistent=true;
+    const tabs=[['waitHand',50010,0],['auditing',50011,200],['waitDeliver',50012,300],['delivering',50013,400],['finish',50014,500]] as const;
+    let expectedStats=initial;
+    for(let attempt=0;attempt<2;attempt++){
+      rows.length=0;
+      expectedStats=attempt===0&&initial?initial:await this.snapshotStatistics(signal);
+      const expected=new Map(expectedStats.map(row=>[row.code,row.count]));
+      const allIds=new Set<string>();
+      let consistent=true;
+      // 五个页签互相独立，并发拉取（实测服务端不禁并发：20 路并发同接口全部 200）。
+      // 结果按 tabs 顺序返回；跨页签去重与计数核对在全部返回后统一进行，语义与串行版一致。
+      const results=await Promise.all(tabs.map(async ([name,table,status])=>{
+        const body={PagedInfo:{pageIndex:1,pageSize:100},ProcStatusTypeList:[status],TableType:table,ActiveName:name,SelectedProcIdGroup:[]};
+        const expectedCount=expected.get(status);
+        if(expectedCount===undefined)throw new Error('个人流程统计缺少页签数据。');
+        const pageRows:Obj[]=[],seen=new Set<string>();
+        let tabConsistent=true;
         for(let page=1;page<=500;page++){
           const data=listOf(await this.request('/CaseInfo/GetPersonalCase',{...body,PagedInfo:{pageIndex:page,pageSize:100}},undefined,signal,'list'));
           if(!Array.isArray(data))throw new Error('个人案件列表结构尚未识别，本次未写入案件。');
-          for(const row of data){const id=clean(row.CaseProcId);if(!id||seen.has(id)){consistent=false;break;}seen.add(id);pageRows.push({...row,_status:status});}
-          if(!consistent||data.length===0||pageRows.length>=expected)break;
-          if(page===500)consistent=false;
+          for(const row of data){const id=clean(row.CaseProcId);if(!id||seen.has(id)){tabConsistent=false;break;}seen.add(id);pageRows.push({...row,_status:status});}
+          if(!tabConsistent||data.length===0||pageRows.length>=expectedCount)break;
+          if(page===500)tabConsistent=false;
         }
-        const after=await count();
-        if(consistent&&expected===after&&pageRows.length===expected){rows.push(...pageRows);complete=true;}
+        return {status,pageRows,consistent:tabConsistent&&pageRows.length===expectedCount};
+      }));
+      for(const result of results){
+        if(!result.consistent){consistent=false;break;}
+        for(const row of result.pageRows){const id=clean(row.CaseProcId);if(allIds.has(id)){consistent=false;break;}allIds.add(id);}
+        if(!consistent)break;
+        rows.push(...result.pageRows);
       }
-      if(!complete)throw new Error('个人流程数量与分页结果不一致，可能正在变化；本次同步未完成，本地案件与稿件保留，请稍后重试。');
+      const after=await this.snapshotStatistics(signal);
+      if(consistent&&expectedStats.every(row=>after.find(x=>x.code===row.code)?.count===row.count))return {rows,stats:after};
     }
-    return rows;
+    throw new Error('个人流程数量与分页结果不一致，可能正在变化；本次同步未完成，本地案件与稿件保留，请稍后重试。');
+  }
+  async personalCases(signal:AbortSignal) {
+    return (await this.personalCasesSnapshot(signal)).rows;
+  }
+  private async snapshotStatistics(signal:AbortSignal):Promise<PersonalProcessStatistic[]> {
+    try{return await this.personalProcessStatistics(signal);}
+    catch(error){
+      signal.throwIfAborted();
+      if(error instanceof BaselandAuthError)throw error;
+      const stats:PersonalProcessStatistic[]=[];
+      for(const [name,table,code] of [['waitHand',50010,0],['auditing',50011,200],['waitDeliver',50012,300],['delivering',50013,400],['finish',50014,500]] as const){
+        const count=await this.request('/CaseInfo/GetPersonalCaseCount',{PagedInfo:{pageIndex:1,pageSize:100},ProcStatusTypeList:[code],TableType:table,ActiveName:name,SelectedProcIdGroup:[]},undefined,signal);
+        if(typeof count!=='number'||!Number.isSafeInteger(count)||count<0)throw new Error('个人流程数量未能确认，本次同步未完成。');
+        stats.push({code,count});
+      }
+      return stats;
+    }
+  }
+  async personalProcessStatistics(signal?:AbortSignal) {
+    const data=listOf(await this.request('/CaseInfo/GetPersonalProcStatistics',undefined,undefined,signal,'list'));
+    if(!Array.isArray(data))throw new Error('个人流程统计结构尚未识别。');
+    const result=data.map(row=>{
+      const code=row.Code??row.code,count=row.Count??row.count;
+      if(!Number.isInteger(code)||!Number.isSafeInteger(count)||count<0)throw new Error('个人流程统计结构尚未识别。');
+      return {code,count};
+    });
+    if(result.length!==5||![0,200,300,400,500].every(code=>result.filter(row=>row.code===code).length===1))throw new Error('个人流程统计缺少或重复页签数据。');
+    return result.sort((a,b)=>a.code-b.code);
+  }
+  // 仅被测试引用，产品代码当前不使用：GetFileCount 只接受单个案件号（CaseNo 传数组会「参数验证失败」，
+  // CaseNoList/CaseNoGroup 被忽略并按全所计数），拿不到「本账号个人案件」的增量信号。
+  async fileCount(signal?:AbortSignal) {
+    const data=await this.request('/CaseFile/GetFileCount',{
+      PagedInfo:{PageIndex:1,PageSize:1,SortField:null,SortType:null},
+      UserTableTitleColumnList:[],
+      TableType:20101,
+    },undefined,signal);
+    const count=typeof data==='number'?data:Number(data?.Count??data?.count);
+    if(!Number.isSafeInteger(count)||count<0)throw new Error('文件中心数量结构尚未识别。');
+    return count;
+  }
+  // 同上，仅被测试引用：按 UploadDate 区间查「全所」文件中心，不能按案件号批量过滤，
+  // 接回产品代码会变成替别人上传的文件付查询与分页成本，因此保留在案件级逐流程取文件列表的方案。
+  async fileListSince(start:string,end:string,signal?:AbortSignal) {
+    const data=listOf(await this.request('/CaseFile/GetFileList',{
+      PagedInfo:{PageIndex:1,PageSize:100,SortField:'UploadDate',SortType:'descending'},
+      UserTableTitleColumnList:[],
+      TableType:20101,
+      UploadDateStart:start,
+      UploadDateEnd:end,
+    },undefined,signal,'list'));
+    if(!Array.isArray(data))throw new Error('文件中心增量列表结构尚未识别。');
+    return data;
+  }
+  async caseFileCount(caseId:string,signal?:AbortSignal) {
+    const data=await this.request('/CaseInfo/GetCaseFileAllListCount',undefined,{caseId},signal);
+    const count=typeof data==='number'?data:Number(data?.Count??data?.count);
+    if(!Number.isSafeInteger(count)||count<0)throw new Error('案件文件数量结构尚未识别。');
+    return count;
   }
   async files(processId:string,signal:AbortSignal) {const data=listOf(await this.request('/CaseInfo/GetCaseProcFileList',undefined,{caseProcId:processId},signal,'list'));if(!Array.isArray(data))throw new Error('文件列表结构尚未识别。');return data;}
   async download(fileNo:string,signal:AbortSignal) {

@@ -66,15 +66,18 @@ test('commands can use scripts and reusable local installs without inherited pro
   const capped = await executeLocalCommand({ workRoot, toolsRoot, command: 'head -c 100000 /dev/zero' }); assert.equal(capped.truncated, true); assert.ok(capped.stdout.length <= 48000);
 });
 
-test('LibreOffice default profile is cleared before soffice to avoid crashed-restart abort', { skip: process.platform === 'win32' }, async t => {
+test('LibreOffice command environments are independent and do not delete another profile', { skip: process.platform === 'win32' }, async t => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'local-lo-')); t.after(() => fs.rm(root, { recursive: true, force: true }));
   const workRoot = path.join(root, 'work'), toolsRoot = path.join(root, 'tools'); await fs.mkdir(workRoot); await fs.mkdir(toolsRoot);
   const env = await commandEnvironment(workRoot, toolsRoot);
   const profile = path.join(env.XDG_CONFIG_HOME!, 'libreoffice');
   await fs.mkdir(profile, { recursive: true }); await fs.writeFile(path.join(profile, 'registrymodifications.xcu'), '<oor:items/>');
-  const result = await executeLocalCommand({ workRoot, toolsRoot, command: 'echo soffice run' });
+  const result = await executeLocalCommand({ workRoot, toolsRoot, command: 'printf "%s" "$XDG_CONFIG_HOME" # soffice' });
   assert.equal(result.exitCode, 0);
-  assert.equal(await fs.stat(profile).then(() => true).catch(() => false), false, 'soffice 命令应触发清理 LibreOffice 默认 profile');
+  assert.notEqual(result.stdout,env.XDG_CONFIG_HOME);
+  assert.equal(await fs.readFile(path.join(profile,'registrymodifications.xcu'),'utf8'),'<oor:items/>');
+  const results=await Promise.all([1,2].map(()=>executeLocalCommand({workRoot,toolsRoot,command:'printf "%s" "$XDG_CONFIG_HOME" # soffice'})));
+  assert.notEqual(results[0].stdout,results[1].stdout);
   const env2 = await commandEnvironment(workRoot, toolsRoot);
   const profile2 = path.join(env2.XDG_CONFIG_HOME!, 'libreoffice');
   await fs.mkdir(profile2, { recursive: true }); await fs.writeFile(path.join(profile2, 'keep.x'), 'y');

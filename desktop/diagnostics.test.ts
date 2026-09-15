@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { DiagnosticLog, safeMetadata, diagnosticError } from './diagnostics.ts';
+import { DiagnosticLog, safeMetadata, diagnosticError, initializeDiagnostics, stopDiagnostics, diagnosticStage, withDiagnostics } from './diagnostics.ts';
 
 test('diagnostics persist across restart, filter ten minutes and omit payloads and credentials',()=>{
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'diagnostics-'));let now=Date.now();
@@ -47,4 +47,19 @@ test('rotation uses record time even when filesystem creation stays old; restart
  assert.equal(log.snapshot('test').records.length,61);assert(fs.readdirSync(dir).length<=2);
  now+=5*60*1000;log.write('app','later');assert.equal(log.snapshot('test').records.length,61);
  }finally{fs.rmSync(dir,{recursive:true,force:true});}
+});
+
+test('stage diagnostics preserve correlation across awaits and classify failures without content',async()=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'diagnostic-stage-'));
+ try{
+  const log=initializeDiagnostics(dir);
+  await withDiagnostics({syncId:'private-sync',caseId:'private-case',processId:'private-process',source:'manual'},async()=>{
+   await diagnosticStage('host','materials',{runId:'private-run'},async()=>{await Promise.resolve();});
+   await assert.rejects(diagnosticStage('host','permission',{runId:'private-run'},async()=>{throw Object.assign(new Error('PRIVATE BODY'),{code:'ECONNRESET'});}));
+  });
+  const result=log.snapshot('test').records;
+  assert.equal(result.length,4);assert.equal(result[0].syncId,result[3].syncId);
+  assert.equal(result[1].state,'completed');assert.equal(result[3].state,'failed');assert.equal(result[3].code,'ECONNRESET');
+  assert.doesNotMatch(JSON.stringify(result),/private-sync|private-case|private-process|private-run|PRIVATE BODY/);
+ }finally{stopDiagnostics();fs.rmSync(dir,{recursive:true,force:true});}
 });

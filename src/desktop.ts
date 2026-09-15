@@ -28,6 +28,9 @@ export type MigrationState={
   running:boolean; phase:MigrationPhase; canCancel:boolean; preview?:MigrationPreview; progress?:MigrationProgress;
   message:string; error?:string;
 };
+export type FolderOrganizationReport={
+  renamedFolders:number;renamedFiles:number;skippedFiles:number;unknownPaths:string[];conflicts:string[];cases:number;message:string;
+};
 export type DesktopState = {
   auth?:AuthState;profileKey:string;account:Account|null;workspace:Workspace;sync:SyncState;storage:StorageState;migration:MigrationState;version:string;dataDirectory:string};
 export type FlowNode={name:string;user:string;running:boolean;finished:boolean;start:string;end:string;stayHours?:number;type?:string;isCurrent?:boolean;sort?:number;serial?:number;total?:number};
@@ -40,7 +43,7 @@ export type DesktopAPI={
   verifyLogin?:()=>Promise<DesktopState>; bootstrap:()=>Promise<DesktopState>; login:(input:{origin:string;username:string;password:string;remember:boolean})=>Promise<DesktopState>; logout:()=>Promise<DesktopState>;
   selectDirectory:(kind:'originalLibrary'|'workRoot')=>Promise<string|null>;
   saveSettings:(key:string,settings:Settings)=>Promise<DesktopState>; saveWorkspace:(key:string,workspace:Workspace)=>Promise<void>;
-  refreshShared:(key:string)=>Promise<DesktopState>; sync:()=>Promise<DesktopState>; createCase:(input:{title:string;number:string;kind:'write'|'review'})=>Promise<DesktopState>;
+  refreshShared:(key:string)=>Promise<DesktopState>; sync:(source?:'manual'|'focus')=>Promise<DesktopState>; createCase:(input:{title:string;number:string;kind:'write'|'review'})=>Promise<DesktopState>;
   caseInfo:(key:string,caseId:string)=>Promise<DesktopState>;
   flow:(caseId:string)=>Promise<FlowView>; openCaseDirectory:(caseId:string)=>Promise<void>;
   findOriginals:(caseId:string)=>Promise<{id:string;name:string}[]>; copyOriginal:(caseId:string,id:string)=>Promise<DesktopState>;
@@ -48,6 +51,7 @@ export type DesktopAPI={
   previewWorkMigration:(key:string,destination:string)=>Promise<MigrationPreview>;
   startWorkMigration:(key:string,previewId:string)=>Promise<DesktopState>;
   cancelWorkMigration:()=>Promise<DesktopState>;
+  organizeWorkFolders:(key:string)=>Promise<FolderOrganizationReport>;
   selectDshDirectory:()=>Promise<string|null>;
   models:ModelAPI;
   agent:AgentAPI;
