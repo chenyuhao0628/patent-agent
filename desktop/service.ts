@@ -439,8 +439,10 @@ export class DesktopService {
             }
             mergeSyncMaterials(base,c,latest,next);
           }
-          if(!stale)applyRemoteClosure(next,closure);
-          else diagnostic('sync','newer_state_preserved');
+          // Dirty local (fingerprint changed mid-sync) still merges remote closure;
+          // draft / tags / current stay on the latest local branch above.
+          applyRemoteClosure(next,closure);
+          if(stale)diagnostic('sync','newer_state_preserved');
           if(next.localDraft!==undefined)await files.saveDraft(next);else await files.ensureCase(next);
           check();
           this.workspace.cases=[...this.workspace.cases.filter(x=>x.id!==next.id),next];

@@ -68,6 +68,39 @@ test('old sync preserves newer official flow in memory, shared index and after r
   await s.refreshShared(s.key);assert.equal(s.findCase(c.id).current?.kind,'waiting');
 });
 
+test('本地脏 + 远端结案：脏本地仍合并结案，不抹掉草稿/标签/当前办理',async t=>{
+  const {s,c,client,closed}=await fixture(t),g=gate(),files=client.files;
+  closed(true);
+  client.files=async id=>{if(id==='new'){g.start();await g.held;}return files(id);};
+  const syncing=s.sync();await g.began;
+  const live=s.findCase(c.id);
+  const preservedProcessId=live.current?.processId;
+  const preservedKind=live.current?.kind;
+  live.caseRemark='同步期间本地备注';
+  live.tags=['保留标签','同步后新增'];
+  live.localDraft='必须保留的脏草稿';
+  await s.persist();
+  g.release();await syncing;
+  const after=s.findCase(c.id);
+  assert.equal(after.remoteClosure?.finished,true,'远端结案必须写入，不能因本地脏而整段跳过');
+  assert.equal(after.archived,true,'首次结案应自动归档');
+  assert.equal(after.localDraft,'必须保留的脏草稿');
+  assert.deepEqual(after.tags,['保留标签','同步后新增']);
+  assert.equal(after.current?.processId,preservedProcessId);
+  assert.equal(after.current?.kind,preservedKind);
+  assert.equal(after.caseRemark,'同步期间本地备注');
+  const manifest=JSON.parse(await fs.readFile(await s.casePath(c.id,'案件信息.json'),'utf8'));
+  assert.equal(manifest.remoteClosure.finished,true);
+  assert.equal(manifest.current.processId,preservedProcessId);
+  assert.equal(manifest.current.kind,preservedKind);
+  const profile=JSON.parse(await fs.readFile(s.profileFile(),'utf8'));
+  const row=profile.cases.find((x:{id:string})=>x.id===c.id);
+  assert.equal(row.archived,true);
+  assert.equal(row.localDraft,'必须保留的脏草稿');
+  assert.deepEqual(row.tags,['保留标签','同步后新增']);
+  assert.equal(row.remoteClosure.finished,true);
+});
+
 test('a flow refresh during personal list retrieval also wins over older sync rows',async t=>{
   const {s,c,client}=await fixture(t),g=gate(),personal=client.personalCasesSnapshot;
   client.personalCasesSnapshot=async(signal,initial)=>{g.start();await g.held;return personal(signal,initial);};
