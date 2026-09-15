@@ -205,7 +205,8 @@ export class DesktopService {
       const occupied=this.workspace.cases.some(c=>c.directory)||await namespaceHasEntries(this.workspace.settings.workRoot,this.key);
       if(occupied)throw new Error('工作文件夹已有案件。请保留当前目录；请使用当前账号工作目录迁移。');
     }
-    const nextSettings={provider:s.provider,baseUrl:s.baseUrl,model:s.model,templatePath:s.templatePath,extensions:s.extensions, ...roots};
+    const lastTransferRecipient=s.lastTransferRecipient??this.workspace.settings.lastTransferRecipient;
+    const nextSettings={provider:s.provider,baseUrl:s.baseUrl,model:s.model,templatePath:s.templatePath,extensions:s.extensions, ...(lastTransferRecipient?{lastTransferRecipient}:{}), ...roots};
     // Publish settings in memory only after the atomic disk write succeeds.
     await atomicJSON(this.profileFile(),{...structuredClone(this.workspace),settings:nextSettings});
     this.assertKey(key);this.workspace.settings=nextSettings;

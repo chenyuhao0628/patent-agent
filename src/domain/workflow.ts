@@ -25,7 +25,7 @@ export type RemoteProcess = {personalStatus?:number;canEdit?:boolean;procCode?:s
 // 字段缺失表示尚未判读；「未见结果」不等于官方未授权，界面必须保留这一区分。
 export type OfficialOutcome = {state:'granted'|'rejected'|'none';noticeName?:string;noticeTypeCode?:string;postDate?:string;checkedAt:string;incomplete?:boolean};
 export type Case = { officialOutcome?:OfficialOutcome; remoteClosure?:{finished:boolean;checkedAt:string}; companyName?:string;caseRemark?:string;caseInfoAt?:string; id: string; title: string; number: string; type: string; deadline: string; archived: boolean; tags: string[]; rounds: Round[]; design?: CaseDesign; current?:CurrentWork; source?:'baseland'|'local'; materials?:Material[]; applicationNumber?:string; directory?:string; remote?:{caseId:string;processes:RemoteProcess[];syncedAt:string}; localDraft?:string; sharedDraftHash?:string; localVersions?:{id:string;text:string;at:string;processId?:string}[] };
-export type Settings = {provider:string;baseUrl:string;model:string;originalLibrary?:string;workRoot?:string;sharedDirectory?:string;localDirectory?:string;templatePath?:string;extensions?:{id:string;name:string;kind:'技能'|'MCP';enabled:boolean}[]};
+export type Settings = {provider:string;baseUrl:string;model:string;originalLibrary?:string;workRoot?:string;sharedDirectory?:string;localDirectory?:string;templatePath?:string;extensions?:{id:string;name:string;kind:'技能'|'MCP';enabled:boolean}[];lastTransferRecipient?:{userId:string;userName?:string;stepId?:string}};
 export type Workspace = { schema: 1; cases: Case[]; settings: Settings };
 export type Action =
   | { type: 'confirm'; value: boolean }

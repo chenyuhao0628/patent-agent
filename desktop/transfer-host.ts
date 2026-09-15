@@ -19,6 +19,21 @@ import { atomicJSON, digest, managedPath, readJSON, safeName } from './files.ts'
 import { defaultTransferForm, existingTransferParts, readRemoteTransfer, remoteFileNames, saveRemoteTransfer, submitRemoteTransfer, validateReview } from './baseland-transfer.ts';
 import type { RemoteTransfer } from './baseland-transfer.ts';
 type Session={view:TransferView;remote:RemoteTransfer|null;generation:number;root:string;files:Partial<Record<TransferFileRole,{name:string;relativePath:string;hash:string}>>};
+export type TransferRecipientOption={step:{id:string;name:string};user:{id:string;name:string}};
+export type TransferRecipientPreference={userId:string;userName?:string;stepId?:string};
+/** Prefer last-selected preference still in the candidate list, else the sole candidate; otherwise leave unset for explicit UI choice. */
+export function pickTransferRecipient(options:TransferRecipientOption[],preference?:TransferRecipientPreference|null):TransferRecipientOption|undefined{
+  if(!options.length)return;
+  if(preference?.userId){
+    const matched=options.filter(o=>o.user.id===preference.userId);
+    if(matched.length===1)return matched[0];
+    if(matched.length>1){
+      const sameStep=preference.stepId?matched.find(o=>o.step.id===preference.stepId):undefined;
+      return sameStep??matched[0];
+    }
+  }
+  if(options.length===1)return options[0];
+}
 
 export class TransferHost {
   desktop:DesktopService;agent:AgentHost;private sessions=new Map<string,Session>();busy=false;
@@ -117,8 +132,18 @@ export class TransferHost {
     s.view.review.form=defaultTransferForm(r);
     if(!s.files.application){s.view.parts=existingTransferParts(r);s.view.review.keepCodes=s.view.parts.filter(p=>p.available).map(p=>p.code);}
     const options=s.view.steps.flatMap(step=>step.users.map(user=>({step,user})));
-    const named=options.filter(o=>o.user.name==='杨佳'),picked=named.length===1?named[0]:options.length===1?options[0]:undefined;
+    const current=options.find(o=>o.step.id===s.view.review.stepId&&o.user.id===s.view.review.userId);
+    const picked=current??pickTransferRecipient(options,this.desktop.workspace.settings.lastTransferRecipient);
     s.view.review.stepId=picked?.step.id??'';s.view.review.userId=picked?.user.id??'';
+  }
+  private async rememberRecipient(s:Session){
+    const step=s.view.steps.find(x=>x.id===s.view.review.stepId),user=step?.users.find(u=>u.id===s.view.review.userId);
+    if(!step||!user)return;
+    const next:TransferRecipientPreference={userId:user.id,userName:user.name,stepId:step.id};
+    const prev=this.desktop.workspace.settings.lastTransferRecipient;
+    if(prev?.userId===next.userId&&prev?.stepId===next.stepId&&prev?.userName===next.userName)return;
+    this.desktop.workspace.settings.lastTransferRecipient=next;
+    await this.desktop.persist();
   }
   private async attach(s:Session,role:TransferFileRole,source:string){
     this.guard(s);if(role==='reply'&&s.view.route!=='reply')throw new Error('本业务通过表单字段保存补正内容，不能上传意见或补正说明文件。');if(s.view.phase!=='draft')throw new Error('已保存的提交方案不能直接改文件，请完成当前结果核对。');
@@ -172,7 +197,7 @@ export class TransferHost {
     let wrote=false;
     // Persist intent before the first remote write. An interrupted attempt never looks unsent.
     s.view.phase='uncertain';s.view.results.push('正在保存本次文件与业务表单；中断后需回读核对。');await this.persist(s);
-    try{s.remote=await saveRemoteTransfer({client:this.desktop.client!,processId:s.view.processId,caseTitle:s.view.caseTitle,route:s.view.route,remote:s.remote,review:s.view.review,application,reply,confirmName:this.options.confirmName,guard:()=>this.guard(s),onWrite:()=>{wrote=true;},checkpoint:async message=>{s.view.results.push(message);await this.persist(s);}});s.view.phase='saved';s.view.existingFileNames=remoteFileNames(s.remote.files);s.view.results.push('可以核对接收人并执行内部转交。');}
+    try{s.remote=await saveRemoteTransfer({client:this.desktop.client!,processId:s.view.processId,caseTitle:s.view.caseTitle,route:s.view.route,remote:s.remote,review:s.view.review,application,reply,confirmName:this.options.confirmName,guard:()=>this.guard(s),onWrite:()=>{wrote=true;},checkpoint:async message=>{s.view.results.push(message);await this.persist(s);}});s.view.phase='saved';s.view.existingFileNames=remoteFileNames(s.remote.files);s.view.results.push('可以核对接收人并执行内部转交。');await this.rememberRecipient(s);}
     catch(e){if(!wrote)s.view.phase='draft';s.view.error=(e as Error).message;s.view.results.push('保存未能全部核验，尚未转交。');}
     await this.persist(s);return this.view(s);
   });}

@@ -5,7 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { Server } from './test-support/transfer-server.ts';
 import { DesktopService } from './service.ts';
-import { TransferHost } from './transfer-host.ts';
+import { TransferHost, pickTransferRecipient } from './transfer-host.ts';
 import type { AgentHost } from './agent-host.ts';
 import type { Case } from '../src/domain/workflow.ts';
 
@@ -180,4 +180,58 @@ test('workbench automatically fetches pending draft after empty preparation and 
  process.drafts.push({...process.drafts[0],id:'pending-v2',at:'2026-09-15T00:00:00Z',applicationParts:{} as any});
  view=await host.reprepare(service.key,view.id);assert.equal(view.sourceDraft?.id,'pending-v2');assert(!view.files.some(f=>f.role==='application'));assert.equal(view.review.confirmedDraftId,undefined);
  view=await host.save(service.key,view.id,{...view.review,confirmedDraftId:'pending-v2'});assert.equal(view.phase,'saved');assert(!client.calls.some(c=>c.endpoint.endsWith('SubmitHandFlow')));
+});
+
+
+test('transfer-host has no hardcoded 杨佳 recipient default',async()=>{
+  const src=await fs.readFile(path.resolve('desktop/transfer-host.ts'),'utf8');
+  assert.equal(src.includes('杨佳'),false);
+  assert.match(src,/pickTransferRecipient/);
+});
+
+test('pickTransferRecipient uses last preference, sole candidate, otherwise requires explicit choice',()=>{
+  const a={step:{id:'s1',name:'递交'},user:{id:'u1',name:'甲'}};
+  const b={step:{id:'s1',name:'递交'},user:{id:'u2',name:'乙'}};
+  const c={step:{id:'s2',name:'核稿'},user:{id:'u2',name:'乙'}};
+  assert.equal(pickTransferRecipient([]),undefined);
+  assert.equal(pickTransferRecipient([a]),a);
+  assert.equal(pickTransferRecipient([a,b]),undefined);
+  assert.equal(pickTransferRecipient([a,b],{userId:'u2'}),b);
+  assert.equal(pickTransferRecipient([a,b],{userId:'missing'}),undefined);
+  assert.equal(pickTransferRecipient([a,b,c],{userId:'u2',stepId:'s2'}),c);
+  assert.equal(pickTransferRecipient([a,b,c],{userId:'u2',stepId:'gone'}),b);
+});
+
+test('prepare leaves recipient empty when multiple candidates and no preference',async t=>{
+  const {service,client,host,c}=await setup(t);
+  client.nextUsers=[{value:'u-a',label:'甲'},{value:'u-b',label:'乙'}];
+  const v=await host.prepare(service.key,c.id);
+  assert.equal(v.review.stepId,'');
+  assert.equal(v.review.userId,'');
+  assert.equal(service.workspace.settings.lastTransferRecipient,undefined);
+});
+
+test('prepare selects sole candidate without relying on a fixed name',async t=>{
+  const {service,client,host,c}=await setup(t);
+  client.nextUsers=[{value:'only-user',label:'唯一办理人'}];
+  const v=await host.prepare(service.key,c.id);
+  assert.equal(v.review.stepId,'step-1');
+  assert.equal(v.review.userId,'only-user');
+});
+
+test('successful save remembers recipient for the next preparation',async t=>{
+  const {service,client,host,agent,c,source}=await setup(t);
+  client.nextUsers=[{value:'u-a',label:'甲'},{value:'u-b',label:'乙'}];
+  let v=await host.prepare(service.key,c.id);
+  assert.equal(v.review.userId,'');
+  v=await host.addFile(service.key,v.id,'reply',source);
+  v=await host.save(service.key,v.id,{...v.review,stepId:'step-1',userId:'u-b'});
+  assert.equal(v.phase,'saved');
+  assert.deepEqual(service.workspace.settings.lastTransferRecipient,{userId:'u-b',userName:'乙',stepId:'step-1'});
+  // New process so prior journal for proc-1 does not restore the old view.
+  c.current!.processId='proc-2';c.remote!.processes[0].id='proc-2';
+  const next=new TransferHost(service,agent);
+  const fresh=await next.prepare(service.key,c.id);
+  assert.equal(fresh.review.stepId,'step-1');
+  assert.equal(fresh.review.userId,'u-b');
 });
