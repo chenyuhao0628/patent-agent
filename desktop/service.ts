@@ -5,7 +5,7 @@ import { BaselandAuthError } from './baseland.ts';
 import { readSharedCases } from './shared.ts';
 import * as fs from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
-import { applyRemoteClosure, applySubmissionToCurrent, assignCurrentProcess, BaselandClient, isInternallyActiveProcess, mergePersonalRows, officialDate, profileKey, shouldQueryOfficial, SUBMISSION_REFRESH_ERROR } from './baseland.ts';
+import { applyRemoteClosure, applySubmissionToCurrent, assignCurrentProcess, BaselandClient, isInternallyActiveProcess, mergePersonalRows, officialDate, profileKey, rowStamp, shouldQueryOfficial, SUBMISSION_REFRESH_ERROR } from './baseland.ts';
 import { applyCaseDeadline, mergeRemoteProcess } from '../src/domain/deadlines.ts';
 import { atomicJSON, CaseFiles, digest, managedPath, readJSON, safeName, validateRoots } from './files.ts';
 import { normalizeWorkspace, currentWork, editableCurrent } from '../src/domain/lifecycle.ts';
@@ -399,7 +399,7 @@ export class DesktopService {
         if(c.remote)for(const p of c.remote.processes){
           check();
           const round=c.rounds.find(r=>r.id==='proc-'+p.id);
-          const cacheKey=this.officialCacheKey(c,p.id);
+          const cacheKey=this.fileListCacheKey(c,p,rowByProc.get(p.id));
           const materials=round?.materials??c.materials??[];
           if(!forceDetails&&c.current?.processId!==p.id&&materials.every(m=>m.ready)&&this.fileListCache.get(cacheKey)){diagnostic('sync','files_cache_hit',{processId:p.id});continue;}
           this.fileListCache.delete(cacheKey);
@@ -467,6 +467,8 @@ export class DesktopService {
     return this.state();
   }
   private officialCacheKey(c:Case,processId:string){return `${c.remote?.caseId??c.id}\0${processId}`;}
+  /** Non-current file-list cache: bind identity + status/stamp so旁路通知 is not stuck behind the 30m TTL. */
+  private fileListCacheKey(c:Case,p:RemoteProcess,row?:Record<string,unknown>){return `${c.remote?.caseId??c.id}\0${p.id}\0${p.status}\0${rowStamp(row)}`;}
   async refreshProcessOfficial(c:Case,p:RemoteProcess,client:BaselandClient,signal:AbortSignal,generation:number,force:boolean) {
     const key=this.officialCacheKey(c,p.id);
     const cached=this.submissionCache.get(key);

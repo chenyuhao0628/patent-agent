@@ -157,6 +157,33 @@ test('manual full sync fetches historical additions; ordinary incremental uses f
   calls.length=0;await reopened.sync({source:'manual',full:false});assert.ok(calls.includes('files:old'));
 });
 
+test('non-current fileListCache misses after status/stamp change so旁路通知 is visible',async t=>{
+  const {s,c,calls,extra,changeSignals,rows}=await fixture(t);extra();
+  // Warm cache on ready non-current flow (old).
+  changeSignals();
+  await s.sync({source:'manual',full:false});
+  assert.deepEqual(calls.filter(x=>x.startsWith('files:')),['files:new']);
+  // Unchanged status/stamp: cache hit, no historical refetch.
+  changeSignals();calls.length=0;
+  await s.sync({source:'manual',full:false});
+  assert.ok(!calls.includes('files:old'));
+  // Status change on non-current flow invalidates keyed cache →旁路 late notice appears.
+  rows[0]._status=400;
+  changeSignals();calls.length=0;
+  await s.sync({source:'manual',full:false});
+  assert.ok(calls.includes('files:old'));
+  assert.ok(s.findCase(c.id).rounds.find(r=>r.id==='proc-old')?.materials.some(m=>m.id==='file-late'));
+  // Stamp-only change also misses without thrashing every unchanged sync.
+  rows[0]._status=400;
+  Object.assign(rows[0],{CaseProcFinishDate:'2026-09-15'});
+  changeSignals();calls.length=0;
+  await s.sync({source:'manual',full:false});
+  assert.ok(calls.includes('files:old'));
+  changeSignals();calls.length=0;
+  await s.sync({source:'manual',full:false});
+  assert.ok(!calls.includes('files:old'),'unchanged status/stamp must keep cache hit');
+});
+
 test('automatic triggers share work; a manual request during incremental queues exactly one full pass',async t=>{
   const {s,client,calls,changeSignals}=await fixture(t);changeSignals();
   const g=gate(),personal=client.personalCasesSnapshot;

@@ -107,7 +107,7 @@ export function shouldQueryOfficial(p:RemoteProcess,row?:Obj) {
   if(p.status===500&&mainProcessKind(p.name))return true;
   return false;
 }
-function rowStamp(r?:Obj) {
+export function rowStamp(r?:Obj) {
   if(!r)return '';
   return clean(r.CaseProcFinishDate||r.FinishDate||r.ProcCreateDate||r.CaseProcCreateDate||r.CreateDate);
 }
