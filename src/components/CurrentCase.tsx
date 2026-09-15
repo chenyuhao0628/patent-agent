@@ -1,6 +1,7 @@
 import { PriorArtPanel } from './PriorArt.tsx';
 import { ProfessionalArtifacts } from './ProfessionalWork.tsx';
 import { useEffect, useRef, useState } from 'react';
+import { createDraftAutosave } from './draft-autosave.ts';
 import { FileText, FolderOpen, RefreshCw } from 'lucide-react';
 import type { Case, RemoteProcess } from '../domain/workflow.ts';
 import { currentWork, editableCurrent, historyRecords, officialStatusLabel, processSubmission } from '../domain/lifecycle.ts';
@@ -102,20 +103,62 @@ export function CurrentCase({item,update,materialsOnly=false,discussionOnly=fals
   useEffect(()=>{if(!dirty)setDraft(item.localDraft??'');},[item.localDraft,dirty]);
   const [showDraft,setShowDraft]=useState(false);
   const editSequence=useRef(0);
+  const draftRef=useRef(draft);
+  draftRef.current=draft;
+  const updateRef=useRef(update);
+  updateRef.current=update;
+  const autosaveRef=useRef<ReturnType<typeof createDraftAutosave>|null>(null);
+  const mountedRef=useRef(true);
   const materials=[...(item.materials??[]),...item.rounds.flatMap(r=>r.materials)],editable=editableCurrent(item);
   const kind=currentWork(item).kind;
   const formal=editable && (kind==='reply' || kind==='correction');
   const processKey=agentProcessKey(item);
   const action=async(fn:()=>Promise<unknown>)=>{setError('');try{await fn();}catch(e){setError((e as Error).message);}};
-  async function save(version:boolean){const versions=version?[...(item.localVersions??[]),{id:crypto.randomUUID(),text:draft,at:new Date().toISOString(),processId:item.current?.processId}]:item.localVersions;await action(async()=>{await update({localDraft:draft,localVersions:versions});setDirty(false);setMessage(version?'新版本已保存到本案目录。':'工作稿已保存。');});}
-  async function edit(text:string){const seq=++editSequence.current;setDraft(text);setDirty(true);setMessage('');await action(async()=>{await update({localDraft:text});if(seq===editSequence.current){setDirty(false);setMessage('工作稿已自动保存。');}});}
+  useEffect(()=>{
+    mountedRef.current=true;
+    const ctrl=createDraftAutosave({
+      save:async(text)=>{
+        const seq=editSequence.current;
+        setError('');
+        try{
+          await updateRef.current({localDraft:text});
+          if(mountedRef.current&&seq===editSequence.current&&!autosaveRef.current?.hasPending()&&draftRef.current===text){
+            setDirty(false);
+            setMessage('工作稿已自动保存。');
+          }
+        }catch(e){
+          if(mountedRef.current)setError((e as Error).message);
+        }
+      },
+    });
+    autosaveRef.current=ctrl;
+    return()=>{
+      mountedRef.current=false;
+      void ctrl.flush();
+      if(autosaveRef.current===ctrl)autosaveRef.current=null;
+    };
+  },[item.id]);
+  async function save(version:boolean){
+    autosaveRef.current?.cancel();
+    editSequence.current++;
+    const versions=version?[...(item.localVersions??[]),{id:crypto.randomUUID(),text:draft,at:new Date().toISOString(),processId:item.current?.processId}]:item.localVersions;
+    await action(async()=>{await update({localDraft:draft,localVersions:versions});setDirty(false);setMessage(version?'新版本已保存到本案目录。':'工作稿已保存。');});
+  }
+  function edit(text:string){
+    editSequence.current++;
+    setDraft(text);
+    setDirty(true);
+    setMessage('');
+    autosaveRef.current?.onChange(text);
+  }
+  function flushAutosave(){void autosaveRef.current?.flush();}
   const handling=currentHandling(item);
   if(conversationOnly && profileKey) return <AgentWorkbench key={`${profileKey}-${item.id}-${processKey}`} profileKey={profileKey} item={item} formal={formal}/>;
   if(discussionOnly && profileKey) return <section className="business-workspace"><AgentWorkbench key={`${profileKey}-${item.id}-${processKey}`} profileKey={profileKey} item={item} formal={false}/></section>;
   if(outputsOnly && profileKey) return <section className="business-workspace"><div className="section-heading"><div><h2>本案成果</h2><p className="section-copy">生成文件可预览正文，或打开案件目录查看。答复 Word 使用确认模板，修改文本与内部说明分别归档。</p></div><button onClick={()=>void action(()=>desktop!.openCaseDirectory(item.id))}><FolderOpen size={16}/>打开案件目录</button></div><CaseArtifacts profileKey={profileKey} caseId={item.id} processKey={processKey}/><ProfessionalArtifacts profileKey={profileKey} item={item}/></section>;
   return <section className="business-workspace"><div className="section-heading"><div><h2>{materialsOnly?'案件材料':'当前办理'}</h2><p className="section-copy">{handling.node} · {handling.status}</p></div><button onClick={()=>void action(()=>desktop!.openCaseDirectory(item.id))}><FolderOpen size={16}/>打开案件目录</button></div>{error&&<p role="alert" className="inline-warning">{error}</p>}
     {!materialsOnly&&profileKey&&<AgentWorkbench key={`${profileKey}-${item.id}-${processKey}`} profileKey={profileKey} item={item} formal={formal}/>}
-    {!materialsOnly&&<><div className="manual-draft-heading"><div><h3>手工工作稿</h3><p>用于直接编辑正文、自动保存与保留版本；运行中也不会中断或覆盖这段人工稿。</p></div><button onClick={()=>setShowDraft(!showDraft)}>{showDraft?'收起手工稿':item.localDraft?.trim()?'打开已保存的手工稿':'打开手工编辑器'}</button></div>{showDraft&&<><label className="field">手工稿正文<textarea className="native-draft" value={draft} onChange={e=>void edit(e.target.value)} readOnly={!editable} placeholder="在这里直接编辑正文，保存到本案工作目录…"/></label><div className="action-bar"><span className="muted">{dirty?'正在保存…':message||'稿件保存在本案工作目录'}</span><div className="button-row"><button disabled={!editable||!dirty} onClick={()=>void save(false)}>保存工作稿</button><button className="primary" disabled={!editable||!draft.trim()||dirty} onClick={()=>void save(true)}>保存新版本</button></div></div></>}{!editable&&<Note>当前阶段仅可查看稿件；从贝思兰德更新当前办理状态后，再继续对应业务。</Note>}</>}
+    {!materialsOnly&&<><div className="manual-draft-heading"><div><h3>手工工作稿</h3><p>用于直接编辑正文、自动保存与保留版本；运行中也不会中断或覆盖这段人工稿。</p></div><button onClick={()=>setShowDraft(!showDraft)}>{showDraft?'收起手工稿':item.localDraft?.trim()?'打开已保存的手工稿':'打开手工编辑器'}</button></div>{showDraft&&<><label className="field">手工稿正文<textarea className="native-draft" value={draft} onChange={e=>edit(e.target.value)} onBlur={flushAutosave} readOnly={!editable} placeholder="在这里直接编辑正文，保存到本案工作目录…"/></label><div className="action-bar"><span className="muted">{dirty?'正在保存…':message||'稿件保存在本案工作目录'}</span><div className="button-row"><button disabled={!editable||!dirty} onClick={()=>void save(false)}>保存工作稿</button><button className="primary" disabled={!editable||!draft.trim()||dirty} onClick={()=>void save(true)}>保存新版本</button></div></div></>}{!editable&&<Note>当前阶段仅可查看稿件；从贝思兰德更新当前办理状态后，再继续对应业务。</Note>}</>}
     {materialsOnly&&profileKey&&<PriorArtPanel item={item} profileKey={profileKey} onUpdated={()=>{}}/>}
     <div className="section-heading"><h3>本案材料 · {materials.length}</h3><button onClick={()=>void action(async()=>setCandidates(await desktop!.findOriginals(item.id)))}>匹配原始申请文件</button></div><div className="artifact-catalog">{materials.map(m=><button key={m.id} disabled={!m.ready||!m.relativePath} onClick={()=>void action(()=>desktop!.openMaterial(item.id,m.relativePath!))}><FileText/><span><b>{m.name}</b><small>{m.role} · {m.ready?'已保存到本案':'待下载重试'}</small></span></button>)}</div>{!materials.length&&<Note>暂无材料。同步通知书或从原始申请文件库复制匹配文件后显示。</Note>}
     {candidates&&<Modal title="原始申请文件匹配" onClose={()=>setCandidates(null)}>{candidates.length?<div className="artifact-catalog">{candidates.map(c=><button key={c.id} onClick={()=>void action(async()=>{await desktop!.copyOriginal(item.id,c.id);setCandidates(null);})}><FileText/><span><b>{c.name}</b><small>复制到本案，保留文件库原件</small></span></button>)}</div>:<Note>未找到唯一案号或准确名称匹配。请检查设置中的原始申请文件库与文件命名。</Note>}</Modal>}
