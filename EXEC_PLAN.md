@@ -6,7 +6,7 @@
 
 - 当前版本：`0.11.0`
 - 产品：Electron + React + TypeScript + Vite
-- 当前工作区存在用户授权的未提交修改；不回退、不覆盖。
+- 0.9.7–0.11.0 的实现与文档已提交（`a80ad9e`、`14ef6c7`）；未推送远端。
 - 本轮目标：维护需求基线，接入 0001 最新只读接口，降低贝思兰德自动同步明细调用，保持账号隔离和案件资料安全。
 
 ## 2. 已完成
@@ -33,16 +33,20 @@
 - 0.10.0：设置中增加历史系统生成工作目录和文件名一键整理。
 - 修复 Electron CJS `import.meta` 构建警告。
 - 通过 Vite 分块消除单 renderer chunk 超过 500 kB 的提示。
+- 0.11.0：个人案件五个页签改为并发抓取，跨页签去重与数量核对仍在全部返回后统一进行；已出回执的终态流程使用六十分钟缓存且不接受强制刷新击穿。
 - 0.11.0 macOS arm64 和 Windows x64 产物已生成并写入发布清单。
+- 2026-09-15 复核发现首次生成的 0.11.0 产物早于上述最后两处主进程改动（包内 `desktop-dist/main.cjs` 与源码构建相差 64 行），已重新打包；当前包内 `main.cjs` 与源码构建逐字节一致。
 
 ## 3. 当前验证证据
 
-- 全量自动化测试：`425/425` 通过。
-- 聚合接口与同步门控定向测试：`28/28` 通过。
+- 全量自动化测试：`428/428` 通过（`npm test`）。
+- 同步、聚合接口与并发定向测试：`42/42` 通过（`desktop/sync.test.ts` 18、`desktop/baseland-hardening.test.ts` 17、`desktop/concurrency.test.ts` 7）。
 - `npx tsc --noEmit`：通过。
-- `npm run build`：通过。
+- `npm run build`：通过，无 CJS `import.meta` 警告，最大 renderer chunk 310.98 kB。
 - `git diff --check`：通过。
-- 双端安装清单：`release/release-manifest.json`，三个产物版本均为 `0.11.0`。
+- 双端安装清单：`release/release-manifest.json`（`builtAt` 2026-09-15T04:57:26Z），三个产物版本均为 `0.11.0`；`pkg` / `exe` 的 SHA-256 与 `.app` 树哈希均已重算复核一致。
+- 包内容复核：`app.asar` 内 `desktop-dist/main.cjs` 与源码构建结果逐字节一致；渲染资源、`preload.cjs`、`document-visual-worker.cjs`、`pdf.worker.mjs`、`pdfium.wasm` 同样一致。
+- 资源溯源：`resources/reply-rules` 五份规则、`reply.docx`、`application.docx` 的 SHA-256 与各自清单记录逐字节一致。
 
 ## 4. 下一步
 

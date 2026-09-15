@@ -31,15 +31,16 @@
 
 ## 3. 当前验证
 
-- 全量自动化测试：`425/425` 通过。
-- 聚合接口与同步门控定向测试：`28/28` 通过。
+- 全量自动化测试：`428/428` 通过（`npm test`）。
+- 同步、聚合接口与并发定向测试：`42/42` 通过（`desktop/sync.test.ts` 18、`desktop/baseland-hardening.test.ts` 17、`desktop/concurrency.test.ts` 7）。
 - `npx tsc --noEmit`：通过。
 - `npm run build`：通过，已消除 CJS `import.meta` 警告和单 chunk 超过 500 kB 提示。
-- 本轮双端打包结果以 `release/release-manifest.json` 为准。
+- 本轮双端打包结果以 `release/release-manifest.json` 为准（`builtAt` 2026-09-15T04:57:26Z）；三个产物的 SHA-256 与 `.app` 树哈希已重算核对一致，包内 `desktop-dist/main.cjs` 与源码构建逐字节一致。
 
 ## 4. 未完成边界
 
-- Windows 实机运行和安装验收未完成。
+- Windows 实机运行和安装验收未完成；`work/uu-windows/` 只有合成文件的跨平台传输验证，不是安装或运行验收。
+- macOS 安装与重复覆盖的最新实证为 `evidence/workbench-v030-acceptance.json`（0.3.0，2026-09-13）；0.9.x–0.11.0 尚无安装验收记录。
 - 贝思兰德真实写操作、官方递交和真实案件业务质量未验收。
 - macOS 包未签名、公证；没有在线自动更新。
 - 聚合门控尚未在授权只读真实环境测量请求数、耗时和漏检率；本轮不调用真实账号。
