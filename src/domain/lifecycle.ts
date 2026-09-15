@@ -1,17 +1,19 @@
 import type { Case, RemoteProcess, Submission, Workspace } from './workflow.ts';
 import { applyCaseDeadline, mergeRemoteProcess } from './deadlines.ts';
 import { outcomeStatement } from './outcome.ts';
+import {
+  stageVerdict, stageCurrentFields, INTERNAL_ENDED_WAIT_LABEL, OFFICIAL_PARTY,
+  UNVERIFIED_INTERNAL_LABEL, UNVERIFIED_OFFICIAL_LABEL, WAITING_OFFICIAL_LABEL,
+} from './stage-verdict.ts';
+export {
+  WAITING_OFFICIAL_LABEL, UNVERIFIED_OFFICIAL_LABEL, UNVERIFIED_INTERNAL_LABEL,
+  INTERNAL_ENDED_WAIT_LABEL, OFFICIAL_PARTY,
+} from './stage-verdict.ts';
 
 export type WorkKind = 'write' | 'reply' | 'correction' | 'review' | 'waiting' | 'external' | 'needs-confirmation';
 export type CurrentWork = { kind: WorkKind; roundId?: string; processId?: string; label?: string; remoteStatus?: number; node?: string; party?: string; handler?: string };
 export type HistoryRecord = { id: string; title: string; detail: string; text: string };
 export const workNames: Record<WorkKind,string> = {write:'专利撰写',reply:'审查意见答复',correction:'补正',review:'独立审查',waiting:'等待后续通知',external:'系统流程', 'needs-confirmation':'当前阶段待核对'};
-export const WAITING_OFFICIAL_LABEL = '等待官方处理结果';
-export const UNVERIFIED_OFFICIAL_LABEL = '内部流程已结束，官方递交待核验';
-export const UNVERIFIED_INTERNAL_LABEL = '内部流程已结束，待核验';
-export const INTERNAL_ENDED_WAIT_LABEL = '内部流程已结束，等待后续流程';
-export const OFFICIAL_PARTY = '官方';
-
 export function processBusinessKind(name:string):'write'|'reply'|'correction'|undefined {
   if(/^取消提出申请(?:$|[（(\s])/.test(name.trim()))return undefined;
   if(/补正/.test(name))return 'correction';
@@ -55,9 +57,6 @@ function officialWaitingFields(processId:string,status:number,label?:string):Cur
   return {kind:'waiting',processId,label:label??WAITING_OFFICIAL_LABEL,remoteStatus:status,node:WAITING_OFFICIAL_LABEL,party:OFFICIAL_PARTY,handler:OFFICIAL_PARTY};
 }
 
-function unverifiedInternalEnd(processId:string,status:number,label?:string):CurrentWork {
-  return {kind:'needs-confirmation',processId,label:label??UNVERIFIED_OFFICIAL_LABEL,remoteStatus:status,node:'待核验',party:'内部'};
-}
 
 // Legacy prototype data is retained; conflicting parallel work is never silently selected.
 export function currentWork(c: Case): CurrentWork {
@@ -128,8 +127,9 @@ export function caseStatus(c:Case) {
   if(sub?.state==='draft'&&(w.remoteStatus===300||w.remoteStatus===400))return officialStatusLabel(sub);
   if(w.remoteStatus===500 && !isConfirmedOfficialSubmission(sub)){
     const name=w.label&&w.label!==WAITING_OFFICIAL_LABEL&&w.label!==UNVERIFIED_OFFICIAL_LABEL&&w.label!==UNVERIFIED_INTERNAL_LABEL&&w.label!==INTERNAL_ENDED_WAIT_LABEL?w.label:undefined;
-    if(process?.needSendOfficial===true)return name?`${name} · 官方递交待核验`:UNVERIFIED_OFFICIAL_LABEL;
-    if(process?.needSendOfficial===false)return name?`${name} · ${INTERNAL_ENDED_WAIT_LABEL}`:INTERNAL_ENDED_WAIT_LABEL;
+    const kind=stageVerdict({status:500,submission:sub,needSendOfficial:process?.needSendOfficial});
+    if(kind==='unverified-official')return name?`${name} · 官方递交待核验`:UNVERIFIED_OFFICIAL_LABEL;
+    if(kind==='internal-ended-wait')return name?`${name} · ${INTERNAL_ENDED_WAIT_LABEL}`:INTERNAL_ENDED_WAIT_LABEL;
     return name?`${name} · 待核验`:UNVERIFIED_INTERNAL_LABEL;
   }
   const flowName=process?.currentFlow?.name;
@@ -142,22 +142,22 @@ export function caseStatus(c:Case) {
 }
 function applyProcessStage(next:Case,current:CurrentWork,process:RemoteProcess|undefined):void {
   const hasOtherActive=(next.remote?.processes??[]).some(x=>isInternallyActiveProcess(x)&&x.id!==process?.id);
-  if(process&&isConfirmedOfficialSubmission(process.submission)&&!hasOtherActive){
-    next.current={...current,...officialWaitingFields(process.id,process.status,WAITING_OFFICIAL_LABEL)};
-    next.rounds=withoutJobs(next.rounds);
-  }else if(process&&process.status===500&&!isConfirmedOfficialSubmission(process.submission)&&!hasOtherActive){
-    if(process.needSendOfficial===false){
-      next.current={...current,kind:'waiting',processId:process.id,label:process.name||current.label,remoteStatus:process.status,node:INTERNAL_ENDED_WAIT_LABEL,party:'内部'};
-    }else{
-      const label=process.needSendOfficial===true?UNVERIFIED_OFFICIAL_LABEL:(process.name||current.label);
-      next.current={...current,...unverifiedInternalEnd(process.id,process.status,label)};
-    }
+  const kind=process?stageVerdict({status:process.status,submission:effectiveSubmission(process),needSendOfficial:process.needSendOfficial}):'none';
+  const stamped=process&&!hasOtherActive?stageCurrentFields(kind,process,current.label):undefined;
+  if(stamped){
+    next.current={...current,...stamped};
     next.rounds=withoutJobs(next.rounds);
   }else{
     next.current=current;
     const roundId=next.current.roundId;
     next.rounds=next.rounds.map(r=>r.id===roundId?r:{...r,job:null});
   }
+}
+
+/** Stamp Case.current from the shared stage verdict (used by sync/normalize). */
+export function stampCurrentFromStageVerdict(current:CurrentWork,process:RemoteProcess,kind=stageVerdict({status:process.status,submission:effectiveSubmission(process),needSendOfficial:process.needSendOfficial})):CurrentWork|undefined {
+  const fields=stageCurrentFields(kind,process,current.label);
+  return fields?{...current,...fields}:undefined;
 }
 
 export function normalizeCase(c:Case):Case {

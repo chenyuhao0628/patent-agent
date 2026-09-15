@@ -5,7 +5,8 @@ import type { Account, FlowNode } from '../src/desktop.ts';
 import type { Case, RemoteProcess, Submission, SubmissionState } from '../src/domain/workflow.ts';
 import { makeRound } from '../src/domain/workflow.ts';
 import { applyCaseDeadline, calendarDate, mergeRemoteProcess } from '../src/domain/deadlines.ts';
-import { applyOfficialWaiting, archiveDraftIfProcessChanged, effectiveSubmission, INTERNAL_ENDED_WAIT_LABEL, isAuxiliaryProcess, isConfirmedOfficialSubmission, isInternallyActiveProcess, processBusinessKind, UNVERIFIED_OFFICIAL_LABEL } from '../src/domain/lifecycle.ts';
+import { applyOfficialWaiting, archiveDraftIfProcessChanged, effectiveSubmission, isAuxiliaryProcess, isInternallyActiveProcess, processBusinessKind, stampCurrentFromStageVerdict } from '../src/domain/lifecycle.ts';
+import { stageVerdict } from '../src/domain/stage-verdict.ts';
 import { stampCurrentHandling } from '../src/domain/handling.ts';
 import { digest } from './files.ts';
 export { isAuxiliaryProcess, isInternallyActiveProcess };
@@ -515,27 +516,17 @@ export function assignCurrentProcess(c:Case,p:RemoteProcess|undefined,at:string)
 export function applySubmissionToCurrent(c:Case,p:RemoteProcess) {
   p.submission=effectiveSubmission(p);
   if(!c.current?.processId||c.current.processId!==p.id)return;
-  if(isConfirmedOfficialSubmission(p.submission)){
+  const kind=stageVerdict({status:p.status,submission:p.submission,needSendOfficial:p.needSendOfficial});
+  if(kind==='waiting-official'){
     applyOfficialWaiting(c,p.id);
     stampCurrentHandling(c);
     return;
   }
-  if(p.status===500){
+  if(kind!=='none'){
     const hasActiveMain=c.remote?.processes.some(x=>isInternallyActiveProcess(x)&&x.id!==p.id);
     if(!hasActiveMain){
-      if(p.needSendOfficial===false){
-        c.current={...c.current,kind:'waiting',processId:p.id,label:p.name,remoteStatus:500,node:INTERNAL_ENDED_WAIT_LABEL,party:'内部'};
-      }else{
-        c.current={
-          ...c.current,
-          kind:'needs-confirmation',
-          processId:p.id,
-          label:p.needSendOfficial===true?UNVERIFIED_OFFICIAL_LABEL:p.name,
-          remoteStatus:500,
-          node:'待核验',
-          party:'内部',
-        };
-      }
+      const stamped=stampCurrentFromStageVerdict(c.current,p,kind);
+      if(stamped)c.current=stamped;
     }
   }
   applyCaseDeadline(c);

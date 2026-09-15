@@ -2,6 +2,7 @@ import { currentHandling } from './handling.ts';
 import type { Case, RemoteProcess } from './workflow.ts';
 import { hasOfficialOutcome, outcomeLabels, outcomeView } from './outcome.ts';
 import { internalTransferAvailable, activeRound, caseStatus, currentWork, processBusinessKind, workModule } from './lifecycle.ts';
+import { stageVerdict } from './stage-verdict.ts';
 import {
   currentRemoteProcess, deadlineView as caseDeadlineView, DEADLINE_HEADER, localDayOrdinal, MS_PER_DAY, parseCalendarDay,
 } from './deadlines.ts';
@@ -94,8 +95,7 @@ export function businessKind(c: Case): BusinessKind {
 export function isConfirmedWaitingOfficial(c: Case): boolean {
   // 已出官方结论（授权/驳回）的案件不再算"等待官方"：结果已经到案，等的是后续处理而不是结果。
   if (hasOfficialOutcome(c)) return false;
-  const state = processFields(c).submissionState;
-  return state === 'sent' || state === 'received';
+  return stageVerdict({ submission: currentRemoteProcess(c)?.submission }) === 'waiting-official';
 }
 
 export function waitingOfficialLabel(c: Case): string | null {

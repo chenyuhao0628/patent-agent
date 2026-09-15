@@ -1,8 +1,9 @@
 import type { Case, RemoteProcess, Submission } from './workflow.ts';
 import {
-  caseStatus, currentWork, effectiveSubmission, INTERNAL_ENDED_WAIT_LABEL, isConfirmedOfficialSubmission, officialStatusLabel, processSubmission, UNVERIFIED_INTERNAL_LABEL, UNVERIFIED_OFFICIAL_LABEL,
+  caseStatus, currentWork, effectiveSubmission, INTERNAL_ENDED_WAIT_LABEL, officialStatusLabel, processSubmission, UNVERIFIED_INTERNAL_LABEL, UNVERIFIED_OFFICIAL_LABEL,
   WAITING_OFFICIAL_LABEL, workNames,
 } from './lifecycle.ts';
+import { stageVerdict } from './stage-verdict.ts';
 import type { WorkKind } from './lifecycle.ts';
 import { hasOfficialOutcome, outcomeLabels, outcomeView } from './outcome.ts';
 
@@ -48,7 +49,7 @@ export function isInternalEndNode(name: string): boolean {
 }
 
 export function isOfficialWaitingSubmission(sub?: Submission): boolean {
-  return sub?.state === 'sent' || sub?.state === 'received';
+  return stageVerdict({ submission: sub }) === 'waiting-official';
 }
 
 function processNameOf(c: Case, process?: RemoteProcess): string {
@@ -127,8 +128,9 @@ export function currentHandling(c: Case, hint?: HandlingFlowHint): CurrentHandli
     };
   }
 
-  if (process && process.status === 500 && !isConfirmedOfficialSubmission(sub)) {
-    if (process.needSendOfficial === false) {
+  if (process) {
+    const kind = stageVerdict({ status: process.status, submission: sub, needSendOfficial: process.needSendOfficial });
+    if (kind === 'internal-ended-wait') {
       return {
         kind: 'waiting',
         processId: process.id,
@@ -142,18 +144,20 @@ export function currentHandling(c: Case, hint?: HandlingFlowHint): CurrentHandli
         showStepFraction: false,
       };
     }
-    return {
-      kind: work.kind === 'waiting' ? 'needs-confirmation' : work.kind,
-      processId: process.id,
-      processName: name,
-      node: '待核验',
-      party: '内部',
-      handlerKind: 'none',
-      officialWaiting: false,
-      unverified: true,
-      status,
-      showStepFraction: false,
-    };
+    if (kind === 'unverified-official' || kind === 'unverified-internal') {
+      return {
+        kind: work.kind === 'waiting' ? 'needs-confirmation' : work.kind,
+        processId: process.id,
+        processName: name,
+        node: '待核验',
+        party: '内部',
+        handlerKind: 'none',
+        officialWaiting: false,
+        unverified: true,
+        status,
+        showStepFraction: false,
+      };
+    }
   }
 
   if (live?.name) {

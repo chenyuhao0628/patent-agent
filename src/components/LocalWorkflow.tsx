@@ -1,20 +1,19 @@
 import { useEffect, useState } from 'react';
 import type { Case } from '../domain/workflow.ts';
 import type { LocalProgress } from '../domain/local-progress.ts';
-import { currentWork, editableCurrent, isConfirmedOfficialSubmission, processSubmission } from '../domain/lifecycle.ts';
+import { currentWork, editableCurrent, processSubmission } from '../domain/lifecycle.ts';
 import { desktop, agentProcessKey } from '../desktop.ts';
 import { currentHandling } from '../domain/handling.ts';
 import { WRITING_PHASES } from '../professional-api.ts';
 import { OUTCOME_ORDER, hasOfficialOutcome, outcomeApplies, outcomeDetail, outcomeLabel, outcomeView, matchesOutcome, outcomeLabels } from '../domain/outcome.ts';
 import type { OutcomeFilter } from '../domain/outcome.ts';
+import { localWorkflowPhase } from '../domain/stage-verdict.ts';
 import '../outcome.css';
 
 import { workflowBusiness, workflowNodes, workflowNodeStatus } from '../domain/workflow-nodes.ts';
-function phase(c: Case): 'pending' | 'working' | 'done' | 'unknown' {
-  if (isConfirmedOfficialSubmission(processSubmission(c))) return 'done';
+function phase(c: Case) {
   const w = currentWork(c), p = c.remote?.processes.find(p => p.id === w.processId);
-  if (p?.status === 500) return 'unknown';
-  return p?.status === 0 && !p.handId ? 'pending' : 'working';
+  return localWorkflowPhase({ submission: processSubmission(c), status: p?.status, handId: p?.handId, needSendOfficial: p?.needSendOfficial });
 }
 export function LocalWorkflow({ profileKey, cases, open }: { profileKey: string; cases: Case[]; open: (item: Case) => void }) {
   const [rows, setRows] = useState<LocalProgress[]>([]);
