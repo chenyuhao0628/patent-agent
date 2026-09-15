@@ -1031,3 +1031,101 @@ test('completion preflight returns missing reads and duplicate ids to agent with
  await input.onEvent({type:'completed',outputText:analysisJson()});finish();await host.waitIdle();
  assert.equal((await host.getCase('local',c.id)).process.stage,'strategy');
 });
+
+test('C#3: emitTerminal persist failure retries, keeps live, marks 状态未落盘', async t => {
+  let release!: () => void;
+  const ctl: RunnerCtl = { starts: 0, gate: new Promise<void>(resolve => { release = resolve; }) };
+  const { service, host } = await setup(t, ctl);
+  const c = await prepareCase(service, 'PERSIST3');
+  await readyAnalysis(host, c.id, ['n-PERSIST3', 'a-PERSIST3']);
+  let emitted: Awaited<ReturnType<AgentHost['getCase']>> | undefined;
+  host.onChanged(view => { if (view.caseId === c.id && view.persistAlert) emitted = view; });
+  await host.command('local', c.id, { type: 'run', action: 'analysis' });
+  assert.equal(host.hasRunningJobs(), true);
+
+  const hostAny = host as unknown as {
+    persistStore: (profileKey: string, store: unknown) => Promise<void>;
+    live: Map<string, { persistAlert?: string; settled: boolean; failed?: string }>;
+  };
+  const original = hostAny.persistStore.bind(host);
+  let terminalPersistAttempts = 0;
+  hostAny.persistStore = async (profileKey, store) => {
+    const processes = (store as { processes?: Array<{ scope: { caseId: string }; activeRunId: string | null; jobs: Array<{ state: string }> }> }).processes ?? [];
+    const process = processes.find(p => p.scope.caseId === c.id);
+    const terminal = !!process && process.activeRunId === null && process.jobs.some(j => j.state !== 'running');
+    if (terminal) {
+      terminalPersistAttempts += 1;
+      throw new Error('simulated disk full');
+    }
+    return original(profileKey, store);
+  };
+
+  const statePath = path.join(service.root, 'profiles/local/agent/state.json');
+  const before = JSON.parse(await fs.readFile(statePath, 'utf8')) as {
+    processes: Array<{ scope: { caseId: string }; activeRunId: string | null }>;
+  };
+  assert.ok(before.processes.some(p => p.scope.caseId === c.id && p.activeRunId));
+
+  ctl.gate = undefined;
+  release();
+  await host.waitIdle();
+
+  assert.equal(host.hasRunningJobs(), true, 'live must stay uncleared when terminal persist fails');
+  assert.ok(emitted, 'UI signal must be emitted with 状态未落盘');
+  assert.equal(emitted!.persistAlert, '状态未落盘');
+  assert.equal(emitted!.busy, true);
+  const job = emitted!.process.jobs[emitted!.process.jobs.length - 1];
+  assert.ok(job.error?.includes('状态未落盘'), job.error);
+  assert.equal(job.activity, '状态未落盘');
+  assert.equal(hostAny.live.get(c.id)?.persistAlert, '状态未落盘');
+  const after = JSON.parse(await fs.readFile(statePath, 'utf8')) as {
+    processes: Array<{ scope: { caseId: string }; activeRunId: string | null; jobs: Array<{ state: string }> }>;
+  };
+  const disk = after.processes.find(p => p.scope.caseId === c.id)!;
+  assert.ok(disk.activeRunId, 'disk must retain pre-terminal running snapshot');
+  assert.ok(terminalPersistAttempts >= 3, `expected retries, got ${terminalPersistAttempts}`);
+  await host.shutdown();
+});
+
+test('C#3: emitTerminal persist succeeds after retry and clears live without 状态未落盘', async t => {
+  let release!: () => void;
+  const ctl: RunnerCtl = { starts: 0, gate: new Promise<void>(resolve => { release = resolve; }) };
+  const { service, host } = await setup(t, ctl);
+  const c = await prepareCase(service, 'PERSIST3R');
+  await readyAnalysis(host, c.id, ['n-PERSIST3R', 'a-PERSIST3R']);
+  await host.command('local', c.id, { type: 'run', action: 'analysis' });
+
+  const hostAny = host as unknown as {
+    persistStore: (profileKey: string, store: unknown) => Promise<void>;
+  };
+  const original = hostAny.persistStore.bind(host);
+  let terminalFailsLeft = 2;
+  hostAny.persistStore = async (profileKey, store) => {
+    const processes = (store as { processes?: Array<{ scope: { caseId: string }; activeRunId: string | null; jobs: Array<{ state: string }> }> }).processes ?? [];
+    const process = processes.find(p => p.scope.caseId === c.id);
+    const terminal = process && process.activeRunId === null && process.jobs.some(j => j.state !== 'running');
+    if (terminal && terminalFailsLeft > 0) {
+      terminalFailsLeft -= 1;
+      throw new Error('transient persist error');
+    }
+    return original(profileKey, store);
+  };
+
+  ctl.gate = undefined;
+  release();
+  await host.waitIdle();
+
+  assert.equal(host.hasRunningJobs(), false);
+  assert.equal(terminalFailsLeft, 0, 'should have consumed both transient failures via retry');
+  const view = await host.getCase('local', c.id);
+  assert.equal(view.persistAlert, undefined);
+  assert.equal(view.process.stage, 'strategy');
+  assert.equal(view.busy, false);
+  const statePath = path.join(service.root, 'profiles/local/agent/state.json');
+  const saved = JSON.parse(await fs.readFile(statePath, 'utf8')) as {
+    processes: Array<{ scope: { caseId: string }; activeRunId: string | null; stage?: string }>;
+  };
+  const disk = saved.processes.find(p => p.scope.caseId === c.id)!;
+  assert.equal(disk.activeRunId, null);
+  await host.shutdown();
+});

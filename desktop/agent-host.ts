@@ -151,12 +151,17 @@ type LiveRun = {
   outputDir: string;
   outputText?: string;
   failed?: string;
+  /** Set when terminal-state persistence failed; kept until a later persist succeeds. */
+  persistAlert?: string;
   model: FrozenModel;
 };
 
 const STORE_SCHEMA = 1 as const;
 const ACCOUNT_SWITCHED = '账号已切换，本次旧页面操作未保存。';
 const STALE_SCOPE = '请求不属于当前案件或办理轮次。';
+/** Marker when terminal settle could not write agent/state.json — UI/recovery must see this. */
+const TERMINAL_PERSIST_UNSAVED = '状态未落盘';
+const TERMINAL_PERSIST_ATTEMPTS = 3;
 
 function emptyStore(): AgentStore {
   return { schema: STORE_SCHEMA, processes: [], lastObservedHash: {}, lastObservedText: {}, partialText: {} };
@@ -677,6 +682,7 @@ export class AgentHost implements AgentAPI {
       classificationSuggestion: state.classification.status === 'classified' ? undefined : await this.suggestClassification(profileKey, c, state),
       busy: liveMatches || !!state.activeRunId,
       partialText: store.partialText[key],
+      persistAlert: liveMatches && live?.persistAlert ? live.persistAlert : undefined,
       model: frozen ?? await this.publicModel(profileKey),
       artifacts: await this.artifactsOf(profileKey, c, state.scope.processKey),
     };
@@ -1188,8 +1194,39 @@ export class AgentHost implements AgentAPI {
     if (state) preserveInterruptedOutput(state, live.runId);
     delete store.partialText[storeKey(live.caseId, live.processKey)];
     if (state) this.putProcess(store, state);
-    try { await this.persistStore(live.profileKey, store); }
-    catch(error) {diagnostic('host','persist_failed',{runId:live.runId,...diagnosticError(error)});}
+    let persistError: unknown;
+    for (let attempt = 1; attempt <= TERMINAL_PERSIST_ATTEMPTS; attempt++) {
+      try {
+        if (this.corrupt.has(live.profileKey)) throw new Error('Agent 状态文件不可用。');
+        await this.persistStore(live.profileKey, store);
+        persistError = undefined;
+        break;
+      } catch (error) {
+        persistError = error;
+        diagnostic('host','persist_failed',{runId:live.runId,attempt,...diagnosticError(error)});
+      }
+    }
+    if (persistError) {
+      live.persistAlert = TERMINAL_PERSIST_UNSAVED;
+      live.failed = live.failed || `${TERMINAL_PERSIST_UNSAVED}：${errorMessage(persistError)}`;
+      if (job) {
+        job.activity = TERMINAL_PERSIST_UNSAVED;
+        if (!job.error?.includes(TERMINAL_PERSIST_UNSAVED)) {
+          job.error = job.error ? `${job.error}（${TERMINAL_PERSIST_UNSAVED}）` : TERMINAL_PERSIST_UNSAVED;
+        }
+        if (state) this.putProcess(store, state);
+      }
+      // Do not clear live: in-memory terminal state must stay visible for UI/recovery.
+      this.live.set(live.caseId, live);
+      const canEmitFailed = !!c && !!state && this.liveScopeStillValid(live, c);
+      if (canEmitFailed) {
+        try { this.emit(await this.toView(live.profileKey, c!, state!, store)); }
+        catch (error) { diagnostic('host','terminal_delivery_failed',{runId:live.runId,...diagnosticError(error)}); }
+      }
+      throw new Error(`${TERMINAL_PERSIST_UNSAVED}：${errorMessage(persistError)}`);
+    }
+    delete live.persistAlert;
+    this.live.delete(live.caseId);
     const canEmit = !!c && !!state && this.liveScopeStillValid(live, c);
     if (!canEmit) return;
     try { this.emit(await this.toView(live.profileKey, c!, state!, store)); }
@@ -1201,7 +1238,7 @@ export class AgentHost implements AgentAPI {
     if (live.settled) return;
     live.settled = true;
     live.ignoreEvents = true;
-    this.live.delete(live.caseId);
+    // live stays until emitTerminal persists successfully (or marks 状态未落盘).
     const store = await this.loadStore(live.profileKey);
     let c: Case | undefined;
     try { if (this.desktop.key === live.profileKey) c = this.desktop.findCase(live.caseId); }
@@ -1221,7 +1258,7 @@ export class AgentHost implements AgentAPI {
     if (live.settled) return;
     live.settled = true;
     live.ignoreEvents = true;
-    this.live.delete(live.caseId);
+    // live stays until emitTerminal persists successfully (or marks 状态未落盘).
     const store = await this.loadStore(live.profileKey);
     let c: Case | undefined;
     try { if (this.desktop.key === live.profileKey) c = this.desktop.findCase(live.caseId); }

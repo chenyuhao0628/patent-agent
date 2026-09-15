@@ -16,6 +16,8 @@ export type AgentCaseView = {
   process: AgentProcessState;
   busy: boolean;
   partialText?: string;
+  /** Terminal persist failed; UI/recovery should treat in-memory state as not on disk. */
+  persistAlert?: string;
   model?: { providerName: string; modelId: string; protocol: string; reasoningLevel: string };
   artifacts: Array<{ id: string; title: string; kind: string; relativePath: string; at: string; versionId?: string }>;
 };
