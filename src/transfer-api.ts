@@ -31,7 +31,7 @@ export type TransferAPI = {
   pickFile(profileKey: string, id: string, role: TransferFileRole): Promise<TransferView>;
   startHand(profileKey: string, id: string): Promise<TransferView>;
   save(profileKey: string, id: string, review: TransferReview): Promise<TransferView>;
-  submit(profileKey: string, id: string): Promise<TransferView>;
+  submit(profileKey: string, id: string, review?: TransferReview): Promise<TransferView>;
   refresh(profileKey: string, id: string): Promise<TransferView>;
   reprepare(profileKey:string,id:string):Promise<TransferView>;
 };

@@ -154,11 +154,11 @@ export class DesktopService {
   async verifyLogin(force=false):Promise<DesktopState>{
     if(this.verification)return this.verification;
     if(!this.client||!this.account)return this.state();
-    if(!force&&(this.auth.phase==='expired'||this.auth.phase==='forbidden'||(this.auth.nextRetryAt&&Date.now()<Date.parse(this.auth.nextRetryAt))))return this.state();
     if(this.auth.phase==='expired'&&this.savedCredentials){
       const ok=await this.reauthorize();
       if(ok)return this.state();
     }
+    if(!force&&(this.auth.phase==='expired'||this.auth.phase==='forbidden'||(this.auth.nextRetryAt&&Date.now()<Date.parse(this.auth.nextRetryAt))))return this.state();
     const client=this.client,account=this.account,generation=this.generation;
     const attempts=this.auth.attempts+1;
     this.auth={...this.auth,phase:'verifying',message:'正在验证登录…',attempts,nextRetryAt:undefined};this.changed();

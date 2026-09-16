@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { FIVE_PARTS } from '../src/transfer-api.ts';
-import type { TransferRoute, TransferReview, TransferForm } from '../src/transfer-api.ts';
+import type { TransferRoute, TransferReview, TransferForm, TransferView } from '../src/transfer-api.ts';
 import type { BaselandClient } from './baseland.ts';
 import { flag, combineOfficialSubmission, boolTri, sendStatusState } from './baseland.ts';
 import { assertWriteResult, businessCode } from './baseland-results.ts';
@@ -63,6 +63,101 @@ export function existingTransferParts(r:RemoteTransfer|null){
 export function defaultTransferForm(r:RemoteTransfer|null):TransferForm{
   const f=r?.form??{},notice=r?.notice??{},o=f.OpinionStatement??{},c=f.Correction??{};
   return {noticeDate:String(o.NoticeDate||c.NoticeDate||notice.PostDate||'').slice(0,10),noticeName:String(o.NoticeName||c.NoticeName||notice.NoticeName||''),noticeNo:String(o.NoticeNo||c.NoticeNo||notice.FaWenXLH||''),correctionReason:Number(c.CorrectionReasonType)===1?1:2,addEntrust:flag(c.IsAddEntrust),corrections:list(f.CorrectionContentList).map(x=>({...x,ChangeId:x.ChangeId||randomUUID()})) as TransferForm['corrections'],otherProof:flag(o.IsUseOtherProveFileHand),experimentData:flag(o.HasAddExperimentData),abstractFigure:String(f.SpecificationInfo?.AbstractDrawNumber||r?.hand?.HandInfo?.AbstractDrawNumber||'1'),declarations:Object.fromEntries(Object.keys(REQUEST_DECLARATIONS).map(k=>[k,flag(f.RequestInfo?.[k])]))};
+}
+export function isRemoteTransferSaved(r:RemoteTransfer|null,route:TransferRoute):boolean{
+  if(!r||!r.handId||!flag(r.hand?.IsReviewing))return false;
+  if(!Array.isArray(r.steps)||r.steps.length===0)return false;
+  const cards=r.cards||[];
+  if(route==='reply'){
+    const card=cards.find(c=>code(c.Code)==='100012');
+    if(!card||!flag(card.IsSelect))return false;
+    const hasWord=Boolean(r.form?.File?.FileNo||(r.form?.File?.FileName&&r.files.some(f=>/(意见陈述|陈述意见)/.test(String(f.FileName||f.FormName||''))))||r.files.some(f=>/(意见陈述|陈述意见)/.test(String(f.FileName||f.FormName||''))));
+    if(!hasWord)return false;
+    const op=r.form?.OpinionStatement;
+    if(!op)return false;
+    const noticeDate=String(op.NoticeDate||'').slice(0,10);
+    const noticeName=String(op.NoticeName||'').trim();
+    const noticeNo=String(op.NoticeNo||'').trim();
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(noticeDate)||!noticeName||!noticeNo)return false;
+    return true;
+  }
+  if(route==='application'){
+    const card=cards.find(c=>['110101','120101'].includes(code(c.Code)));
+    if(!card||!flag(card.IsSelect))return false;
+    if(!r.form?.RequestInfo)return false;
+    const parts=existingTransferParts(r);
+    if(parts.filter(p=>p.available).length!==5)return false;
+    const setting=r.instructions?.Setting??r.instructions?.InstructionsAndImageSetting??r.instructions??{};
+    if(!flag(setting.IsUseXmlFormatHand))return false;
+    const group=list(r.instructions?.FormGroup);
+    if(!group.some(g=>flag(g.IsMixFile)&&g.File?.FileNo))return false;
+    return true;
+  }
+  if(route==='correction'){
+    const card=cards.find(c=>code(c.Code)==='100006');
+    if(!card||!flag(card.IsSelect))return false;
+    const cor=r.form?.Correction;
+    const items=list(r.form?.CorrectionContentList);
+    if(!cor||items.length===0)return false;
+    if(Number(cor.CorrectionReasonType)===2){
+      const noticeDate=String(cor.NoticeDate||'').slice(0,10);
+      const noticeName=String(cor.NoticeName||'').trim();
+      const noticeNo=String(cor.NoticeNo||'').trim();
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(noticeDate)||!noticeName||!noticeNo)return false;
+    }
+    return true;
+  }
+  return false;
+}
+export function rehydrateRemoteSavedView(input:{
+  id?:string;
+  r:RemoteTransfer;
+  route:TransferRoute;
+  key:string;
+  caseId:string;
+  caseNumber:string;
+  caseTitle:string;
+  processId:string;
+  processName:string;
+  sourceMode?:'workbench'|'local';
+  selectedRecipient?:{stepId:string;userId:string};
+}):TransferView{
+  const parts=existingTransferParts(input.r);
+  const keepCodes=parts.filter(p=>p.available).map(p=>p.code);
+  const form=defaultTransferForm(input.r);
+  const id=input.id||randomUUID();
+  const files=[...(input.r.files||[])];
+  if(input.r.form?.File&&!files.some(f=>(f.FileNo&&f.FileNo===input.r.form?.File?.FileNo)||(f.FileName&&f.FileName===input.r.form?.File?.FileName)))files.push(input.r.form.File);
+  const fileNames=remoteFileNames(files);
+  return {
+    id,
+    sourceMode:input.sourceMode??'workbench',
+    profileKey:input.key,
+    caseId:input.caseId,
+    caseNumber:input.caseNumber,
+    caseTitle:input.caseTitle,
+    processId:input.processId,
+    processName:input.processName,
+    route:input.route,
+    canEditRemote:input.r.hand.IsReviewing===true,
+    handId:input.r.handId,
+    currentNode:input.r.hand.CurrentFlowInfo?.FlowNodeName,
+    currentUser:input.r.hand.CurrentFlowInfo?.FlowUserName,
+    files:[],
+    parts,
+    review:{
+      keepCodes,
+      form,
+      stepId:input.selectedRecipient?.stepId??'',
+      userId:input.selectedRecipient?.userId??'',
+      remark:'',
+    },
+    steps:input.r.steps,
+    phase:'saved',
+    results:['已从贝思兰德云端同步已保存的递交材料与表单，无需重复上传，可直接选择下一办理人并转交。'],
+    existingFileNames:fileNames,
+    at:new Date().toISOString(),
+  };
 }
 // The user edits only the four content fields. Ancillary form values belong to
 // the current Baseland instance and cannot be overridden by a renderer draft.

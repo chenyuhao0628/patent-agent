@@ -301,7 +301,7 @@ app.whenReady().then(async()=>{
   },true,true);
   handle('transferStartHand',(key,id)=>transferHost.startHand(key,id),true,true);
   handle('transferSave',(key,id,review)=>transferHost.save(key,id,review),true,true);
-  handle('transferSubmit',async(key,id)=>{const v=await transferHost.submit(key,id);if(v.phase==='submitted')professionalHost.noteSubmitted(key,v.caseId);else professionalHost.changed(key);return v;},true,true);
+  handle('transferSubmit',async(key,id,review)=>{const v=await transferHost.submit(key,id,review);if(v.phase==='submitted')professionalHost.noteSubmitted(key,v.caseId);else professionalHost.changed(key);return v;},true,true);
   handle('transferRefresh',async(key,id)=>{const v=await transferHost.refresh(key,id);if(v.phase==='submitted')professionalHost.noteSubmitted(key,v.caseId);else professionalHost.changed(key);return v;},true,true);
   handle('transferReprepare',(key,id)=>transferHost.reprepare(key,id),true,true);
   ipcMain.handle('desktop:model',async(event,method,profileKey,args,requestId)=>{

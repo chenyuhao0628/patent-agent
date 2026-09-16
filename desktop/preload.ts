@@ -55,7 +55,7 @@ contextBridge.exposeInMainWorld('patentDesktop',{
     pickFile:(key:string,id:string,role:string)=>call('transferPickFile',key,id,role),
     startHand:(key:string,id:string)=>call('transferStartHand',key,id),
     save:(key:string,id:string,review:unknown)=>call('transferSave',key,id,review),
-    submit:(key:string,id:string)=>call('transferSubmit',key,id),
+    submit:(key:string,id:string,review?:unknown)=>call('transferSubmit',key,id,review),
     refresh:(key:string,id:string)=>call('transferRefresh',key,id),
     reprepare:(key:string,id:string)=>call('transferReprepare',key,id),
   },

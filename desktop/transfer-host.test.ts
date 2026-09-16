@@ -6,6 +6,7 @@ import os from 'node:os';
 import { Server } from './test-support/transfer-server.ts';
 import { DesktopService } from './service.ts';
 import { TransferHost, pickTransferRecipient } from './transfer-host.ts';
+import { isRemoteTransferSaved } from './baseland-transfer.ts';
 import type { AgentHost } from './agent-host.ts';
 import type { Case } from '../src/domain/workflow.ts';
 
@@ -250,3 +251,197 @@ test('successful save remembers recipient for the next preparation',async t=>{
   assert.equal(fresh.review.stepId,'step-1');
   assert.equal(fresh.review.userId,'u-b');
 });
+
+test('isRemoteTransferSaved validates contracts across reply, application, and correction routes',()=>{
+  assert.equal(isRemoteTransferSaved(null,'reply'),false);
+  assert.equal(isRemoteTransferSaved({hand:{},handId:'',cards:[],formCode:'100012',form:null,instructions:null,files:[],notice:null,steps:[],fingerprint:''},'reply'),false);
+
+  // Valid reply
+  const validReply={
+    hand:{IsReviewing:true},
+    handId:'h-1',
+    cards:[{Code:100012,IsSelect:true}],
+    formCode:'100012',
+    form:{
+      File:{FileNo:'f-1',FileName:'意见陈述书.docx'},
+      OpinionStatement:{NoticeDate:'2026-09-10',NoticeName:'第一次审查意见通知书',NoticeNo:'NOTICE-1'},
+    },
+    instructions:null,
+    files:[{FileNo:'f-1',FileName:'意见陈述书.docx'}],
+    notice:null,
+    steps:[{id:'s1',name:'审核',users:[{id:'u1',name:'李明'}]}],
+    fingerprint:'fp-1',
+  };
+  assert.equal(isRemoteTransferSaved(validReply as any,'reply'),true);
+  // Missing notice date
+  assert.equal(isRemoteTransferSaved({...validReply,form:{...validReply.form,OpinionStatement:{...validReply.form.OpinionStatement,NoticeDate:''}}} as any,'reply'),false);
+  // Reply card not selected
+  assert.equal(isRemoteTransferSaved({...validReply,cards:[{Code:100012,IsSelect:false}]} as any,'reply'),false);
+  // Missing reply file
+  assert.equal(isRemoteTransferSaved({...validReply,form:{...validReply.form,File:undefined},files:[]} as any,'reply'),false);
+
+  // Valid application
+  const validApp={
+    hand:{IsReviewing:true},
+    handId:'h-2',
+    cards:[{Code:110101,IsSelect:true}],
+    formCode:'110101',
+    form:{RequestInfo:{IsApplySameDay:false}},
+    instructions:{
+      Setting:{IsUseXmlFormatHand:true},
+      FormGroup:[
+        {FormCode:100001,File:{FileNo:'p1'}},
+        {FormCode:100002,File:{FileNo:'p2'}},
+        {FormCode:100003,File:{FileNo:'p3'}},
+        {FormCode:100004,File:{FileNo:'p4'}},
+        {FormCode:100005,File:{FileNo:'p5'}},
+        {IsMixFile:true,File:{FileNo:'mix'}},
+      ],
+    },
+    files:[],
+    notice:null,
+    steps:[{id:'s1',name:'审核',users:[{id:'u1',name:'李明'}]}],
+    fingerprint:'fp-2',
+  };
+  assert.equal(isRemoteTransferSaved(validApp as any,'application'),true);
+  // Missing one part
+  const missingOne={...validApp,instructions:{...validApp.instructions,FormGroup:validApp.instructions.FormGroup.slice(1)}};
+  assert.equal(isRemoteTransferSaved(missingOne as any,'application'),false);
+
+  // Valid correction
+  const validCorr={
+    hand:{IsReviewing:true},
+    handId:'h-3',
+    cards:[{Code:100006,IsSelect:true}],
+    formCode:'100006',
+    form:{
+      Correction:{CorrectionReasonType:2,NoticeDate:'2026-09-10',NoticeName:'补正通知书',NoticeNo:'CORR-1'},
+      CorrectionContentList:[{ChangeId:'c1',Sort:0,FileName:'说明书',PositionInFile:'第1段',CorrectionBefore:'旧',CorrectionAfter:'新'}],
+    },
+    instructions:null,
+    files:[],
+    notice:null,
+    steps:[{id:'s1',name:'审核',users:[{id:'u1',name:'李明'}]}],
+    fingerprint:'fp-3',
+  };
+  assert.equal(isRemoteTransferSaved(validCorr as any,'correction'),true);
+  // Empty correction list
+  assert.equal(isRemoteTransferSaved({...validCorr,form:{...validCorr.form,CorrectionContentList:[]}} as any,'correction'),false);
+});
+
+test('cross-device rehydration: second machine without local files detects remote saved state, rehydrates, and submits directly',async t=>{
+  const {service,client,host,agent,c,source}=await setup(t);
+  let v=await host.prepare(service.key,c.id);
+  v=await host.addFile(service.key,v.id,'reply',source);
+  v=await host.save(service.key,v.id,v.review);
+  assert.equal(v.phase,'saved');
+
+  // Machine B: separate directory, no local transfer JSON
+  const rootB=await fs.mkdtemp(path.join(os.tmpdir(),'pwb-transfer-b-'));
+  t.after(()=>fs.rm(rootB,{recursive:true,force:true}));
+  const serviceB=new DesktopService(rootB,{available:()=>false,encrypt:()=>Buffer.alloc(0),decrypt:()=>''});
+  serviceB.key='profile-qa';
+  serviceB.account=structuredClone(service.account);
+  const workB=path.join(rootB,'work');
+  await fs.mkdir(workB);
+  serviceB.workspace.settings={provider:'',baseUrl:'',model:'',workRoot:workB};
+  const cB:Case={...c};
+  serviceB.workspace.cases=[cB];
+  cB.directory=await serviceB.files().ensureCase(cB);
+  serviceB.client=client;
+  const hostB=new TransferHost(serviceB,agent);
+
+  // 1. inspect on Machine B detects saved state on cloud
+  const inspectedB=await hostB.inspect(serviceB.key,cB.id);
+  assert.ok(inspectedB);
+  assert.equal(inspectedB.phase,'saved');
+  assert.equal(inspectedB.existingFileNames.length>0,true);
+  assert.equal(inspectedB.files.length,0,'不需要机A本地文件副本');
+  assert.equal(inspectedB.review.form.noticeNo,'NOTICE-QA');
+  assert.equal(inspectedB.review.stepId,'step-1');
+  assert.equal(inspectedB.review.userId,'user-1');
+
+  // 2. Machine B can directly submit to Baseland without local source files
+  const submittedB=await hostB.submit(serviceB.key,inspectedB.id,{...inspectedB.review,remark:'从第二台电脑转交'});
+  assert.equal(submittedB.phase,'submitted');
+  assert.equal(submittedB.currentNode,'下一内部流程');
+  assert.equal(submittedB.currentUser,'杨佳');
+  const submitCalls=client.calls.filter(call=>call.endpoint.endsWith('SubmitHandFlow'));
+  assert.equal(submitCalls.length,1);
+  assert.equal(submitCalls[0].body.Remark,'从第二台电脑转交');
+
+  // 3. Machine B now has local transfer JSON; reopened host loads it locally
+  const reopenedB=new TransferHost(serviceB,agent);
+  const checkedB=await reopenedB.inspect(serviceB.key,cB.id);
+  assert.equal(checkedB?.phase,'submitted');
+});
+
+test('cross-device prepare rehydrates remote saved state directly when no local journal exists',async t=>{
+  const {service,client,host,agent,c,source}=await setup(t);
+  let v=await host.prepare(service.key,c.id);
+  v=await host.addFile(service.key,v.id,'reply',source);
+  v=await host.save(service.key,v.id,v.review);
+  assert.equal(v.phase,'saved');
+
+  // Machine B
+  const rootB=await fs.mkdtemp(path.join(os.tmpdir(),'pwb-transfer-prep-b-'));
+  t.after(()=>fs.rm(rootB,{recursive:true,force:true}));
+  const serviceB=new DesktopService(rootB,{available:()=>false,encrypt:()=>Buffer.alloc(0),decrypt:()=>''});
+  serviceB.key='profile-qa';
+  serviceB.account=structuredClone(service.account);
+  const workB=path.join(rootB,'work');
+  await fs.mkdir(workB);
+  serviceB.workspace.settings={provider:'',baseUrl:'',model:'',workRoot:workB};
+  const cB:Case={...c};
+  serviceB.workspace.cases=[cB];
+  cB.directory=await serviceB.files().ensureCase(cB);
+  serviceB.client=client;
+  const hostB=new TransferHost(serviceB,agent);
+
+  // Calling prepare directly on Machine B without prior local file returns saved session
+  const preparedB=await hostB.prepare(serviceB.key,cB.id);
+  assert.equal(preparedB.phase,'saved');
+  assert.equal(preparedB.existingFileNames.length>0,true);
+  assert.equal(preparedB.review.stepId,'step-1');
+  assert.equal(preparedB.review.userId,'user-1');
+});
+
+test('refresh recovers uncertain phase without attempted submission to saved when remote was already complete',async t=>{
+  const {service,client,host,c,source}=await setup(t);
+  let v=await host.prepare(service.key,c.id);
+  v=await host.addFile(service.key,v.id,'reply',source);
+  v=await host.save(service.key,v.id,v.review);
+  assert.equal(v.phase,'saved');
+
+  // Simulate an interrupted save or read failure that left phase uncertain with submissionAttempted false
+  const session=(host as any).sessions.get(v.id);
+  session.view.phase='uncertain';
+  session.view.submissionAttempted=false;
+
+  // Remote already has valid saved state (reply docx + notice form)
+  const refreshed=await host.refresh(service.key,v.id);
+  assert.equal(refreshed.phase,'saved');
+  assert.equal(refreshed.existingFileNames.length>0,true);
+  assert.match(refreshed.results.at(-1)!,/已保存就绪/);
+});
+
+test('submit rejects when remote hand has lost files or contract prior to sending',async t=>{
+  const {service,client,host,agent,c,source}=await setup(t);
+  let v=await host.prepare(service.key,c.id);
+  v=await host.addFile(service.key,v.id,'reply',source);
+  v=await host.save(service.key,v.id,v.review);
+  assert.equal(v.phase,'saved');
+
+  // Remote files deleted or corrupted on server before a reopened session submits
+  client.group=[];
+  client.form={...client.form,File:undefined};
+
+  const reopened=new TransferHost(service,agent);
+  await reopened.prepare(service.key,c.id);
+  await assert.rejects(
+    reopened.submit(service.key,v.id),
+    /服务端递交材料已不完整或发生变化/
+  );
+  assert.equal(client.calls.some(call=>call.endpoint.endsWith('SubmitHandFlow')),false);
+});
+

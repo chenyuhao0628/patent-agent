@@ -15,7 +15,7 @@ export class Server extends BaselandClient {
     if(ep==='GetCaseHandProcRelateNoticeInfo')return structuredClone(this.notice);
     if(ep==='GetHandNextFlowList')return [{CaseHandStepId:'step-1',Name:this.next,IsFinish:false}];
     if(ep==='GetHandNextFlowUserByStepId')return structuredClone(this.nextUsers);
-    if(ep==='GetCaseHandFileList')return this.group.filter(g=>g.File).map(g=>g.File);
+    if(ep==='GetCaseHandFileList')return [...this.group.filter(g=>g.File).map(g=>g.File),...(this.form?.File?[this.form.File]:[])];
     if(ep==='GetFormInstructionsAndImage')return {FormGroup:structuredClone(this.group),...structuredClone(this.setting)};
     if(['GetFormOpinionStatement','GetFormCorrection','GetFormPatentRequestInfo'].includes(ep!))return this.badReadback&&this.form?{...this.form,File:{FileNo:'wrong'},CorrectionContentList:[]}:structuredClone(this.form);
     if(ep==='IsHasCaseHandForm')return true;
