@@ -1,0 +1,22 @@
+==============================================================================
+ A. GetCaseAllFlowHistoryInfo（项目 baseland.ts:441 直接读 CaseProcName）
+==============================================================================
+  IsSuccess=True Message=None
+  行数=1
+    CaseProcName     = '答复审查意见'
+    CaseProcNameInfo = null
+    ProcName/LatestProcName = None / None
+    ProcCode=None FinishDate=None
+
+==============================================================================
+ B. GetCaseDetailProcList（项目走 processRow，有兜底）
+==============================================================================
+  IsSuccess=True Message=None
+  行数=2
+    CaseProcId=662009f7-a272-410f-838c-0aee950fad06 CaseProcName='开卷' Info={"CountryCode": 36, "CaseProcId": "662009f7-a272-410f-838c-0aee950fad06", "ProcCode": 164, "CaseProcName": "开卷", "NumberResponses": null, "AnnualFeeYearFrom": n
+    CaseProcId=1a3f1cd9-5e87-47d7-b2cc-1a154c6ca97e CaseProcName='答复审查意见(一)' Info={"CountryCode": 36, "CaseProcId": "1a3f1cd9-5e87-47d7-b2cc-1a154c6ca97e", "ProcCode": 130, "CaseProcName": "答复审查意见", "NumberResponses": "一", "AnnualFeeYearFrom"
+
+==============================================================================
+ C. GetCaseHandFileList / 其他含 CaseProcName 的只读接口抽样
+==============================================================================
+  /CaseInfo/GetCaseProcFileList -> IsSuccess=True 行数=258

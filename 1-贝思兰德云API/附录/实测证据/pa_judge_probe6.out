@@ -1,0 +1,37 @@
+TOKEN OK
+==========================================================================
+ N. caseInfo(): GetCaseProcById 的 CaseProc 用哪套备注字段名
+==========================================================================
+  IsSuccess=True  Data类型=dict
+  Data键=['AnnualFee', 'CaseProc', 'CaseProcStatusName', 'EntrustInfo', 'Extend', 'HasChangeHistoryDateFieldGroup', 'HasChangeHistoryStrFieldGroup', 'HasConfirmAnnualFeeYearChange', 'HasConfirmDeleteUndertakerAssignFlow', 'HasConfirmFinishHandingFlow', 'HasConfirmFinishReviewingFlow', 'HasConfirmFinishUndertakerAssignFlow', 'HasConfirmSameAnnualFeeYear', 'IsAdminOrCreateUser', 'IsUndertakerAuditing', 'RequestPay', 'StatusCode']
+  Data.CaseProc 键=['AllocationDate', 'CaseId', 'CaseProcId', 'CaseProcProcessId', 'ConfigCaseDate', 'ConfigCaseUserId', 'CreateDateShow', 'CreateUserIdShow', 'CreateUserName', 'CreateUserTypeShow', 'CustomDate', 'FinishDate', 'FinishDocDate', 'HandDate', 'HandUserId', 'IsChildProc', 'IsConfigCase', 'IsHasChildProc', 'LegalDate', 'MaxPayScore', 'NewDocDate', 'OfficeNote', 'OutHandlerId', 'ParentCaseProcId', 'ParentCaseProcName', 'PayScoreAuditFactor', 'PayScoreCompanyFactor', 'PaySettingChangeRemark', 'ProcFeeList', 'ProcFileList', 'ProcId', 'ProcMarkingSettingIdList', 'ProcNote', 'ProcOfficeFileList', 'ProcThirdFeeList', 'ReturnInventorDraftDate', 'ReviewDraftUserId', 'StartHandDate', 'StartReviewDraftDate', 'StartWriteDraftDate', 'StatusCode', 'TranslateCategorySettingId', 'UndertakeAgencyId', 'UndertakeAgencyNo', 'UndertakerId', 'UpdateDateShow', 'UpdateUserIdShow', 'UpdateUserName', 'UpdateUserTypeShow', 'UrgentSettingId']
+      FlowRemark = None  <不存在>
+      OfficeNote = '第一次审查意见通知书；；'  <存在>
+      ProcNote = None  <存在>
+      CaseProcOfficeNote = None  <不存在>
+      CaseProcProcNote = None  <不存在>
+      Remark = None  <不存在>
+
+==========================================================================
+ O. caseClosure(): GetUpdateCaseInfo 的 CaseInfo.Remark / IsFinishCase
+==========================================================================
+  IsSuccess=True  Data键=['ApplyId', 'ApplyNo', 'CaseContact', 'CaseEntrustInfo', 'CaseId', 'CaseInfo', 'CasePctInfo', 'CaseReceive', 'CaseSpecificationInfo', 'ConfirmOfficeFeeList', 'HasConfirmForChangeApplyTypeOrCaseRelationType', 'HasConfirmForChangeCountryFromNone', 'HasConfirmForMismatchAgencyAndAgent', 'HasConfirmForReplaceAgencyCodeOnCaseNo', 'IsCheckUnSameLegalDate', 'IsConfirmUnPaidOfficeFee', 'IsReCreateCaseNo', 'IsRelationApplyInfo', 'IsUpdateUnSameLegalDate', 'LastCaseProc', 'OperateAuthority']
+  CaseInfo 键数=83
+      Remark = ''  <存在>
+      IsFinishCase = False  <存在>
+      CaseStatusType = 3  <存在>
+      CaseId = None  <不存在>
+
+==========================================================================
+ P. GetFormInstructionsAndImage 的 IsShowCaseName（官方据此决定 CaseName 是否传值）
+==========================================================================
+      IsShowCaseName = False
+      IsShowIsUseXmlFormatHand = True
+      IsUseXmlFormatHand = True
+      CaseName = None
+      CaseHandFormInstructionsAndImageSettingId = None
+
+==========================================================================
+ Q. 递交状态枚举：官方前端常量 vs 项目映射
+==========================================================================
+   [{"label": "待递交", "value": 0, "isDisable": false}, {"label": "准备递交中", "value": 1, "isDisable": false}, {"label": "递交成功", "value": 2, "isDisable": false}, {"label": "递交失败", "value": 3, "isDisable": false}, {"label": "已收到回执", "value": 6, "isDisable": false}, {"label": "递交中", "value": 100, "isDisable": false}]

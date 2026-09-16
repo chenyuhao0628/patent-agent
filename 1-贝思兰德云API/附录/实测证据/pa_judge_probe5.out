@@ -1,0 +1,16 @@
+TOKEN OK
+==========================================================================
+ M. IsNeedSendToOfficail 扩大采样（全页签，找 false）
+==========================================================================
+  页签行数合计=50
+  IsNeedSendToOfficail 取值分布: {('None',): 29, ('True',): 21}
+  未发现 false / undefined 以外的取值
+
+  分业务类型统计:
+    取消提出申请               [(0, None, None, 'finish')]
+    提出申请                 [(105, None, None, 'waitHand'), (105, True, False, 'delivering'), (105, True, True, 'finish')]
+    答复审查意见               [(130, None, None, 'waitHand'), (130, True, False, 'delivering'), (130, True, True, 'finish')]
+    补正                   [(179, None, None, 'waitHand'), (179, True, True, 'finish')]
+    请求复审                 [(192, True, True, 'finish')]
+    请求实审                 [(195, None, None, 'finish')]
+    请求提前公开               [(194, None, None, 'finish')]

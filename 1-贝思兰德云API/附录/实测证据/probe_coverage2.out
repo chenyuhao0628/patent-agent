@@ -1,0 +1,30 @@
+========================================================================================
+ A. 已走完「授权→获证」的案件：官文清单 + 案卷字段
+========================================================================================
+  ● 202606292-0737  CaseId=bef76161-4b5d-46d2-9cce-6c21bc950ac5
+      官文 2026-07-08  第N次补正通知书               类型=220302 状态=已导入
+      官文 2026-08-07  电子申请回执                 类型=200105 状态=已导入
+      官文 2026-08-17  办理登记手续通知书              类型=200602 状态=待导入
+      官文 2026-09-08  实用新型专利证书               类型=400002 状态=待导入
+      案卷字段（非空）：[('CaseStatusType', 3), ('IsFinishCase', False)]
+
+  ● 202606292-0749  CaseId=bbebe84d-e8df-48ba-bcaf-f7540f490240
+      官文 2026-07-08  第N次补正通知书               类型=220302 状态=已导入
+      官文 2026-08-07  电子申请回执                 类型=200105 状态=已导入
+      官文 2026-08-17  办理登记手续通知书              类型=200602 状态=待导入
+      官文 2026-09-08  实用新型专利证书               类型=400002 状态=待导入
+      案卷字段（非空）：[('CaseStatusType', 3), ('IsFinishCase', False)]
+
+========================================================================================
+ B. 官文下载规则：是否解释「受理通知书一律没有」
+========================================================================================
+  /PatentNoticeRule/GetPatentNoticeRuleList body={"PagedInfo": {"PageIndex": 1, "PageSize… -> IsSuccess=False Message=无访问权限 行数=0
+     Data= []
+  /PatentNoticeRule/GetPatentNoticeRuleList body={} -> IsSuccess=False Message=无访问权限 行数=0
+     Data= []
+  /PatentNoticeRule/GetPatentNoticeRuleItemList （无参） -> IsSuccess=False Message=无访问权限 行数=0
+     Data= []
+  /NoticeType/GetNoticeTypeRequiredFieldTypeList （无参） -> IsSuccess=True Message=None 行数=0
+     Data= []
+
+本探针共 13 次只读请求

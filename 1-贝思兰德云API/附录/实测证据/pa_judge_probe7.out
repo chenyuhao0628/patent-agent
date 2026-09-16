@@ -1,0 +1,44 @@
+==========================================================================
+ R. Token 失效时的真实形态（用伪造 token，只读调用）
+==========================================================================
+--- Authorization: 'bogus-token-123'
+  HTTP=200
+{"IsSuccess":false,"Code":401,"Message":"无效的Token","Ext":null}
+
+--- Authorization: ''
+  HTTP=200
+{"IsSuccess":false,"Code":401,"Message":"Token值为空","Ext":null}
+
+--- Authorization: 'abc.def.ghi'
+  HTTP=200
+{"IsSuccess":false,"Code":401,"Message":"无效的Token","Ext":null}
+
+==========================================================================
+ S. /Auth/GetToken 响应是否带过期时间
+==========================================================================
+  Data 键: ['ForbidLoginMinute', 'IsLoginAs', 'IsSuccess', 'License', 'LoginByUserId', 'Result', 'ResultString', 'SsoResult', 'Token', 'WorkWechatResult']
+  Token 前20: cc5618f6808249569551
+  License = {'IsValid': True, 'ExpirationDate': None, 'UntilExpirationDays': 0, 'IsExpireWithin1Month': False, 'IsNoLimit': True}
+  IsSuccess = True
+  Result = 0
+  ForbidLoginMinute = 0
+  ResultString = 'Success'
+  WorkWechatResult = 'Success'
+  SsoResult = 'Success'
+  IsLoginAs = False
+  LoginByUserId = None
+
+==========================================================================
+ T. 分页上限的替代方案：GetPersonalCaseCount 是否存在/可用
+==========================================================================
+--- GetPersonalCaseCount
+{"Data":null,"IsSuccess":false,"Code":405,"Message":"请求的资源上不允许请求方法（POST 或 GET）","Ext":null}
+--- GetPersonalCaseSubTabStatisticsCount
+{"Data":[{"ProcId":"f3b9b671-2b40-4189-9f3d-54f0f2c67643","ProcName":"提出申请","ProcCount":5},{"ProcId":"7f47a6b0-0b20-48fb-bc1c-31fac32e1d1a","ProcName":"答复审查意见","ProcCount":2}],"IsSuccess":true,"Code":0,"Message":null,"Ext":null}
+
+==========================================================================
+ U. pageSize 上限探测：能否一次取回全部 50 条（跨页签）
+==========================================================================
+  IsSuccess= True Message= None
+  行数= 50
+  pageSize=100 跨状态 行数= 50

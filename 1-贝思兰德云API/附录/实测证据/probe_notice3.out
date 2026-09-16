@@ -1,0 +1,24 @@
+====================================================================================
+ A. 流程名目录：CaseProcProcess/GetCaseProcProcessDropdownList
+====================================================================================
+  IsSuccess=True Message=None
+  行数=0
+  原始： []
+
+====================================================================================
+ B. 官文状态字典：SystemTypeSetting/GetNoticeStatusType
+====================================================================================
+  IsSuccess=True Message=None
+  Data=[{"label": "无需导入", "value": 99, "isDisable": false}, {"label": "待导入", "value": 200, "isDisable": false}, {"label": "已导入", "value": 300, "isDisable": false}, {"label": "异常官文", "value": 400, "isDisable": false}, {"label": "未关联案件", "value": 500, "isDisable": false}]
+
+====================================================================================
+ C. 个人流程状态字典：SystemTypeSetting/GetCaseProcStatusType
+====================================================================================
+  IsSuccess=True Message=None
+  Data=[{"label": "待处理", "value": 0, "isDisable": false}, {"label": "核稿中", "value": 200, "isDisable": false}, {"label": "待递交", "value": 300, "isDisable": false}, {"label": "递交中", "value": 400, "isDisable": false}, {"label": "已完成", "value": 500, "isDisable": false}]
+
+====================================================================================
+ D. 案件状态类型：SystemTypeSetting/GetCaseStatusType
+====================================================================================
+  IsSuccess=True Message=None
+  Data=[{"label": "待处理", "value": 1, "isDisable": false}, {"label": "审查中", "value": 3, "isDisable": false}, {"label": "待领证", "value": 4, "isDisable": false}, {"label": "领证中", "value": 5, "isDisable": false}, {"label": "维持中", "value": 6, "isDisable": false}, {"label": "届满", "value": 7, "isDisable": false}, {"label": "结案", "value": 8, "isDisable": false}, {"label": "处理中", "value": 9, "isDisable": false}, {"label": "待公告", "value": 10, "isDisable": false}, {"label": "专利受理", "value": 11, "isDisable": false}, {"label": "待启动", "value": 13, "isDisable": false}]

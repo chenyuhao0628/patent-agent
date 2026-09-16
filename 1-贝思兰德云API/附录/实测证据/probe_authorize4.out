@@ -1,0 +1,35 @@
+================================================================================
+ A. ItemType 枚举全集：SystemTypeSetting/GetCaseNewTrendsItemTypeDropDown
+================================================================================
+  IsSuccess=True Message=None
+  Data=[{"label": "受理专利(中国)", "value": 1, "isDisable": false}, {"label": "授权专利(中国)", "value": 2, "isDisable": false}, {"label": "审查意见专利(中国)", "value": 3, "isDisable": false}, {"label": "补正专利(中国)", "value": 4, "isDisable": false}, {"label": "驳回专利(中国)", "value": 5, "isDisable": false}, {"label": "法限到期专利", "value": 6, "isDisable": false}, {"label": "审查业务专用函专利(中国)", "value": 7, "isDisable": false}, {"label": "获证专利(中国)", "value": 8, "isDisable": false}, {"label": "视撤专利(中国)", "value": 9, "isDisable": false}, {"label": "其他官文(中国)", "value": 10, "isDisable": false}, {"label": "手续合格(著录项目变更)(中国)", "value": 11, "isDisable": false}, {"label": "手续合格(撤回专利申请)(中国)", "value": 12, "isDisable": false}, {"label": "手续合格(放弃专利权)(中国)", "value": 13, "isDisable": false}]
+
+================================================================================
+ B. 窗口设置：GetCaseNewTrendsUserSetting
+================================================================================
+  IsSuccess=True Message=None Data={"ReminderDurationType": 1, "ReminderDuration": 7, "IsStatisticsMyClientsCase": false, "ItemTypeList": [1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13]}
+
+================================================================================
+ C. 授权/获证明细：ItemType=2 与 8，窗口 7 与 30
+================================================================================
+  ItemType=2 ReminderDuration=7 -> IsSuccess=True 行数=1
+      {"CaseNo": "202606291-0096", "CaseName": "一种云端全局控制的冷链物流动态中转调度方法及系统", "PostDate": "2026-09-14T00:00:00", "ApplicationDate": "2026-05-21T00:00:00", "ClientName": "四川银生供应链管理有限公司"}
+      全字段： {"NoticeId": "14a451a0-9902-4327-a4cd-61ebe3ce6701", "CaseId": "0a7d2a5e-fa00-4bbc-a9d8-efef1abcbba3", "CaseNo": "202606291-0096", "CaseName": "一种云端全局控制的冷链物流动态中转调度方法及系统", "CaseRelationTypeName": "普通申请", "ApplyTypeName": "发明", "PostDate": "2026-09-14T00:00:00", "ApplicationNo": "2026107023971", "ApplicationDate": "2026-05-21T00:00:00", "ApplicantName": "四川银生供应链管理有限公司", "InventorName": "", "ClientNa…
+  ItemType=2 ReminderDuration=30 -> IsSuccess=True 行数=1
+      {"CaseNo": "202606291-0096", "CaseName": "一种云端全局控制的冷链物流动态中转调度方法及系统", "PostDate": "2026-09-14T00:00:00", "ApplicationDate": "2026-05-21T00:00:00", "ClientName": "四川银生供应链管理有限公司"}
+      全字段： {"NoticeId": "14a451a0-9902-4327-a4cd-61ebe3ce6701", "CaseId": "0a7d2a5e-fa00-4bbc-a9d8-efef1abcbba3", "CaseNo": "202606291-0096", "CaseName": "一种云端全局控制的冷链物流动态中转调度方法及系统", "CaseRelationTypeName": "普通申请", "ApplyTypeName": "发明", "PostDate": "2026-09-14T00:00:00", "ApplicationNo": "2026107023971", "ApplicationDate": "2026-05-21T00:00:00", "ApplicantName": "四川银生供应链管理有限公司", "InventorName": "", "ClientNa…
+  ItemType=8 ReminderDuration=7 -> IsSuccess=True 行数=0
+  ItemType=8 ReminderDuration=30 -> IsSuccess=True 行数=0
+
+================================================================================
+ D. 法律期限变体：GetCaseNewTrendsLegalDateDetailCount / List
+================================================================================
+  Count IsSuccess=True Message=None Data=0
+  List  IsSuccess=True Message=None 行数=0
+
+================================================================================
+ E. 统计接口的窗口是否可调（ReminderDuration 是 GET 无参，试 query）
+================================================================================
+  query=[] -> IsSuccess=True ReminderDuration=7
+  query=['ReminderDuration'] -> IsSuccess=True ReminderDuration=7
+  query=['reminderDuration'] -> IsSuccess=True ReminderDuration=7

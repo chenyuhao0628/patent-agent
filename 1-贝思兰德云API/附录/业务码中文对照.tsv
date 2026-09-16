@@ -1,0 +1,114 @@
+端点	用途	业务码	i18nKey	官方中文
+SubmitHandFlow	submit-递交流程提交	Success		
+SubmitHandFlow	submit-递交流程提交	NotPermission	r20220406192935910137	您没有操作权限，请刷新后再试
+SubmitHandFlow	submit-递交流程提交	AlreadyFinished	r20201020143453415531	已经完成
+SubmitHandFlow	submit-递交流程提交	NotStartedFlow	r20201020143525467774	未启动流程
+SubmitHandFlow	submit-递交流程提交	CannotFoundNextFlow	r20201020143543038075	找不到下一个流程
+SubmitHandFlow	submit-递交流程提交	CannotFoundBackHistory	r20201020143552404079	找不到退回的历史记录
+SubmitHandFlow	submit-递交流程提交	CannotFoundBackSelf	r20201020143605988380	不能退回给自己
+SubmitHandFlow	submit-递交流程提交	FlowUserInvalid	r20201116184314772391	流程人员已无效，不能提交
+SubmitHandFlow	submit-递交流程提交	NoPassVerifyBeforeCaseHand	r20211127183557428628	递交前验证信息不通过
+SubmitHandFlow	submit-递交流程提交	NoPassVerifyBeforeSubmit	r20220630113617436053	提交前验证信息不通过
+SubmitHandFlow	submit-递交流程提交	NotPackSuccess	r20210111171748989187	 数据尚未打包！
+SubmitHandFlow	submit-递交流程提交	IsPacking	r20211127183318865351	数据正在打包中，不能进行提交操作
+SubmitHandFlow	submit-递交流程提交	NeedRePack	r20210120135042600109	表单数据有变动，需要重新打包！
+SubmitHandFlow	submit-递交流程提交	NotSendSuccess	r20210129144254964290	案件还未递交，无法完成
+SubmitHandFlow	submit-递交流程提交	CannotBackForWaitSend	r20210312111744131434	准备递交官文中，请先取消递交官文
+SubmitHandFlow	submit-递交流程提交	CannotBackForSending	r20210312111802872822	递交官文中，不能退回流程
+SubmitHandFlow	submit-递交流程提交	CannotBackForSendSuccess	r20210312111820807230	递交官文成功，不能退回流程
+SubmitHandFlow	submit-递交流程提交	NoAuthority		
+SubmitHandFlow	submit-递交流程提交	Handing	r20211130180711935404	数据正在处理中
+SubmitHandFlow	submit-递交流程提交	OtherCountryNoHandFile	r20210703203609191822	请选择递交文件
+SubmitHandFlow	submit-递交流程提交	CannotBatchSubmit	r20230323160308628366	下一节点处理人不确定，不能进行批量提交
+SubmitHandFlow	submit-递交流程提交	IsInEntrusting	r20220628161539710263	正在委托中
+SubmitHandFlow	submit-递交流程提交	DescItemChangeDeclareNeedApplicantApplyType	r20220830165110950578	申请人递交时，著录项目申报书 - 电子申请用户代码及名称需为申请人
+SubmitHandFlow	submit-递交流程提交	DescItemChangeDeclareNeedAgencyApplyType	r20220830165123870803	代理机构递交时，著录项目申报书 - 电子申请用户代码及名称需为代理机构
+SubmitHandFlow	submit-递交流程提交	IsSending	r20230308144832872732	正在递交中
+SubmitHandFlow	submit-递交流程提交	NeedRePackForApplicantChange	r20230307153258618614	案件申请人信息有变动，请重新打包
+SubmitHandFlow	submit-递交流程提交	NeedRePackForInventorChange	r20230314160025981084	案件发明人信息有变动，请重新打包
+SubmitHandFlow	submit-递交流程提交	NeedRePackForCaseChange	r20240514160622215244	案件信息有变动，请重新打包
+SubmitHandFlow	submit-递交流程提交	NeedRepackForFormChanged	r20210113135839500095	表单数据有变动，请重新打包
+SubmitHandFlow	submit-递交流程提交	NotPack	r20220919135209532855	数据尚未打包
+SubmitHandFlow	submit-递交流程提交	NeedConfirmForRepack	r20260721103043685294	表单数据有变动，未重新打包，确认继续提交吗？
+StartHand	start-启动递交实例	Success		
+StartHand	start-启动递交实例	AlreadyStarted	r20201031125133212140	已经启动送件
+StartHand	start-启动递交实例	CannotFoundFlow	r20201019190039060188	没找到流程
+StartHand	start-启动递交实例	CannotFoundCaseProc	r20201019190055526417	没找到事项
+StartHand	start-启动递交实例	NotUndertaker	r20201031125417824277	非办理人不能启动递交流程
+StartHand	start-启动递交实例	NotPendingHand	r20211215191020748735	处于核稿中、递交中状态，不能启动递交流程
+StartHand	start-启动递交实例	NotReviewDraft	r20211215191507159247	当前状态为待处理，需进行核稿后再启动递交流程
+StartHand	start-启动递交实例	NotFinishedHand	r20210201135011009654	送件尚未完成，不能重新启动递交流程
+StartHand	start-启动递交实例	NeedConfirmReStart	r20211217170045341528	当前前处理事项已经递交官方，是否再次启动递交？
+StartHand	start-启动递交实例	Handing	r20211119173505237179	正在启动递交中
+StartHand	start-启动递交实例	IsDraftReviewing	r20241213141853950605	核稿中不能，启动递交流程
+StartHand	start-启动递交实例	Auditing	r20230307160915158419	核稿中，不能启动递交流程
+AddCaseHandForm / IsHasCaseHandForm	form-表单勾选	Success		
+AddCaseHandForm / IsHasCaseHandForm	form-表单勾选	ExistsForm	r20201029141220770684	表单已存在
+AddCaseHandForm / IsHasCaseHandForm	form-表单勾选	NotExistsForm	r20201031120017982770	表单不存在
+AddCaseHandForm / IsHasCaseHandForm	form-表单勾选	NoAuthority		
+DeleteFormFile	form-删除表单文件	Success		
+DeleteFormFile	form-删除表单文件	CaseHandIdNullOrEmpty	r20201028133846112068	递交流程Id为空
+DeleteFormFile	form-删除表单文件	FormCodeNullOrEmpty	r20201028133759630573	表单代码为空
+DeleteFormFile	form-删除表单文件	NoAuthority		
+DeleteFormFile	form-删除表单文件	ExistsForm	r20201029141220770684	表单已存在
+DeleteFormFile	form-删除表单文件	NotExistsForm	r20201031120017982770	表单不存在
+DeleteFormFile	form-删除表单文件	FileNull	r20201029153715682481	文件为空
+DeleteFormFile	form-删除表单文件	UploadTypeNotSupported	r20211119154157458779	上传类型只支持三合一、五合一
+DeleteFormFile	form-删除表单文件	InvalidFileFormat	r20211119154209995590	文件格式无效，只支持doc\docx文件
+DeleteFormFile	form-删除表单文件	ParagraphEndSpaceOverLong	r20211119154221746355	段落结尾空格超长
+DeleteFormFile	form-删除表单文件	ImageNonConformance	r20220314134953443125	说明书附图中{0}大小超出165mm x 245mm
+DeleteFormFile	form-删除表单文件	VerifyPdfImageError	r20220314135101282260	校验说明书附图图片错误
+DeleteFormFile	form-删除表单文件	OtherProveFileIsPartOfOptionStatement	r20220812111446755592	该证明文件为意见陈述书内容，请于[ 意见陈述书 ]中进行删除
+DeleteFormFile	form-删除表单文件	ProveFileIsPartOfReviewInvalidOpinionStatement	r20220812111434425307	该证明文件为意见陈述书内容，请于[ 复审无效宣告程序意见陈述书 ]中进行删除
+DeleteFormFile	form-删除表单文件	OtherProveFileIsPartOfOptionStatementForNotNormalApply	r20230621153934977933	该证明文件为意见陈述书内容，请于【意见陈述书(关于非正常申请)】中进行删除
+Insert/UpdateFormPatentRequestInfo	form-请求书保存	Success		
+Insert/UpdateFormPatentRequestInfo	form-请求书保存	CaseHandIdNullOrEmpty	r20201028133846112068	递交流程Id为空
+Insert/UpdateFormPatentRequestInfo	form-请求书保存	FormCodeNullOrEmpty	r20201028133759630573	表单代码为空
+Insert/UpdateFormPatentRequestInfo	form-请求书保存	NoAuthority		
+Insert/UpdateFormPatentRequestInfo	form-请求书保存	DivisionalCaseNull	r20210106105639117030	请求书中分案信息未填写
+Insert/UpdateFormPatentRequestInfo	form-请求书保存	IsPublicAdvanceNull	r20210106110245085442	发明专利请求书中提前公开栏位未勾选
+Insert/UpdateFormPatentRequestInfo	form-请求书保存	NotChecked	r20220809133921131985	案件委案信息中[ 是否延迟审查 ]选择了是，外观设计专利请求书中的延迟审查栏位未勾选
+Insert/UpdateFormPatentRequestInfo	form-请求书保存	NotChecked1	r20220809134146332865	案件委案信息中[ 延迟审查期限 ]为{0}年，外观设计专利请求书中的延迟审查栏位勾选为{1}年
+Insert/UpdateFormPatentRequestInfo	form-请求书保存	InventHasSameDayApply	r20230406085406531317	本发明专利需同日申请的实用新型专利，请勾选[ 同日申请 ]
+Insert/UpdateFormPatentRequestInfo	form-请求书保存	UtilityHasSameDayApply	r20230406085505698892	本实用新型专利需同日申请的发明专利，请勾选[ 同日申请 ]
+Insert/UpdateFormInstructionsAndImageSetting	form-五书设置	Success		
+Insert/UpdateFormInstructionsAndImageSetting	form-五书设置	ExistSetting	r20210629172543240897	配置数据已存在
+Insert/UpdateFormInstructionsAndImageSetting	form-五书设置	CannotFoundSetting	r20210629172623152087	找不到配置数据
+Insert/UpdateFormInstructionsAndImageSetting	form-五书设置	MustCheckIsUseXmlFormatHand	r20260721103044790620	加速审查或延迟审查需勾选【使用xml格式递交】
+(基表) 通用表单	base-通用表单	Success		
+(基表) 通用表单	base-通用表单	CaseHandIdNullOrEmpty	r20201028133846112068	递交流程Id为空
+(基表) 通用表单	base-通用表单	FormCodeNullOrEmpty	r20201028133759630573	表单代码为空
+(基表) 通用表单	base-通用表单	NoAuthority		
+(基表) 通用表单2	base-通用表单2	Success		
+(基表) 通用表单2	base-通用表单2	CaseHandIdNullOrEmpty	r20201028133846112068	递交流程Id为空
+(基表) 通用表单2	base-通用表单2	FormCodeNullOrEmpty	r20201028133759630573	表单代码为空
+(基表) 通用表单2	base-通用表单2	NoAuthority		
+(基表) 通用表单2	base-通用表单2	ExistsForm	r20201029141220770684	表单已存在
+(基表) 通用表单2	base-通用表单2	NotExistsForm	r20201031120017982770	表单不存在
+(参考) 打包	ref-打包	Success		
+(参考) 打包	ref-打包	Success2	r20210129150932995534	案件已经进入递交队列，请稍后
+(参考) 打包	ref-打包	NotPackSuccess	r20210129145916910126	尚未打包成功
+(参考) 打包	ref-打包	NeedRePack	r20210120135042600109	表单数据有变动，需要重新打包！
+(参考) 打包	ref-打包	HasSend	r20210129150004051141	案件已启动递交无法再次启动
+(参考) 打包	ref-打包	NoPermit		
+(参考) 打包	ref-打包	NeedConfirm	r20230309092226884360	需要确认
+(参考) 打包	ref-打包	IsSending	r20230308144832872732	正在递交中
+(参考) 打包	ref-打包	NeedRePackForApplicantChange	r20230307153258618614	案件申请人信息有变动，请重新打包
+(参考) 打包	ref-打包	NeedRePackForInventorChange	r20230314160025981084	案件发明人信息有变动，请重新打包
+(参考) 打包	ref-打包	SendAppIsBusy	r20230331112203805030	送件服务繁忙，尝试启动失败
+(参考) 打包	ref-打包	PrepareSend	r20230419151632489482	准备递交中
+(参考) 打包	ref-打包	NeedRePackForCaseChange	r20240514160622215244	案件信息有变动，请重新打包
+(参考) 打包	ref-打包	NeedRepackForCpcUpgrade	r20260721103044571270	客户端有更新，请重新打包文件
+(参考) 递交状态	ref-递交状态	Success		
+(参考) 递交状态	ref-递交状态	DataVerifyFail	r20210105172723805066	数据验证失败
+(参考) 递交状态	ref-递交状态	NotSendEdit	r20210105172750918856	送件状态不正确
+(参考) 递交状态	ref-递交状态	WaitPack	r20210105172818034514	数据准备打包，请耐心等待...
+(参考) 递交状态	ref-递交状态	Packing	r20210105172839946866	已经是打包中状态
+(参考) 递交状态	ref-递交状态	NoPermit		
+(参考) 递交状态	ref-递交状态	HasPacked	r20210119163112080708	已经存在打包文件，重新打包将会覆盖原有打包文件，是否继续？
+(参考) 递交状态	ref-递交状态	NeedConfirm	r20211124143746800192	缺少专利代理委托书，确认继续提交吗？
+(参考) 递交状态	ref-递交状态	Handing	r20240625160923778650	正在启动打包中
+(参考) 启动前校验	ref-启动前校验	Success		
+(参考) 启动前校验	ref-启动前校验	CannotEdit	r20200908160810718365	数据不存在
+(参考) 启动前校验	ref-启动前校验	NotExists	r20200908160810718365	数据不存在
+(参考) 启动前校验	ref-启动前校验	NoAuthority	r20211022160630477339	无权限

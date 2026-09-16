@@ -1,0 +1,50 @@
+账号：40 个案件 / 50 条流程
+
+逐案：当前流程选择 / 是否查官方 / 递交状态（冷启动，无 preferredId）
+------------------------------------------------------------------------------------------------
+  202606181-0002   500/-                  未选中：no-candidate
+  202606182-0001   500/-                  未选中：no-candidate
+  202606182-0003   500/-                  未选中：no-candidate
+  202606291-0096   500/reply              当前=500/答复审查意见  查-> received  IsReviewing=False
+  202606291-0181   500/reply+500/reply    当前=500/请求复审  查-> received  IsReviewing=False
+  202606291-0266   400/reply+500/reply    当前=400/答复审查意见  查-> draft  IsReviewing=True
+  202606292-0476   0/correction           当前=0/补正  不查
+  202606292-0517   0/reply                当前=0/答复审查意见  不查
+  202606292-0526   0/reply                当前=0/答复审查意见  不查
+  202606292-0539   0/correction           当前=0/补正  不查
+  202606292-0580   0/correction           当前=0/补正  不查
+  202606292-0591   400/reply              当前=400/答复审查意见  查-> draft  IsReviewing=True
+  202606292-0610   500/reply              当前=500/答复审查意见  查-> received  IsReviewing=False
+  202606292-0630   0/reply                当前=0/答复审查意见  不查
+  202606292-0634   400/reply              当前=400/答复审查意见  查-> draft  IsReviewing=True
+  202606292-0642   0/reply                当前=0/答复审查意见  不查
+  202606292-0698   500/reply              当前=500/答复审查意见  查-> received  IsReviewing=False
+  202606292-0732   500/reply              当前=500/答复审查意见  查-> received  IsReviewing=False
+  202606292-0737   500/correction         当前=500/补正  查-> received  IsReviewing=False
+  202606292-0749   500/correction         当前=500/补正  查-> received  IsReviewing=False
+  202606292-0765   500/reply              当前=500/答复审查意见  查-> received  IsReviewing=False
+  202606292-0880   500/reply              当前=500/答复审查意见  查-> received  IsReviewing=False
+  202607131-1121   0/write                当前=0/提出申请  不查
+  202607152-1137   0/write                当前=0/提出申请  不查
+  202607152-1143   0/write                当前=0/提出申请  不查
+  202607221-1169   500/write+500/-+500/-  当前=500/提出申请  查-> received  IsReviewing=False
+  202607232-1183   0/write                当前=0/提出申请  不查
+  202607272-1187   0/write                当前=0/提出申请  不查
+  202608011-1195   500/-+500/write+500/-  当前=500/提出申请  查-> received  IsReviewing=False
+  202608032-1206   0/write                当前=0/提出申请  不查
+  202608191-1237   500/-+500/write+500/-  当前=500/提出申请  查-> received  IsReviewing=False
+  202608262-1258   400/write              当前=400/提出申请  查-> draft  IsReviewing=True
+  202608262-1259   0/write                当前=0/提出申请  不查
+  202608262-1260   0/write                当前=0/提出申请  不查
+  202608281-1290   500/-+500/-+500/write  当前=500/提出申请  查-> received  IsReviewing=False
+  202608281-1293   400/write              当前=400/提出申请  查-> draft  IsReviewing=False
+  202608282-1291   400/write              当前=400/提出申请  查-> draft  IsReviewing=False
+  202608282-1292   400/write              当前=400/提出申请  查-> draft  IsReviewing=False
+  202608282-1294   400/write              当前=400/提出申请  查-> draft  IsReviewing=False
+  202608282-1298   400/write              当前=400/提出申请  查-> draft  IsReviewing=False
+------------------------------------------------------------------------------------------------
+选中当前流程 37 案；未选中 3 案 {"no-candidate": 3}
+其中需要查官方状态 22 案；状态分布 {"received": 13, "draft": 9}
+【当前流程口径】终态 received = 13 个 -> 每轮强制同步可省的 queryOfficial 次数 = 13（= 26 次 HTTP）
+【全部流程口径】带递交实例的流程 24 条；状态分布 {"draft": 9, "received": 15}
+探针共发出 53 次只读请求
