@@ -104,6 +104,25 @@ test('unconfirmed transfer remains uncertain on reopen and can only recover thro
   assert.equal(client.calls.filter(c=>c.endpoint.endsWith('SubmitHandFlow')).length,1);
 });
 
+test('empty guid in post-transfer FlowUserId with matching FlowUserName confirms transfer',async t=>{
+  const {service,client,host,agent,c,source}=await setup(t);
+  let v=await host.prepare(service.key,c.id);
+  v=await host.addFile(service.key,v.id,'reply',source);
+  v=await host.save(service.key,v.id,v.review);
+  const orig=client.request.bind(client);
+  client.request=async(ep:string,b:any,p:any)=>{
+    const res=await orig(ep,b,p);
+    if(ep.endsWith('SubmitHandFlow')){
+      client.flowInfo={FlowNodeName:'下一内部流程',FlowUserName:'杨佳',CaseHandStepId:'step-1',FlowUserId:'00000000-0000-0000-0000-000000000000'};
+    }
+    return res;
+  };
+  v=await host.submit(service.key,v.id);
+  assert.equal(v.phase,'submitted');
+  assert.equal(v.currentUser,'杨佳');
+  assert.equal(client.calls.filter(c=>c.endpoint.endsWith('SubmitHandFlow')).length,1);
+});
+
 test('matching recipient on a different hand cannot confirm an uncertain transfer',async t=>{
   const {service,client,host,agent,c,source}=await setup(t);let v=await host.prepare(service.key,c.id);
   v=await host.addFile(service.key,v.id,'reply',source);v=await host.save(service.key,v.id,v.review);

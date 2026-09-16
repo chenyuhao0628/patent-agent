@@ -16,7 +16,7 @@ import type { TransferView, TransferFileRole, TransferReview, TransferRoute } fr
 import { compareApplication } from './application-diff.ts';
 import { inspectZipLimits, MAX_MATERIAL_BYTES } from './agent-document-reader.ts';
 import { atomicJSON, digest, managedPath, readJSON, safeName } from './files.ts';
-import { defaultTransferForm, existingTransferParts, isRemoteTransferSaved, readRemoteTransfer, rehydrateRemoteSavedView, remoteFileNames, saveRemoteTransfer, submitRemoteTransfer, validateReview } from './baseland-transfer.ts';
+import { defaultTransferForm, existingTransferParts, isRemoteTransferSaved, matchesNextFlow, readRemoteTransfer, rehydrateRemoteSavedView, remoteFileNames, saveRemoteTransfer, submitRemoteTransfer, validateReview } from './baseland-transfer.ts';
 import type { RemoteTransfer } from './baseland-transfer.ts';
 type Session={view:TransferView;remote:RemoteTransfer|null;generation:number;root:string;files:Partial<Record<TransferFileRole,{name:string;relativePath:string;hash:string}>>};
 export type TransferRecipientOption={step:{id:string;name:string};user:{id:string;name:string}};
@@ -346,7 +346,12 @@ export class TransferHost {
       else if(s.view.phase==='uncertain'){
         if(s.view.submissionAttempted){
           const step=s.view.steps.find(x=>x.id===s.view.review.stepId),user=step?.users.find(u=>u.id===s.view.review.userId);
-          if(step?.name&&user?.name&&r.hand.CurrentFlowInfo?.CaseHandStepId===step.id&&r.hand.CurrentFlowInfo?.FlowUserId===user.id){s.view.phase='submitted';s.view.error=undefined;s.view.results.push('刷新已确认同一递交实例的下一内部节点和办理人。');}
+          if(step&&user&&matchesNextFlow(r.hand,s.view.handId,step,user)){
+            s.view.phase='submitted';s.view.error=undefined;
+            s.view.currentNode=r.hand.CurrentFlowInfo?.FlowNodeName||step.name;
+            s.view.currentUser=r.hand.CurrentFlowInfo?.FlowUserName||user.name;
+            s.view.results.push('刷新已确认同一递交实例的下一内部节点和办理人。');
+          }
           else if(s.view.submissionRetryable&&s.view.submissionFingerprint===r.fingerprint&&r.hand.IsReviewing===true){s.remote=r;s.view.phase='saved';s.view.submissionRetryable=false;s.view.error='上次转交返回：'+(s.view.error??'前置条件尚未通过。');s.view.results.push('刷新确认已保存材料与流程未变；请按上方原因完成处理后，再手动转交，无需重新上传。');}
         }else if(r.hand.IsReviewing===true){
           if(isRemoteTransferSaved(r,s.view.route)){

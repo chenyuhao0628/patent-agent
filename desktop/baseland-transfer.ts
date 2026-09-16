@@ -10,6 +10,8 @@ type Obj = Record<string, any>;
 export type RemoteTransfer = { hand: Obj; handId: string; cards: Obj[]; instructionsCode?: string; formCode: string; form: Obj | null; instructions: Obj | null; files: Obj[]; notice: Obj | null; steps: Array<{id:string;name:string;users:Array<{id:string;name:string}>}>; fingerprint: string };
 const list=(v:any):Obj[]=>Array.isArray(v)?v:Array.isArray(v?.List)?v.List:[];
 const id=(v:unknown)=>typeof v==='string'||typeof v==='number'?String(v):'';
+const clean=(v:unknown)=>String(v??'').trim();
+const isEmptyGuid=(v:unknown)=>{const s=clean(v);return !s||s==='00000000-0000-0000-0000-000000000000'||s==='0';};
 const code=(v:unknown)=>id(v).padStart(6,'0');
 const names=(items:Obj[])=>items.map(f=>String(f.FileName||f.FormName||f.File?.FileName||'')).filter(Boolean);
 export const remoteFileNames=names;
@@ -307,6 +309,16 @@ export async function saveRemoteTransfer(input:{client:BaselandClient;processId:
   const after=await readRemoteTransfer(client,input.processId,route);guard();if(!after||after.handId!==r.handId)throw new Error('保存后递交实例发生变化。');return after;
 }
 
+export function matchesNextFlow(hand:Obj|null|undefined,handId:string|undefined,step:{id:string;name:string}|undefined,user:{id:string;name:string}|undefined):boolean{
+  if(!hand||!step||!user)return false;
+  const cur=hand.CurrentFlowInfo as Obj|undefined;
+  if(!cur)return false;
+  if(handId&&id(hand.HandInfo?.CaseHandId)&&id(hand.HandInfo?.CaseHandId)!==handId)return false;
+  const stepMatched=(Boolean(step.id)&&id(cur.CaseHandStepId)===step.id)||(isEmptyGuid(cur.CaseHandStepId)&&Boolean(step.name)&&clean(cur.FlowNodeName)===clean(step.name));
+  const userMatched=(Boolean(user.id)&&id(cur.FlowUserId)===user.id)||(isEmptyGuid(cur.FlowUserId)&&Boolean(user.name)&&clean(cur.FlowUserName)===clean(user.name));
+  return Boolean(stepMatched&&userMatched);
+}
+
 export async function submitRemoteTransfer(client:BaselandClient,processId:string,route:TransferRoute,r:RemoteTransfer,review:TransferReview,guard:()=>void,onSend?:()=>Promise<void>){
   const fresh=await readRemoteTransfer(client,processId,route);guard();
   if(!fresh||fresh.fingerprint!==r.fingerprint)throw new Error('保存后服务端流程或材料已变化，请重新核对。');
@@ -316,7 +328,13 @@ export async function submitRemoteTransfer(client:BaselandClient,processId:strin
   if(id(fresh.hand.CurrentFlowInfo?.CaseHandStepId)===step.id&&id(fresh.hand.CurrentFlowInfo?.FlowUserId)===user.id)throw new Error('当前已位于所选节点和办理人，请核对流程，不能重复转交。');
   await onSend?.();guard();
   const result=await client.request('/CaseInfo/SubmitHandFlow',{CaseHandId:r.handId,IsOutSideSend:false,CaseHandStepId:step.id,NextFlowUserid:user.id,CCUserIdList:[],Remark:review.remark});guard();assertWriteResult('SubmitHandFlow',result);
-  const hand=await client.request('/CaseInfo/GetHandInfo',undefined,{caseProcId:processId});guard();
-  if(id(hand?.HandInfo?.CaseHandId)!==r.handId||id(hand?.CurrentFlowInfo?.CaseHandStepId)!==step.id||id(hand?.CurrentFlowInfo?.FlowUserId)!==user.id)throw new Error('已发送内部转交请求，但下一节点回读未匹配；请刷新核对，不要重复转交。');
-  return {node:step.name,user:user.name};
+  let hand=await client.request('/CaseInfo/GetHandInfo',undefined,{caseProcId:processId});guard();
+  let matched=matchesNextFlow(hand,r.handId,step,user);
+  if(!matched){
+    await new Promise(res=>setTimeout(res,300));guard();
+    hand=await client.request('/CaseInfo/GetHandInfo',undefined,{caseProcId:processId});guard();
+    matched=matchesNextFlow(hand,r.handId,step,user);
+  }
+  if(!matched)throw new Error('已发送内部转交请求，但下一节点回读未匹配；请刷新核对，不要重复转交。');
+  return {node:(hand?.CurrentFlowInfo?.FlowNodeName as string)||step.name,user:(hand?.CurrentFlowInfo?.FlowUserName as string)||user.name};
 }

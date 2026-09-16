@@ -15,6 +15,7 @@ import { AgentArtifacts, AgentWorkbench } from './AgentWorkbench.tsx';
 import '../flow.css';
 
 const flowCache = new Map<string, FlowView>();
+export function setCaseFlowCache(caseId: string, view: FlowView){ flowCache.set(caseId, view); }
 
 export function CaseHistory({item}:{item:Case}){
   const [preview,setPreview]=useState('');
@@ -67,6 +68,13 @@ export function RemoteFlow({item}:{item:Case}){
       setBusy(false);
     }
   };
+  useEffect(()=>{
+    const c=flowCache.get(item.id);
+    if(c)setFlow(c);
+    else if(desktop&&item.remote&&!busy){
+      void refresh();
+    }
+  },[item.id,item.remote?.syncedAt]);
   const flow=cachedFlow&&cachedFlow.currentProcessId===item.current?.processId&&(!cachedFlow.processes?.caseId||!item.remote?.caseId||cachedFlow.processes.caseId===item.remote.caseId)?cachedFlow:null;
   const processes=flow?.processes?.processes??item.remote?.processes??[];
   const currentId=item.current?.processId??flow?.currentProcessId;
@@ -79,7 +87,7 @@ export function RemoteFlow({item}:{item:Case}){
   const handlerText=handlingHandlerText(handling);
   const progressCaption=officialWaitProgressCaption(handling,flow?.nodes);
   const conclusion=hasOfficialOutcome(item)?outcomeStatement(item):undefined;
-  return <section className="business-workspace remote-flow"><div className="section-heading"><div><h2>贝思兰德流程</h2><p className="section-copy">当前办理以实际流程节点为准；提交官方后由官方继续办理，回执只证明接收成功。</p></div><button disabled={!desktop||!item.remote||busy} onClick={()=>void refresh()}><RefreshCw size={15}/>{busy?'查询中…':'刷新流程'}</button></div>{error&&<p role="alert" className="inline-warning">{error}</p>}{!item.remote?<Note>本案尚未关联贝思兰德，登录后同步的案件会显示系统流程。</Note>:<><p className="muted">流程信息时间：{infoStampText||'尚未查询'}</p>
+  return <section className="business-workspace remote-flow"><div className="section-heading"><div><h2>贝思兰德流程</h2><p className="section-copy">当前办理以实际流程节点为准；提交官方后由官方继续办理，回执只证明接收成功。</p></div>{busy&&<div className="transfer-inspecting"><RefreshCw size={14} className="spin"/><span>正在查询最新流程…</span></div>}</div>{error&&<p role="alert" className="inline-warning">{error}</p>}{!item.remote?<Note>本案尚未关联贝思兰德，登录后同步的案件会显示系统流程。</Note>:<><p className="muted">流程信息时间：{infoStampText||'尚未查询'}</p>
     {conclusion&&<p className="flow-official-conclusion">官方结论：{conclusion}。结论来自官文清单只读判读；贝思兰德所内流程不会自动推进，下面仍是最后一次递交与回执记录。</p>}
     <div className={`flow-official${sub?` is-${sub.state}`:''}${sub?.refreshError?' is-stale':''}${officialWaiting?' is-current-handling':''}`}><h3>{sub?officialStatusLabel(sub):'官方递交状态未确认'}{officialWaiting&&<span className="tag">当前办理</span>}</h3>
       <p>{sub?.message&&sub.message!==officialStatusLabel(sub)?sub.message:officialWaiting?(sub?.state==='received'?'已收到官方回执，继续等待官方处理结果。':'已递交，等待官方处理结果。'):sub?.state==='unknown'?'不能仅凭内部节点或承办人判断是否已递交官方。':sub?.state==='draft'?'未递交官方，当前仍在内部递交办理。':'查询后显示官方递交结果。'}</p>
@@ -88,7 +96,7 @@ export function RemoteFlow({item}:{item:Case}){
       {sub?.refreshError&&<p className="flow-official-stale">{sub.refreshError}</p>}
       {sub?.checkedAt&&safeStamp(sub.checkedAt)&&<p className="flow-official-time">{sub.refreshError?'上次确认：':'确认时间：'}{safeStamp(sub.checkedAt)}</p>}
     </div>
-    {!flow&&<Note>当前显示本地已同步的流程与承办信息。如需查看流转节点进度图或全案流转历史，请点击上方【刷新流程】。</Note>}
+    {!flow&&<Note>当前显示本地已同步的流程与承办信息。如需查看最新流转节点进度图或全案流转历史，请点击顶栏【刷新本案】。</Note>}
     {flow&&<><h3>节点进度</h3>{progressCaption?<p className="muted">{progressCaption}</p>:null}
       {flow.nodes.length?<ol className="flow-stepper">{flow.nodes.map((n,i)=>{const cap=nodeCaption(n);const start=wallStamp(n.start);const end=wallStamp(n.end);return <li className={stepClass(n)} key={i}><span className="flow-dot" aria-hidden/><div className="flow-step-body"><b>{nodeTitle(n)}</b><p>{cap}{n.stayHours!==undefined?`${cap?' · ':''}停留 ${n.stayHours} 小时`:''}{start?`${cap||n.stayHours!==undefined?' · ':''}${start}`:''}{end?` → ${end}`:''}</p></div></li>;})}</ol>:<Note>系统未返回流转节点，待办案件可能尚未创建流转实例。</Note>}</>}
     <div className="flow-history"><details className="flow-details"><summary>内部流程与承办人</summary>

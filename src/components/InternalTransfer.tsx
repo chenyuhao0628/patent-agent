@@ -12,7 +12,7 @@ const declarations:Record<string,string>={IsApplySameDay:'同日申请',IsPublic
 
 const transferCache = new Map<string, { view?: TransferView; review?: TransferReview; tab: number }>();
 
-export function InternalTransfer({profileKey,item}:{profileKey:string;item:Case}){
+export function InternalTransfer({profileKey,item,refreshSeq}:{profileKey:string;item:Case;refreshSeq?:number}){
   const processId=currentWork(item).processId;
   const cacheKey=`${profileKey}/${item.id}/${processId}`;
   const [view,setView]=useState<TransferView|undefined>(()=>transferCache.get(cacheKey)?.view);
@@ -22,6 +22,21 @@ export function InternalTransfer({profileKey,item}:{profileKey:string;item:Case}
   const [confirm,setConfirm]=useState<'save'|'submit'|'start'|'revoke'>();
   const [inspecting,setInspecting]=useState<boolean>(()=>!transferCache.has(cacheKey));
   const scope=useRef('');scope.current=cacheKey;
+  const lastRefreshSeq=useRef(refreshSeq);
+  useEffect(()=>{
+    if(refreshSeq!==undefined&&refreshSeq!==lastRefreshSeq.current){
+      lastRefreshSeq.current=refreshSeq;
+      const cached=transferCache.get(cacheKey);
+      if(cached?.view?.id&&desktop?.transfer?.refresh){
+        void desktop.transfer.refresh(profileKey,cached.view.id).then(v=>{
+          if(scope.current===cacheKey){
+            transferCache.set(cacheKey,{view:v,review:transferCache.get(cacheKey)?.review,tab:tab});
+            setView(v);
+          }
+        }).catch(()=>{});
+      }
+    }
+  },[refreshSeq,cacheKey,profileKey]);
 
   useEffect(()=>{
     const cached=transferCache.get(cacheKey);
@@ -79,7 +94,7 @@ export function InternalTransfer({profileKey,item}:{profileKey:string;item:Case}
   const roles:TransferFileRole[]=view?.route==='application'?['application']:['baseline','application',...(view?.route==='reply'?['reply' as const]:[])];
   const roleName={baseline:'修改前申请文件（比对用，可选）',application:view?.route==='application'?'完整申请文件':'本次修改后的申请文件（有修改时）',reply:'意见陈述书 Word'};
   const step=view?.steps.find(s=>s.id===review?.stepId),user=step?.users.find(u=>u.id===review?.userId);
-  return <section className="internal-transfer"><div className="section-heading"><div><h3>{view?.sourceMode==='local'?'本地文件提交':'提交到下一内部流程'}</h3><p className="section-copy">整理本次材料、核对业务表单，再转交下一办理人。</p></div>{inspecting?<div className="transfer-inspecting"><RefreshCw size={14} className="spin"/><span>正在检查递交方案…</span></div>:view?<button disabled={busy} onClick={()=>void act(()=>desktop!.transfer.refresh(profileKey,view.id))}><RefreshCw size={15}/>刷新回读</button>:<div className="button-row"><button className="primary" disabled={busy} onClick={()=>void act(()=>desktop!.transfer.prepare(profileKey,item.id,'workbench'))}>使用工作台稿件<ArrowRight size={15}/></button><button disabled={busy} onClick={()=>void act(()=>desktop!.transfer.prepare(profileKey,item.id,'local'))}>本地文件提交</button></div>}</div>
+  return <section className="internal-transfer"><div className="section-heading"><div><h3>{view?.sourceMode==='local'?'本地文件提交':'提交到下一内部流程'}</h3><p className="section-copy">整理本次材料、核对业务表单，再转交下一办理人。</p></div>{inspecting?<div className="transfer-inspecting"><RefreshCw size={14} className="spin"/><span>正在检查递交方案…</span></div>:view?null:<div className="button-row"><button className="primary" disabled={busy} onClick={()=>void act(()=>desktop!.transfer.prepare(profileKey,item.id,'workbench'))}>使用工作台稿件<ArrowRight size={15}/></button><button disabled={busy} onClick={()=>void act(()=>desktop!.transfer.prepare(profileKey,item.id,'local'))}>本地文件提交</button></div>}</div>
     {!inspecting&&!view&&<p className="note"><strong>推荐方案</strong>：使用工作台已完成起草与定稿的成果直接生成提交文件。如果你已在外部完成撰写、答复或补正，也可选择“本地文件提交”直接导入本地 DOCX 文件。</p>}{error&&<p className="inline-warning" role="alert">{error}</p>}
     {view&&review&&<>
       {view.phase==='draft'&&<div className="button-row"><button disabled={busy} onClick={()=>{transferCache.delete(cacheKey);setView(undefined);setReview(undefined);setTab(0);}}>更换文件来源</button>{view.sourceMode==='workbench'&&<button disabled={busy} onClick={()=>void act(()=>desktop!.transfer.reprepare(profileKey,view.id))}>重新获取工作台稿件</button>}</div>}
@@ -110,8 +125,7 @@ export function InternalTransfer({profileKey,item}:{profileKey:string;item:Case}
       {view.sourceDraft&&<div className="transfer-source-confirm"><p>自动获取：{view.sourceDraft.pending?'最新待采用稿':'当前采用稿'}{view.sourceDraft.at?` · ${new Date(view.sourceDraft.at).toLocaleString('zh-CN')}`:''} · 版本 {view.sourceDraft.id.slice(0,8)}</p><label className="checkbox"><input type="checkbox" disabled={locked} checked={review.confirmedDraftId===view.sourceDraft.id} onChange={e=>patch({confirmedDraftId:e.target.checked?view.sourceDraft!.id:undefined})}/>确认本次提交使用此版本（不会自动采用或覆盖工作稿）</label></div>}
       {view.error&&<p role="alert" className="inline-warning">{view.error}</p>}
       {view.results.length>0&&<ol className="transfer-results">{view.results.map((s,i)=><li key={i}>{s}</li>)}</ol>}
-      {(view.phase==='uncertain'||view.phase==='saved')&&<button disabled={busy} onClick={()=>void act(()=>desktop!.transfer.reprepare(profileKey,view.id))}>读取最新状态，重新核对本次方案</button>}
-      {!view.handId?<Note>{view.phase==='uncertain'?'启动结果尚未确认，请先刷新或读取最新状态核对。':'当前没有递交实例。核对案件后，可启动本次内部递交流程。'}<button disabled={busy||view.phase!=='draft'} onClick={()=>setConfirm('start')}>启动递交实例</button></Note>:<>
+      {!view.handId?<Note>{view.phase==='uncertain'?'启动结果尚未确认，请点击顶栏【刷新本案】核对。':'当前没有递交实例。核对案件后，可启动本次内部递交流程。'}<button disabled={busy||view.phase!=='draft'} onClick={()=>setConfirm('start')}>启动递交实例</button></Note>:<>
         {view.canEditRemote===false&&<Note>贝思兰德当前未授权本账号编辑此节点。可查看材料与流程，保存和转交暂不可用。</Note>}<nav className="surface-switch">{['本次材料','业务表单','下一办理人与结果'].map((name,i)=><button key={name} className={tab===i?'active':''} onClick={()=>setTab(i)}>{i+1} · {name}</button>)}</nav>
         {tab===0&&<>
           {view.existingFileNames.length>0&&<div className="note"><strong>远端材料已就绪</strong>：贝思兰德当前已存在上述 {view.existingFileNames.length} 个文件。下方本地文件仅在需要修改或补充时选择。</div>}
@@ -135,7 +149,7 @@ export function InternalTransfer({profileKey,item}:{profileKey:string;item:Case}
         </div>}
         {tab===2&&<><div className="form-grid"><label className="field">下一流程<select disabled={lockedRecipient} value={review.stepId} onChange={e=>patch({stepId:e.target.value,userId:''})}><option value="">选择流程</option>{view.steps.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></label><label className="field">下一办理人<select disabled={lockedRecipient} value={review.userId} onChange={e=>patch({userId:e.target.value})}><option value="">选择办理人</option>{step?.users.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}</select></label></div><label className="field">转交备注<textarea disabled={lockedRecipient} maxLength={1000} value={review.remark} onChange={e=>patch({remark:e.target.value})}/></label>
           {view.existingFileNames.length>0&&<details><summary>贝思兰德当前递交材料 · {view.existingFileNames.length}</summary><ul>{view.existingFileNames.map((n,i)=><li key={i}>{n}</li>)}</ul></details>}
-          <div className="action-bar"><span>{view.phase==='submitted'?'内部转交已确认':view.phase==='saved'?'文件与表单保存已核验':view.phase==='uncertain'?'结果待核对，请先刷新':'请核对文件、表单和接收人'}</span>
+          <div className="action-bar"><span>{view.phase==='submitted'?'内部转交已确认':view.phase==='saved'?'文件与表单保存已核验':view.phase==='uncertain'?'结果待核对，请点击顶栏【刷新本案】':'请核对文件、表单和接收人'}</span>
             <div className="button-row">
               {view.phase==='saved'&&<button disabled={busy} onClick={()=>setConfirm('revoke')}>撤销保存 / 重新编辑</button>}
               {view.phase==='draft'?<button className="primary" disabled={locked||!user||!!view.sourceDraft&&review.confirmedDraftId!==view.sourceDraft.id} onClick={()=>setConfirm('save')}>核对并保存材料</button>:view.phase==='saved'?<button className="primary" disabled={busy||view.canEditRemote===false||!user} onClick={()=>setConfirm('submit')}>转交给 {user?.name||'下一办理人'}</button>:null}
