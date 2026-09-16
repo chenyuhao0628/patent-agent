@@ -15,6 +15,7 @@ export type SortKey = 'deadline' | 'patentType' | 'business' | 'title' | 'compan
 export type SortDir = 'asc' | 'desc';
 export type ArchivedFilter = 'active' | 'archived' | 'all';
 export type ProgressStatus = 'pending' | 'in_progress' | 'final';
+export type CaseStatusCategory = 'pending' | 'in_progress' | 'transferring' | 'waiting_official' | 'granted' | 'rejected' | 'closed' | 'other';
 export type DeadlineSource = DeadlineProvenance;
 export type { DeadlineView };
 export { DEADLINE_HEADER, localDayOrdinal, MS_PER_DAY, parseCalendarDay };
@@ -22,6 +23,17 @@ export { DEADLINE_HEADER, localDayOrdinal, MS_PER_DAY, parseCalendarDay };
 export const NEAR_DEADLINE_DAYS = 14;
 export const BUSINESS_ORDER: BusinessKind[] = ['申请', '审查意见', '补正', '审查', '其他'];
 export const PROGRESS_ORDER: ProgressStatus[] = ['pending', 'in_progress', 'final'];
+export const STATUS_CATEGORY_ORDER: CaseStatusCategory[] = ['pending', 'in_progress', 'transferring', 'waiting_official', 'granted', 'rejected', 'closed', 'other'];
+export const statusCategoryLabels: Record<CaseStatusCategory, string> = {
+  pending: '待处理',
+  in_progress: '办理中',
+  transferring: '流转中',
+  waiting_official: '等待官方',
+  granted: '已授权',
+  rejected: '已驳回',
+  closed: '已结案',
+  other: '其他',
+};
 export const moduleLabels: Record<Module, string> = { reply: '审查意见答复', write: '专利撰写', review: '内部审查', transfer: '内部流转' };
 
 const BUSINESS_BY_KIND: Record<string, BusinessKind> = {
@@ -51,6 +63,7 @@ export type LibraryQuery = {
   patentType?: string;
   business?: string;
   progress?: ProgressStatus | '';
+  statusCategory?: CaseStatusCategory | '';
   card?: CardId | null;
   archived?: ArchivedFilter;
   sortKey?: SortKey;
@@ -62,6 +75,7 @@ export type LibraryResult = {
   availablePatentTypes: string[];
   availableBusinessKinds: BusinessKind[];
   availableProgressStatuses: ProgressStatus[];
+  availableStatusCategories: CaseStatusCategory[];
   counts: Record<CardId, number>;
   rows: Case[];
 };
@@ -107,11 +121,68 @@ export function waitingOfficialLabel(c: Case): string | null {
 }
 
 function isFinishedOrWaitingBusiness(c: Case): boolean {
+  if (hasOfficialOutcome(c)) return true;
+  if (c.remoteClosure?.finished) return true;
   if (isConfirmedWaitingOfficial(c)) return true;
   const work = currentWork(c);
   if (work.kind === 'waiting') return true;
   if (work.kind === 'external' && !work.processId) return true;
   return false;
+}
+
+export function caseStatusCategory(c: Case): CaseStatusCategory {
+  if (c.remoteClosure?.finished) return 'closed';
+  if (hasOfficialOutcome(c)) {
+    return outcomeView(c) === 'granted' ? 'granted' : 'rejected';
+  }
+  if (isConfirmedWaitingOfficial(c) || inOfficialWaiting(c) || !!waitingOfficialLabel(c)) {
+    return 'waiting_official';
+  }
+  const full = caseStatus(c);
+  const handling = currentHandling(c);
+  const work = currentWork(c);
+
+  if (
+    full.startsWith('待处理 · ') ||
+    handling.node === '待办' ||
+    handling.handlerKind === 'pending-undertaker' ||
+    work.kind === 'needs-confirmation'
+  ) {
+    return 'pending';
+  }
+
+  if (
+    full.startsWith('递交中 · ') ||
+    full.includes('审核中') ||
+    full.includes('待递交') ||
+    full.includes('递交处理中') ||
+    (work.remoteStatus !== undefined && [200, 300, 400].includes(work.remoteStatus))
+  ) {
+    return 'transferring';
+  }
+
+  if (full.includes('流程已结束') || full.includes('当前流程已办结') || full.includes('内部流程已结束')) {
+    return 'closed';
+  }
+
+  if (
+    ['write', 'reply', 'correction', 'review'].includes(work.kind) ||
+    full.includes('起草') ||
+    full.includes('讨论') ||
+    full.includes('审查') ||
+    full.includes('复核') ||
+    full.includes('定稿') ||
+    progressStatus(c) === 'in_progress' ||
+    progressStatus(c) === 'final'
+  ) {
+    return 'in_progress';
+  }
+
+  if (progressStatus(c) === 'pending') {
+    return 'pending';
+  }
+
+  return 'other';
 }
 
 export function isUrgencyEligible(c: Case): boolean {
@@ -198,6 +269,11 @@ function uniqueProgressStatuses(cases: Case[]): ProgressStatus[] {
   return PROGRESS_ORDER.filter(status => present.has(status));
 }
 
+function uniqueStatusCategories(cases: Case[]): CaseStatusCategory[] {
+  const present = new Set(cases.map(caseStatusCategory));
+  return STATUS_CATEGORY_ORDER.filter(cat => present.has(cat));
+}
+
 export function nextLibrarySort(currentKey: SortKey, currentDir: SortDir, clicked: SortKey): { sortKey: SortKey; sortDir: SortDir } {
   if (currentKey === clicked) return { sortKey: clicked, sortDir: currentDir === 'asc' ? 'desc' : 'asc' };
   return { sortKey: clicked, sortDir: 'asc' };
@@ -221,7 +297,13 @@ function compareCases(a: Case, b: Case, sortKey: SortKey, sortDir: SortDir, inde
   } else if (sortKey === 'business') {
     primary = BUSINESS_ORDER.indexOf(businessKind(a)) - BUSINESS_ORDER.indexOf(businessKind(b));
   } else if (sortKey === 'status') {
-    primary = libraryStatus(a).short.localeCompare(libraryStatus(b).short, 'zh-CN');
+    const catA = STATUS_CATEGORY_ORDER.indexOf(caseStatusCategory(a));
+    const catB = STATUS_CATEGORY_ORDER.indexOf(caseStatusCategory(b));
+    if (catA !== catB) {
+      primary = catA - catB;
+    } else {
+      primary = libraryStatus(a).short.localeCompare(libraryStatus(b).short, 'zh-CN');
+    }
   } else {
     primary = a.title.localeCompare(b.title, 'zh-CN') || a.number.localeCompare(b.number, 'zh-CN');
   }
@@ -233,7 +315,7 @@ function compareCases(a: Case, b: Case, sortKey: SortKey, sortDir: SortDir, inde
 
 export function queryLibrary(cases: Case[], query: LibraryQuery = {}): LibraryResult {
   const {
-    scope = 'all', module, search = '', patentType = '', business = '', progress = '', card = null,
+    scope = 'all', module, search = '', patentType = '', business = '', progress = '', statusCategory = '', card = null,
     archived = 'active', sortKey = 'deadline', sortDir = 'asc', now = new Date(),
   } = query;
   const index = new Map(cases.map((c, i) => [c.id, i]));
@@ -241,11 +323,13 @@ export function queryLibrary(cases: Case[], query: LibraryQuery = {}): LibraryRe
   const availablePatentTypes = uniquePatentTypes(inModule);
   const availableBusinessKinds = uniqueBusinessKinds(inModule);
   const availableProgressStatuses = uniqueProgressStatuses(inModule);
+  const availableStatusCategories = uniqueStatusCategories(inModule);
   const typed = inModule.filter(c =>
     matchesSearch(c, search)
     && (!patentType || c.type === patentType)
     && (!business || businessKind(c) === business)
     && (!progress || progressStatus(c) === progress)
+    && (!statusCategory || caseStatusCategory(c) === statusCategory)
   );
   const counts: Record<CardId, number> = {
     active: typed.filter(isActiveWork).length,
@@ -259,5 +343,5 @@ export function queryLibrary(cases: Case[], query: LibraryQuery = {}): LibraryRe
   else if (archived === 'archived') rows = rows.filter(c => c.archived);
   if (card) rows = rows.filter(c => matchesCard(c, card, now));
   rows = [...rows].sort((a, b) => compareCases(a, b, sortKey, sortDir, index));
-  return { availablePatentTypes, availableBusinessKinds, availableProgressStatuses, counts, rows };
+  return { availablePatentTypes, availableBusinessKinds, availableProgressStatuses, availableStatusCategories, counts, rows };
 }

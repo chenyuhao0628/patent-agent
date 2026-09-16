@@ -5,7 +5,9 @@ import type { CurrentWork } from './lifecycle.ts';
 import {
   businessKind, daysUntilDeadline, deadlineView, inOfficialWaiting, isActiveWork, isConfirmedWaitingOfficial, isUrgencyEligible,
   libraryStatus, localDayOrdinal, nextLibrarySort, parseCalendarDay, progressStatus, progressStatusLabel, queryLibrary, waitingOfficialLabel,
+  caseStatusCategory, statusCategoryLabels,
 } from './library.ts';
+import type { CaseStatusCategory } from './library.ts';
 import { normalizeCase, WAITING_OFFICIAL_LABEL } from './lifecycle.ts';
 
 const TODAY = new Date(2026, 8, 12, 15, 45, 0);
@@ -374,4 +376,59 @@ test('a case with an official conclusion leaves waiting-official and shows the c
   assert.equal(libraryStatus(waiting).short, '已完成 · 已提交官方');
   assert.equal(inOfficialWaiting(granted), false);
   assert.equal(inOfficialWaiting(unlisted), true);
+});
+
+test('caseStatusCategory classifies cases into lifecycle categories accurately', () => {
+  const pending = baseland({ id: 'pending' }, { status: 0, node: '待办' });
+  const inProg = fixture({ id: 'in_prog', current: { kind: 'reply' } });
+  const transferring = baseland({ id: 'transferring' }, { status: 300 });
+  const waiting = baseland({ id: 'waiting' }, { status: 500, submission: { state: 'sent', checkedAt: '', source: 'send-status' } });
+  const granted: Case = { ...structuredClone(waiting), id: 'granted', officialOutcome: { state: 'granted', checkedAt: '' } };
+  const rejected: Case = { ...structuredClone(waiting), id: 'rejected', officialOutcome: { state: 'rejected', checkedAt: '' } };
+  const closed = fixture({ id: 'closed', remoteClosure: { finished: true, checkedAt: '' } });
+
+  assert.equal(caseStatusCategory(pending), 'pending');
+  assert.equal(caseStatusCategory(inProg), 'in_progress');
+  assert.equal(caseStatusCategory(transferring), 'transferring');
+  assert.equal(caseStatusCategory(waiting), 'waiting_official');
+  assert.equal(caseStatusCategory(granted), 'granted');
+  assert.equal(caseStatusCategory(rejected), 'rejected');
+  assert.equal(caseStatusCategory(closed), 'closed');
+});
+
+test('official outcomes and closed cases leave active work and urgency', () => {
+  const granted = baseland({ id: 'granted', deadline: '2026-09-10', officialOutcome: { state: 'granted', checkedAt: '' } });
+  const rejected = baseland({ id: 'rejected', deadline: '2026-09-10', officialOutcome: { state: 'rejected', checkedAt: '' } });
+  const closed = fixture({ id: 'closed', deadline: '2026-09-10', remoteClosure: { finished: true, checkedAt: '' } });
+  const active = fixture({ id: 'active', deadline: '2026-09-10', current: { kind: 'reply' } });
+
+  assert.equal(isUrgencyEligible(granted), false);
+  assert.equal(isUrgencyEligible(rejected), false);
+  assert.equal(isUrgencyEligible(closed), false);
+  assert.equal(isUrgencyEligible(active), true);
+
+  const res = queryLibrary([granted, rejected, closed, active], { now: TODAY });
+  assert.equal(res.counts.active, 1);
+  assert.equal(res.counts.overdue, 1);
+});
+
+test('statusCategory filter in queryLibrary allows filtering by case status category', () => {
+  const pending = baseland({ id: 'pending' }, { status: 0, node: '待办' });
+  const inProg = fixture({ id: 'in_prog', current: { kind: 'reply' } });
+  const granted = baseland({ id: 'granted', officialOutcome: { state: 'granted', checkedAt: '' } });
+  const rejected = baseland({ id: 'rejected', officialOutcome: { state: 'rejected', checkedAt: '' } });
+  const cases = [pending, inProg, granted, rejected];
+
+  const resPending = queryLibrary(cases, { statusCategory: 'pending' });
+  assert.deepEqual(resPending.rows.map(c => c.id), ['pending']);
+
+  const resRejected = queryLibrary(cases, { statusCategory: 'rejected' });
+  assert.deepEqual(resRejected.rows.map(c => c.id), ['rejected']);
+
+  const resAll = queryLibrary(cases);
+  assert.deepEqual(resAll.availableStatusCategories, ['pending', 'in_progress', 'granted', 'rejected']);
+
+  // Test status sort: pending (first) to rejected (later)
+  const sorted = queryLibrary(cases, { sortKey: 'status', sortDir: 'asc' });
+  assert.deepEqual(sorted.rows.map(c => c.id), ['pending', 'in_prog', 'granted', 'rejected']);
 });

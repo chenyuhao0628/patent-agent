@@ -3,9 +3,9 @@ import type { PointerEvent as ReactPointerEvent, KeyboardEvent as ReactKeyboardE
 import { Archive, ArrowUpRight, CheckSquare, Download, Folder, Plus, Search, X } from 'lucide-react';
 import type { Case } from '../domain/workflow.ts';
 import {
-  businessKind, daysUntilDeadline, deadlineView, DEADLINE_HEADER, isUrgencyEligible, libraryStatus, moduleLabels, nextLibrarySort, progressStatusLabel, queryLibrary,
+  businessKind, daysUntilDeadline, deadlineView, DEADLINE_HEADER, isUrgencyEligible, libraryStatus, moduleLabels, nextLibrarySort, queryLibrary, statusCategoryLabels,
 } from '../domain/library.ts';
-import type { ArchivedFilter, BusinessKind, CardId, Module, ProgressStatus, SortDir, SortKey, LibraryScope } from '../domain/library.ts';
+import type { ArchivedFilter, BusinessKind, CardId, Module, CaseStatusCategory, SortDir, SortKey, LibraryScope } from '../domain/library.ts';
 import { Empty } from './Primitives.tsx';
 import { desktop } from '../desktop.ts';
 import '../library.css';
@@ -92,7 +92,7 @@ export function Library({ cases, openCase, onImport, module, archiveCases, scope
   const [query, setQuery] = useState('');
   const [patentType, setPatentType] = useState('');
   const [business, setBusiness] = useState('');
-  const [progress, setProgress] = useState<ProgressStatus | ''>('');
+  const [statusCategory, setStatusCategory] = useState<CaseStatusCategory | ''>('');
   const [card, setCard] = useState<CardId | null>(null);
   const [archived, setArchived] = useState<ArchivedFilter>('active');
   const [sortKey, setSortKey] = useState<SortKey>('deadline');
@@ -104,9 +104,9 @@ export function Library({ cases, openCase, onImport, module, archiveCases, scope
   const widthsRef = useRef(widths);
   const resizingRef = useRef<{ id: ColumnId; startX: number; startWidth: number; via: 'pointer' | 'keyboard'; pointerId?: number } | null>(null);
   const pointerCleanupRef = useRef<(() => void) | null>(null);
-  const result = queryLibrary(cases, { scope, module, search: query, patentType, business, progress, card, archived, sortKey, sortDir, now });
+  const result = queryLibrary(cases, { scope, module, search: query, patentType, business, statusCategory, card, archived, sortKey, sortDir, now });
   const filtered = result.rows;
-  const filtersOn = !!(patentType || business || progress || card || archived !== 'active');
+  const filtersOn = !!(patentType || business || statusCategory || card || archived !== 'active');
 
   function commitWidths(next: Widths) {
     widthsRef.current = next;
@@ -192,7 +192,7 @@ export function Library({ cases, openCase, onImport, module, archiveCases, scope
   function resetFilters() {
     setPatentType('');
     setBusiness('');
-    setProgress('');
+    setStatusCategory('');
     setCard(null);
     setArchived('active');
   }
@@ -221,7 +221,7 @@ export function Library({ cases, openCase, onImport, module, archiveCases, scope
       <div className="library-toolbar-group library-filters" role="group" aria-label="筛选">
         <label>专利类型<select aria-label="专利类型" value={patentType} onChange={e => setPatentType(e.target.value)}><option value="">全部类型</option>{result.availablePatentTypes.map(type => <option key={type} value={type}>{type}</option>)}</select></label>
         <label>办理业务<select aria-label="办理业务" value={business} onChange={e => setBusiness(e.target.value)}><option value="">全部业务</option>{result.availableBusinessKinds.map(kind => <option key={kind} value={kind}>{kind}</option>)}</select></label>
-        <label>办理状态<select aria-label="办理状态" value={progress} onChange={e => setProgress(e.target.value as ProgressStatus | '')}><option value="">全部状态</option>{result.availableProgressStatuses.map(status => <option key={status} value={status}>{progressStatusLabel(status, module)}</option>)}</select></label>
+        <label>当前状态<select aria-label="当前状态" value={statusCategory} onChange={e => setStatusCategory(e.target.value as CaseStatusCategory | '')}><option value="">全部状态</option>{result.availableStatusCategories.map(cat => <option key={cat} value={cat}>{statusCategoryLabels[cat]}</option>)}</select></label>
         <label>归档<select aria-label="归档" value={archived} onChange={e => setArchived(e.target.value as ArchivedFilter)}><option value="active">未归档</option><option value="archived">已归档</option><option value="all">全部</option></select></label>
         <button type="button" disabled={!filtersOn} onClick={resetFilters}>重置筛选</button>
       </div>
