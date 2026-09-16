@@ -71,13 +71,12 @@ export function isRemoteTransferSaved(r:RemoteTransfer|null,route:TransferRoute)
   if(route==='reply'){
     const card=cards.find(c=>code(c.Code)==='100012');
     if(!card||!flag(card.IsSelect))return false;
-    const hasWord=Boolean(r.form?.File?.FileNo||(r.form?.File?.FileName&&r.files.some(f=>/(意见陈述|陈述意见)/.test(String(f.FileName||f.FormName||''))))||r.files.some(f=>/(意见陈述|陈述意见)/.test(String(f.FileName||f.FormName||''))));
+    const hasWord=Boolean(r.form?.File?.FileNo||(r.form?.File?.FileName&&r.files.some(f=>/(意见陈述|陈述意见|答复|审查意见)/.test(String(f.FileName||f.FormName||''))))||r.files.some(f=>/(意见陈述|陈述意见|答复|审查意见)/.test(String(f.FileName||f.FormName||''))||String(f.FileName||f.FormName||'').toLowerCase().endsWith('.docx')));
     if(!hasWord)return false;
     const op=r.form?.OpinionStatement;
-    if(!op)return false;
-    const noticeDate=String(op.NoticeDate||'').slice(0,10);
-    const noticeName=String(op.NoticeName||'').trim();
-    const noticeNo=String(op.NoticeNo||'').trim();
+    const noticeDate=String(op?.NoticeDate||r.notice?.PostDate||'').slice(0,10);
+    const noticeName=String(op?.NoticeName||r.notice?.NoticeName||'').trim();
+    const noticeNo=String(op?.NoticeNo||r.notice?.FaWenXLH||'').trim();
     if(!/^\d{4}-\d{2}-\d{2}$/.test(noticeDate)||!noticeName||!noticeNo)return false;
     return true;
   }
@@ -170,7 +169,8 @@ export function validateReview(route:TransferRoute,r:RemoteTransfer,review:Trans
   if(new Set(review.keepCodes).size!==review.keepCodes.length||review.keepCodes.some(c=>!FIVE_PARTS.some(p=>p.code===c)))throw new Error('五书选择无效。');
   if(route==='application'&&(!hasApplication||review.keepCodes.length!==5))throw new Error('提出申请需要完整申请文件和五书。');
   if(!hasApplication&&review.keepCodes.some(c=>!existingTransferParts(r).some(p=>p.code===c&&p.available)))throw new Error('所选部分既没有本次申请文件，也不在服务端当前材料中。');
-  if(route==='reply'&&!hasReply)throw new Error('尚未选择意见陈述书 Word。');
+  const remoteHasReply=Boolean(r.form?.File?.FileNo||(r.form?.File?.FileName)||r.files.some(f=>/(意见陈述|陈述意见|答复|审查意见)/.test(String(f.FileName||f.FormName||''))||String(f.FileName||f.FormName||'').toLowerCase().endsWith('.docx')));
+  if(route==='reply'&&!hasReply&&!remoteHasReply)throw new Error('尚未选择意见陈述书 Word。');
   const f=reviewedForm(route,r,review);
   if((route==='reply'||route==='correction'&&f.correctionReason===2)&&(!/^\d{4}-\d{2}-\d{2}$/.test(f.noticeDate)||!f.noticeName.trim()||!f.noticeNo.trim()))throw new Error(route==='correction'?'贝思兰德未提供完整关联通知信息，请刷新当前流程后重试。':'请核对通知书日期、名称和发文序号。');
   if(route==='correction'){

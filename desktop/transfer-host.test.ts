@@ -314,6 +314,12 @@ test('isRemoteTransferSaved validates contracts across reply, application, and c
   assert.equal(isRemoteTransferSaved({...validReply,cards:[{Code:100012,IsSelect:false}]} as any,'reply'),false);
   // Missing reply file
   assert.equal(isRemoteTransferSaved({...validReply,form:{...validReply.form,File:undefined},files:[]} as any,'reply'),false);
+  // Notice date via notice info fallback
+  const replyNoticeFallback={...validReply,form:{...validReply.form,OpinionStatement:{...validReply.form.OpinionStatement,NoticeDate:''}},notice:{PostDate:'2026-09-10',NoticeName:'第一次审查意见通知书',FaWenXLH:'NOTICE-1'}};
+  assert.equal(isRemoteTransferSaved(replyNoticeFallback as any,'reply'),true);
+  // Docx filename matching 答复
+  const replyDocx={...validReply,form:{...validReply.form,File:{FileNo:'f-1',FileName:'202606292-0591一种塑料薄膜生产用收卷设备第一次审查意见通知书答复.docx'}},files:[{FileNo:'f-1',FileName:'202606292-0591一种塑料薄膜生产用收卷设备第一次审查意见通知书答复.docx'}]};
+  assert.equal(isRemoteTransferSaved(replyDocx as any,'reply'),true);
 
   // Valid application
   const validApp={
@@ -478,5 +484,61 @@ test('submit rejects when remote hand has lost files or contract prior to sendin
     /服务端递交材料已不完整或发生变化/
   );
   assert.equal(client.calls.some(call=>call.endpoint.endsWith('SubmitHandFlow')),false);
+});
+
+test('inspect ignores stale empty local draft without files and rehydrates remote saved state',async t=>{
+  const {service,client,host,agent,c,source}=await setup(t);
+  let v=await host.prepare(service.key,c.id);
+  v=await host.addFile(service.key,v.id,'reply',source);
+  v=await host.save(service.key,v.id,v.review);
+  assert.equal(v.phase,'saved');
+
+  const journalRoot=await service.casePath(c.id,'04_内部说明');
+  const staleDraftId='stale-empty-draft-1';
+  const staleData={
+    schema:1,
+    view:{
+      id:staleDraftId,
+      sourceMode:'workbench',
+      profileKey:service.key,
+      caseId:c.id,
+      caseNumber:c.number,
+      caseTitle:c.title,
+      processId:c.remote!.processes[0].id,
+      processName:c.remote!.processes[0].name,
+      route:'reply',
+      files:[],
+      parts:[],
+      review:{keepCodes:[],form:{},stepId:'',userId:'',remark:''},
+      steps:[],
+      phase:'draft',
+      results:[],
+      existingFileNames:[],
+      at:new Date(Date.now()+1000).toISOString()
+    }
+  };
+  await fs.writeFile(path.join(journalRoot,`transfer-${staleDraftId}.json`),JSON.stringify(staleData));
+
+  const reopened=new TransferHost(service,agent);
+  const inspected=await reopened.inspect(service.key,c.id);
+  assert.equal(inspected?.phase,'saved');
+  assert.equal(inspected?.existingFileNames.length>0,true);
+});
+
+test('refresh promotes draft phase to saved when remote materials and form already exist on server',async t=>{
+  const {service,client,host,c,source}=await setup(t);
+  let v=await host.prepare(service.key,c.id);
+  v=await host.addFile(service.key,v.id,'reply',source);
+  v=await host.save(service.key,v.id,v.review);
+  assert.equal(v.phase,'saved');
+
+  const session=(host as any).sessions.get(v.id);
+  session.view.phase='draft';
+  session.view.files=[];
+
+  const refreshed=await host.refresh(service.key,v.id);
+  assert.equal(refreshed.phase,'saved');
+  assert.equal(refreshed.existingFileNames.length>0,true);
+  assert.match(refreshed.results.at(-1)!,/已保存就绪/);
 });
 

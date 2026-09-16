@@ -58,7 +58,9 @@ export class TransferHost {
     if(c.source!=='baseland'||!work.processId||!internalTransferAvailable(c)||currentHandling(c).officialWaiting)return null;
     const old=[...this.sessions.values()].filter(s=>s.view.profileKey===key&&s.view.caseId===caseId&&s.view.processId===work.processId&&s.view.phase!=='superseded').sort((a,b)=>b.view.at.localeCompare(a.view.at))[0];
     if(old){
-      if(this.desktop.generation===old.generation&&this.desktop.workspace.settings.workRoot===old.root)return structuredClone(old.view);
+      if(this.desktop.generation===old.generation&&this.desktop.workspace.settings.workRoot===old.root){
+        if(old.view.phase!=='draft'||old.view.files.length)return structuredClone(old.view);
+      }
     }
     const journalRoot=await this.desktop.casePath(caseId,'04_内部说明');
     const prior=[];
@@ -103,7 +105,7 @@ export class TransferHost {
         }catch{}
       }
     }
-    if(!prior.length)return null;
+    if(!prior.length||(prior[0].view.phase==='draft'&&!prior[0].view.files?.length))return null;
     const previous=prior[0];
     const s:Session={generation:this.desktop.generation,root:this.desktop.workspace.settings.workRoot??'',remote:null,files:{},view:structuredClone(previous.view)};
     for(const f of s.view.files){
@@ -123,7 +125,7 @@ export class TransferHost {
     const conflicting=[...this.sessions.values()].find(s=>s.view.profileKey===key&&s.view.caseId===caseId&&s.view.processId===work.processId&&(s.view.sourceMode??'workbench')!==sourceMode&&['saved','uncertain','submitted'].includes(s.view.phase));
     if(conflicting)throw new Error('本案另一提交来源已有保存或待核对方案，请先打开原方案核对，不能切换来源重复提交。');
     const old=[...this.sessions.values()].filter(s=>s.view.profileKey===key&&s.view.caseId===caseId&&s.view.processId===work.processId&&s.view.phase!=='superseded'&&(s.view.sourceMode??'workbench')===sourceMode).sort((a,b)=>b.view.at.localeCompare(a.view.at))[0];
-    if(old&&!ignorePrior){this.guard(old);if(sourceMode==='workbench'&&old.view.phase==='draft'&&!old.view.files.length){old.view.phase='superseded';await this.persist(old);return this.prepare(key,caseId,true,sourceMode);}return this.view(old);}
+    if(old&&!ignorePrior){this.guard(old);if(old.view.phase==='draft'&&!old.view.files.length){old.view.phase='superseded';await this.persist(old);return this.prepare(key,caseId,true,sourceMode);}return this.view(old);}
     const id=randomUUID(),s:Session={generation:this.desktop.generation,root:this.desktop.workspace.settings.workRoot??'',remote:null,files:{},view:{id,sourceMode,profileKey:key,caseId,caseNumber:c.number,caseTitle:c.title,processId:work.processId,processName:c.remote?.processes.find(p=>p.id===work.processId)?.name??'',route,files:[],parts:[],review:{keepCodes:[],form:defaultTransferForm(null),stepId:'',userId:'',remark:''},steps:[],phase:'draft',results:[],existingFileNames:[],at:new Date().toISOString()}};
     this.guard(s);
     s.remote=await readRemoteTransfer(this.desktop.client!,work.processId,route);this.guard(s);this.assignRemote(s);
@@ -137,7 +139,7 @@ export class TransferHost {
     if(prior.some(p=>(p.view.sourceMode??'workbench')!==sourceMode&&['saved','uncertain','submitted'].includes(p.view.phase)))throw new Error('本案另一提交来源已有保存或待核对记录，请先打开原方案核对。');
     const sameSource=prior.filter(p=>(p.view.sourceMode??'workbench')===sourceMode);prior.splice(0,prior.length,...sameSource);
     prior.sort((a,b)=>b.view.at.localeCompare(a.view.at));
-    if(prior.length&&!ignorePrior&&!(sourceMode==='workbench'&&prior[0].view.phase==='draft'&&!prior[0].view.files.length)){
+    if(prior.length&&!ignorePrior&&!(prior[0].view.phase==='draft'&&!prior[0].view.files.length)){
       const previous=prior[0];s.view=previous.view;
       if(s.view.phase==='saved'){
         if(s.view.handId!==s.remote?.handId||!s.remote?.hand.IsReviewing){
@@ -150,7 +152,7 @@ export class TransferHost {
       for(const f of s.view.files){if(!['application','baseline','reply'].includes(f.role)||!([`03_定稿/内部提交准备/${s.view.id}/`,`03_定稿/内部提交准备/提交材料_${s.view.id}/`].some(prefix=>f.relativePath.startsWith(prefix)))||f.relativePath.includes('..'))throw new Error('内部提交文件记录无效。');s.files[f.role]={...f};}
       this.sessions.set(s.view.id,s);return this.view(s);
     }
-    if(!prior.length&&!ignorePrior&&isRemoteTransferSaved(s.remote,route)){
+    if(!ignorePrior&&isRemoteTransferSaved(s.remote,route)){
       const options=s.remote!.steps.flatMap(step=>step.users.map(user=>({step,user})));
       const picked=pickTransferRecipient(options,this.desktop.workspace.settings.lastTransferRecipient);
       s.view=rehydrateRemoteSavedView({
@@ -162,9 +164,7 @@ export class TransferHost {
         sourceMode,
         selectedRecipient:picked?{stepId:picked.step.id,userId:picked.user.id}:undefined,
       });
-      this.sessions.set(id,s);
-      await this.persist(s);
-      return this.view(s);
+      this.sessions.set(s.view.id,s);await this.persist(s);return this.view(s);
     }
     this.sessions.set(id,s);
     // Only one exact ready original is suggested automatically. Ambiguous sources stay unselected.
@@ -323,7 +323,26 @@ export class TransferHost {
       s.view.phase='uncertain';s.view.error='本次递交实例已变化，无法确认原方案结果。请在贝思兰德核对。';
     }else{
       s.view.canEditRemote=r.hand.IsReviewing===true;s.view.currentNode=r.hand.CurrentFlowInfo?.FlowNodeName;s.view.currentUser=r.hand.CurrentFlowInfo?.FlowUserName;s.view.existingFileNames=remoteFileNames(r.files);
-      if(s.view.phase==='draft'){s.remote=r;this.assignRemote(s);}
+      if(s.view.phase==='draft'){
+        s.remote=r;
+        if(isRemoteTransferSaved(r,s.view.route)){
+          s.view.phase='saved';
+          s.view.at=new Date().toISOString();
+          const rFiles=[...(r.files||[]),...(r.form?.File?[r.form.File]:[])];
+          s.view.existingFileNames=remoteFileNames(rFiles);
+          s.view.error=undefined;
+          s.view.results.push('刷新确认服务端文件与表单已保存就绪，可直接选择下一办理人并转交。');
+          const options=r.steps.flatMap(step=>step.users.map(user=>({step,user})));
+          const picked=pickTransferRecipient(options,this.desktop.workspace.settings.lastTransferRecipient);
+          if(!s.view.review.stepId&&picked){
+            s.view.review.stepId=picked.step.id;
+            s.view.review.userId=picked.user.id;
+          }
+          await this.persist(s);
+        }else{
+          this.assignRemote(s);
+        }
+      }
       else if(s.view.phase==='uncertain'){
         if(s.view.submissionAttempted){
           const step=s.view.steps.find(x=>x.id===s.view.review.stepId),user=step?.users.find(u=>u.id===s.view.review.userId);
