@@ -276,7 +276,9 @@ export class TransferHost {
     await this.persist(s);return this.view(s);
   });}
   async save(key:string,id:string,review:TransferReview){return this.exclusive(async()=>{
-    const s=this.get(key,id);if(s.view.phase!=='draft'||!s.remote)throw new Error('本次方案不能重复保存，请先核对当前状态。');
+    const s=this.get(key,id);if(s.view.phase!=='draft')throw new Error('本次方案不能重复保存，请先核对当前状态。');
+    if(!s.remote){s.remote=await readRemoteTransfer(this.desktop.client!,s.view.processId,s.view.route);this.guard(s);}
+    if(!s.remote)throw new Error('未能读取到贝思兰德递交实例。');
     s.view.review=structuredClone(review);s.view.error=undefined;
     const application=await this.bytes(s,'application'),reply=await this.bytes(s,'reply');
     if(s.view.sourceDraft&&review.confirmedDraftId!==s.view.sourceDraft.id)throw new Error('请先确认本次自动获取的工作台稿件版本。');
@@ -284,9 +286,20 @@ export class TransferHost {
     let wrote=false;
     // Persist intent before the first remote write. An interrupted attempt never looks unsent.
     s.view.phase='uncertain';s.view.results.push('正在保存本次文件与业务表单；中断后需回读核对。');await this.persist(s);
-    try{s.remote=await saveRemoteTransfer({client:this.desktop.client!,processId:s.view.processId,caseTitle:s.view.caseTitle,route:s.view.route,remote:s.remote,review:s.view.review,application,reply,confirmName:this.options.confirmName,guard:()=>this.guard(s),onWrite:()=>{wrote=true;},checkpoint:async message=>{s.view.results.push(message);await this.persist(s);}});s.view.phase='saved';s.view.existingFileNames=remoteFileNames(s.remote.files);s.view.results.push('可以核对接收人并执行内部转交。');await this.rememberRecipient(s);}
+    try{s.remote=await saveRemoteTransfer({client:this.desktop.client!,processId:s.view.processId,caseTitle:s.view.caseTitle,route:s.view.route,remote:s.remote,review:s.view.review,application,reply,confirmName:this.options.confirmName,guard:()=>this.guard(s),onWrite:()=>{wrote=true;},checkpoint:async message=>{s.view.results.push(message);await this.persist(s);}});s.view.phase='saved';s.view.at=new Date().toISOString();s.view.existingFileNames=remoteFileNames(s.remote.files);s.view.results.push('可以核对接收人并执行内部转交。');await this.rememberRecipient(s);}
     catch(e){if(!wrote)s.view.phase='draft';s.view.error=(e as Error).message;s.view.results.push('保存未能全部核验，尚未转交。');}
     await this.persist(s);return this.view(s);
+  });}
+  async revoke(key:string,id:string){return this.exclusive(async()=>{
+    const s=this.get(key,id);
+    if(s.view.phase==='submitted')throw new Error('已确认内部转交，不能撤销。');
+    if(s.view.phase!=='saved'&&s.view.phase!=='uncertain')throw new Error('当前状态无需撤销。');
+    s.view.phase='draft';
+    s.view.at=new Date().toISOString();
+    s.view.error=undefined;
+    s.view.results.push('已撤销本次保存，返回草稿编辑状态；原表单与材料保留，可修改后重新保存。');
+    await this.persist(s);
+    return this.view(s);
   });}
   async submit(key:string,id:string,review?:TransferReview){return this.exclusive(async()=>{
     const s=this.get(key,id);if(s.view.phase!=='saved')throw new Error('必须先完成文件与表单保存验收。');

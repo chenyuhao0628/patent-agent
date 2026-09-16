@@ -22,6 +22,11 @@
 .transfer-existing-badge.is-draft{background:#68748a;color:#fff}
 .transfer-file-chips{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
 .transfer-file-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:#fff;border:1px solid #d4ddd7;border-radius:6px;font-size:12px;color:#2c3a30}
+.transfer-inspecting{display:inline-flex;align-items:center;gap:8px;color:#68748a;font-size:12px;padding:7px 10px}
+.transfer-saved-banner{display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap;padding:16px 20px;margin:16px 0;background:#eef8f2;border:1px solid #c2e5d0;border-radius:10px;font-size:13px}
+.transfer-saved-banner h4{margin:0 0 4px;font-size:15px;color:#1e6b3e;font-weight:600}
+.transfer-saved-banner p{margin:0;font-size:12px;color:#416952;line-height:1.6}
+.spin{animation:spin 1s linear infinite}@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 
 
 

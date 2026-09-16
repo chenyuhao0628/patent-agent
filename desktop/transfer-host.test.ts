@@ -50,6 +50,41 @@ test('inspect restores saved transfer session without network calls and preserve
   const submitted=await reopened.submit(service.key,inspected.id);
   assert.equal(submitted.phase,'submitted');
 });
+test('revoke reverts saved transfer to draft, preserves user inputs, and supports clean re-save',async t=>{
+  const {service,client,host,agent,c,source}=await setup(t);
+  let v=await host.prepare(service.key,c.id);v=await host.addFile(service.key,v.id,'reply',source);
+  const initialAt=v.at;
+  // Advance system clock slightly if possible or check that at is updated
+  await new Promise(r=>setTimeout(r,10));
+  v.review.remark='重要内部备注';
+  v=await host.save(service.key,v.id,v.review);
+  assert.equal(v.phase,'saved');
+  assert(v.at>=initialAt,'save updates at timestamp');
+
+  // Revoke to draft
+  const revoked=await host.revoke(service.key,v.id);
+  assert.equal(revoked.phase,'draft');
+  assert.equal(revoked.review.remark,'重要内部备注','表单备注与输入保留');
+  assert.equal(revoked.files.length,1,'文件副本完整保留');
+
+  // Reopen after revoke - inspect loads draft session
+  const reopened=new TransferHost(service,agent);
+  const inspected=await reopened.inspect(service.key,c.id);
+  assert.ok(inspected);
+  assert.equal(inspected.phase,'draft');
+  assert.equal(inspected.review.remark,'重要内部备注');
+
+  // Re-saving after reopen lazy-loads remote and transitions to saved cleanly
+  const resaved=await reopened.save(service.key,inspected.id,inspected.review);
+  assert.equal(resaved.phase,'saved');
+
+  // Submit succeeds
+  const submitted=await reopened.submit(service.key,resaved.id);
+  assert.equal(submitted.phase,'submitted');
+
+  // Cannot revoke after submitted
+  await assert.rejects(reopened.revoke(service.key,resaved.id),/已确认内部转交/);
+});
 test('changed snapshot, case process and account fail before upload; incomplete form stays editable',async t=>{
   const {service,client,host,c,source}=await setup(t);let v=await host.prepare(service.key,c.id);v=await host.addFile(service.key,v.id,'reply',source);
   await assert.rejects(host.save(service.key,v.id,{...v.review,userId:'wrong'}),/服务端/);

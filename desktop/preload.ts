@@ -58,6 +58,7 @@ contextBridge.exposeInMainWorld('patentDesktop',{
     submit:(key:string,id:string,review?:unknown)=>call('transferSubmit',key,id,review),
     refresh:(key:string,id:string)=>call('transferRefresh',key,id),
     reprepare:(key:string,id:string)=>call('transferReprepare',key,id),
+    revoke:(key:string,id:string)=>call('transferRevoke',key,id),
   },
   professional:{pickReferences:(key:string,id:string)=>call('professionalPickReferences',key,id),removeReference:(key:string,id:string,mid:string)=>call('professionalRemoveReference',key,id,mid),getCase:(key:string,id:string)=>call('professionalGet',key,id),listReviews:(key:string)=>call('professionalReviews',key),command:(key:string,id:string,cmd:unknown)=>call('professionalCommand',key,id,cmd),pickFiles:(key:string,id:string)=>call('professionalPick',key,id),openFile:(key:string,id:string,rel:string)=>call('professionalOpen',key,id,rel),onState:(callback:(key:string)=>void)=>{const listener=(_e:unknown,key:string)=>callback(key);ipcRenderer.on('desktop:professionalState',listener);return()=>ipcRenderer.removeListener('desktop:professionalState',listener);}},
   application:{get:()=>call('applicationGet'),save:(settings:unknown)=>call('applicationSave',settings),minimize:()=>call('applicationMinimize'),quit:()=>call('applicationQuit')},

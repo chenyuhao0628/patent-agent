@@ -34,4 +34,5 @@ export type TransferAPI = {
   submit(profileKey: string, id: string, review?: TransferReview): Promise<TransferView>;
   refresh(profileKey: string, id: string): Promise<TransferView>;
   reprepare(profileKey:string,id:string):Promise<TransferView>;
+  revoke(profileKey:string,id:string):Promise<TransferView>;
 };

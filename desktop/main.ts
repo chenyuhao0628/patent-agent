@@ -304,6 +304,7 @@ app.whenReady().then(async()=>{
   handle('transferSubmit',async(key,id,review)=>{const v=await transferHost.submit(key,id,review);if(v.phase==='submitted')professionalHost.noteSubmitted(key,v.caseId);else professionalHost.changed(key);return v;},true,true);
   handle('transferRefresh',async(key,id)=>{const v=await transferHost.refresh(key,id);if(v.phase==='submitted')professionalHost.noteSubmitted(key,v.caseId);else professionalHost.changed(key);return v;},true,true);
   handle('transferReprepare',(key,id)=>transferHost.reprepare(key,id),true,true);
+  handle('transferRevoke',(key,id)=>transferHost.revoke(key,id),true,true);
   ipcMain.handle('desktop:model',async(event,method,profileKey,args,requestId)=>{
     if(event.sender!==window?.webContents||event.senderFrame!==window.webContents.mainFrame)throw new Error('不接受非应用窗口请求。');
     const name='model';
