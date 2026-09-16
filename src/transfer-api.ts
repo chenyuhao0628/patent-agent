@@ -26,6 +26,7 @@ export type TransferView = {
   results: string[]; error?: string; submissionAttempted?: boolean; submissionRetryable?: boolean; submissionFingerprint?: string; existingFileNames: string[]; at: string;
 };
 export type TransferAPI = {
+  inspect(profileKey: string, caseId: string): Promise<TransferView | null>;
   prepare(profileKey: string, caseId: string, sourceMode?: TransferSource): Promise<TransferView>;
   pickFile(profileKey: string, id: string, role: TransferFileRole): Promise<TransferView>;
   startHand(profileKey: string, id: string): Promise<TransferView>;

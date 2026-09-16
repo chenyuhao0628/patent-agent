@@ -51,7 +51,9 @@ export async function readRemoteTransfer(client:BaselandClient,processId:string,
   return {...result,fingerprint:remoteFingerprint(result)};
 }
 function remoteFingerprint(r:Omit<RemoteTransfer,'fingerprint'>){
-  return digest(JSON.stringify({handId:r.handId,flow:r.hand.CurrentFlowInfo,canEdit:r.hand.IsReviewing,form:r.form,notice:r.notice,instructions:r.instructions,files:r.files,cards:r.cards.map(c=>[c.Code,c.IsSelect])}));
+  const sortedCards=[...r.cards].sort((a,b)=>String(a.Code).localeCompare(String(b.Code))).map(c=>[c.Code,c.IsSelect]);
+  const sortedFiles=[...(r.files||[])].map(f=>({name:f.FileName||f.FormName,no:f.FileNo||f.File?.FileNo})).sort((a,b)=>String(a.no).localeCompare(String(b.no)));
+  return digest(JSON.stringify({handId:r.handId,flow:r.hand.CurrentFlowInfo,canEdit:r.hand.IsReviewing,form:r.form,notice:r.notice,instructions:r.instructions,files:sortedFiles,cards:sortedCards}));
 }
 export function existingTransferParts(r:RemoteTransfer|null){
   const group=list(r?.instructions?.FormGroup);

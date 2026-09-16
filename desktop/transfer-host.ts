@@ -52,6 +52,33 @@ export class TransferHost {
     if(this.busy)throw new Error('正在保存或转交，请等待本次操作完成。');this.busy=true;this.desktop.flowFileWrites++;
     try{return await fn();}finally{this.busy=false;this.desktop.flowFileWrites--;}
   }
+  async inspect(key:string,caseId:string):Promise<TransferView|null>{
+    this.desktop.assertKey(key);
+    const c=this.desktop.findCase(caseId),work=currentWork(c);
+    if(c.source!=='baseland'||!work.processId||!internalTransferAvailable(c)||currentHandling(c).officialWaiting)return null;
+    const old=[...this.sessions.values()].filter(s=>s.view.profileKey===key&&s.view.caseId===caseId&&s.view.processId===work.processId&&s.view.phase!=='superseded').sort((a,b)=>b.view.at.localeCompare(a.view.at))[0];
+    if(old){
+      if(this.desktop.generation===old.generation&&this.desktop.workspace.settings.workRoot===old.root)return structuredClone(old.view);
+    }
+    const journalRoot=await this.desktop.casePath(caseId,'04_内部说明');
+    const prior=[];
+    for(const entry of await fs.readdir(journalRoot,{withFileTypes:true}).catch(()=>[])){
+      if(!entry.isFile()||!/^transfer-[\da-f-]+\.json$/.test(entry.name))continue;
+      const data=await readJSON<any>(await managedPath(journalRoot,entry.name),null),v=data?.view;
+      if(data?.schema===1&&v?.profileKey===key&&v.caseId===caseId&&v.processId===work.processId&&typeof v.id==='string'&&entry.name===`transfer-${v.id}.json`&&Array.isArray(v.files)&&Array.isArray(v.steps)&&['draft','saved','uncertain','submitted'].includes(v.phase))prior.push(data);
+    }
+    prior.sort((a,b)=>b.view.at.localeCompare(a.view.at));
+    if(!prior.length)return null;
+    const previous=prior[0];
+    const s:Session={generation:this.desktop.generation,root:this.desktop.workspace.settings.workRoot??'',remote:null,files:{},view:structuredClone(previous.view)};
+    for(const f of s.view.files){
+      if(['application','baseline','reply'].includes(f.role)&&([`03_定稿/内部提交准备/${s.view.id}/`,`03_定稿/内部提交准备/提交材料_${s.view.id}/`].some(prefix=>f.relativePath.startsWith(prefix)))&&!f.relativePath.includes('..')){
+        s.files[f.role]={...f};
+      }
+    }
+    this.sessions.set(s.view.id,s);
+    return structuredClone(s.view);
+  }
   async prepare(key:string,caseId:string,ignorePrior=false,sourceMode:'workbench'|'local'='workbench'):Promise<TransferView>{
     if(!['workbench','local'].includes(sourceMode))throw new Error('提交来源无效。');
     this.desktop.assertKey(key);this.desktop.assertMigrationNotAccepted();
@@ -77,7 +104,14 @@ export class TransferHost {
     prior.sort((a,b)=>b.view.at.localeCompare(a.view.at));
     if(prior.length&&!ignorePrior&&!(sourceMode==='workbench'&&prior[0].view.phase==='draft'&&!prior[0].view.files.length)){
       const previous=prior[0];s.view=previous.view;
-      if(s.view.phase==='saved'&&(previous.remoteFingerprint!==s.remote?.fingerprint||s.view.handId!==s.remote?.handId)){s.view.phase='uncertain';s.view.error='应用重开后，服务端数据与保存记录不一致，请先核对当前材料和流程。';}
+      if(s.view.phase==='saved'){
+        if(s.view.handId!==s.remote?.handId||!s.remote?.hand.IsReviewing){
+          s.view.phase='uncertain';
+          s.view.error='应用重开后，服务端递交实例或权限已变化，请先核对当前材料和流程。';
+        }else if(s.remote){
+          s.view.existingFileNames=remoteFileNames(s.remote.files);
+        }
+      }
       for(const f of s.view.files){if(!['application','baseline','reply'].includes(f.role)||!([`03_定稿/内部提交准备/${s.view.id}/`,`03_定稿/内部提交准备/提交材料_${s.view.id}/`].some(prefix=>f.relativePath.startsWith(prefix)))||f.relativePath.includes('..'))throw new Error('内部提交文件记录无效。');s.files[f.role]={...f};}
       this.sessions.set(s.view.id,s);return this.view(s);
     }
@@ -202,7 +236,9 @@ export class TransferHost {
     await this.persist(s);return this.view(s);
   });}
   async submit(key:string,id:string){return this.exclusive(async()=>{
-    const s=this.get(key,id);if(s.view.phase!=='saved'||!s.remote)throw new Error('必须先完成文件与表单保存验收。');
+    const s=this.get(key,id);if(s.view.phase!=='saved')throw new Error('必须先完成文件与表单保存验收。');
+    if(!s.remote){s.remote=await readRemoteTransfer(this.desktop.client!,s.view.processId,s.view.route);this.guard(s);}
+    if(!s.remote)throw new Error('未能读取到贝思兰德递交实例。');
     s.view.phase='uncertain';s.view.submissionAttempted=false;s.view.submissionRetryable=false;s.view.error=undefined;s.view.results.push('内部转交请求准备发送。');await this.persist(s);
     try{const result=await submitRemoteTransfer(this.desktop.client!,s.view.processId,s.view.route,s.remote,s.view.review,()=>this.guard(s),async()=>{s.view.submissionAttempted=true;s.view.submissionFingerprint=s.remote!.fingerprint;await this.persist(s);});s.view.phase='submitted';s.view.currentNode=result.node;s.view.currentUser=result.user;await this.desktop.flow(s.view.caseId);this.guard(s);s.view.results.push(`内部转交已确认：${result.node} · ${result.user}。后续官方递交由接收人办理。`);}catch(e){s.view.error=(e as Error).message;s.view.submissionRetryable=e instanceof BaselandBusinessError&&['busy','prerequisite'].includes(e.kind);}
     await this.persist(s);return this.view(s);
@@ -218,7 +254,14 @@ export class TransferHost {
         const step=s.view.steps.find(x=>x.id===s.view.review.stepId),user=step?.users.find(u=>u.id===s.view.review.userId);
         if(step?.name&&user?.name&&r.hand.CurrentFlowInfo?.CaseHandStepId===step.id&&r.hand.CurrentFlowInfo?.FlowUserId===user.id){s.view.phase='submitted';s.view.error=undefined;s.view.results.push('刷新已确认同一递交实例的下一内部节点和办理人。');}
         else if(s.view.submissionRetryable&&s.view.submissionFingerprint===r.fingerprint&&r.hand.IsReviewing===true){s.remote=r;s.view.phase='saved';s.view.submissionRetryable=false;s.view.error='上次转交返回：'+(s.view.error??'前置条件尚未通过。');s.view.results.push('刷新确认已保存材料与流程未变；请按上方原因完成处理后，再手动转交，无需重新上传。');}
-      }else if(s.view.phase==='saved'&&r.fingerprint!==s.remote?.fingerprint){s.view.phase='uncertain';s.view.error='保存后服务端材料或流程已变化，请重新核对。';}
+      }else if(s.view.phase==='saved'){
+        if(r.handId!==s.view.handId||!r.hand.IsReviewing){
+          s.view.phase='uncertain';s.view.error='保存后服务端材料或流程已变化，请重新核对。';
+        }else{
+          s.remote=r;
+          s.view.results.push('刷新已核对服务端最新材料与流程。');
+        }
+      }
     }
     await this.persist(s);return this.view(s);
   });}

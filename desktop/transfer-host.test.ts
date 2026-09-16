@@ -34,6 +34,21 @@ test('internal save survives reopen, never auto-submits, and rejects repeated su
   assert.equal(client.calls.filter(c=>c.endpoint.endsWith('SubmitHandFlow')).length,1);
   assert.deepEqual(await fs.readFile(source),original);
 });
+test('inspect restores saved transfer session without network calls and preserves saved state',async t=>{
+  const {service,client,host,agent,c,source}=await setup(t);
+  let v=await host.prepare(service.key,c.id);v=await host.addFile(service.key,v.id,'reply',source);
+  v=await host.save(service.key,v.id,v.review);assert.equal(v.phase,'saved');
+  const callsBefore=client.calls.length;
+  const reopened=new TransferHost(service,agent);
+  const inspected=await reopened.inspect(service.key,c.id);
+  assert.ok(inspected);
+  assert.equal(inspected.id,v.id);
+  assert.equal(inspected.phase,'saved');
+  assert.equal(inspected.files.length>0,true);
+  assert.equal(client.calls.length,callsBefore,'inspect 不发送任何网络请求');
+  const submitted=await reopened.submit(service.key,inspected.id);
+  assert.equal(submitted.phase,'submitted');
+});
 test('changed snapshot, case process and account fail before upload; incomplete form stays editable',async t=>{
   const {service,client,host,c,source}=await setup(t);let v=await host.prepare(service.key,c.id);v=await host.addFile(service.key,v.id,'reply',source);
   await assert.rejects(host.save(service.key,v.id,{...v.review,userId:'wrong'}),/服务端/);

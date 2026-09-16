@@ -70,6 +70,7 @@ dialog:has(.agent-stage) .modal-body{padding:0;max-height:calc(100vh - 130px);ov
 .agent-strategy{padding:16px;gap:10px;line-height:1.8}
 .agent-result-link{align-self:flex-start;color:#534ed3;background:#f2f0ff}
 .agent-artifact{width:100%;align-items:flex-start;flex-direction:column;text-align:left;margin:5px 0;padding:12px}
+.agent-artifact.is-active{border-color:#534ed3;background:#f5f3ff;box-shadow:0 0 0 1px #534ed3}
 .agent-artifact-preview{margin:16px 0;padding:14px;border:1px solid var(--line);border-radius:8px;overflow-wrap:anywhere}
 .agent-preview{max-height:360px;font-size:14px;padding:18px}
 @media(max-width:900px){.agent-stage{width:auto;max-height:none;padding:16px}.agent-stage-tabs{top:-16px}}

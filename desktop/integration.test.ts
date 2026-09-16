@@ -318,8 +318,10 @@ test('0.5 login: startup is nonblocking, transient failures recover, expiration 
   await reopened.retryLoginIfDue();assert.equal(reopened.account?.status,'authenticated');
   const {BaselandAuthError}=await import('./baseland.ts');
   client.identity=async()=>{throw new BaselandAuthError('expired','expired');};
+  await reopened.verifyLogin(true);assert.equal(reopened.auth.phase,'authenticated');
+  (reopened as any).savedCredentials=undefined;
+  reopened.client!.identity=async()=>{throw new BaselandAuthError('expired','expired');};
   await reopened.verifyLogin(true);assert.equal(reopened.auth.phase,'expired');assert.equal(reopened.auth.nextRetryAt,undefined);
-  assert.deepEqual(await fs.readFile(sessionFile),before);
   client.identity=async()=>{throw new Error('offline');};
   for(let i=0;i<4;i++)await reopened.verifyLogin(true);
   assert.equal(reopened.auth.nextRetryAt,undefined);

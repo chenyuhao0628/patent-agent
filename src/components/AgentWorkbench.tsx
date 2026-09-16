@@ -8,7 +8,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { FileText, FolderOpen, PanelRight, Square } from 'lucide-react';
 import type { Case } from '../domain/workflow.ts';
 import type { AgentJob, AgentMessage, Discussion, MaterialEntry, ToolEvent } from '../domain/agent.ts';
-import { activeJob, currentDraft, currentReview, selectedMaterials, selectedStrategy, unhandledIssues } from '../domain/agent.ts';
+import { activeJob, artifactPreviewText, currentDraft, currentReview, selectedMaterials, selectedStrategy, unhandledIssues } from '../domain/agent.ts';
 import { currentWork } from '../domain/lifecycle.ts';
 import { desktop } from '../desktop.ts';
 import type { AgentCaseView, AgentCommand } from '../desktop.ts';
@@ -496,7 +496,10 @@ export function AgentWorkbench({
             <p>核对当前稿件后，由你确认定稿。独立复核可选；已有报告和未处理问题保留供参考。</p>
             <button className="primary" type="button" disabled={!!finalizeBlock || busy || adopted?.applicationParts===undefined || process.classification.noticeCategory==='补正通知书'&&!adopted?.correctionContents?.length} onClick={() => void run({ type: 'finalize' })}>定稿</button>
             {finalizeBlock && <p className="agent-note">{finalizeBlock}</p>}
-            {process.finalized && <p>{process.classification.noticeCategory==='补正通知书'?'已保存补正字段和本次修改的申请文件。':process.finalized.word.generated?'已生成正式 Word 文件并归档。':'已保存历史定稿。'}{process.finalized.word.message ? ` ${process.finalized.word.message}` : ''}</p>}
+            {process.finalized && <div className="finalized-status-block">
+              <p><b>定稿已完成</b>：{process.classification.noticeCategory==='补正通知书'?'已保存补正字段和本次修改的申请文件。':process.finalized.word.generated?'已生成正式 Word 文件并归档。':'已保存历史定稿。'}{process.finalized.word.message ? ` ${process.finalized.word.message}` : ''}</p>
+              <p className="agent-note">已自动生成正式文件，并在下方展开正文预览。核对无误后，可在左侧切换至【提交】页转交下一办理人。</p>
+            </div>}
           </div>}
         </>}
         {(!formal || shownStage === 4) && <AgentArtifacts view={view} caseId={caseId}/>}
@@ -515,22 +518,30 @@ export function AgentWorkbench({
 }
 
 export function AgentArtifacts({ view, caseId }: { view: AgentCaseView; caseId: string }) {
-  const [preview, setPreview] = useState<AgentCaseView['artifacts'][number]>();
+  const [selectedPreview, setSelectedPreview] = useState<AgentCaseView['artifacts'][number]>();
   const [error, setError] = useState('');
-  const [clearConfirm, setClearConfirm] = useState(false);
-  const draft = view.process.drafts.find(item => item.id === preview?.versionId);
-  const text = preview?.kind === 'body' || preview?.kind === 'final-body' ? draft?.text
-    : preview?.kind === 'amendmentText' || preview?.kind === 'final-amendment' ? draft?.amendmentText
-    : preview?.kind === 'amendmentBasis' || preview?.kind === 'final-basis' ? draft?.amendmentBasis
-    : preview?.kind === 'reviewNotes' || preview?.kind === 'final-review-notes' ? draft?.reviewNotes
-    : preview?.kind === 'final-correction-form' ? draft?.correctionContents?.map((row,i)=>`条目 ${i+1}\n文件名称：${row.FileName}\n具体位置：${row.PositionInFile}\n补正前：${row.CorrectionBefore}\n补正后：${row.CorrectionAfter}`).join('\n\n') : undefined;
+  const sortedArtifacts = [...view.artifacts].sort((a, b) => b.at.localeCompare(a.at) || a.title.localeCompare(b.title, 'zh-CN'));
+  const preview = selectedPreview ?? sortedArtifacts.find(a => a.kind === 'final-word' || a.kind === 'final-correction-form') ?? sortedArtifacts[0];
+  const draft = view.process.drafts.find(item => item.id === preview?.versionId)
+    ?? (view.process.finalized ? view.process.drafts.find(item => item.id === view.process.finalized?.draftVersionId) : undefined)
+    ?? view.process.drafts.at(-1);
+  const text = preview ? artifactPreviewText(preview.kind, draft) : undefined;
   return <div className="agent-card">
-    <h4>本案成果</h4>
+    <h4>本案成果与定稿预览</h4>
     {!view.artifacts.length && <p>还没有生成成果。确认定稿后，按指定模板生成正式 Word；补正内容保存为表单字段记录，工作稿历史另行保留。</p>}
-    {[...view.artifacts].sort((a, b) => b.at.localeCompare(a.at) || a.title.localeCompare(b.title, 'zh-CN')).map(item => <button className="agent-artifact" key={item.id} type="button" onClick={() => { setPreview(item); setError(''); }}>
+    {sortedArtifacts.map(item => <button className={`agent-artifact${preview?.id === item.id ? ' is-active' : ''}`} key={item.id} type="button" onClick={() => { setSelectedPreview(item); setError(''); }}>
       {item.title}<small>{item.relativePath.split('.').at(-1)?.toUpperCase()} · {new Date(item.at).toLocaleString('zh-CN')}{item.versionId ? ` · ${item.versionId === view.process.currentDraftVersionId ? '当前稿件' : '历史稿件'}` : ''}</small>
     </button>)}
-    {preview && <div className="agent-artifact-preview"><h4>{preview.title}</h4><p className="muted">{preview.relativePath}</p>{text && <div className="agent-preview">{text}</div>}<button type="button" onClick={() => void desktop!.openMaterial(caseId, preview.relativePath).catch(err => setError(sanitizeAgentError(err.message)))}>打开此文件</button></div>}
+    {preview && <div className="agent-artifact-preview">
+      <div className="section-heading">
+        <div>
+          <h4>{preview.title}</h4>
+          <p className="muted">{preview.relativePath}</p>
+        </div>
+        <button type="button" onClick={() => void desktop!.openMaterial(caseId, preview.relativePath).catch(err => setError(sanitizeAgentError(err.message)))}>打开此文件</button>
+      </div>
+      {text ? <div className="agent-preview">{text}</div> : <p className="muted">当前文件已保存至本案目录，可点击上方按钮在外部应用中打开。</p>}
+    </div>}
     {error && <p className="agent-error" role="alert">{error}</p>}
     <button type="button" onClick={() => void desktop!.openCaseDirectory(caseId)}><FolderOpen size={14}/>打开案件目录</button>
   </div>;

@@ -1453,3 +1453,19 @@ export function startAgentJobInBook(book: AgentBook, cmd: StartJobCommand): Book
   const mapped = mapProcess(book, cmd.caseId, cmd.processKey, state => startAgentJob(state, cmd));
   return mapped as BookResult<{ job: AgentJob }>;
 }
+
+export function artifactPreviewText(kind: string, draft?: DraftVersion): string | undefined {
+  if (!draft) return undefined;
+  if (kind === 'body' || kind === 'final-body' || kind === 'final-word') return draft.text;
+  if (kind.startsWith('final-application-')) {
+    const part = kind.slice('final-application-'.length);
+    return (draft.applicationParts as Record<string, string | undefined> | undefined)?.[part] ?? (draft as Record<string, any>)[part];
+  }
+  if (kind === 'amendmentText' || kind === 'final-amendment') return draft.amendmentText ?? draft.text;
+  if (kind === 'amendmentBasis' || kind === 'final-basis') return draft.amendmentBasis || '本次未修改申请文件。';
+  if (kind === 'reviewNotes' || kind === 'final-review-notes') return draft.reviewNotes || '无补充内部说明。';
+  if (kind === 'final-correction-form') {
+    return draft.correctionContents?.map((row, i) => `条目 ${i + 1}\n文件名称：${row.FileName}\n具体位置：${row.PositionInFile}\n补正前：${row.CorrectionBefore}\n补正后：${row.CorrectionAfter}`).join('\n\n');
+  }
+  return undefined;
+}

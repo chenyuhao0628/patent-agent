@@ -50,6 +50,7 @@ contextBridge.exposeInMainWorld('patentDesktop',{
     },
   },
   transfer:{
+    inspect:(key:string,id:string)=>call('transferInspect',key,id),
     prepare:(key:string,id:string,sourceMode?:string)=>call('transferPrepare',key,id,sourceMode),
     pickFile:(key:string,id:string,role:string)=>call('transferPickFile',key,id,role),
     startHand:(key:string,id:string)=>call('transferStartHand',key,id),

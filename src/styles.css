@@ -15,5 +15,13 @@
 .transfer-context{display:flex;gap:18px;flex-wrap:wrap;padding:12px 16px;margin:16px 0;background:#f4f6fa;border-radius:10px;font-size:13px}
 .transfer-files>div{display:flex;align-items:center;gap:12px;padding:16px;border:1px solid #e4e7ee;border-radius:10px;margin:10px 0}.transfer-files>div>span{flex:1;min-width:0}.transfer-files small{display:block;overflow-wrap:anywhere;color:#68748a;margin-top:5px}
 .transfer-parts>div,.correction-row{padding:16px;border:1px solid #e4e7ee;border-radius:10px;margin:10px 0}.transfer-parts label{display:flex;align-items:center;gap:10px}.transfer-parts label>span{margin-left:auto;font-size:12px}.transfer-parts p,.transfer-parts summary{font-size:13px;color:#68748a}.transfer-comparison{display:grid;grid-template-columns:1fr 1fr;gap:16px}.transfer-comparison pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:300px;overflow:auto;font:13px/1.7 inherit}.transfer-form .checkbox{margin:14px 0}.transfer-results{line-height:1.9;padding-left:22px}.text-warning{color:#986321}
+.transfer-existing-box{padding:14px 16px;margin:14px 0;background:#f0f8f4;border:1px solid #c7e6d4;border-radius:10px;font-size:13px}
+.transfer-existing-box.is-draft{background:#f4f6fa;border-color:#dbe1eb}
+.transfer-existing-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;font-weight:600}
+.transfer-existing-badge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;background:#2d8a54;color:#fff}
+.transfer-existing-badge.is-draft{background:#68748a;color:#fff}
+.transfer-file-chips{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+.transfer-file-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:#fff;border:1px solid #d4ddd7;border-radius:6px;font-size:12px;color:#2c3a30}
+
 
 

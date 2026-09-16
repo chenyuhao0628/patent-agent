@@ -30,6 +30,8 @@ import {
   updateClassification,
   upsertProcess,
   WORD_NOT_CONNECTED,
+  artifactPreviewText,
+  type DraftVersion,
   type AgentProcessState,
   type AgentResult,
   type AgentSuccess,
@@ -760,4 +762,37 @@ test('independent review is optional, and finalizing without a report does not i
  const state=adopted();assert.equal(state.reviews.length,0);
  const final=finalizeProcess(state,scope);assert.equal(final.ok,true);
  if(final.ok){assert.equal(final.state.reviews.length,0);assert.equal(final.state.finalized?.draftVersionId,state.currentDraftVersionId);}
+});
+
+test('artifactPreviewText extracts full text for all final and drafting artifact kinds', () => {
+  const draft: DraftVersion = {
+    id: 'd1',
+    source: 'user',
+    at: '2026-09-15',
+    adoptStatus: 'adopted',
+    text: '这是意见陈述书全文内容',
+    amendmentText: '这是修改后的权利要求',
+    amendmentBasis: '说明书第10-15段',
+    reviewNotes: '内部核对无误',
+    applicationParts: {
+      CLAIMS: '1. 一种测试装置，其特征在于……',
+      DESCRIPTION: '本说明书公开了一种测试装置……',
+    },
+    correctionContents: [
+      { FileName: '权利要求书', PositionInFile: '第1项', CorrectionBefore: '原内容', CorrectionAfter: '修正内容' },
+    ],
+  };
+
+  assert.equal(artifactPreviewText('final-word', draft), '这是意见陈述书全文内容');
+  assert.equal(artifactPreviewText('body', draft), '这是意见陈述书全文内容');
+  assert.equal(artifactPreviewText('final-body', draft), '这是意见陈述书全文内容');
+  assert.equal(artifactPreviewText('final-application-CLAIMS', draft), '1. 一种测试装置，其特征在于……');
+  assert.equal(artifactPreviewText('final-application-DESCRIPTION', draft), '本说明书公开了一种测试装置……');
+  assert.equal(artifactPreviewText('final-amendment', draft), '这是修改后的权利要求');
+  assert.equal(artifactPreviewText('final-basis', draft), '说明书第10-15段');
+  assert.equal(artifactPreviewText('final-review-notes', draft), '内部核对无误');
+  assert.ok(artifactPreviewText('final-correction-form', draft)?.includes('条目 1'));
+  assert.ok(artifactPreviewText('final-correction-form', draft)?.includes('修正内容'));
+  assert.equal(artifactPreviewText('unknown-kind', draft), undefined);
+  assert.equal(artifactPreviewText('final-word', undefined), undefined);
 });

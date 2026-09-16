@@ -292,6 +292,7 @@ app.whenReady().then(async()=>{
     const next={...converterConfig,webEnabled:value.webEnabled,autoInstall:value.autoInstall,commandsEnabled:value.commandsEnabled,downloadsEnabled:value.downloadsEnabled};await atomicJSON(converterFile,next);converterConfig=next;configureConverter();return documentStatus();
   },true,true);
   handle('documentToolsOpen',async()=>{await import('node:fs/promises').then(fs=>fs.mkdir(path.join(service.root,'tools'),{recursive:true}));await shell.openPath(path.join(service.root,'tools'));});
+  handle('transferInspect',(key,id)=>transferHost.inspect(key,id),true,true);
   handle('transferPrepare',(key,id,sourceMode)=>transferHost.prepare(key,id,false,sourceMode),true,true);
   handle('transferPickFile',async(key,id,role)=>{
     const selected=await dialog.showOpenDialog(window!,{title:role==='baseline'?'选择本次修改所基于的完整申请文件':role==='reply'?'选择本次定稿意见陈述书':'选择完整修改后的申请文件',filters:[{name:'Word 文档',extensions:['docx']}],properties:['openFile']});

@@ -99,17 +99,55 @@ export class DesktopService {
   migrationTestHook?:(phase:'beforeStaging'|'copying'|'verifying'|'beforePublish')=>void|Promise<void>;
   flowFileWrites=0;
   private persistGate:Promise<unknown>=Promise.resolve();
+  private savedCredentials?:{username:string;password:string};
+  private reauthorizing=false;
   constructor(root:string,vault:Vault,clientFactory=(origin:string,token?:string)=>new BaselandClient(origin,token)) {this.root=root;this.vault=vault;this.clientFactory=clientFactory;}
   profileFile(){return path.join(this.root,'profiles',this.key,'workspace.json');}
   async init(verify=true){
-    const saved=await readJSON<{key:string;account:Account;encrypted:string}|null>(path.join(this.root,'session.json'),null);
+    const saved=await readJSON<{key:string;account:Account;encrypted:string;credentials?:string}|null>(path.join(this.root,'session.json'),null);
     if(saved){
-      try{if(!this.vault.available())throw new Error();const token=this.vault.decrypt(Buffer.from(saved.encrypted,'base64'));this.key=saved.key;this.account={...saved.account,status:'offline'};this.client=this.clientFactory(saved.account.origin,token);}
-      catch{this.account=null;this.key=saved.key;this.client=null;this.auth={phase:'unreadable',message:'本机登录凭证无法读取，请重新登录；原账号案件记录已保留。',attempts:0};}
+      try{
+        if(!this.vault.available())throw new Error();
+        const token=this.vault.decrypt(Buffer.from(saved.encrypted,'base64'));
+        if(saved.credentials){
+          try{
+            const parsed=JSON.parse(this.vault.decrypt(Buffer.from(saved.credentials,'base64')));
+            if(parsed&&typeof parsed.username==='string'&&typeof parsed.password==='string')this.savedCredentials=parsed;
+          }catch{}
+        }
+        this.key=saved.key;this.account={...saved.account,status:'offline'};this.client=this.clientFactory(saved.account.origin,token);
+      }
+      catch{this.account=null;this.key=saved.key;this.client=null;this.savedCredentials=undefined;this.auth={phase:'unreadable',message:'本机登录凭证无法读取，请重新登录；原账号案件记录已保留。',attempts:0};}
     }
     this.workspace=normalizeWorkspace(pauseRunning(await readJSON(this.profileFile(),empty())));
     if(this.workspace.settings.workRoot)await this.refreshShared(this.key);
     if(this.client&&this.account){this.auth={phase:'verifying',message:'正在验证登录…',attempts:0};if(verify)await this.verifyLogin(true);}
+  }
+  async reauthorize():Promise<boolean>{
+    if(this.reauthorizing||!this.savedCredentials||!this.account)return false;
+    this.reauthorizing=true;
+    try{
+      const client=this.clientFactory(this.account.origin);
+      const refreshed=await client.login(this.savedCredentials.username,this.savedCredentials.password);
+      this.client=client;
+      this.account={...refreshed,remembered:true};
+      const encrypted=this.vault.encrypt(client.token).toString('base64');
+      const credentials=this.vault.encrypt(JSON.stringify(this.savedCredentials)).toString('base64');
+      await atomicJSON(path.join(this.root,'session.json'),{key:this.key,account:this.account,encrypted,credentials});
+      this.auth={phase:'authenticated',message:'登录已自动重新获取授权',attempts:0,lastCheckedAt:new Date().toISOString()};
+      this.syncState.message='登录已自动重新获取授权，可以同步个人案件。';
+      this.changed();
+      return true;
+    }catch(e){
+      if(e instanceof BaselandAuthError&&['expired','forbidden'].includes(e.kind)){
+        this.savedCredentials=undefined;
+        const saved=await readJSON<any>(path.join(this.root,'session.json'),null);
+        if(saved){delete saved.credentials;await atomicJSON(path.join(this.root,'session.json'),saved);}
+      }
+      return false;
+    }finally{
+      this.reauthorizing=false;
+    }
   }
   auth:import('../src/desktop.ts').AuthState={phase:'signed-out',message:'未登录',attempts:0};
   private verification?:Promise<DesktopState>;
@@ -117,6 +155,10 @@ export class DesktopService {
     if(this.verification)return this.verification;
     if(!this.client||!this.account)return this.state();
     if(!force&&(this.auth.phase==='expired'||this.auth.phase==='forbidden'||(this.auth.nextRetryAt&&Date.now()<Date.parse(this.auth.nextRetryAt))))return this.state();
+    if(this.auth.phase==='expired'&&this.savedCredentials){
+      const ok=await this.reauthorize();
+      if(ok)return this.state();
+    }
     const client=this.client,account=this.account,generation=this.generation;
     const attempts=this.auth.attempts+1;
     this.auth={...this.auth,phase:'verifying',message:'正在验证登录…',attempts,nextRetryAt:undefined};this.changed();
@@ -130,6 +172,10 @@ export class DesktopService {
       }catch(e){
         if(generation!==this.generation||client!==this.client)return this.state();
         const phase=e instanceof BaselandAuthError?e.kind:'offline';
+        if(phase==='expired'&&this.savedCredentials){
+          const reauthOk=await this.reauthorize();
+          if(reauthOk)return this.state();
+        }
         this.account={...account,status:phase==='expired'?'expired':'offline'};
         this.auth={phase,attempts,lastCheckedAt:new Date().toISOString(),
           message:phase==='expired'?'登录已过期，请重新登录。':phase==='forbidden'?'当前账号无权验证登录，请核对账号权限。':'暂时无法验证登录，可能是网络或服务异常。本机记录已保留。',
@@ -169,8 +215,10 @@ export class DesktopService {
       if(generation!==this.generation)throw new Error('登录操作已取消。');
       account.remembered=input.remember&&this.vault.available();
       const encrypted=account.remembered?this.vault.encrypt(client.token).toString('base64'):undefined;
+      const credentials=account.remembered?this.vault.encrypt(JSON.stringify({username:input.username.trim(),password:input.password})).toString('base64'):undefined;
+      this.savedCredentials=account.remembered?{username:input.username.trim(),password:input.password}:undefined;
       await this.persist();
-      if(account.remembered)await atomicJSON(path.join(this.root,'session.json'),{key:nextKey,account,encrypted});
+      if(account.remembered)await atomicJSON(path.join(this.root,'session.json'),{key:nextKey,account,encrypted,credentials});
       else await fs.rm(path.join(this.root,'session.json'),{force:true});
       this.controller?.abort();this.generation++;this.verification=undefined;this.submissionCache.clear();this.caseClosureCache.clear();this.fileListCache.clear();this.syncSignals=undefined;
       this.persistGate=Promise.resolve();
@@ -194,7 +242,7 @@ export class DesktopService {
     this.generation++;this.verification=undefined;this.controller?.abort();this.submissionCache.clear();this.caseClosureCache.clear();this.fileListCache.clear();this.syncSignals=undefined;await this.persist();await fs.rm(path.join(this.root,'session.json'),{force:true});
     this.persistGate=Promise.resolve();
     this.syncPreparing=false;
-    this.client=null;this.account=null;this.auth={phase:'signed-out',message:'已退出登录',attempts:0};this.key='local';this.workspace=await readJSON(this.profileFile(),empty());
+    this.client=null;this.account=null;this.savedCredentials=undefined;this.auth={phase:'signed-out',message:'已退出登录',attempts:0};this.key='local';this.workspace=await readJSON(this.profileFile(),empty());
     this.syncState={running:false,message:'已退出账号。'};this.storageState={running:false,message:'请选择总工作文件夹。'};if(this.workspace.settings.workRoot)await this.refreshShared(this.key);
     this.syncState={running:false,message:'已退出账号；原账号的本机记录已保留。'};this.changed();return this.state();
   }
