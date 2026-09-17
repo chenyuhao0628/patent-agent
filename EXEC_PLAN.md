@@ -134,10 +134,10 @@
 - 全量自动化测试：`494/494` 通过（`npm test`；0.12.8 新增：KaTeX/MathML/OMML 转换单元测试、DOCX OMML 节点结构解包实证测试）。
 - `npx tsc --noEmit`：通过（0 错误）。
 - `git diff --check`：通过。
-- 双端安装清单：`release/release-manifest.json`（`builtAt` 2026-09-16T07:31:26.153Z），三个产物版本均为 `0.12.7`：
-  - macOS arm64 `.app`：`955ba8ba5b37ac73910e921a6e7e3ffcfc4780316fa1168ac729c97dfb130ecc`（sha256-tree）
-  - macOS arm64 `.pkg`：`b155d2f6a52ad1f3759d91e8f2593ca772631ad353ff96c4712ec851697b25d5`（sha256）
-  - Windows x64 `.exe`：`8beae6921e17ef942f3a052117f43803e2ec1a7601ca0b63d16673066551216a`（sha256）
+- 双端安装清单：`release/release-manifest.json`（`builtAt` 2026-09-17T07:09:04.687Z），三个产物版本均为 `0.12.8`：
+  - macOS arm64 `.app`：`52583d4009e6dbda4d4ab31e64a29a5e9b8b7917743b91c51c474b69f0a1cd80`（sha256-tree）
+  - macOS arm64 `.pkg`：`efd133fde41d8fc649dfc19eab1b07fc1dd3221d1b223588c4d70d9bf010e0cf`（sha256）
+  - Windows x64 `.exe`：`3d6ad80d5e7730006a83b514dc7ee4776851efb91ef6508ca9647517ba8a2ce5`（sha256）
 
 ## 4. 下一步
 
@@ -179,7 +179,7 @@
 | 0.12.5 | 内部递交云端已保存识别、空草稿穿透与刷新自愈 | 已打包 |
 | 0.12.6 | 内部转交回读匹配误报修复与案头统一总刷新 | 已打包 |
 | 0.12.7 | 案件库当前状态展示与筛选逻辑修复 | 已打包 |
-| 0.12.8 | 全链路标准 LaTeX 公式排版、Word 原生 OMML 导出与原件逆向解析 | 已实现，准备打包 |
+| 0.12.8 | 全链路标准 LaTeX 公式排版、Word 原生 OMML 导出与原件逆向解析 | 已打包 |
 
 ## 7. 验收边界
 
