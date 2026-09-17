@@ -61,7 +61,45 @@ export function splitTextAndFormulas(text: string): TextSegment[] {
       merged.push({ ...seg });
     }
   }
+
+  // Fallback: If no delimiters were found and the single line is a naked formula, promote it to display-math
+  if (merged.length === 1 && merged[0].type === 'text' && isLikelyNakedFormula(merged[0].content)) {
+    return [{ type: 'display-math', content: merged[0].content.trim() }];
+  }
+
   return merged;
+}
+
+/**
+ * Detect whether a standalone line looks like an un-delimited mathematical formula.
+ * Fallback mechanism for when models or users omit $$ or $ delimiters.
+ */
+export function isLikelyNakedFormula(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed || trimmed.length < 3 || trimmed.length > 500) return false;
+  // Must NOT contain Chinese characters
+  if (/[\u4e00-\u9fa5]/.test(trimmed)) return false;
+  // Must NOT start with programming language keywords
+  if (/^(?:const|let|var|function|def|import|export|class|public|private|return|if|for|while|type|interface)\b/i.test(trimmed)) return false;
+  // Must NOT start with English prose keywords
+  if (/^(?:where|wherein|step|note|case|let|assuming|then|because|since|if)\b/i.test(trimmed)) return false;
+  // Must contain an equality, inequality or relation operator
+  const hasRelation = /[=≠≤≥]|\\le\b|\\ge\b|\\neq\b|\\approx\b|\\sim\b|\\propto\b/.test(trimmed);
+  if (!hasRelation) return false;
+  // Must have distinctive mathematical markers
+  const hasMathSymbols = /[∑∏∫±×÷·≠≤≥√∞∂∇∈∉⊂⊆∪∩∧∨¬]/.test(trimmed);
+  const hasLatexMacro = /\\[a-zA-Z]+/.test(trimmed);
+  const hasMathFunc = /\b(?:exp|norm|log|ln|sin|cos|tan|det|dim|max|min|arg)\s*\(/i.test(trimmed);
+  const hasIndexedVar = /\b[A-Za-z]+_[a-zA-Z0-9{}]+|\b[A-Za-z]+\^[a-zA-Z0-9{}]/.test(trimmed);
+  if (!hasMathSymbols && !hasLatexMacro && !hasMathFunc && !hasIndexedVar) return false;
+  // Verify that KaTeX can parse without syntax error
+  try {
+    const html = katex.renderToString(trimmed, { throwOnError: false });
+    if (html.includes('katex-error')) return false;
+  } catch {
+    return false;
+  }
+  return true;
 }
 
 /**

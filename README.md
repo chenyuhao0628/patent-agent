@@ -1,6 +1,12 @@
-# 专利工作台 · 桌面开发版 0.12.8
+# 专利工作台 · 桌面开发版 0.12.9
 
 独立桌面应用，覆盖案件管理、答复、五阶段撰写、可选的个人独立审查和贝思兰德内部流转。使用本地文件和自有界面，通过结构化接口接入 OpenCode。
+
+## 0.12.9 定稿预览公式组件补齐、答复阶段公式约束与裸公式容错升格
+
+- **成果预览卡片公式组件补齐**：修复工作台右侧「本案成果与定稿预览」卡片漏接 `FormattedFormulaText` 组件的缺陷，将原生纯文本 div 替换为 KaTeX 渲染组件，使定稿 Word 文本快照与补正表单文本享有标准公式美化排版。
+- **答复提示词源头规范约束**：在答复起草与修改阶段的 `artifactContract` 动态拼装层中，正式注入标准 LaTeX 格式强制规范，约束模型在生成答复修改后的权利要求书（`CLAIMS`）与意见陈述正文时主动使用 `$$...$$` 或 `$...$` 定界符，杜绝纯文本/Unicode 字符拼接。
+- **无定界符裸公式智能识别与 OMML 容错升格**：在 `math-omml.ts` 与 `FormattedFormulaText.tsx` 双端部署严苛的 `isLikelyNakedFormula` 启发式检测机制（纯单行、无汉字、含关系符与显式数学特征、排除代码与英文句首词并经 KaTeX 校验），历史遗留或模型偶发遗漏定界符的复杂数学公式在 UI 自动升格为 `display-math` 排版，并在导出 Word 时自动转换为微软原生 Office Math（`<m:oMath>` / `<m:oMathPara>`）对象。
 
 ## 0.12.8 标准 LaTeX 公式全链路排版与 Word 原生导出
 
@@ -67,8 +73,8 @@
 
 ## 安装与更新
 
-- macOS Apple Silicon：以 `release/release-manifest.json` 中的 0.12.8 `.pkg` 和 `.app` 为准。
-- Windows x64：以 `release/release-manifest.json` 中的 0.12.8 NSIS `.exe` 为准。
+- macOS Apple Silicon：以 `release/release-manifest.json` 中的 0.12.9 `.pkg` 和 `.app` 为准。
+- Windows x64：以 `release/release-manifest.json` 中的 0.12.9 NSIS `.exe` 为准。
 
 安装器沿用固定应用标识，覆盖程序并保留用户数据。Mac 安装到所选安装域的“Applications”目录；安装前的系统目录旧版本不在此断言，以 `release/release-manifest.json` 与实际 Info.plist 为准。Windows 使用 NSIS 安装器，保留安装路径与 AppData。旧便携版应退出后使用安装器，原便携 EXE 不属于安装器管理的文件。
 
@@ -87,7 +93,7 @@
 
 使用“主版本.功能版本.修复版本”：重大产品版本或不兼容变化增加第一位；新增功能增加第二位，并将第三位归零；兼容的小修复增加第三位。主版本增加时，后两位归零。仅更新文档不自动升级安装版本。
 
-当前开发版为 **0.12.8**：在 0.12.7 之上，实现全链路标准 LaTeX 公式规范、纯离线 KaTeX 视觉排版组件、Word 原生 OMML 公式导出（DOCX）及 DOCX 原件逆向解析公式保护。仍处于开发阶段，版本增加不代表未验收能力已完成，历史证据不改号。
+当前开发版为 **0.12.9**：在 0.12.8 之上，实现定稿预览卡片公式组件补齐、答复阶段公式强规范约束及无定界符裸公式高防误判智能识别与 Word 原生 OMML 容错升格。仍处于开发阶段，版本增加不代表未验收能力已完成，历史证据不改号。
 
 ## 0.9.7 同步与慢任务修复
 

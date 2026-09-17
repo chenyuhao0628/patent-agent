@@ -4,10 +4,10 @@
 
 ## 1. 当前基线
 
-- 当前版本：`0.12.8`（源码、文档与双端安装产物均已更新）
+- 当前版本：`0.12.9`（源码、文档与安装产物同步推进中）
 - 产品：Electron + React + TypeScript + Vite
-- 0.9.7–0.12.7 的实现与文档已提交；0.12.8 全链路支持标准 LaTeX 公式排版、Word 原生 OMML 导出与原件逆向解析。
-- 本轮目标：完成 0.12.8 构建打包、清单核验与全套文档同步。
+- 0.9.7–0.12.8 的实现与文档已提交；0.12.9 针对定稿成果预览补齐公式组件、答复起草/修改阶段增加 LaTeX 公式强约束、双端实现无定界符裸公式启发式识别与 Word 原生 OMML 导出容错升格。
+- 本轮目标：完成 0.12.9 构建打包、清单核验与全套文档同步。
 
 ## 2. 已完成
 
@@ -120,24 +120,21 @@
 - 0.12.6：内部转交回读匹配误报修复、刷新自愈升级、前台隐藏局部刷新按钮与案头统一总刷新打包完成。
 - 0.12.7：案件库当前状态展示与筛选修复、生命周期状态模型建立、已出结论与结案剔除在办。
 - 0.12.8：标准 LaTeX 公式全链路支持、纯离线 KaTeX 视觉排版、Word 原生 OMML 导出与 DOCX 逆向解析保护。
+- 0.12.9：定稿成果预览卡片公式组件接入、答复起草/修改阶段 LaTeX 公式强规范约束、双端无定界符裸公式高防误判识别与 Word 原生 OMML 容错升格。
 
-### 2.10 标准 LaTeX 公式全链路支持与 Word 原生 OMML 导出（0.12.8）
+### 2.11 定稿预览补齐、答复公式规范与裸公式容错升格（0.12.9）
 
-- **标准公式规范确立**：统一撰写 Prompt 与技能规范为标准 LaTeX，规范行内 `$公式$` 与独立块级 `$$公式$$`。
-- **纯离线 KaTeX 视觉排版组件**：实现 `FormattedFormulaText`，全平台离线渲染专利公式，替换全应用 `<pre>` 纯文本草稿与成果预览，支持智能分词、转义符兼容与语法降级回退。
-- **Word 原生 OMML 公式导出**：引入 `mathml2omml` 与 `katex` 将 LaTeX 转换为原生 Office Math（`<m:oMath>` / `<m:oMathPara>`）XML 节点，保留专利宋体排版并支持在 Office Word 中直接双击编辑。
-- **DOCX 原件逆向解析保护**：升级撰写与复核技能中 `docx_to_md.py` 的 OMML 递归解析器，原件提取为标准 LaTeX，消除符号丢失与字符坍塌。
-- **技能摘要重签名**：更新 `resources/standard-skills/manifest.json`，确保技能校验通过。
+- **成果预览卡片公式组件补齐**：修复 `src/components/AgentWorkbench.tsx` 最右侧成果预览卡片漏接 `FormattedFormulaText` 组件缺陷，接入 KaTeX 排版渲染。
+- **答复提示词源头强规范**：在 `desktop/agent-rules.ts` 的 `artifactContract` 动态拼装层中注入明确的公式格式规范，约束模型在答复生成修改权利要求（`CLAIMS`）与意见陈述正文时主动使用标准定界符。
+- **双端无定界符裸公式智能识别与 OMML 容错升格**：在 `desktop/math-omml.ts` 与 `src/components/FormattedFormulaText.tsx` 中建立具备多道安全防线的 `isLikelyNakedFormula` 机制，在 Web 界面自动以 `display-math` 排版，在导出 Word 时自动转换为微软原生 Office Math（`<m:oMath>` / `<m:oMathPara>`）对象。
+- **单测与防误判覆盖**：在 `desktop/math-omml.test.ts` 中新增两道实际业务公式与英文权利要求 `wherein`、代码、普通中文段落等负样本自动化测试。
 
 ## 3. 当前验证证据
 
-- 全量自动化测试：`494/494` 通过（`npm test`；0.12.8 新增：KaTeX/MathML/OMML 转换单元测试、DOCX OMML 节点结构解包实证测试）。
+- 全量自动化测试：`496/496` 通过（`npm test`；0.12.9 新增：无定界符真实复杂公式识别与 OMML 转换、代码/英文负样本拦截防误判测试）。
 - `npx tsc --noEmit`：通过（0 错误）。
 - `git diff --check`：通过。
-- 双端安装清单：`release/release-manifest.json`（`builtAt` 2026-09-17T07:09:04.687Z），三个产物版本均为 `0.12.8`：
-  - macOS arm64 `.app`：`52583d4009e6dbda4d4ab31e64a29a5e9b8b7917743b91c51c474b69f0a1cd80`（sha256-tree）
-  - macOS arm64 `.pkg`：`efd133fde41d8fc649dfc19eab1b07fc1dd3221d1b223588c4d70d9bf010e0cf`（sha256）
-  - Windows x64 `.exe`：`3d6ad80d5e7730006a83b514dc7ee4776851efb91ef6508ca9647517ba8a2ce5`（sha256）
+- 双端安装清单：准备打包构建 0.12.9。
 
 ## 4. 下一步
 
@@ -180,6 +177,7 @@
 | 0.12.6 | 内部转交回读匹配误报修复与案头统一总刷新 | 已打包 |
 | 0.12.7 | 案件库当前状态展示与筛选逻辑修复 | 已打包 |
 | 0.12.8 | 全链路标准 LaTeX 公式排版、Word 原生 OMML 导出与原件逆向解析 | 已打包 |
+| 0.12.9 | 定稿预览补齐、答复公式规范与裸公式容错升格 | 待打包 |
 
 ## 7. 验收边界
 

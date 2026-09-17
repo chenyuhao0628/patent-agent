@@ -541,7 +541,7 @@ export function AgentArtifacts({ view, caseId }: { view: AgentCaseView; caseId: 
         </div>
         <button type="button" onClick={() => void desktop!.openMaterial(caseId, preview.relativePath).catch(err => setError(sanitizeAgentError(err.message)))}>打开此文件</button>
       </div>
-      {text ? <div className="agent-preview">{text}</div> : <p className="muted">当前文件已保存至本案目录，可点击上方按钮在外部应用中打开。</p>}
+      {text ? <FormattedFormulaText className="agent-preview" text={text}/> : <p className="muted">当前文件已保存至本案目录，可点击上方按钮在外部应用中打开。</p>}
     </div>}
     {error && <p className="agent-error" role="alert">{error}</p>}
     <button type="button" onClick={() => void desktop!.openCaseDirectory(caseId)}><FolderOpen size={14}/>打开案件目录</button>

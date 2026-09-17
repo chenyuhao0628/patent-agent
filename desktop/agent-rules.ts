@@ -159,6 +159,7 @@ severity 只能是 error、warning 或 info。`;
   return `只输出一个完整 JSON 对象（允许用 \`\`\`json 围栏包裹）。面向审查员的正文放在 body 字符串中，保持纯文本、不使用 Markdown 标题符号；JSON 字段名用于分节，不影响正文版式。
 {"kind":"${kind}","strategyId":"","body":"","amendmentText":"","amendmentBasis":"对应原文位置，如说明书第0018段","reviewNotes":"内部复核说明","applicationParts":{},"correctionContents":[]}
 applicationParts 必须提供：只列本次实际修改的部分，键为 CLAIMS（完整权利要求书）、DESCRIPTION（完整说明书）、ABSTRACT（完整摘要）；值必须是修改后的该部分完整正文，不得是差异说明、节选或“其余不变”。如没有任何修改，明确返回 {}。不新增无依据的图形，图像或复杂公式不能用文字占位冒充。
+公式格式规范：意见陈述书正文、建议修改文本及修改后权利要求书/说明书中出现的计算公式、参数关系与数学推导，必须采用标准 LaTeX 格式（行内公式使用 $公式$，独立行间公式使用 $$公式$$，例如 $$W_t = \\exp(...) $$）。严禁使用无定界符或难以阅读的纯文本 ASCII/Unicode 字符拼凑公式，以保证公式结构和排版在阅读预览和 Word 导出中均符合标准规范。
 仅在补正业务填写 correctionContents：逐条对象包含 FileName（贝思兰德文件下拉项）、PositionInFile（准确位置）、CorrectionBefore（补正前原文）、CorrectionAfter（补正后文字）。补正说明通过这些字段保存到 100006，不是上传的 Word 文件；body 作为对话中的办理说明。不要猜测通知日期、序号、文件内容或补正原因。非补正业务此列表为空。
 amendmentBasis 必须写明修改所依据的原文位置；reviewNotes 仅为内部复核说明，二者不得互相替代或混填。body、amendmentText、amendmentBasis、reviewNotes 均须为非空字符串。`;
 }

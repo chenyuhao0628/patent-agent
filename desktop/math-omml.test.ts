@@ -58,3 +58,45 @@ test('latexToOmml handles empty or malformed input gracefully without crashing',
   assert.equal(latexToOmml(''), null);
   assert.equal(latexToOmml('   '), null);
 });
+
+test('splitTextAndFormulas auto-promotes naked formula lines to display-math', () => {
+  const f1 = 'W_t = exp(-( (1/(N(N-1)))·∑_{k=1}^{N}∑_{h≠k}^{N-1}(L_{t,k,h}-\\bar{L}_t)^2 ))';
+  const res1 = splitTextAndFormulas(f1);
+  assert.equal(res1.length, 1);
+  assert.equal(res1[0].type, 'display-math');
+  assert.equal(res1[0].content, f1);
+
+  // OMML conversion also succeeds
+  const omml1 = latexToOmml(res1[0].content, true);
+  assert.ok(omml1);
+  assert.match(omml1, /<m:oMathPara/);
+
+  const f2 = 'a_k = { a×(1+norm(D_k)/∑_{i=1}^{n-1}P_ki), norm(D_k)>0.6; a, norm(D_k)≤0.6 }';
+  const res2 = splitTextAndFormulas(f2);
+  assert.equal(res2.length, 1);
+  assert.equal(res2[0].type, 'display-math');
+  assert.equal(res2[0].content, f2);
+
+  const f3 = 'P = \\frac{F}{S}';
+  const res3 = splitTextAndFormulas(f3);
+  assert.equal(res3.length, 1);
+  assert.equal(res3[0].type, 'display-math');
+});
+
+test('splitTextAndFormulas rejects non-formula text from being falsely promoted', () => {
+  const negativeCases = [
+    'wherein L_t is a threshold value;',
+    'const x_val = 100;',
+    'let w_t = get_weight();',
+    '步骤S101：计算综合参数 W_t = exp(...)；',
+    '这是一段普通的专利说明。',
+    'a = b',
+    'import { foo } from "bar";',
+  ];
+
+  for (const text of negativeCases) {
+    const res = splitTextAndFormulas(text);
+    assert.equal(res.length, 1, `Failed on: ${text}`);
+    assert.equal(res[0].type, 'text', `Expected text for: ${text}, got: ${res[0].type}`);
+  }
+});
