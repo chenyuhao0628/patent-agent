@@ -1,9 +1,10 @@
 import { AgentRunStatus } from './AgentRunStatus.tsx';
 import { discussionJobs, workflowMessageCommand } from '../domain/conversation.ts';
 import { discussionCanDelete } from '../domain/agent.ts';
-import {CorrectionContentsEditor} from './CorrectionContentsEditor.tsx';
+import { CorrectionContentsEditor } from './CorrectionContentsEditor.tsx';
 import { ApplicationPartsEditor } from './ApplicationPartsEditor.tsx';
 import { PriorArtPanel } from './PriorArt.tsx';
+import { FormattedFormulaText } from './FormattedFormulaText.tsx';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { FileText, FolderOpen, PanelRight, Square } from 'lucide-react';
 import type { Case } from '../domain/workflow.ts';
@@ -462,8 +463,8 @@ export function AgentWorkbench({
             {process.drafts.map(item => <button key={item.id} type="button" onClick={() => setPreviewId(item.id)}>{item.source === 'generated-revise' ? '修改稿' : '初稿'} · {new Date(item.at).toLocaleString('zh-CN')}</button>)}
             {preview && <>
               {adopted&&preview.id!==adopted.id&&<label className="checkbox"><input type="checkbox" checked={compare} onChange={e=>setCompare(e.target.checked)}/>与当前采用稿并排比较</label>}
-              <div className={compare&&adopted&&preview.id!==adopted.id?'agent-version-compare':''}>{compare&&adopted&&preview.id!==adopted.id&&<section><h4>当前采用稿</h4><pre className="agent-preview">{adopted.text}</pre></section>}<section><h4>预览版本 · {new Date(preview.at).toLocaleString()}</h4><pre className="agent-preview">{preview.text}</pre></section></div>
-              {preview.amendmentText && <p><b>修改文本</b><br/>{preview.amendmentText}</p>}{preview.applicationParts&&Object.entries(preview.applicationParts).map(([part,text])=><div key={part}><b>{part==='CLAIMS'?'权利要求书':part==='DESCRIPTION'?'说明书':part} · 完整正文</b><pre className="agent-preview">{text}</pre></div>)}
+              <div className={compare&&adopted&&preview.id!==adopted.id?'agent-version-compare':''}>{compare&&adopted&&preview.id!==adopted.id&&<section><h4>当前采用稿</h4><FormattedFormulaText className="agent-preview" text={adopted.text}/></section>}<section><h4>预览版本 · {new Date(preview.at).toLocaleString()}</h4><FormattedFormulaText className="agent-preview" text={preview.text}/></section></div>
+              {preview.amendmentText && <p><b>修改文本</b><br/>{preview.amendmentText}</p>}{preview.applicationParts&&Object.entries(preview.applicationParts).map(([part,text])=><div key={part}><b>{part==='CLAIMS'?'权利要求书':part==='DESCRIPTION'?'说明书':part} · 完整正文</b><FormattedFormulaText className="agent-preview" text={text}/></div>)}
               {preview.amendmentBasis && <p><b>依据</b><br/>{preview.amendmentBasis}</p>}
               {preview.reviewNotes && <p><b>内部说明</b><br/>{preview.reviewNotes}</p>}
               {preview.adoptStatus==='adopted'&&preview.id!==adopted?.id&&<div>{restoreId===preview.id?<><p>恢复将建立一个新版本，并保留当前稿件；已有复核需要重新核对。</p><button disabled={busy || !formal} onClick={()=>void run({type:'restoreDraft',versionId:preview.id})}>确认恢复为当前稿</button><button onClick={()=>setRestoreId(undefined)}>取消</button></>:<button disabled={busy||!formal||!!process.finalized} onClick={()=>setRestoreId(preview.id)}>恢复此历史稿件</button>}</div>}

@@ -4,6 +4,7 @@ import type { Case } from '../domain/workflow.ts';
 import { artifactsFor } from '../domain/designFlows.ts';
 import type { CaseDesign } from '../domain/designFlows.ts';
 import { Modal, Note } from './Primitives.tsx';
+import { FormattedFormulaText } from './FormattedFormulaText.tsx';
 
 type Props={item:Case;design:CaseDesign;update:(d:CaseDesign)=>void;openWriting:()=>void;openReply:()=>void};
 const recipients=[{id:'example-reviewer-a',name:'李明（示例）',role:'专利部 · 内部核稿'},{id:'example-reviewer-b',name:'王静（示例）',role:'流程部 · 文件核对'}];
@@ -36,7 +37,7 @@ export function TransferWorkbench({item,design:d,update,openWriting,openReply}:P
     {tab==='history'&&<><div className="section-heading"><h3>内部流转记录</h3><span className="muted">本机示例记录</span></div>{t.receipts.length?<div className="receipt-list">{[...t.receipts].reverse().map(r=><div key={r.id}><CheckCircle2 size={21}/><div><h4>{r.process}</h4><p>转交至 {r.receiver} · {r.files.length} 份成果</p><small>{new Date(r.at).toLocaleString('zh-CN')} · 模拟记录</small></div><button onClick={()=>setPreview({title:'内部转交记录 · 示例',text:`记录号：${r.id}\n办理人：${r.receiver}\n流程：${r.process}\n文件：${r.files.join('、')}\n备注：${r.note||'无'}\n\n未执行真实保存、转交或服务端回读。`})}>查看详情</button></div>)}</div>:<div className="well-empty"><HistoryIcon/><h3>还没有内部转交记录</h3><p>准备好成果后，在内部流转中选择流程和办理人。</p><button onClick={()=>setTab('transfer')}>准备内部流转</button></div>}</>}
     {confirm&&<Modal title="确认模拟内部转交" onClose={()=>setConfirm(false)}><p>将 {selected.length} 份示例成果连同“{t.process}”表单转交给 {receiver?.name}。</p><Note>仅保存本机演示记录，不执行贝思兰德写操作，不向官方递交。</Note><div className="action-bar"><button onClick={()=>setConfirm(false)}>返回核对</button><button className="primary" onClick={()=>{if(!receiver||!selected.length)return;patch({receipts:[...t.receipts,{id:`SIM-${Date.now()}`,at:new Date().toISOString(),files:selected.map(x=>x.title),receiver:receiver.name,process:t.process,note:t.note}]});setConfirm(false);setShowReceipt(true);}}>确认模拟转交</button></div></Modal>}
     {showReceipt&&latest&&<Modal title="已生成内部流转示例记录" onClose={()=>setShowReceipt(false)}><div className="receipt-success"><CheckCircle2 size={34}/><h3>模拟流程已完成</h3><p>{latest.receiver} · {latest.files.length} 份成果</p></div><div className="receipt-steps"><span><Check size={15}/>文件保存示例</span><span><Check size={15}/>表单保存示例</span><span><Check size={15}/>内部转交示例</span><span className="muted">服务端真实回读：尚未接入</span></div><div className="action-bar"><button className="primary" onClick={()=>{setShowReceipt(false);setTab('history');}}>查看流转记录</button></div></Modal>}
-    {preview&&<Modal title={preview.title} onClose={()=>setPreview(null)}><pre className="text-preview">{preview.text}</pre><Note>本机原型快照，不代表真实 Word 文件或外部提交结果。</Note></Modal>}
+    {preview&&<Modal title={preview.title} onClose={()=>setPreview(null)}><FormattedFormulaText text={preview.text}/><Note>本机原型快照，不代表真实 Word 文件或外部提交结果。</Note></Modal>}
   </section>;
 }
 function HistoryIcon(){return <FileText size={32}/>;}

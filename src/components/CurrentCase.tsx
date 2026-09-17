@@ -11,6 +11,7 @@ import { agentProcessKey, desktop, shouldAcceptAgentView } from '../desktop.ts';
 import type { AgentCaseView, FlowNode, FlowView } from '../desktop.ts';
 import { hasOfficialOutcome, outcomeStatement, stamp as safeStamp } from '../domain/outcome.ts';
 import { Modal, Note } from './Primitives.tsx';
+import { FormattedFormulaText } from './FormattedFormulaText.tsx';
 import { AgentArtifacts, AgentWorkbench } from './AgentWorkbench.tsx';
 import '../flow.css';
 
@@ -20,7 +21,7 @@ export function setCaseFlowCache(caseId: string, view: FlowView){ flowCache.set(
 export function CaseHistory({item}:{item:Case}){
   const [preview,setPreview]=useState('');
   const records=historyRecords(item);
-  return <section className="business-workspace"><h2>办理历史</h2><p className="section-copy">历史记录可查看，当前办理阶段保持不变。</p><div className="artifact-catalog">{records.map(record=><button key={record.id} onClick={()=>setPreview(record.text)}><FileText/><span><b>{record.title}</b><small>{record.detail}</small></span></button>)}</div>{!records.length&&<Note>暂无历史办理记录。</Note>}{preview&&<Modal title="历史内容 · 只读" onClose={()=>setPreview('')}><pre className="text-preview">{preview}</pre></Modal>}</section>;
+  return <section className="business-workspace"><h2>办理历史</h2><p className="section-copy">历史记录可查看，当前办理阶段保持不变。</p><div className="artifact-catalog">{records.map(record=><button key={record.id} onClick={()=>setPreview(record.text)}><FileText/><span><b>{record.title}</b><small>{record.detail}</small></span></button>)}</div>{!records.length&&<Note>暂无历史办理记录。</Note>}{preview&&<Modal title="历史内容 · 只读" onClose={()=>setPreview('')}><FormattedFormulaText text={preview}/></Modal>}</section>;
 }
 function stepClass(n:FlowNode){
   if(n.type==='official'&&n.isCurrent)return 'flow-step is-current is-official';

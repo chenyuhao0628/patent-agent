@@ -49,3 +49,16 @@ test('application exports discard whitespace-only source lines while preserving 
   assert(paragraphs.every(p=>p.textContent?.trim()||p.getElementsByTagNameNS(W,'sectPr').length));
  }
 });
+
+test('document export converts LaTeX formulas into Word native m:oMath nodes', async () => {
+  const { exportReplyDocx } = await import('./document-export.ts');
+  const text = '意见陈述书\n针对通知书陈述意见如下：\n根据压力计算公式 $P = \\frac{F}{S}$，可知压强与受力面积成反比。\n独立特征表达式如下：\n$$x^2 + y^2 = r^2$$\n综上所述，具备创造性。\n此致';
+  const bytes = await exportReplyDocx(root, text, 1);
+  const z = await JSZip.loadAsync(bytes);
+  const xml = await z.file('word/document.xml')!.async('string');
+  assert.match(xml, /<m:oMath/);
+  assert.match(xml, /<m:f>/);
+  assert.match(xml, /<m:num>/);
+  assert.match(xml, /<m:den>/);
+  assert.match(xml, /<m:sSup>/);
+});

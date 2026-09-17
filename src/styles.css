@@ -27,6 +27,8 @@
 .transfer-saved-banner h4{margin:0 0 4px;font-size:15px;color:#1e6b3e;font-weight:600}
 .transfer-saved-banner p{margin:0;font-size:12px;color:#416952;line-height:1.6}
 .spin{animation:spin 1s linear infinite}@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-
-
-
+.formatted-formula-text{white-space:pre-wrap;overflow-wrap:anywhere;font-family:inherit;font-size:13px;line-height:1.9}
+.formula-text-line{min-height:1.2em}
+.formula-inline-wrap{display:inline-block;vertical-align:middle;margin:0 2px}
+.formula-block-wrap{display:block;margin:12px 0;text-align:center;overflow-x:auto}
+.formula-fallback{font-family:monospace;background:#f5f3ff;color:#5548a8;padding:2px 4px;border-radius:4px;font-size:12px}

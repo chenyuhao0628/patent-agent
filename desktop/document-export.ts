@@ -3,6 +3,7 @@ import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 import * as fs from 'node:fs/promises';
 import path from 'node:path';
 import { digest } from './files.ts';
+import { splitTextAndFormulas, latexToOmml } from './math-omml.ts';
 
 const W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 type XmlElement = Element;
@@ -41,10 +42,42 @@ function replaceParagraph(proto: XmlElement, text: string, heading = false) {
   const prior = p.getElementsByTagNameNS(W, 'rPr')[0]?.cloneNode(true);
   for (const node of Array.from(p.childNodes)) if (node !== prop) p.removeChild(node);
   if (heading && !prop.getElementsByTagNameNS(W, 'keepNext').length) prop.appendChild(doc.createElementNS(W, 'w:keepNext'));
-  const r = doc.createElementNS(W, 'w:r');
-  if (prior) r.appendChild(prior);
-  const t = doc.createElementNS(W, 'w:t'); t.setAttribute('xml:space', 'preserve'); t.appendChild(doc.createTextNode(text));
-  r.appendChild(t); p.appendChild(r);
+
+  const segments = splitTextAndFormulas(text);
+  if (!segments.length || (segments.length === 1 && segments[0].type === 'text')) {
+    const r = doc.createElementNS(W, 'w:r');
+    if (prior) r.appendChild(prior.cloneNode(true));
+    const t = doc.createElementNS(W, 'w:t'); t.setAttribute('xml:space', 'preserve'); t.appendChild(doc.createTextNode(text));
+    r.appendChild(t); p.appendChild(r);
+    return p;
+  }
+
+  for (const seg of segments) {
+    if (seg.type === 'text') {
+      const r = doc.createElementNS(W, 'w:r');
+      if (prior) r.appendChild(prior.cloneNode(true));
+      const t = doc.createElementNS(W, 'w:t'); t.setAttribute('xml:space', 'preserve'); t.appendChild(doc.createTextNode(seg.content));
+      r.appendChild(t); p.appendChild(r);
+    } else {
+      const isDisplay = seg.type === 'display-math';
+      const omml = latexToOmml(seg.content, isDisplay);
+      if (omml) {
+        try {
+          const mathDoc = new DOMParser().parseFromString(omml, 'application/xml');
+          const mathNode = doc.importNode(mathDoc.documentElement, true);
+          p.appendChild(mathNode);
+          continue;
+        } catch {
+          // Fallback to text run if XML parse fails
+        }
+      }
+      const r = doc.createElementNS(W, 'w:r');
+      if (prior) r.appendChild(prior.cloneNode(true));
+      const t = doc.createElementNS(W, 'w:t'); t.setAttribute('xml:space', 'preserve');
+      t.appendChild(doc.createTextNode(isDisplay ? `$$${seg.content}$$` : `$${seg.content}$`));
+      r.appendChild(t); p.appendChild(r);
+    }
+  }
   return p;
 }
 
@@ -61,9 +94,7 @@ export async function exportReplyDocx(templateRoot: string, text: string, round:
     const proto = prototypes[item.role];
     if (!proto) throw new Error('Word 模板缺少段落格式。');
     const paragraph=replaceParagraph(proto, item.text, item.role === 'HEADING' || item.text === '此致');
-    // Resolve the retained template's Chinese theme face explicitly. Otherwise some
-    // readers mix Latin fallback glyphs and overlap Chinese characters in a single run.
-    if(hans){const run=paragraph.getElementsByTagNameNS(W,'r')[0];let pr=run.getElementsByTagNameNS(W,'rPr')[0];if(!pr){pr=doc.createElementNS(W,'w:rPr');run.insertBefore(pr,run.firstChild);}let fonts=pr.getElementsByTagNameNS(W,'rFonts')[0];if(!fonts){fonts=doc.createElementNS(W,'w:rFonts');pr.insertBefore(fonts,pr.firstChild);}if(!fonts.hasAttributeNS(W,'eastAsia'))fonts.setAttributeNS(W,'w:eastAsia',hans);fonts.removeAttributeNS(W,'eastAsiaTheme');const lang=doc.createElementNS(W,'w:lang');lang.setAttributeNS(W,'w:eastAsia','zh-CN');pr.appendChild(lang);}
+    if(hans){for(const run of Array.from(paragraph.getElementsByTagNameNS(W,'r'))){let pr=run.getElementsByTagNameNS(W,'rPr')[0];if(!pr){pr=doc.createElementNS(W,'w:rPr');run.insertBefore(pr,run.firstChild);}let fonts=pr.getElementsByTagNameNS(W,'rFonts')[0];if(!fonts){fonts=doc.createElementNS(W,'w:rFonts');pr.insertBefore(fonts,pr.firstChild);}if(!fonts.hasAttributeNS(W,'eastAsia'))fonts.setAttributeNS(W,'w:eastAsia',hans);fonts.removeAttributeNS(W,'eastAsiaTheme');const lang=doc.createElementNS(W,'w:lang');lang.setAttributeNS(W,'w:eastAsia','zh-CN');pr.appendChild(lang);}}
     body.insertBefore(paragraph, section);
   }
   zip.file('word/document.xml', new XMLSerializer().serializeToString(doc));

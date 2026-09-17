@@ -216,7 +216,7 @@ app.whenReady().then(async()=>{
     service.markWorkMigrationQueued();
     try{return await serial(()=>service.organizeFolders(key));}
     finally{service.clearWorkMigrationQueued();}
-  },true,true);
+  },false,true);
   handle('saveSettings',async(key,settings)=>{
     for(const k of ['originalLibrary','workRoot'] as const)if(settings[k]&&settings[k]!==service.workspace.settings[k]&&!chosen.has(settings[k]))throw new Error('请使用系统文件夹选择器设置目录。');
     if(settings.workRoot&&settings.workRoot!==service.workspace.settings.workRoot){agentHost.assertIdleForMigration();professionalHost.assertIdleForMigration();}

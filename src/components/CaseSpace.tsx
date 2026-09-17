@@ -13,6 +13,7 @@ import { deadlineFieldLabel, deadlineFieldValue, deadlineView } from '../domain/
 import { WritingWorkbench } from './WritingWorkbench.tsx';
 import { ReviewWorkbench } from './ReviewWorkbench.tsx';
 import { TransferWorkbench } from './TransferWorkbench.tsx';
+import { FormattedFormulaText } from './FormattedFormulaText.tsx';
 import { artifactsFor, initialDesign, reviewMatchesWriting } from '../domain/designFlows.ts';
 import { MaterialsView } from './MaterialsView.tsx';
 import { Workspace } from './Workspace.tsx';
@@ -82,7 +83,7 @@ export function CaseSpace({requestedRoundId,item,tab,navigate,dispatch,updateCas
     {tab==='submit'&&(desktop&&profileKey?<section className="business-workspace"><h2>提交</h2>{handling.officialWaiting&&<p className="submission-complete">本次已提交官方，前序办理已结束，无需重复提交。历史文件可在成果和办理历史中查看。</p>}<p className="section-copy">{handling.officialWaiting?'本次提交已结束，文件与办理记录保留查看。':'核对本次材料、表单和下一办理人，保存后转交内部流程。个人 AI 审查为可选项。'}</p><InternalTransfer profileKey={profileKey} item={item} refreshSeq={refreshSeq}/></section>:<Note>请在桌面程序中使用贝思兰德内部提交。</Note>)}
     {tab==='outputs'&&(desktop&&profileKey?<CurrentCase item={item} update={updateCase} profileKey={profileKey} outputsOnly/>:<TransferWorkbench item={item} design={design} update={next=>{if(current.kind!=='needs-confirmation')void updateCase({design:next});}} openWriting={()=>navigate(primary)} openReply={()=>navigate(primary)}/>)}
     {showInfo&&<Modal title="案件管理" onClose={()=>setShowInfo(false)}><CaseForm item={item} save={patch=>{void updateCase(patch);setShowInfo(false);}}/></Modal>}
-    {preview&&<Modal title="成果预览" onClose={()=>setPreview(null)}><pre className="text-preview">{preview}</pre></Modal>}
+    {preview&&<Modal title="成果预览" onClose={()=>setPreview(null)}><FormattedFormulaText text={preview}/></Modal>}
   </div>;
 }
 function CaseForm({ item, save }: { item: Case; save: (p: Partial<Case>) => void }) {

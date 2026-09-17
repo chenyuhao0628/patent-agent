@@ -72,6 +72,56 @@ def revision_container_visible(tag: str, revision_mode: str | None) -> bool:
     return True
 
 
+def omml_to_latex(node: ET.Element) -> str:
+    tag = node.tag.split("}")[-1] if "}" in node.tag else node.tag
+    if tag in {"oMathPara", "oMath"}:
+        parts = [omml_to_latex(child) for child in node]
+        return "".join(parts).strip()
+    elif tag == "f":  # fraction
+        num = "".join(omml_to_latex(c) for c in node.findall(f"{M}num"))
+        den = "".join(omml_to_latex(c) for c in node.findall(f"{M}den"))
+        return f"\\frac{{{num}}}{{{den}}}"
+    elif tag == "sSup":  # superscript
+        base = "".join(omml_to_latex(c) for c in node.findall(f"{M}e"))
+        sup = "".join(omml_to_latex(c) for c in node.findall(f"{M}sup"))
+        return f"{base}^{{{sup}}}"
+    elif tag == "sSub":  # subscript
+        base = "".join(omml_to_latex(c) for c in node.findall(f"{M}e"))
+        sub = "".join(omml_to_latex(c) for c in node.findall(f"{M}sub"))
+        return f"{base}_{{{sub}}}"
+    elif tag == "sSubSup":
+        base = "".join(omml_to_latex(c) for c in node.findall(f"{M}e"))
+        sub = "".join(omml_to_latex(c) for c in node.findall(f"{M}sub"))
+        sup = "".join(omml_to_latex(c) for c in node.findall(f"{M}sup"))
+        return f"{base}_{{{sub}}}^{{{sup}}}"
+    elif tag == "rad":  # radical
+        base = "".join(omml_to_latex(c) for c in node.findall(f"{M}e"))
+        deg_nodes = node.findall(f"{M}deg")
+        deg = "".join(omml_to_latex(c) for c in deg_nodes).strip()
+        if deg:
+            return f"\\sqrt[{deg}]{{{base}}}"
+        return f"\\sqrt{{{base}}}"
+    elif tag == "d":  # delimiter / brackets
+        beg_chr = "("
+        end_chr = ")"
+        dpr = node.find(f"{M}dPr")
+        if dpr is not None:
+            beg = dpr.find(f"{M}begChr")
+            if beg is not None and beg.get(f"{M}val") is not None:
+                beg_chr = beg.get(f"{M}val")
+            end = dpr.find(f"{M}endChr")
+            if end is not None and end.get(f"{M}val") is not None:
+                end_chr = end.get(f"{M}val")
+        inner = "".join(omml_to_latex(c) for c in node.findall(f"{M}e"))
+        return f"{beg_chr}{inner}{end_chr}"
+    elif tag == "r":
+        t = node.find(f"{M}t")
+        return (t.text or "") if t is not None else ""
+    elif tag == "t":
+        return node.text or ""
+    return "".join(omml_to_latex(child) for child in node)
+
+
 def paragraph_text(paragraph: ET.Element, revision_mode: str | None = None) -> str:
     pieces: list[str] = []
 
@@ -79,6 +129,16 @@ def paragraph_text(paragraph: ET.Element, revision_mode: str | None = None) -> s
         if node.tag in REVISION_CONTAINERS and not revision_container_visible(
             node.tag, revision_mode
         ):
+            return
+        if node.tag == f"{M}oMathPara":
+            latex = omml_to_latex(node)
+            if latex:
+                pieces.append(f" $${latex}$$ ")
+            return
+        if node.tag == f"{M}oMath":
+            latex = omml_to_latex(node)
+            if latex:
+                pieces.append(f" ${latex}$ ")
             return
         if node.tag in {f"{W}t", f"{M}t"} or (
             node.tag == f"{W}delText" and revision_mode == "original"

@@ -341,3 +341,33 @@ test('queued migration flag rejects new operations immediately without blocking 
   service.clearWorkMigrationQueued();
   service.assertMigrationNotAccepted();
 });
+
+test('organizeFolders lifecycle clears queued lock both on success and on error', async t => {
+  const f = await fixture(t), service = f.make();
+  await service.init();
+  await service.settings('local', {...service.workspace.settings, workRoot: f.work});
+
+  let executed = false;
+  service.markWorkMigrationQueued();
+  assert.equal(service.isWorkMigrationBusy(), true);
+  try {
+    const res = await service.organizeFolders('local');
+    executed = true;
+    assert.equal(res.cases, 0);
+  } finally {
+    service.clearWorkMigrationQueued();
+  }
+  assert.equal(executed, true);
+  assert.equal(service.isWorkMigrationBusy(), false);
+
+  service.markWorkMigrationQueued();
+  assert.equal(service.isWorkMigrationBusy(), true);
+  try {
+    await service.organizeFolders('non-existent-key');
+  } catch {
+    // Expected account mismatch error
+  } finally {
+    service.clearWorkMigrationQueued();
+  }
+  assert.equal(service.isWorkMigrationBusy(), false);
+});

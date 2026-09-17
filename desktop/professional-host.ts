@@ -231,7 +231,9 @@ export class ProfessionalHost {
     const task=[SKILL_ADAPTER,`本案名称：${c.title}；专利类型：${c.type}。`,`当前任务：${kind==='writing'?WRITING_PHASES[record.phase]:'递交前个人独立审查'}。`,kind==='writing'?`只执行当前阶段。前序已确认内容：${JSON.stringify(confirmed)}\n用户本次要求：${message}`:`程序阶段：${source?.business==='申请'?'pre-filing（申请准备）':'post-filing（答复或补正）'}。业务：${source?.business}。仅审查此冻结版本，不注入或索取主讨论。`,
       `启用的标准技能：${skill.name}。必须调用 read_skill 阅读 ${kind==='writing'?'draft':'review'}/SKILL.md，并读取本阶段所需参考。资源目录：${skill.resources.map(r=>r.path).join('、')}`,
       `材料清单：${JSON.stringify(materials.map(({snapshotPath,...m})=>m))}。逐项调用 read_material 读取；按返回的范围续读，图像和扫描页需视觉核对。${source?.text?'必须调用 read_draft 阅读冻结完成稿。':''}`,
-      '不可声称运行了没有实际执行的脚本；工具以本次实际开放权限为准，检索或命令未实际执行时须如实注明，不能声称完成。附图未提供时不能生成虚假图像占位并声称完成。',`最终必须用 write_artifact 写入 result.json，JSON 格式：${contract}`].join('\n\n');
+      '不可声称运行了没有实际执行的脚本；工具以本次实际开放权限为准，检索或命令未实际执行时须如实注明，不能声称完成。附图未提供时不能生成虚假图像占位并声称完成。',
+      '公式格式规范：说明书、权利要求或实施例中出现的计算公式、参数关系与数学推导，必须采用标准 LaTeX 格式（行内公式使用 $公式$，独立行间公式使用 $$公式$$，例如 $$P = \\frac{F}{S}$$）。严禁使用难以阅读的纯文本 ASCII 字符拼凑公式，以保证公式结构和排版在阅读预览和 Word 导出中均符合标准规范。',
+      `最终必须用 write_artifact 写入 result.json，JSON 格式：${contract}`].join('\n\n');
     live.wait=(async()=>{
       try{
         live.handle=await this.run({runId,caseId:c.id,processKey:record.processKey,action:kind==='review'?'review':'discuss',discussionId:runId,snapshotDir,outputDir,prompt:{rules:skill.main,task,combined:`${skill.main}\n\n${task}`},skillResources:skill.resources,materials,draft:source?.text?{id:source.id,text:source.text,amendmentText:source.amendmentText,applicationParts:source.applicationParts,correctionContents:source.correctionContents,amendmentBasis:source.amendmentBasis}:undefined,messages:[],runtime,signal:controller.signal,onEvent:event=>{
