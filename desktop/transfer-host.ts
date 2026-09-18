@@ -35,6 +35,26 @@ export function pickTransferRecipient(options:TransferRecipientOption[],preferen
   if(options.length===1)return options[0];
 }
 
+/** Empty file-less drafts can be discarded; a draft that already has files or 补正条目 must be kept. */
+export function disposableEmptyDraft(view:TransferView|undefined):boolean{
+  if(!view||view.phase!=='draft')return false;
+  if(view.files?.length)return false;
+  if(view.review?.form?.corrections?.length)return false;
+  return true;
+}
+
+function normalizeLocalCorrections(rows:TransferReview['form']['corrections']):TransferReview['form']['corrections']{
+  if(!Array.isArray(rows)||rows.length>100)throw new Error('补正内容必须是逐条字段列表。');
+  return rows.map((row,Sort)=>({
+    ChangeId:typeof row?.ChangeId==='string'&&row.ChangeId.trim()?row.ChangeId:randomUUID(),
+    Sort,
+    FileName:String(row?.FileName??''),
+    PositionInFile:String(row?.PositionInFile??''),
+    CorrectionBefore:String(row?.CorrectionBefore??''),
+    CorrectionAfter:String(row?.CorrectionAfter??''),
+  }));
+}
+
 export class TransferHost {
   desktop:DesktopService;agent:AgentHost;private sessions=new Map<string,Session>();busy=false;
   private options:{templatesRoot?:string;applicationFile?:(key:string,id:string)=>Promise<WorkFile|undefined>;confirmName?:(details:{applicationName:string;caseName:string})=>Promise<boolean>};
@@ -59,7 +79,7 @@ export class TransferHost {
     const old=[...this.sessions.values()].filter(s=>s.view.profileKey===key&&s.view.caseId===caseId&&s.view.processId===work.processId&&s.view.phase!=='superseded').sort((a,b)=>b.view.at.localeCompare(a.view.at))[0];
     if(old){
       if(this.desktop.generation===old.generation&&this.desktop.workspace.settings.workRoot===old.root){
-        if(old.view.phase!=='draft'||old.view.files.length)return structuredClone(old.view);
+        if(!disposableEmptyDraft(old.view))return structuredClone(old.view);
       }
     }
     const journalRoot=await this.desktop.casePath(caseId,'04_内部说明');
@@ -70,7 +90,7 @@ export class TransferHost {
       if(data?.schema===1&&v?.profileKey===key&&v.caseId===caseId&&v.processId===work.processId&&typeof v.id==='string'&&entry.name===`transfer-${v.id}.json`&&Array.isArray(v.files)&&Array.isArray(v.steps)&&['draft','saved','uncertain','submitted'].includes(v.phase))prior.push(data);
     }
     prior.sort((a,b)=>b.view.at.localeCompare(a.view.at));
-    if(prior.length&&(['saved','submitted','uncertain'].includes(prior[0].view.phase)||prior[0].view.files?.length)){
+    if(prior.length&&!disposableEmptyDraft(prior[0].view)){
       const previous=prior[0];
       const s:Session={generation:this.desktop.generation,root:this.desktop.workspace.settings.workRoot??'',remote:null,files:{},view:structuredClone(previous.view)};
       for(const f of s.view.files){
@@ -105,7 +125,7 @@ export class TransferHost {
         }catch{}
       }
     }
-    if(!prior.length||(prior[0].view.phase==='draft'&&!prior[0].view.files?.length))return null;
+    if(!prior.length||disposableEmptyDraft(prior[0].view))return null;
     const previous=prior[0];
     const s:Session={generation:this.desktop.generation,root:this.desktop.workspace.settings.workRoot??'',remote:null,files:{},view:structuredClone(previous.view)};
     for(const f of s.view.files){
@@ -125,7 +145,7 @@ export class TransferHost {
     const conflicting=[...this.sessions.values()].find(s=>s.view.profileKey===key&&s.view.caseId===caseId&&s.view.processId===work.processId&&(s.view.sourceMode??'workbench')!==sourceMode&&['saved','uncertain','submitted'].includes(s.view.phase));
     if(conflicting)throw new Error('本案另一提交来源已有保存或待核对方案，请先打开原方案核对，不能切换来源重复提交。');
     const old=[...this.sessions.values()].filter(s=>s.view.profileKey===key&&s.view.caseId===caseId&&s.view.processId===work.processId&&s.view.phase!=='superseded'&&(s.view.sourceMode??'workbench')===sourceMode).sort((a,b)=>b.view.at.localeCompare(a.view.at))[0];
-    if(old&&!ignorePrior){this.guard(old);if(old.view.phase==='draft'&&!old.view.files.length){old.view.phase='superseded';await this.persist(old);return this.prepare(key,caseId,true,sourceMode);}return this.view(old);}
+    if(old&&!ignorePrior){this.guard(old);if(disposableEmptyDraft(old.view)){old.view.phase='superseded';await this.persist(old);return this.prepare(key,caseId,true,sourceMode);}return this.view(old);}
     const id=randomUUID(),s:Session={generation:this.desktop.generation,root:this.desktop.workspace.settings.workRoot??'',remote:null,files:{},view:{id,sourceMode,profileKey:key,caseId,caseNumber:c.number,caseTitle:c.title,processId:work.processId,processName:c.remote?.processes.find(p=>p.id===work.processId)?.name??'',route,files:[],parts:[],review:{keepCodes:[],form:defaultTransferForm(null),stepId:'',userId:'',remark:''},steps:[],phase:'draft',results:[],existingFileNames:[],at:new Date().toISOString()}};
     this.guard(s);
     s.remote=await readRemoteTransfer(this.desktop.client!,work.processId,route);this.guard(s);this.assignRemote(s);
@@ -139,7 +159,7 @@ export class TransferHost {
     if(prior.some(p=>(p.view.sourceMode??'workbench')!==sourceMode&&['saved','uncertain','submitted'].includes(p.view.phase)))throw new Error('本案另一提交来源已有保存或待核对记录，请先打开原方案核对。');
     const sameSource=prior.filter(p=>(p.view.sourceMode??'workbench')===sourceMode);prior.splice(0,prior.length,...sameSource);
     prior.sort((a,b)=>b.view.at.localeCompare(a.view.at));
-    if(prior.length&&!ignorePrior&&!(prior[0].view.phase==='draft'&&!prior[0].view.files.length)){
+    if(prior.length&&!ignorePrior&&!disposableEmptyDraft(prior[0].view)){
       const previous=prior[0];s.view=previous.view;
       if(s.view.phase==='saved'){
         if(s.view.handId!==s.remote?.handId||!s.remote?.hand.IsReviewing){
@@ -303,6 +323,19 @@ export class TransferHost {
       await this.desktop.flow(s.view.caseId);this.guard(s);
     }catch(e){s.view.error=(e as Error).message;}
     await this.persist(s);return this.view(s);
+  });}
+  async saveLocalReview(key:string,id:string,review:TransferReview){return this.exclusive(async()=>{
+    const s=this.get(key,id);
+    if(s.view.phase!=='draft')throw new Error('已保存到贝思兰德的提交方案不能在此改补正草稿，请先撤销保存。');
+    if(!review||!Array.isArray(review.keepCodes)||!review.form)throw new Error('核对表单无效。');
+    if(new Set(review.keepCodes).size!==review.keepCodes.length||review.keepCodes.some(c=>!FIVE_PARTS.some(p=>p.code===c)))throw new Error('五书选择无效。');
+    s.view.review={
+      ...structuredClone(review),
+      form:{...structuredClone(review.form),corrections:normalizeLocalCorrections(review.form.corrections)},
+    };
+    s.view.at=new Date().toISOString();
+    await this.persist(s);
+    return this.view(s);
   });}
   async save(key:string,id:string,review:TransferReview){return this.exclusive(async()=>{
     const s=this.get(key,id);if(s.view.phase!=='draft')throw new Error('本次方案不能重复保存，请先核对当前状态。');

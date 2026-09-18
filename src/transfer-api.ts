@@ -40,6 +40,7 @@ export type TransferAPI = {
   clearRemote(profileKey: string, id: string): Promise<TransferView>;
   previewFile(profileKey: string, id: string, fileRef: TransferFilePreviewRef): Promise<TransferFilePreviewResult>;
   startHand(profileKey: string, id: string): Promise<TransferView>;
+  saveLocalReview(profileKey: string, id: string, review: TransferReview): Promise<TransferView>;
   save(profileKey: string, id: string, review: TransferReview): Promise<TransferView>;
   submit(profileKey: string, id: string, review?: TransferReview): Promise<TransferView>;
   refresh(profileKey: string, id: string): Promise<TransferView>;

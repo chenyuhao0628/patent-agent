@@ -58,6 +58,7 @@ contextBridge.exposeInMainWorld('patentDesktop',{
     clearRemote:(key:string,id:string)=>call('transferClearRemote',key,id),
     previewFile:(key:string,id:string,fileRef:unknown)=>call('transferPreviewFile',key,id,fileRef),
     startHand:(key:string,id:string)=>call('transferStartHand',key,id),
+    saveLocalReview:(key:string,id:string,review:unknown)=>call('transferSaveLocalReview',key,id,review),
     save:(key:string,id:string,review:unknown)=>call('transferSave',key,id,review),
     submit:(key:string,id:string,review?:unknown)=>call('transferSubmit',key,id,review),
     refresh:(key:string,id:string)=>call('transferRefresh',key,id),

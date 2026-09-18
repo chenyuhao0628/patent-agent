@@ -228,6 +228,41 @@ test('local application and correction do not require AI artifacts; correction f
   v=await host.addFile(service.key,v.id,'application',source);assert.equal(v.parts.length,5);assert.equal(v.review.form.corrections.length,0);
  }
 });
+test('local correction draft save keeps 补正内容 across inspect, reopen and file pick',async t=>{
+ const {service,agent,c,source,client}=await setup(t);
+ c.current!.kind='correction';c.current!.processId='proc-correction';c.remote!.processes[0].id='proc-correction';c.remote!.processes[0].name='补正';
+ const host=new TransferHost(service,agent);
+ let v=await host.prepare(service.key,c.id,false,'local');
+ const row={ChangeId:'local-row',Sort:0,FileName:'权利要求书',PositionInFile:'权利要求 1',CorrectionBefore:'原装置',CorrectionAfter:'限位组件'};
+ v=await host.saveLocalReview(service.key,v.id,{...v.review,form:{...v.review.form,corrections:[row]}});
+ assert.equal(v.phase,'draft');
+ assert.deepEqual(v.review.form.corrections,[row]);
+ assert.equal(client.serial,0);
+ const inspected=await host.inspect(service.key,c.id);
+ assert.ok(inspected);
+ assert.deepEqual(inspected!.review.form.corrections,[row]);
+ const reopened=new TransferHost(service,agent);
+ const restored=await reopened.inspect(service.key,c.id);
+ assert.ok(restored);
+ assert.equal(restored!.id,v.id);
+ assert.deepEqual(restored!.review.form.corrections,[row]);
+ const prepared=await reopened.prepare(service.key,c.id,false,'local');
+ assert.equal(prepared.id,v.id);
+ assert.deepEqual(prepared.review.form.corrections,[row]);
+ const withFile=await reopened.addFile(service.key,prepared.id,'application',source);
+ assert.deepEqual(withFile.review.form.corrections,[row]);
+ assert.equal(client.calls.some(call=>/Upload|Save|Submit|Insert|Update/.test(call.endpoint)),false);
+});
+test('file-less correction draft without 补正条目 is still discarded as empty',async t=>{
+ const {service,agent,c}=await setup(t);
+ c.current!.kind='correction';c.current!.processId='proc-correction';c.remote!.processes[0].id='proc-correction';c.remote!.processes[0].name='补正';
+ const host=new TransferHost(service,agent);
+ const empty=await host.prepare(service.key,c.id,false,'local');
+ assert.equal(empty.files.length,0);
+ assert.equal(empty.review.form.corrections.length,0);
+ const again=await host.prepare(service.key,c.id,false,'local');
+ assert.notEqual(again.id,empty.id);
+});
 
 test('local Word saves figure 1 on drawing row and specification-derived name',async t=>{
  const {service,host,c,source,client}=await setup(t);client.setting.IsShowCaseName=true;client.setting.CaseName='过期名称';
