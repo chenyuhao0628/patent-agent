@@ -22,6 +22,8 @@ import {
   currentDraft,
   failAgentJob,
   finalizeProcess,
+  unfinalizeProcess,
+  setProcessStage,
   isReplyClassified,
   isUnsafePath,
   markStoppedOnReopen,
@@ -847,6 +849,12 @@ export class AgentHost implements AgentAPI {
       }));
     }
     else if (command.type === 'finalize') state = await this.finalizeAlreadyLocked(ticket.profileKey, c, state);
+    else if (command.type === 'unfinalize') {
+      state = unwrap(unfinalizeProcess(state, { caseId: c.id, processKey: state.scope.processKey }));
+    }
+    else if (command.type === 'setStage') {
+      state = unwrap(setProcessStage(state, { caseId: c.id, processKey: state.scope.processKey, targetStage: command.stage }));
+    }
     else throw new Error('不支持的 Agent 命令。');
     this.assertTicket(ticket);
     this.putProcess(store, state);

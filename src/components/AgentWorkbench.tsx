@@ -9,7 +9,7 @@ import { FormattedFormulaText } from './FormattedFormulaText.tsx';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { FileText, FolderOpen, PanelRight, Square } from 'lucide-react';
 import type { Case } from '../domain/workflow.ts';
-import type { AgentJob, AgentMessage, Discussion, MaterialEntry, ToolEvent } from '../domain/agent.ts';
+import type { AgentJob, AgentMessage, AgentStage, Discussion, MaterialEntry, ToolEvent } from '../domain/agent.ts';
 import { activeJob, artifactPreviewText, currentDraft, currentReview, selectedMaterials, selectedStrategy, unhandledIssues } from '../domain/agent.ts';
 import { currentWork } from '../domain/lifecycle.ts';
 import { desktop } from '../desktop.ts';
@@ -108,6 +108,7 @@ export function AgentWorkbench({
   const [selectedStage, setSelectedStage] = useState<number>();
   const [originals, setOriginals] = useState<{ id: string; name: string }[] | null>(null);
   const [commandError, setCommandError] = useState<{ text: string; discussionId?: string } | null>(null);
+  const [unfinalizeModal, setUnfinalizeModal] = useState(false);
   const api = desktop?.agent;
   const expected = { profileKey, caseId, processKey };
 
@@ -206,6 +207,11 @@ export function AgentWorkbench({
       if(command.type==='restoreDraft')setRestoreId(undefined);
       if(command.type==='strategy'&&command.startDraft)setStageOpen(false);
       if (command.type === 'finalize') setSelectedStage(4);
+      if (command.type === 'unfinalize') setSelectedStage(4);
+      if (command.type === 'setStage') {
+        const idx = command.stage === 'materials' ? 0 : command.stage === 'strategy' ? 1 : command.stage === 'draft' ? 2 : command.stage === 'review' ? 3 : 4;
+        setSelectedStage(idx);
+      }
     } catch (err) {
       if (token !== gen.current) return;
       setCommandError({ text: sanitizeAgentError((err as Error).message), discussionId: errorDiscussion });
@@ -250,6 +256,17 @@ export function AgentWorkbench({
   const showProgress=formal||!!process.analysis||process.drafts.length>0||['reply','correction'].includes(currentWork(item).kind);
 
   const openStage = (index: number) => { setSelectedStage(index); setStageOpen(true); };
+  const stepBackStage = async (targetIndex: number) => {
+    const stageName: AgentStage = targetIndex === 0 ? 'materials' : targetIndex === 1 ? 'strategy' : targetIndex === 2 ? 'draft' : targetIndex === 3 ? 'review' : 'final';
+    try {
+      if (formal && !process.finalized) {
+        await run({ type: 'setStage', stage: stageName });
+      }
+      setSelectedStage(targetIndex);
+    } catch {
+      setSelectedStage(targetIndex);
+    }
+  };
   const analysisBlock = agentActionBlocker(view, 'analysis', formal);
   const draftBlock = agentActionBlocker(view, 'draft', formal);
   const reviseBlock = agentActionBlocker(view, 'revise', formal);
@@ -454,7 +471,10 @@ export function AgentWorkbench({
               <small>依据：{item.basis}</small>
             </button>)}
             {selectedStrategy(process) ? <p>已选定：{selectedStrategy(process)!.title}</p> : <p className="agent-note">必须由你明确选定策略后才能起草。</p>}
-            <button type="button" disabled={!!draftBlock || busy} onClick={() => { setDiscussionId(mainId); void run({ type: 'run', action: 'draft', discussionId: mainId }); }}>起草</button>
+            <div className="button-row">
+              <button type="button" disabled={busy} onClick={() => void stepBackStage(0)}>⬅️ 退回核对材料与分类</button>
+              <button className="primary" type="button" disabled={!!draftBlock || busy} onClick={() => { setDiscussionId(mainId); void run({ type: 'run', action: 'draft', discussionId: mainId }); }}>起草</button>
+            </div>
             {draftBlock && <p className="agent-note">{draftBlock}</p>}
           </div>}
           {shownStage === 2 && !pendingDrafts.length && !adopted && <p className="agent-note">选定策略并起草后，稿件将在这里显示。</p>}
@@ -471,16 +491,22 @@ export function AgentWorkbench({
               {preview.adoptStatus==='adopted'&&preview.id!==adopted?.id&&<div>{restoreId===preview.id?<><p>恢复将建立一个新版本，并保留当前稿件；已有复核需要重新核对。</p><button disabled={busy || !formal} onClick={()=>void run({type:'restoreDraft',versionId:preview.id})}>确认恢复为当前稿</button><button onClick={()=>setRestoreId(undefined)}>取消</button></>:<button disabled={busy||!formal||!!process.finalized} onClick={()=>setRestoreId(preview.id)}>恢复此历史稿件</button>}</div>}
               {preview.adoptStatus === 'pending' && <button className="primary" type="button" disabled={busy || !formal} onClick={() => void run({ type: 'adopt', versionId: preview.id })}>采用此版本</button>}
             </>}
-            {adopted && <>
-              <button type="button" disabled={!!reviseBlock || busy} onClick={startRevise}>回主讨论修订</button>
-              {reviseBlock && <p className="agent-note">{reviseBlock}</p>}
-            </>}
+            <div className="button-row">
+              <button type="button" disabled={busy} onClick={() => void stepBackStage(1)}>⬅️ 退回重选策略与意见</button>
+              {adopted && <button type="button" disabled={!!reviseBlock || busy} onClick={startRevise}>回主讨论修订</button>}
+              {adopted && <button disabled={busy} onClick={() => openStage(3)}>前往独立复核 ➡️</button>}
+            </div>
+            {reviseBlock && <p className="agent-note">{reviseBlock}</p>}
           </div>}
           {shownStage === 3 && <div className="agent-card">
             <h4>独立复核（可选）</h4>
             <p>可按需进行独立复核，使用单独上下文。报告供参考，不阻止定稿或提交。正式修改请回主讨论。</p>
-            <button type="button" disabled={!!reviewBlock || busy} onClick={() => void run({ type: 'run', action: 'review' })}>开始独立复核</button>
-            {reviewBlock && <p className="agent-note">{reviewBlock}</p>}{adopted&&<button disabled={busy} onClick={()=>openStage(4)}>前往定稿（可跳过复核）</button>}
+            <div className="button-row">
+              <button type="button" disabled={busy} onClick={() => void stepBackStage(2)}>⬅️ 退回起草修改</button>
+              <button type="button" disabled={!!reviewBlock || busy} onClick={() => void run({ type: 'run', action: 'review' })}>开始独立复核</button>
+              {adopted && <button className="primary" disabled={busy} onClick={() => openStage(4)}>前往定稿（可跳过复核）➡️</button>}
+            </div>
+            {reviewBlock && <p className="agent-note">{reviewBlock}</p>}
             {review && <>
               <p>{review.invalidated ? '该复核已过时。' : review.summary}</p>
               {review.issues.map(issue => <label key={issue.id} className="checkbox">
@@ -525,16 +551,55 @@ export function AgentWorkbench({
           {shownStage === 4 && <div className="agent-card">
             <h4>确认定稿</h4>{adopted?.applicationParts===undefined&&<p>请先在上方核对本次修改文件；没有修改也要明确保存。</p>}
             <p>核对当前稿件后，由你确认定稿。独立复核可选；已有报告和未处理问题保留供参考。</p>
-            <button className="primary" type="button" disabled={!!finalizeBlock || busy || adopted?.applicationParts===undefined || (process.classification.noticeCategory==='补正通知书'&&!adopted?.correctionContents?.length)} onClick={() => void run({ type: 'finalize' })}>定稿</button>
+            {!process.finalized && <div className="button-row">
+              <button type="button" disabled={busy} onClick={() => void stepBackStage(2)}>⬅️ 退回起草修改</button>
+              <button type="button" disabled={busy} onClick={() => void stepBackStage(3)}>⬅️ 退回独立复核</button>
+              <button className="primary" type="button" disabled={!!finalizeBlock || busy || adopted?.applicationParts===undefined || (process.classification.noticeCategory==='补正通知书'&&!adopted?.correctionContents?.length)} onClick={() => void run({ type: 'finalize' })}>确认定稿</button>
+            </div>}
             {finalizeBlock && <p className="agent-note">{finalizeBlock}</p>}
             {process.finalized && <div className="finalized-status-block">
               <p><b>定稿已完成</b>：{process.classification.noticeCategory==='补正通知书'?'已保存补正字段和本次修改的申请文件。':process.finalized.word.generated?'已生成正式 Word 文件并归档。':'已保存历史定稿。'}{process.finalized.word.message ? ` ${process.finalized.word.message}` : ''}</p>
               <p className="agent-note">已自动生成正式文件，并在下方展开正文预览。核对无误后，可在左侧切换至【提交】页转交下一办理人。</p>
+              <div className="finalized-actions">
+                <button type="button" className="btn-unfinalize" disabled={busy} onClick={() => setUnfinalizeModal(true)}>
+                  ↩️ 撤销定稿 / 重新编辑
+                </button>
+              </div>
             </div>}
           </div>}
         </>}
         {(!formal || shownStage === 4) && <AgentArtifacts view={view} caseId={caseId}/>}
       </div></Modal>}
+      {unfinalizeModal && (
+        <Modal title="确认撤销定稿" onClose={() => setUnfinalizeModal(false)}>
+          <p>
+            撤销定稿将解除本案的终态锁定，并允许重新在定稿编辑器中微调正文、调整补正字段、重新识别公式及重新定稿。
+          </p>
+          <p className="agent-note">
+            已采用的稿件正文、权利要求书、说明书、补正条目将完整保留，不会丢失；已生成的 Word 归档文件也会保留在历史记录中。
+          </p>
+          <div className="button-row">
+            <button type="button" onClick={() => setUnfinalizeModal(false)}>
+              取消
+            </button>
+            <button
+              type="button"
+              className="primary"
+              disabled={busy}
+              onClick={async () => {
+                try {
+                  await run({ type: 'unfinalize' });
+                  setUnfinalizeModal(false);
+                } catch (err) {
+                  setCommandError({ text: sanitizeAgentError((err as Error).message) });
+                }
+              }}
+            >
+              确认撤销定稿
+            </button>
+          </div>
+        </Modal>
+      )}
       {originals && <Modal title="原始申请文件匹配" onClose={() => setOriginals(null)}>
         {originals.length ? <div className="artifact-catalog">{originals.map(candidate => <button key={candidate.id} onClick={() => void (async () => {
           try {

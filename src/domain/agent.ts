@@ -315,6 +315,7 @@ export type AgentErrorCode =
   | 'STRATEGY_INVALID'
   | 'READONLY'
   | 'ALREADY_FINALIZED'
+  | 'NOT_FINALIZED'
   | 'REVIEW_REQUIRED'
   | 'REVIEW_STALE'
   | 'UNHANDLED_ISSUES'
@@ -368,6 +369,7 @@ export const AgentErrors: Record<AgentErrorCode, string> = {
   STRATEGY_INVALID: '请选择本次分析给出的有效策略。',
   READONLY: '当前案件已只读，不能修改答复稿件或启动正式答复任务。',
   ALREADY_FINALIZED: '本轮已经定稿，不能修改答复稿件或启动正式答复任务。',
+  NOT_FINALIZED: '当前轮次尚未定稿，无需撤销定稿。',
   REVIEW_REQUIRED: '定稿前必须完成针对当前稿件版本的独立复核。',
   REVIEW_STALE: '稿件已变更，原复核作废，请重新复核。',
   UNHANDLED_ISSUES: '仍有未处理的复核问题，不能定稿。',
@@ -1417,6 +1419,42 @@ export function finalizeProcess(state: AgentProcessState, cmd: ScopeCommand & { 
   next.finalizeHistory = [...next.finalizeHistory, record];
   next.stage = 'final';
   return ok(next, { value: { finalized: record } });
+}
+
+export function unfinalizeProcess(state: AgentProcessState, cmd: ScopeCommand & { at?: string }): AgentResult<{ reverted: boolean }> {
+  const mismatch = checkScope(state, cmd);
+  if (mismatch) return mismatch;
+  if (activeJob(state)) return agentFail('JOB_RUNNING');
+  if (!state.finalized) return agentFail('NOT_FINALIZED');
+  const next = clone(state);
+  next.finalized = null;
+  const adopted = currentDraft(next);
+  if (adopted) {
+    const validReview = next.reviews.find(r => r.draftVersionId === adopted.id && !r.invalidated);
+    next.stage = validReview ? 'review' : 'draft';
+  } else {
+    next.stage = next.userSelectedStrategyId ? 'strategy' : 'materials';
+  }
+  return ok(next, { value: { reverted: true } });
+}
+
+export function setProcessStage(state: AgentProcessState, cmd: ScopeCommand & { targetStage: AgentStage }): AgentResult<{ stage: AgentStage }> {
+  const mismatch = checkScope(state, cmd);
+  if (mismatch) return mismatch;
+  if (activeJob(state)) return agentFail('JOB_RUNNING');
+  if (state.finalized && cmd.targetStage !== 'final') return agentFail('ALREADY_FINALIZED');
+  const next = clone(state);
+  if (cmd.targetStage === 'final') {
+    if (!next.finalized) return agentFail('ACTION_NOT_ALLOWED', '定稿阶段必须通过定稿确认进入。');
+  } else if (cmd.targetStage === 'review') {
+    if (!currentDraft(next)) return agentFail('DRAFT_VERSION_REQUIRED', '没有采用的稿件版本，无法进入复核阶段。');
+  } else if (cmd.targetStage === 'draft') {
+    if (!next.userSelectedStrategyId) return agentFail('STRATEGY_NOT_SELECTED', '尚未选定策略，无法进入起草阶段。');
+  } else if (cmd.targetStage === 'strategy') {
+    if (!next.analysis) return agentFail('MATERIALS_NOT_CONFIRMED', '尚未生成意见分析，无法进入策略阶段。');
+  }
+  next.stage = cmd.targetStage;
+  return ok(next, { value: { stage: cmd.targetStage } });
 }
 
 export function emptyAgentBook(): AgentBook {

@@ -677,6 +677,26 @@ test('updateDraft 命令支持微调更新正文与申请文件，并保留未�
   view = await host.command('local', c.id, { type: 'finalize' });
   assert.equal(view.process.stage, 'final');
   assert.ok(view.artifacts.some(a => a.kind === 'final-application-CLAIMS'));
+
+  // Test unfinalize
+  view = await host.command('local', c.id, { type: 'unfinalize' });
+  assert.equal(view.process.finalized, null);
+  assert.equal(view.process.stage, 'draft');
+  const restoredDraft = view.process.drafts.find(d => d.id === view.process.currentDraftVersionId)!;
+  assert.equal(restoredDraft.text, '尊敬的审查员：\n这是经过微调的意见陈述书正文。\n此致');
+  assert.equal(restoredDraft.applicationParts?.CLAIMS, '1. 一种经微调的检测装置，其特征在于包含公式 $E = mc^2$。');
+
+  // Test setStage backwards and forwards
+  view = await host.command('local', c.id, { type: 'setStage', stage: 'strategy' });
+  assert.equal(view.process.stage, 'strategy');
+  view = await host.command('local', c.id, { type: 'setStage', stage: 'draft' });
+  assert.equal(view.process.stage, 'draft');
+
+  // Re-finalize
+  view = await host.command('local', c.id, { type: 'finalize' });
+  assert.equal(view.process.stage, 'final');
+  assert.ok(view.process.finalized);
+  assert.equal(view.process.finalizeHistory.length, 2);
 });
 
 test('讨论消息可以引用网址和路径，不把整条聊天当配置封锁', async t => {
@@ -1254,3 +1274,16 @@ test('C#4: partial/thinking ticks stay in memory; persist on boundary/terminal',
   assert.ok(view.process.discussions.some(d => d.messages.some(m => m.incomplete && m.text === '续-11')));
   await host.shutdown();
 });
+
+test('unfinalize 仅在已定稿时允许撤销，未定稿时拒绝并抛出 NOT_FINALIZED', async t => {
+  const { service, host } = await setup(t);
+  const c = await prepareCase(service, 'UNFIN1');
+  await readyAnalysis(host, c.id, ['n-UNFIN1', 'a-UNFIN1']);
+  // 未定稿时调用 unfinalize
+  await assert.rejects(
+    () => host.command('local', c.id, { type: 'unfinalize' }),
+    /NOT_FINALIZED|当前轮次尚未定稿/
+  );
+  await host.shutdown();
+});
+

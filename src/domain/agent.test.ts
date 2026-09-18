@@ -15,6 +15,8 @@ import {
   emptyAgentBook,
   failAgentJob,
   finalizeProcess,
+  unfinalizeProcess,
+  setProcessStage,
   markStoppedOnReopen,
   openDiscussion,
   manageDiscussion,
@@ -340,6 +342,36 @@ test('无问题复核后由用户定稿，保留文本与时间且不声称 Word
   assert.equal(startAgentJob(finalized.state, { ...scope, action: 'analysis', discussionId: live.mainDiscussionId }).ok, false);
   const talk = startAgentJob(finalized.state, { ...scope, action: 'discuss', discussionId: live.mainDiscussionId, userMessage: '定稿后仍可本机讨论' });
   assert.equal(talk.ok, true);
+
+  // 未定稿时撤销定稿返回 NOT_FINALIZED
+  const unfinBlocked = unfinalizeProcess(reviewed.state, scope);
+  assert.equal(unfinBlocked.ok, false);
+  if (!unfinBlocked.ok) assert.equal(unfinBlocked.code, 'NOT_FINALIZED');
+
+  // 定稿状态下直接 setStage 被拒绝
+  const setBlocked = setProcessStage(finalized.state, { ...scope, targetStage: 'draft' });
+  assert.equal(setBlocked.ok, false);
+  if (!setBlocked.ok) assert.equal(setBlocked.code, 'ALREADY_FINALIZED');
+
+  // 正常撤销定稿
+  const unfinalized = unwrap(unfinalizeProcess(finalized.state, scope));
+  assert.equal(unfinalized.state.finalized, null);
+  assert.equal(unfinalized.state.finalizeHistory.length, 1);
+  assert.equal(unfinalized.state.currentDraftVersionId, live.currentDraftVersionId);
+  assert.equal(unfinalized.state.stage, 'review');
+
+  // 撤销定稿后支持 setStage 退回起草或策略
+  const backToDraft = unwrap(setProcessStage(unfinalized.state, { ...scope, targetStage: 'draft' }));
+  assert.equal(backToDraft.state.stage, 'draft');
+  const backToStrategy = unwrap(setProcessStage(backToDraft.state, { ...scope, targetStage: 'strategy' }));
+  assert.equal(backToStrategy.state.stage, 'strategy');
+  const backToMaterials = unwrap(setProcessStage(backToStrategy.state, { ...scope, targetStage: 'materials' }));
+  assert.equal(backToMaterials.state.stage, 'materials');
+
+  // 再次定稿依然成功并追加历史
+  const refinalized = unwrap(finalizeProcess(unfinalized.state, scope));
+  assert.equal(refinalized.state.stage, 'final');
+  assert.equal(refinalized.state.finalizeHistory.length, 2);
 });
 
 test('同案进行中任务互斥，不同案件可以并行且消息不串', () => {

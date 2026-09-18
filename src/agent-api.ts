@@ -56,7 +56,9 @@ export type AgentCommand =
   | { type: 'applicationParts'; parts:import('./domain/application-parts.ts').ApplicationParts }
   | { type: 'correctionContents'; items:import('./domain/correction.ts').CorrectionContent[] }
   | { type: 'updateDraft'; text?: string; amendmentText?: string; applicationParts?: import('./domain/application-parts.ts').ApplicationParts; correctionContents?: import('./domain/correction.ts').CorrectionContent[]; amendmentBasis?: string; reviewNotes?: string }
-  | { type: 'finalize' };
+  | { type: 'finalize' }
+  | { type: 'unfinalize' }
+  | { type: 'setStage'; stage: import('./domain/agent.ts').AgentStage };
 
 export type AgentAPI = {
   onPreparation?: (callback:(event:AgentPreparation)=>void)=>()=>void;
