@@ -834,6 +834,18 @@ export class AgentHost implements AgentAPI {
     else if (command.type === 'issues') state = unwrap(confirmReviewIssuesHandled(state, { ...scope, reviewId: command.reviewId, issueIds: command.issueIds, handled: command.handled }));
     else if(command.type==='correctionContents'){const d=currentDraft(state);if(!d)throw new Error('请先采用稿件。');state=unwrap(recordUserDraft(state,{...scope,text:d.text,correctionContents:validateCorrectionContents(command.items)}));}
     else if(command.type==='applicationParts'){const d=currentDraft(state);if(!d)throw new Error('请先采用稿件。');state=unwrap(recordUserDraft(state,{...scope,text:d.text,applicationParts:validateApplicationParts(command.parts)}));}
+    else if(command.type==='updateDraft'){
+      const d=currentDraft(state);if(!d)throw new Error('请先采用稿件。');
+      state=unwrap(recordUserDraft(state,{
+        ...scope,
+        text: command.text ?? d.text,
+        amendmentText: command.amendmentText ?? d.amendmentText,
+        applicationParts: command.applicationParts !== undefined ? validateApplicationParts(command.applicationParts) : d.applicationParts,
+        correctionContents: command.correctionContents !== undefined ? validateCorrectionContents(command.correctionContents) : d.correctionContents,
+        amendmentBasis: command.amendmentBasis ?? d.amendmentBasis,
+        reviewNotes: command.reviewNotes ?? d.reviewNotes,
+      }));
+    }
     else if (command.type === 'finalize') state = await this.finalizeAlreadyLocked(ticket.profileKey, c, state);
     else throw new Error('不支持的 Agent 命令。');
     this.assertTicket(ticket);

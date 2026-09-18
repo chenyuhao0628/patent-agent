@@ -55,6 +55,7 @@ export type AgentCommand =
   | { type: 'issues'; reviewId: string; issueIds: string[]; handled?: boolean }
   | { type: 'applicationParts'; parts:import('./domain/application-parts.ts').ApplicationParts }
   | { type: 'correctionContents'; items:import('./domain/correction.ts').CorrectionContent[] }
+  | { type: 'updateDraft'; text?: string; amendmentText?: string; applicationParts?: import('./domain/application-parts.ts').ApplicationParts; correctionContents?: import('./domain/correction.ts').CorrectionContent[]; amendmentBasis?: string; reviewNotes?: string }
   | { type: 'finalize' };
 
 export type AgentAPI = {

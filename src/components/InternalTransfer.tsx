@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowRight, FileText, RefreshCw, Upload } from 'lucide-react';
+import { ArrowRight, Edit3, Eye, FileText, RefreshCw, Upload } from 'lucide-react';
 import { desktop } from '../desktop.ts';
 import type { Case } from '../domain/workflow.ts';
 import { currentWork, internalTransferAvailable } from '../domain/lifecycle.ts';
@@ -7,12 +7,13 @@ import { currentHandling } from '../domain/handling.ts';
 import { FIVE_PARTS } from '../transfer-api.ts';
 import type { TransferView, TransferReview, TransferFileRole, TransferForm } from '../transfer-api.ts';
 import { Modal, Note } from './Primitives.tsx';
+import { FormattedFormulaText } from './FormattedFormulaText.tsx';
 
 const declarations:Record<string,string>={IsApplySameDay:'同日申请',IsPublicAdvance:'请求提前公开',IsExhibition:'展览会公开声明',IsPublished:'学术或技术会议公开声明',IsPublicForCommonProfit:'公共利益目的公开声明',IsDisclosure:'他人未经同意泄露声明',IsGiveUpOn51Section:'放弃主动修改',IsRequestDelayReview1YearForUtility:'实用新型延迟审查一年'};
 
 const transferCache = new Map<string, { view?: TransferView; review?: TransferReview; tab: number }>();
 
-export function InternalTransfer({profileKey,item,refreshSeq}:{profileKey:string;item:Case;refreshSeq?:number}){
+export function InternalTransfer({profileKey,item,refreshSeq,navigate}:{profileKey:string;item:Case;refreshSeq?:number;navigate?:(tab:any)=>void}){
   const processId=currentWork(item).processId;
   const cacheKey=`${profileKey}/${item.id}/${processId}`;
   const [view,setView]=useState<TransferView|undefined>(()=>transferCache.get(cacheKey)?.view);
@@ -21,6 +22,7 @@ export function InternalTransfer({profileKey,item,refreshSeq}:{profileKey:string
   const [tab,setTab]=useState<number>(()=>transferCache.get(cacheKey)?.tab??0);
   const [confirm,setConfirm]=useState<'save'|'submit'|'start'|'revoke'>();
   const [inspecting,setInspecting]=useState<boolean>(()=>!transferCache.has(cacheKey));
+  const [previewDoc, setPreviewDoc]=useState<{title:string;text:string}|null>(null);
   const scope=useRef('');scope.current=cacheKey;
   const lastRefreshSeq=useRef(refreshSeq);
   useEffect(()=>{
@@ -129,7 +131,56 @@ export function InternalTransfer({profileKey,item,refreshSeq}:{profileKey:string
         {view.canEditRemote===false&&<Note>贝思兰德当前未授权本账号编辑此节点。可查看材料与流程，保存和转交暂不可用。</Note>}<nav className="surface-switch">{['本次材料','业务表单','下一办理人与结果'].map((name,i)=><button key={name} className={tab===i?'active':''} onClick={()=>setTab(i)}>{i+1} · {name}</button>)}</nav>
         {tab===0&&<>
           {view.existingFileNames.length>0&&<div className="note"><strong>远端材料已就绪</strong>：贝思兰德当前已存在上述 {view.existingFileNames.length} 个文件。下方本地文件仅在需要修改或补充时选择。</div>}
-          <div className="transfer-files">{roles.map(role=><div key={role}><FileText size={20}/><span><b>{roleName[role]}</b><small>{view.files.find(f=>f.role===role)?.name||(role==='application'&&view.route!=='application'?'本次未修改申请文件时可不选':'尚未选择')}</small></span><button disabled={locked} onClick={()=>void act(()=>desktop!.transfer.pickFile(profileKey,view.id,role))}><Upload size={14}/>选择文件</button></div>)}</div>
+          <div className="transfer-files">{roles.map(role=>{
+            const file=view.files.find(f=>f.role===role);
+            const handlePreview=async()=>{
+              if(role==='application'){
+                const partsText=view.parts
+                  .filter(p=>view.route==='application'||review.keepCodes.includes(p.code)||(p.after||p.before))
+                  .map(p=>`### ${p.name}\n${p.after||p.before||'（未识别正文）'}`)
+                  .join('\n\n');
+                if(partsText){
+                  setPreviewDoc({title:roleName[role],text:partsText});
+                  return;
+                }
+              }
+              if(desktop?.agent?.getCase){
+                try{
+                  const agentCase=await desktop.agent.getCase(profileKey,item.id);
+                  const draft=agentCase.process.drafts.find(d=>d.id===view.sourceDraft?.id)
+                    ?? agentCase.process.drafts.find(d=>d.adoptStatus==='adopted')
+                    ?? agentCase.process.drafts.at(-1);
+                  if(role==='reply'&&draft?.text){
+                    setPreviewDoc({title:'意见陈述书正文与公式预览',text:draft.text});
+                    return;
+                  }
+                  if(role==='application'&&draft?.applicationParts){
+                    const partsText=Object.entries(draft.applicationParts)
+                      .map(([part,content])=>`### ${part==='CLAIMS'?'权利要求书':part==='DESCRIPTION'?'说明书':part}\n${content}`)
+                      .join('\n\n');
+                    if(partsText){
+                      setPreviewDoc({title:'修改后申请文件正文与公式预览',text:partsText});
+                      return;
+                    }
+                  }
+                }catch{}
+              }
+              if(file&&desktop?.openMaterial){
+                void desktop.openMaterial(item.id,file.relativePath);
+              }
+            };
+            return <div key={role} style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',padding:'12px',border:'1px solid var(--line)',borderRadius:'8px',background:'#fff'}}>
+              <div style={{display:'flex',alignItems:'center',gap:'10px',minWidth:0,flex:1}}>
+                <FileText size={20}/>
+                <span style={{minWidth:0}}><b>{roleName[role]}</b><small style={{display:'block',color:'#6a7080'}}>{file?.name||(role==='application'&&view.route!=='application'?'本次未修改申请文件时可不选':'尚未选择')}</small></span>
+              </div>
+              <div className="button-row">
+                <button type="button" onClick={()=>void handlePreview()} title="预览正文与专业公式排版"><Eye size={14}/>预览正文</button>
+                {navigate&&view.sourceMode==='workbench'&&<button type="button" onClick={()=>navigate('discussion')} title="前往定稿微调编辑器直接编辑稿件或识别公式"><Edit3 size={14}/>打开微调</button>}
+                <button disabled={locked} onClick={()=>void act(()=>desktop!.transfer.pickFile(profileKey,view.id,role))}><Upload size={14}/>选择文件</button>
+              </div>
+            </div>;
+          })}</div>
           <p className="muted">修改前文件仅供比对，不上传；修改后文件仅在本次修改申请内容时需要，保存时提取勾选部分；意见陈述书是本次答复正文。文件复制到本案目录，原件和历史稿保留。</p>
           {view.parts.length>0&&<><h4>本次五书保留范围</h4><div className="transfer-parts">{view.parts.map(p=><div key={p.code}><label><input type="checkbox" disabled={locked||view.route==='application'||p.available===false} checked={review.keepCodes.includes(p.code)} onChange={e=>patch({keepCodes:e.target.checked?[...review.keepCodes,p.code]:review.keepCodes.filter(c=>c!==p.code)})}/><b>{p.name}</b><span className={p.changed===null?'text-warning':'muted'}>{view.route==='application'?'申请材料':p.changed===null?'待人工核对':p.changed?'发现变化':'未发现变化'}</span></label><p>{view.route==='application'?'本次完整申请保留此部分。':p.reason}</p>{view.route!=='application'&&(p.before||p.after)&&<details><summary>比较文字</summary><div className="transfer-comparison"><div><b>基线</b><pre>{p.before||'未识别正文'}</pre></div><div><b>本次</b><pre>{p.after||'未识别正文'}</pre></div></div></details>}</div>)}</div>{view.route!=='application'&&<Note>保存后，本次递交列表只保留勾选的五书部分；未勾选部分及完整混合申请文件会从当前递交实例移除。</Note>}</>}
           <div className="button-row">
@@ -178,6 +229,11 @@ export function InternalTransfer({profileKey,item,refreshSeq}:{profileKey:string
           </button>
         </div>
       </Modal>}
+      {previewDoc && (
+        <Modal title={previewDoc.title} onClose={() => setPreviewDoc(null)}>
+          <FormattedFormulaText text={previewDoc.text} className="agent-preview" />
+        </Modal>
+      )}
     </>}
   </section>;
 }

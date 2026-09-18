@@ -3,6 +3,7 @@ import { discussionJobs, workflowMessageCommand } from '../domain/conversation.t
 import { discussionCanDelete } from '../domain/agent.ts';
 import { CorrectionContentsEditor } from './CorrectionContentsEditor.tsx';
 import { ApplicationPartsEditor } from './ApplicationPartsEditor.tsx';
+import { FinalizationDraftEditor } from './FinalizationDraftEditor.tsx';
 import { PriorArtPanel } from './PriorArt.tsx';
 import { FormattedFormulaText } from './FormattedFormulaText.tsx';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -490,12 +491,41 @@ export function AgentWorkbench({
               {adopted && <button type="button" disabled={!!reviseBlock || busy} onClick={startRevise}>回主讨论修订</button>}
             </>}
           </div>}
-          {adopted&&[2,3,4].includes(shownStage)&&!process.finalized&&process.classification.noticeCategory==='补正通知书'&&<CorrectionContentsEditor draft={adopted} busy={busy || !formal} onSave={async items=>{const next=await api!.command(profileKey,caseId,{type:'correctionContents',items});apply(next,gen.current);}}/>}
-          {adopted&&[2,3,4].includes(shownStage)&&!process.finalized&&<ApplicationPartsEditor draft={adopted} busy={busy || !formal} onSave={async parts=>{const next=await api!.command(profileKey,caseId,{type:'applicationParts',parts});apply(next,gen.current);}}/>}
+          {adopted && [2, 3].includes(shownStage) && !process.finalized && process.classification.noticeCategory === '补正通知书' && (
+            <CorrectionContentsEditor
+              draft={adopted}
+              busy={busy || !formal}
+              onSave={async items => {
+                const next = await api!.command(profileKey, caseId, { type: 'correctionContents', items });
+                apply(next, gen.current);
+              }}
+            />
+          )}
+          {adopted && [2, 3].includes(shownStage) && !process.finalized && (
+            <ApplicationPartsEditor
+              draft={adopted}
+              busy={busy || !formal}
+              onSave={async parts => {
+                const next = await api!.command(profileKey, caseId, { type: 'applicationParts', parts });
+                apply(next, gen.current);
+              }}
+            />
+          )}
+          {adopted && shownStage === 4 && !process.finalized && (
+            <FinalizationDraftEditor
+              draft={adopted}
+              isCorrection={process.classification.noticeCategory === '补正通知书'}
+              busy={busy || !formal}
+              onSave={async payload => {
+                const next = await api!.command(profileKey, caseId, { type: 'updateDraft', ...payload });
+                apply(next, gen.current);
+              }}
+            />
+          )}
           {shownStage === 4 && <div className="agent-card">
-            <h4>用户定稿</h4>{adopted?.applicationParts===undefined&&<p>请先在上方核对本次修改文件；没有修改也要明确保存。</p>}
+            <h4>确认定稿</h4>{adopted?.applicationParts===undefined&&<p>请先在上方核对本次修改文件；没有修改也要明确保存。</p>}
             <p>核对当前稿件后，由你确认定稿。独立复核可选；已有报告和未处理问题保留供参考。</p>
-            <button className="primary" type="button" disabled={!!finalizeBlock || busy || adopted?.applicationParts===undefined || process.classification.noticeCategory==='补正通知书'&&!adopted?.correctionContents?.length} onClick={() => void run({ type: 'finalize' })}>定稿</button>
+            <button className="primary" type="button" disabled={!!finalizeBlock || busy || adopted?.applicationParts===undefined || (process.classification.noticeCategory==='补正通知书'&&!adopted?.correctionContents?.length)} onClick={() => void run({ type: 'finalize' })}>定稿</button>
             {finalizeBlock && <p className="agent-note">{finalizeBlock}</p>}
             {process.finalized && <div className="finalized-status-block">
               <p><b>定稿已完成</b>：{process.classification.noticeCategory==='补正通知书'?'已保存补正字段和本次修改的申请文件。':process.finalized.word.generated?'已生成正式 Word 文件并归档。':'已保存历史定稿。'}{process.finalized.word.message ? ` ${process.finalized.word.message}` : ''}</p>
@@ -520,30 +550,109 @@ export function AgentWorkbench({
 
 export function AgentArtifacts({ view, caseId }: { view: AgentCaseView; caseId: string }) {
   const [selectedPreview, setSelectedPreview] = useState<AgentCaseView['artifacts'][number]>();
+  const [selectedDraftPart, setSelectedDraftPart] = useState<string>('body');
   const [error, setError] = useState('');
   const sortedArtifacts = [...view.artifacts].sort((a, b) => b.at.localeCompare(a.at) || a.title.localeCompare(b.title, 'zh-CN'));
   const preview = selectedPreview ?? sortedArtifacts.find(a => a.kind === 'final-word' || a.kind === 'final-correction-form') ?? sortedArtifacts[0];
-  const draft = view.process.drafts.find(item => item.id === preview?.versionId)
+  
+  const currentAdopted = view.process.drafts.find(item => item.id === view.process.currentDraftVersionId)
+    ?? view.process.drafts.find(item => item.adoptStatus === 'adopted')
     ?? (view.process.finalized ? view.process.drafts.find(item => item.id === view.process.finalized?.draftVersionId) : undefined)
     ?? view.process.drafts.at(-1);
+
+  const draft = view.process.drafts.find(item => item.id === preview?.versionId)
+    ?? currentAdopted;
   const text = preview ? artifactPreviewText(preview.kind, draft) : undefined;
+
+  // Pre-finalization draft items
+  const draftItems: Array<{ id: string; title: string; text?: string }> = [];
+  if (currentAdopted) {
+    if (currentAdopted.text) draftItems.push({ id: 'body', title: '意见陈述书（当前稿）', text: currentAdopted.text });
+    if (currentAdopted.applicationParts?.CLAIMS) draftItems.push({ id: 'CLAIMS', title: '权利要求书（修改后）', text: currentAdopted.applicationParts.CLAIMS });
+    if (currentAdopted.applicationParts?.DESCRIPTION) draftItems.push({ id: 'DESCRIPTION', title: '说明书（修改后）', text: currentAdopted.applicationParts.DESCRIPTION });
+    if (currentAdopted.applicationParts?.ABSTRACT) draftItems.push({ id: 'ABSTRACT', title: '说明书摘要（修改后）', text: currentAdopted.applicationParts.ABSTRACT });
+    if (currentAdopted.amendmentBasis) draftItems.push({ id: 'basis', title: '修改依据说明', text: currentAdopted.amendmentBasis });
+    if (currentAdopted.correctionContents?.length) {
+      const cText = currentAdopted.correctionContents.map((r, i) => `条目 ${i + 1}\n文件名称：${r.FileName}\n具体位置：${r.PositionInFile}\n补正前：${r.CorrectionBefore}\n补正后：${r.CorrectionAfter}`).join('\n\n');
+      draftItems.push({ id: 'corrections', title: '补正表单字段', text: cText });
+    }
+  }
+  const activeDraftItem = draftItems.find(d => d.id === selectedDraftPart) ?? draftItems[0];
+
   return <div className="agent-card">
     <h4>本案成果与定稿预览</h4>
-    {!view.artifacts.length && <p>还没有生成成果。确认定稿后，按指定模板生成正式 Word；补正内容保存为表单字段记录，工作稿历史另行保留。</p>}
-    {sortedArtifacts.map(item => <button className={`agent-artifact${preview?.id === item.id ? ' is-active' : ''}`} key={item.id} type="button" onClick={() => { setSelectedPreview(item); setError(''); }}>
-      {item.title}<small>{item.relativePath.split('.').at(-1)?.toUpperCase()} · {new Date(item.at).toLocaleString('zh-CN')}{item.versionId ? ` · ${item.versionId === view.process.currentDraftVersionId ? '当前稿件' : '历史稿件'}` : ''}</small>
-    </button>)}
-    {preview && <div className="agent-artifact-preview">
-      <div className="section-heading">
-        <div>
-          <h4>{preview.title}</h4>
-          <p className="muted">{preview.relativePath}</p>
-        </div>
-        <button type="button" onClick={() => void desktop!.openMaterial(caseId, preview.relativePath).catch(err => setError(sanitizeAgentError(err.message)))}>打开此文件</button>
+    {!sortedArtifacts.length ? (
+      <div className="draft-outcomes-section">
+        <p className="section-copy">当前尚未定稿生成最终 Word。以下为当前采用稿件及修改文件的实时排版与公式预览：</p>
+        {draftItems.length > 0 ? (
+          <>
+            <div className="surface-switch" role="tablist" style={{ margin: '8px 0' }}>
+              {draftItems.map(item => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={activeDraftItem?.id === item.id ? 'active' : ''}
+                  onClick={() => setSelectedDraftPart(item.id)}
+                >
+                  {item.title}
+                </button>
+              ))}
+            </div>
+            {activeDraftItem && (
+              <div className="agent-artifact-preview">
+                <h4>{activeDraftItem.title}</h4>
+                <FormattedFormulaText className="agent-preview" text={activeDraftItem.text} />
+              </div>
+            )}
+          </>
+        ) : (
+          <p className="muted">还没有生成成果。确认定稿后，按指定模板生成正式 Word；补正内容保存为表单字段记录，工作稿历史另行保留。</p>
+        )}
       </div>
-      {text ? <FormattedFormulaText className="agent-preview" text={text}/> : <p className="muted">当前文件已保存至本案目录，可点击上方按钮在外部应用中打开。</p>}
-    </div>}
+    ) : (
+      <>
+        <div className="artifact-selector-buttons" style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', margin: '8px 0' }}>
+          {sortedArtifacts.map(item => (
+            <button
+              className={`agent-artifact${preview?.id === item.id ? ' is-active' : ''}`}
+              key={item.id}
+              type="button"
+              onClick={() => { setSelectedPreview(item); setError(''); }}
+            >
+              {item.title}
+              <small>
+                {item.relativePath.split('.').at(-1)?.toUpperCase()} · {new Date(item.at).toLocaleString('zh-CN')}
+                {item.versionId ? ` · ${item.versionId === view.process.currentDraftVersionId ? '当前稿件' : '历史稿件'}` : ''}
+              </small>
+            </button>
+          ))}
+        </div>
+        {preview && (
+          <div className="agent-artifact-preview">
+            <div className="section-heading">
+              <div>
+                <h4>{preview.title}</h4>
+                <p className="muted">{preview.relativePath}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void desktop!.openMaterial(caseId, preview.relativePath).catch(err => setError(sanitizeAgentError(err.message)))}
+              >
+                外部打开此文件
+              </button>
+            </div>
+            {text ? (
+              <FormattedFormulaText className="agent-preview" text={text} />
+            ) : (
+              <p className="muted">当前文件已保存至本案目录，可点击上方按钮在外部应用中打开。</p>
+            )}
+          </div>
+        )}
+      </>
+    )}
     {error && <p className="agent-error" role="alert">{error}</p>}
-    <button type="button" onClick={() => void desktop!.openCaseDirectory(caseId)}><FolderOpen size={14}/>打开案件目录</button>
+    <button type="button" onClick={() => void desktop!.openCaseDirectory(caseId)}>
+      <FolderOpen size={14} />打开案件目录
+    </button>
   </div>;
 }

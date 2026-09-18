@@ -647,6 +647,38 @@ test('补正四字段编辑使复核失效，独立审查读取完整新版本�
  assert.equal(view.process.finalized!.word.status,'not-required');
 });
 
+test('updateDraft 命令支持微调更新正文与申请文件，并保留未修改部分为新采用稿', async t => {
+  const { service, host } = await setup(t);
+  const c = await prepareCase(service, 'UPD1');
+  await host.command('local', c.id, { type: 'classify', classification: classify });
+  await host.command('local', c.id, { type: 'materials', selectedIds: ['n-UPD1', 'a-UPD1'] });
+  await host.command('local', c.id, { type: 'run', action: 'analysis' }); await host.waitIdle();
+  await host.command('local', c.id, { type: 'strategy', strategyId: 's2' });
+  await host.command('local', c.id, { type: 'run', action: 'draft' }); await host.waitIdle();
+  let view = await host.getCase('local', c.id);
+  const pending = view.process.drafts.find(d => d.adoptStatus === 'pending')!;
+  await host.command('local', c.id, { type: 'adopt', versionId: pending.id });
+
+  // Update text and CLAIMS via updateDraft
+  view = await host.command('local', c.id, {
+    type: 'updateDraft',
+    text: '尊敬的审查员：\n这是经过微调的意见陈述书正文。\n此致',
+    applicationParts: { CLAIMS: '1. 一种经微调的检测装置，其特征在于包含公式 $E = mc^2$。' },
+    amendmentBasis: '说明书第 [0020] 段',
+  });
+
+  const updated = view.process.drafts.find(d => d.id === view.process.currentDraftVersionId)!;
+  assert.equal(updated.text, '尊敬的审查员：\n这是经过微调的意见陈述书正文。\n此致');
+  assert.equal(updated.applicationParts?.CLAIMS, '1. 一种经微调的检测装置，其特征在于包含公式 $E = mc^2$。');
+  assert.equal(updated.amendmentBasis, '说明书第 [0020] 段');
+  assert.equal(updated.adoptStatus, 'adopted');
+
+  // Finalize directly with this updated draft
+  view = await host.command('local', c.id, { type: 'finalize' });
+  assert.equal(view.process.stage, 'final');
+  assert.ok(view.artifacts.some(a => a.kind === 'final-application-CLAIMS'));
+});
+
 test('讨论消息可以引用网址和路径，不把整条聊天当配置封锁', async t => {
   const { service, host } = await setup(t);
   const c = await prepareCase(service, 'URL1');
