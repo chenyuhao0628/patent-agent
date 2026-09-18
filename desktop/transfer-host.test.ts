@@ -561,3 +561,91 @@ test('refresh promotes draft phase to saved when remote materials and form alrea
   assert.match(refreshed.results.at(-1)!,/已保存就绪/);
 });
 
+test('revoke sets revokedByUser flag and prevents refresh from auto-promoting to saved',async t=>{
+  const {service,client,host,c,source}=await setup(t);
+  let v=await host.prepare(service.key,c.id);
+  v=await host.addFile(service.key,v.id,'reply',source);
+  v=await host.save(service.key,v.id,v.review);
+  assert.equal(v.phase,'saved');
+
+  // Revoke to draft
+  const revoked=await host.revoke(service.key,v.id);
+  assert.equal(revoked.phase,'draft');
+  assert.equal(revoked.revokedByUser,true);
+
+  // Refresh should NOT promote back to saved because revokedByUser is true
+  const refreshed=await host.refresh(service.key,v.id);
+  assert.equal(refreshed.phase,'draft');
+  assert.equal(refreshed.revokedByUser,true);
+  assert.match(refreshed.results.at(-1)!,/维持撤销保存后的草稿编辑状态/);
+
+  // Re-saving clears revokedByUser and sets phase to saved
+  const resaved=await host.save(service.key,v.id,refreshed.review);
+  assert.equal(resaved.phase,'saved');
+  assert.equal(resaved.revokedByUser,undefined);
+});
+
+test('removeFile removes local prepared file and restores parts keepCodes',async t=>{
+  const {service,host,c,source}=await setup(t);
+  let v=await host.prepare(service.key,c.id);
+  v=await host.addFile(service.key,v.id,'reply',source);
+  assert.equal(v.files.length,1);
+  assert.equal(v.files[0].role,'reply');
+
+  // removeFile removes reply
+  const afterRemove=await host.removeFile(service.key,v.id,'reply');
+  assert.equal(afterRemove.files.length,0);
+  assert.match(afterRemove.results.at(-1)!,/已移除本地【意见陈述书】/);
+
+  // Re-add file, save, and verify removeFile is rejected when saved
+  v=await host.addFile(service.key,v.id,'reply',source);
+  v=await host.save(service.key,v.id,v.review);
+  assert.equal(v.phase,'saved');
+  await assert.rejects(host.removeFile(service.key,v.id,'reply'),/已保存或已转交/);
+});
+
+test('clearRemote deletes remote files, resets form, and keeps draft state',async t=>{
+  const {service,client,host,c,source}=await setup(t);
+  let v=await host.prepare(service.key,c.id);
+  v=await host.addFile(service.key,v.id,'reply',source);
+  v=await host.save(service.key,v.id,v.review);
+  assert.equal(v.phase,'saved');
+  assert.equal(client.calls.some(call=>call.endpoint.endsWith('FormOpinionStatement')),true);
+
+  // clearRemote executes remote deletes and resets form
+  const cleared=await host.clearRemote(service.key,v.id);
+  assert.equal(cleared.phase,'draft');
+  assert.equal(cleared.revokedByUser,true);
+  assert.equal(cleared.existingFileNames.length,0);
+  assert.equal(client.calls.some(call=>call.endpoint.endsWith('DeleteFormFile')),true);
+  assert.match(cleared.results.at(-1)!,/已成功物理删除贝思兰德系统内的远端上传文件/);
+
+  // Cannot clear remote after submitted
+  const resaved=await host.save(service.key,v.id,cleared.review);
+  const submitted=await host.submit(service.key,resaved.id);
+  assert.equal(submitted.phase,'submitted');
+  await assert.rejects(host.clearRemote(service.key,v.id),/已内部转交/);
+});
+
+test('previewFile supports local file, remote download, and partCode preview',async t=>{
+  const {service,client,host,c,source}=await setup(t);
+  let v=await host.prepare(service.key,c.id);
+  v=await host.addFile(service.key,v.id,'reply',source);
+
+  // Preview local reply docx
+  const replyPreview=await host.previewFile(service.key,v.id,{role:'reply'});
+  assert.ok(replyPreview.name);
+  assert.ok(typeof replyPreview.content==='string');
+
+  // Preview partCode
+  (host as any).sessions.get(v.id).view.parts=[{code:'100001',name:'权利要求书',after:'1. 一种测试专利。'}];
+  const partPreview=await host.previewFile(service.key,v.id,{partCode:'100001'});
+  assert.equal(partPreview.name,'权利要求书');
+  assert.equal(partPreview.content,'1. 一种测试专利。');
+
+  // Preview by remote fileNo
+  const remotePreview=await host.previewFile(service.key,v.id,{fileNo:'remote-f1',name:'远端文件.docx'});
+  assert.equal(remotePreview.name,'远端文件.docx');
+});
+
+

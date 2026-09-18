@@ -20,7 +20,7 @@ export function InternalTransfer({profileKey,item,refreshSeq,navigate}:{profileK
   const [review,setReview]=useState<TransferReview|undefined>(()=>{const c=transferCache.get(cacheKey)?.review;return c?structuredClone(c):undefined;});
   const [busy,setBusy]=useState(false),[error,setError]=useState('');
   const [tab,setTab]=useState<number>(()=>transferCache.get(cacheKey)?.tab??0);
-  const [confirm,setConfirm]=useState<'save'|'submit'|'start'|'revoke'>();
+  const [confirm,setConfirm]=useState<'save'|'submit'|'start'|'revoke'|'clearRemote'>();
   const [inspecting,setInspecting]=useState<boolean>(()=>!transferCache.has(cacheKey));
   const [previewDoc, setPreviewDoc]=useState<{title:string;text:string}|null>(null);
   const scope=useRef('');scope.current=cacheKey;
@@ -96,6 +96,25 @@ export function InternalTransfer({profileKey,item,refreshSeq,navigate}:{profileK
   const roles:TransferFileRole[]=view?.route==='application'?['application']:['baseline','application',...(view?.route==='reply'?['reply' as const]:[])];
   const roleName={baseline:'修改前申请文件（比对用，可选）',application:view?.route==='application'?'完整申请文件':'本次修改后的申请文件（有修改时）',reply:'意见陈述书 Word'};
   const step=view?.steps.find(s=>s.id===review?.stepId),user=step?.users.find(u=>u.id===review?.userId);
+
+  const handlePreviewDoc=async(fileRef:{role?:TransferFileRole;partCode?:string;fileNo?:string;name?:string})=>{
+    if(!desktop?.transfer?.previewFile||!view)return;
+    setBusy(true);
+    try{
+      const res=await desktop.transfer.previewFile(profileKey,view.id,fileRef);
+      if(res){
+        let text=res.content||'';
+        if(res.parts&&res.parts.length>0){
+          text=res.parts.map(p=>`### ${p.name}\n\n${p.content}`).join('\n\n');
+        }
+        setPreviewDoc({title:res.name||'正文与公式预览',text:text||'（该材料无文本正文）'});
+      }
+    }catch(err){
+      setError('预览失败：'+(err as Error).message);
+    }finally{
+      setBusy(false);
+    }
+  };
   return <section className="internal-transfer"><div className="section-heading"><div><h3>{view?.sourceMode==='local'?'本地文件提交':'提交到下一内部流程'}</h3><p className="section-copy">整理本次材料、核对业务表单，再转交下一办理人。</p></div>
     {inspecting ? (
       <div className="transfer-inspecting"><RefreshCw size={14} className="spin"/><span>正在检查递交方案…</span></div>
@@ -132,9 +151,10 @@ export function InternalTransfer({profileKey,item,refreshSeq,navigate}:{profileK
       {view.phase==='saved'&&<div className="transfer-saved-banner">
         <div>
           <h4>材料与表单已在服务端保存就绪</h4>
-          <p>本次材料与表单已成功核验落盘，无需重复上传。可直接转交下一办理人，或撤销保存重新编辑。</p>
+          <p>本次材料与表单已成功核验落盘，无需重复上传。可直接预览递交材料，或转交下一办理人。</p>
         </div>
         <div className="button-row">
+          <button type="button" disabled={busy} onClick={()=>void handlePreviewDoc({role:view.route==='reply'?'reply':'application'})} title="预览保存至系统的正文与公式"><Eye size={14}/> 预览递交材料（含公式）</button>
           <button disabled={busy} onClick={()=>setConfirm('revoke')}>撤销本次保存</button>
           <button className="primary" disabled={busy||view.canEditRemote===false||!user} onClick={()=>{setTab(2);setConfirm('submit');}}>
             直接转交给 {user?.name||'下一办理人'}<ArrowRight size={14}/>
@@ -143,11 +163,14 @@ export function InternalTransfer({profileKey,item,refreshSeq,navigate}:{profileK
       </div>}
       {view.existingFileNames.length>0&&<div className={`transfer-existing-box${view.phase==='saved'?' is-saved':' is-draft'}`}>
         <div className="transfer-existing-header">
-          <span>贝思兰德远端当前已有材料 · {view.existingFileNames.length} 件</span>
-          <span className={`transfer-existing-badge${view.phase==='saved'?'':' is-draft'}`}>{view.phase==='saved'?'服务端已保存就绪':'实例已有文件'}</span>
+          <span>贝思兰德远端当前已有材料 · {view.existingFileNames.length} 件（点击可直接预览）</span>
+          <div className="button-row" style={{margin:0}}>
+            <span className={`transfer-existing-badge${view.phase==='saved'?'':' is-draft'}`}>{view.phase==='saved'?'服务端已保存就绪':'实例已有文件'}</span>
+            {view.phase==='draft'&&view.canEditRemote!==false&&<button type="button" className="small-button" disabled={busy} onClick={()=>setConfirm('clearRemote')} title="物理删除贝思兰德系统内的远端上传材料并重置表单" style={{color:'#c53030',borderColor:'#feb2b2',background:'#fff5f5'}}>🗑️ 清空系统内远端材料</button>}
+          </div>
         </div>
         <div className="transfer-file-chips">
-          {view.existingFileNames.map((n,i)=><span className="transfer-file-chip" key={i}><FileText size={12}/>{n}</span>)}
+          {view.existingFileNames.map((n,i)=><button type="button" className="transfer-file-chip clickable" key={i} onClick={()=>void handlePreviewDoc({name:n})} title={`点击预览：${n}`} style={{cursor:'pointer',border:'1px solid var(--line)',background:'var(--surface,#fff)',borderRadius:'4px',padding:'2px 8px',display:'inline-flex',alignItems:'center',gap:'4px',fontSize:'12px'}}><Eye size={12}/>{n}</button>)}
         </div>
         {view.phase==='saved'&&<p className="muted">上述材料已在贝思兰德递交实例落盘保存，无需重复上传。核对表单与下一办理人后即可直接转交。</p>}
       </div>}
@@ -161,6 +184,19 @@ export function InternalTransfer({profileKey,item,refreshSeq,navigate}:{profileK
           <div className="transfer-files">{roles.map(role=>{
             const file=view.files.find(f=>f.role===role);
             const handlePreview=async()=>{
+              if(desktop?.transfer?.previewFile){
+                try{
+                  const res=await desktop.transfer.previewFile(profileKey,view.id,{role});
+                  if(res&&(res.content||(res.parts&&res.parts.length>0))){
+                    let text=res.content||'';
+                    if(res.parts&&res.parts.length>0){
+                      text=res.parts.map(p=>`### ${p.name}\n\n${p.content}`).join('\n\n');
+                    }
+                    setPreviewDoc({title:res.name||roleName[role],text});
+                    return;
+                  }
+                }catch{}
+              }
               if(role==='application'){
                 const partsText=view.parts
                   .filter(p=>view.route==='application'||review.keepCodes.includes(p.code)||(p.after||p.before))
@@ -213,11 +249,12 @@ export function InternalTransfer({profileKey,item,refreshSeq,navigate}:{profileK
                 <button type="button" onClick={()=>void handlePreview()} title="预览正文与专业公式排版"><Eye size={14}/>预览正文</button>
                 {navigate&&view.sourceMode==='workbench'&&<button type="button" onClick={()=>navigate('discussion')} title="前往定稿微调编辑器直接编辑稿件或识别公式"><Edit3 size={14}/>打开微调</button>}
                 <button disabled={locked} onClick={()=>void act(()=>desktop!.transfer.pickFile(profileKey,view.id,role))}><Upload size={14}/>选择文件</button>
+                {file&&view.phase==='draft'&&<button type="button" disabled={locked} onClick={()=>void act(()=>desktop!.transfer.removeFile(profileKey,view.id,role))} title="移除此本地文件" style={{color:'#c53030'}}>移除</button>}
               </div>
             </div>;
           })}</div>
           <p className="muted">修改前文件仅供比对，不上传；修改后文件仅在本次修改申请内容时需要，保存时提取勾选部分；意见陈述书是本次答复正文。文件复制到本案目录，原件和历史稿保留。</p>
-          {view.parts.length>0&&<><h4>本次五书保留范围</h4><div className="transfer-parts">{view.parts.map(p=><div key={p.code}><label><input type="checkbox" disabled={locked||view.route==='application'||p.available===false} checked={review.keepCodes.includes(p.code)} onChange={e=>patch({keepCodes:e.target.checked?[...review.keepCodes,p.code]:review.keepCodes.filter(c=>c!==p.code)})}/><b>{p.name}</b><span className={p.changed===null?'text-warning':'muted'}>{view.route==='application'?'申请材料':p.changed===null?'待人工核对':p.changed?'发现变化':'未发现变化'}</span></label><p>{view.route==='application'?'本次完整申请保留此部分。':p.reason}</p>{view.route!=='application'&&(p.before||p.after)&&<details><summary>比较文字</summary><div className="transfer-comparison"><div><b>基线</b><pre>{p.before||'未识别正文'}</pre></div><div><b>本次</b><pre>{p.after||'未识别正文'}</pre></div></div></details>}</div>)}</div>{view.route!=='application'&&<Note>保存后，本次递交列表只保留勾选的五书部分；未勾选部分及完整混合申请文件会从当前递交实例移除。</Note>}</>}
+          {view.parts.length>0&&<><h4>本次五书保留范围</h4><div className="transfer-parts">{view.parts.map(p=><div key={p.code}><label><input type="checkbox" disabled={locked||view.route==='application'||p.available===false} checked={review.keepCodes.includes(p.code)} onChange={e=>patch({keepCodes:e.target.checked?[...review.keepCodes,p.code]:review.keepCodes.filter(c=>c!==p.code)})}/><b>{p.name}</b><span className={p.changed===null?'text-warning':'muted'}>{view.route==='application'?'申请材料':p.changed===null?'待人工核对':p.changed?'发现变化':'未发现变化'}</span></label><p>{view.route==='application'?'本次完整申请保留此部分。':p.reason}</p>{(p.before||p.after)&&<div style={{display:'flex',gap:'8px',marginTop:'4px'}}><button type="button" className="small-button" onClick={()=>void handlePreviewDoc({partCode:p.code,name:p.name})}><Eye size={12}/> 预览此分件</button></div>}{view.route!=='application'&&(p.before||p.after)&&<details><summary>比较文字</summary><div className="transfer-comparison"><div><b>基线</b><pre>{p.before||'未识别正文'}</pre></div><div><b>本次</b><pre>{p.after||'未识别正文'}</pre></div></div></details>}</div>)}</div>{view.route!=='application'&&<Note>保存后，本次递交列表只保留勾选的五书部分；未勾选部分及完整混合申请文件会从当前递交实例移除。</Note>}</>}
           <div className="button-row">
             <button disabled={!!view.sourceDraft&&review.confirmedDraftId!==view.sourceDraft.id} onClick={()=>setTab(1)}>继续核对表单<ArrowRight size={15}/></button>
             {view.phase==='saved'&&<button className="primary" disabled={busy||view.canEditRemote===false||!user} onClick={()=>{setTab(2);setConfirm('submit');}}>已保存就绪，直接转交<ArrowRight size={14}/></button>}
@@ -234,7 +271,20 @@ export function InternalTransfer({profileKey,item,refreshSeq,navigate}:{profileK
           </div>
         </div>}
         {tab===2&&<><div className="form-grid"><label className="field">下一流程<select disabled={lockedRecipient} value={review.stepId} onChange={e=>patch({stepId:e.target.value,userId:''})}><option value="">选择流程</option>{view.steps.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></label><label className="field">下一办理人<select disabled={lockedRecipient} value={review.userId} onChange={e=>patch({userId:e.target.value})}><option value="">选择办理人</option>{step?.users.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}</select></label></div><label className="field">转交备注<textarea disabled={lockedRecipient} maxLength={1000} value={review.remark} onChange={e=>patch({remark:e.target.value})}/></label>
-          {view.existingFileNames.length>0&&<details><summary>贝思兰德当前递交材料 · {view.existingFileNames.length}</summary><ul>{view.existingFileNames.map((n,i)=><li key={i}>{n}</li>)}</ul></details>}
+          {view.existingFileNames.length>0&&<div style={{margin:'12px 0',padding:'12px',borderRadius:'8px',border:'1px solid var(--line)',background:'var(--surface,#f8fafc)'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px'}}>
+              <b>贝思兰德递交材料清单 · {view.existingFileNames.length} 件</b>
+              <button type="button" disabled={busy} onClick={()=>void handlePreviewDoc({role:view.route==='reply'?'reply':'application'})} title="完整预览本次递交材料正文与公式"><Eye size={14}/> 预览递交正文与公式</button>
+            </div>
+            <ul style={{margin:0,paddingLeft:'18px'}}>
+              {view.existingFileNames.map((n,i)=><li key={i} style={{marginBottom:'4px',display:'flex',alignItems:'center',gap:'8px'}}>
+                <span>{n}</span>
+                <button type="button" style={{border:'none',background:'transparent',color:'var(--primary,#2563eb)',cursor:'pointer',fontSize:'12px',textDecoration:'underline',display:'inline-flex',alignItems:'center',gap:'2px'}} onClick={()=>void handlePreviewDoc({name:n})}>
+                  <Eye size={12}/> 预览
+                </button>
+              </li>)}
+            </ul>
+          </div>}
           <div className="action-bar"><span>{view.phase==='submitted'?'内部转交已确认':view.phase==='saved'?'文件与表单保存已核验':view.phase==='uncertain'?'结果待核对，请点击顶栏【刷新本案】':'请核对文件、表单和接收人'}</span>
             <div className="button-row">
               {view.phase==='saved'&&<button disabled={busy} onClick={()=>setConfirm('revoke')}>撤销保存 / 重新编辑</button>}
@@ -243,24 +293,27 @@ export function InternalTransfer({profileKey,item,refreshSeq,navigate}:{profileK
           </div>
         </>}
       </>}
-      {confirm&&<Modal title={confirm==='save'?'确认保存本次递交材料':confirm==='submit'?'确认内部转交':confirm==='revoke'?'确认撤销本次保存':'确认启动递交实例'} onClose={()=>setConfirm(undefined)}>
+      {confirm&&<Modal title={confirm==='save'?'确认保存本次递交材料':confirm==='submit'?'确认内部转交':confirm==='revoke'?'确认撤销本次保存':confirm==='clearRemote'?'确认清空贝思兰德系统内的远端材料':'确认启动递交实例'} onClose={()=>setConfirm(undefined)}>
         <p><b>{view.caseNumber} · {view.caseTitle}</b></p>
         <p>{view.processName} → {step?.name||'本次内部递交流程'}{user&&` · ${user.name}`}</p>
         {confirm==='save'&&<><p>保留：{review.keepCodes.map(c=>FIVE_PARTS.find(p=>p.code===c)?.name).join('、')||'本次未选择五书修改部分'}{view.route==='reply'?'；意见陈述书 Word':''}{view.route==='correction'?'；结构化补正书':''}</p>{view.parts.length>0&&view.route!=='application'&&<p>从本次递交列表移除：完整混合申请文件、{FIVE_PARTS.filter(p=>!review.keepCodes.includes(p.code)).map(p=>p.name).join('、')||'无其他部分'}。本地及历史文件保留。</p>}</>}
         {confirm==='revoke'&&<p>撤销后将回到草稿状态，允许重新选择文件、调整五书勾选或修改表单。原已填写的表单字段、补正内容与接收人将完整保留，修改后可随时再次核对并保存。</p>}
+        {confirm==='clearRemote'&&<div className="inline-warning" style={{marginTop:'8px'}}><p><strong>⚠️ 高风险操作</strong>：确定清空贝思兰德系统内已上传的文件与表单吗？</p><p>这将调用系统接口物理删除当前流程节点已上传的五书、修改文件或意见陈述书，并重置表单为草稿状态。操作成功后无法撤回，但本地工作台材料仍保留。</p></div>}
         <p>{confirm==='submit'?'将已核验材料转交上述内部办理人；后续官方递交由接收人办理。':confirm==='save'?'请确认上述案件、材料范围及表单内容准确。':''}</p>
         <div className="action-bar">
           <button onClick={()=>setConfirm(undefined)}>返回</button>
-          <button className={confirm==='revoke'?'':'primary'} disabled={busy} onClick={()=>{
+          <button className={confirm==='revoke'||confirm==='clearRemote'?'':'primary'} disabled={busy} style={confirm==='clearRemote'?{color:'#fff',background:'#e53e3e',borderColor:'#c53030'}:{}} onClick={()=>{
             const action=confirm;setConfirm(undefined);
             if(action==='revoke'){
               void act(async()=>desktop!.transfer.revoke(profileKey,view.id));
+            }else if(action==='clearRemote'){
+              void act(async()=>desktop!.transfer.clearRemote(profileKey,view.id));
             }else{
               setTab(2);
               void act(async()=>action==='save'?desktop!.transfer.save(profileKey,view.id,review):action==='submit'?desktop!.transfer.submit(profileKey,view.id,review):desktop!.transfer.startHand(profileKey,view.id));
             }
           }}>
-            确认{confirm==='save'?'保存':confirm==='submit'?'内部转交':confirm==='revoke'?'撤销保存':'启动'}
+            确认{confirm==='save'?'保存':confirm==='submit'?'内部转交':confirm==='revoke'?'撤销保存':confirm==='clearRemote'?'清空远端材料':'启动'}
           </button>
         </div>
       </Modal>}

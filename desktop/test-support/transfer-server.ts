@@ -22,11 +22,18 @@ export class Server extends BaselandClient {
     if(ep==='UploadExistFileFormInstructionsAndImage')return {Result:'Success',FileList:FIVE_PARTS.filter(p=>this.parsedCodes.includes(p.code)).map(p=>({FormName:p.name,FormCode:Number(p.code),FileNo:'split-'+p.code,CaseName:p.code==='100002'?'说明书抬头名称':undefined,Untouched:'preserve'}))};
     if(ep==='ModifyFormInstructionsAndImage'){this.group=[...body.FileList.map((f:any)=>({FormCode:f.FormCode,AbstractDrawNumber:f.AbstractDrawNumber,File:{FileNo:f.FileNo,FileName:f.FormName+'.docx'}})),{IsMixFile:true,File:{FileNo:body.MixFile.fileNo,FileName:body.MixFile.fileName}}];return 'Success';}
     if(ep==='UpdateFormInstructionsAndImageSetting'||ep==='InsertFormInstructionsAndImageSetting'){this.setting={...this.setting,...body,CaseHandFormInstructionsAndImageSettingId:'setting-1'};return 'Success';}
-    if(ep==='DeleteFormFile'){this.group=this.group.filter(f=>String(f.FormCode)!==params?.formCode);return 'Success';}
+    if(ep==='DeleteFormFile'){
+      this.group=this.group.filter(f=>String(f.FormCode)!==params?.formCode);
+      if(['100012','100006'].includes(params?.formCode||''))this.form=null;
+      return 'Success';
+    }
     if(ep==='DeleteFormInstructionsAndImageMixFile'){this.group=this.group.filter(f=>!f.IsMixFile);return 'Success';}
     if(ep==='InsertFromPatentRequestInfo'||/^(Insert|Update).*Form(Opinion|Correction|Patent)/.test(ep!)){this.form=structuredClone(body);return 'Success';}
     if(ep==='SubmitHandFlow'){this.flowInfo={FlowNodeName:this.next,FlowUserName:this.badRecipient?'其他人':'杨佳',CaseHandStepId:'step-1',FlowUserId:this.badRecipient?'other-user':'user-1'};return 'Success';}
     throw new Error('Unexpected endpoint '+ep);
   }
   override async uploadDocument(){return 'upload-'+(++this.serial);}
+  override async download(_fileNo:string,_signal?:AbortSignal):Promise<any>{
+    return Buffer.from('mock binary');
+  }
 }

@@ -338,3 +338,80 @@ export async function submitRemoteTransfer(client:BaselandClient,processId:strin
   if(!matched)throw new Error('已发送内部转交请求，但下一节点回读未匹配；请刷新核对，不要重复转交。');
   return {node:(hand?.CurrentFlowInfo?.FlowNodeName as string)||step.name,user:(hand?.CurrentFlowInfo?.FlowUserName as string)||user.name};
 }
+
+export async function clearRemoteTransfer(
+  client: BaselandClient,
+  processId: string,
+  route: TransferRoute,
+  guard: () => void,
+): Promise<RemoteTransfer | null> {
+  guard();
+  const r = await readRemoteTransfer(client, processId, route);
+  guard();
+  if (!r || !r.handId) return null;
+  if (!flag(r.hand.IsReviewing)) throw new Error('贝思兰德当前未授权本账号编辑此递交节点，无法清空材料。');
+
+  const params = { caseHandId: r.handId };
+  const q = async (ep: string, body?: Obj, p?: Record<string, string>, kind: 'data' | 'list' = 'data') => {
+    guard();
+    const res = await client.request('/CaseInfo/' + ep, body, p, undefined, kind);
+    guard();
+    return res;
+  };
+
+  // 1. Delete InstructionsAndImage mix file if exists
+  try {
+    await q('DeleteFormInstructionsAndImageMixFile', undefined, params);
+  } catch {}
+
+  // 2. Delete five parts if exist
+  if (r.instructions?.FormGroup) {
+    const group = list(r.instructions.FormGroup);
+    for (const g of group) {
+      if (g.File?.FileNo && g.FormCode) {
+        try {
+          await q('DeleteFormFile', undefined, { ...params, formCode: id(g.FormCode) });
+        } catch {}
+      }
+    }
+  }
+
+  // 3. If reply route, reset opinion statement form file or call DeleteFormFile
+  if (route === 'reply' && r.formCode) {
+    try {
+      await q('DeleteFormFile', undefined, { ...params, formCode: '100012' });
+    } catch {}
+    if (r.form?.OpinionStatement) {
+      try {
+        const payload = {
+          CaseHandId: r.handId,
+          FormCode: 100012,
+          File: null,
+          OpinionStatement: {
+            ...r.form.OpinionStatement,
+            OpinionStatementContentType: 0,
+          },
+        };
+        await q(saveEndpoint('reply', true), payload);
+      } catch {}
+    }
+  }
+
+  // 4. If correction route, clear correction rows
+  if (route === 'correction' && r.form?.Correction) {
+    try {
+      const payload = {
+        CaseHandId: r.handId,
+        FormCode: 100006,
+        Correction: r.form.Correction,
+        CorrectionContentList: [],
+      };
+      await q(saveEndpoint('correction', true), payload);
+    } catch {}
+  }
+
+  // Re-read remote transfer to verify
+  const after = await readRemoteTransfer(client, processId, route);
+  guard();
+  return after;
+}

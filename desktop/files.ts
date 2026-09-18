@@ -1,10 +1,39 @@
 import * as fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
+import JSZip from 'jszip';
+import { DOMParser } from '@xmldom/xmldom';
 import type { Case, Material, Settings } from '../src/domain/workflow.ts';
 
 export const digest=(s:string|Buffer)=>createHash('sha256').update(s).digest('hex');
 export const portable=(s:string)=>s.replaceAll('\\','/');
+
+export async function extractDocxParagraphs(bytes: Buffer): Promise<string | undefined> {
+  try {
+    const zip = await JSZip.loadAsync(bytes);
+    const xml = await zip.file('word/document.xml')?.async('string');
+    if (!xml) return undefined;
+    const doc = new DOMParser().parseFromString(xml, 'application/xml');
+    const paragraphs = Array.from(doc.getElementsByTagNameNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main', 'p'));
+    const lines: string[] = [];
+    for (const p of paragraphs) {
+      const texts: string[] = [];
+      for (const child of Array.from(p.childNodes)) {
+        if (child.nodeType === 1) {
+          const el = child as Element;
+          if (el.localName === 'del') continue;
+          const textNodes = Array.from(el.getElementsByTagNameNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main', 't'));
+          for (const t of textNodes) texts.push(t.textContent ?? '');
+        }
+      }
+      lines.push(texts.join(''));
+    }
+    const result = lines.join('\n').trim();
+    return result || undefined;
+  } catch {
+    return undefined;
+  }
+}
 const sharedMaterial=(m:Material)=>({id:m.id,name:m.name,role:m.role,location:m.location,fileNo:m.fileNo,relativePath:m.relativePath?portable(m.relativePath):undefined});
 export function safeName(value:string,max=36) {
   let s=Array.from(value.normalize('NFKC').replace(/[<>:"/\\|?*\x00-\x1f\x7f]/g,'_').replace(/\s+/g,' ').trim().replace(/[. ]+$/,'')).slice(0,max).join('')||'未命名';

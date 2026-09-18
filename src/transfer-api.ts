@@ -24,15 +24,25 @@ export type TransferView = {
   steps: Array<{ id: string; name: string; users: Array<{ id: string; name: string }> }>;
   phase: 'draft' | 'saved' | 'submitted' | 'uncertain' | 'superseded';
   results: string[]; error?: string; submissionAttempted?: boolean; submissionRetryable?: boolean; submissionFingerprint?: string; existingFileNames: string[]; at: string;
+  revokedByUser?: boolean;
+};
+export type TransferFilePreviewRef = { role?: TransferFileRole; partCode?: string; fileNo?: string; name?: string };
+export type TransferFilePreviewResult = {
+  name: string;
+  content?: string;
+  parts?: Array<{ code: string; name: string; content: string }>;
 };
 export type TransferAPI = {
   inspect(profileKey: string, caseId: string): Promise<TransferView | null>;
   prepare(profileKey: string, caseId: string, sourceMode?: TransferSource): Promise<TransferView>;
   pickFile(profileKey: string, id: string, role: TransferFileRole): Promise<TransferView>;
+  removeFile(profileKey: string, id: string, role: TransferFileRole): Promise<TransferView>;
+  clearRemote(profileKey: string, id: string): Promise<TransferView>;
+  previewFile(profileKey: string, id: string, fileRef: TransferFilePreviewRef): Promise<TransferFilePreviewResult>;
   startHand(profileKey: string, id: string): Promise<TransferView>;
   save(profileKey: string, id: string, review: TransferReview): Promise<TransferView>;
   submit(profileKey: string, id: string, review?: TransferReview): Promise<TransferView>;
   refresh(profileKey: string, id: string): Promise<TransferView>;
-  reprepare(profileKey:string,id:string):Promise<TransferView>;
-  revoke(profileKey:string,id:string):Promise<TransferView>;
+  reprepare(profileKey: string, id: string): Promise<TransferView>;
+  revoke(profileKey: string, id: string): Promise<TransferView>;
 };
