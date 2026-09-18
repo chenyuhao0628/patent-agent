@@ -12,11 +12,13 @@ export function FinalizationDraftEditor({
   draft,
   isCorrection,
   busy,
+  externalArtifacts,
   onSave,
 }: {
   draft: DraftVersion;
   isCorrection: boolean;
   busy: boolean;
+  externalArtifacts?: Array<{ title: string; kind: string; text?: string; relativePath: string }>;
   onSave: (payload: {
     text?: string;
     amendmentText?: string;
@@ -203,6 +205,50 @@ export function FinalizationDraftEditor({
           </button>
         ))}
       </nav>
+
+      {(() => {
+        const currentContent = activeTab === 'body'
+          ? bodyText
+          : activeTab === 'basis'
+          ? basisText
+          : activeTab === 'corrections'
+          ? ''
+          : (appParts[activeTab] || '');
+
+        const matching = (externalArtifacts || []).find(a => {
+          if (!a.text) return false;
+          if (activeTab === 'body' && (a.kind === 'final-word' || a.kind === 'body')) return true;
+          if (activeTab === 'CLAIMS' && (a.kind === 'final-application-CLAIMS' || a.kind === 'final-amendment')) return true;
+          if (activeTab === 'DESCRIPTION' && a.kind === 'final-application-DESCRIPTION') return true;
+          if (activeTab === 'ABSTRACT' && a.kind === 'final-application-ABSTRACT') return true;
+          if (activeTab === 'basis' && a.kind === 'final-basis') return true;
+          return false;
+        });
+
+        if (!matching || !matching.text || matching.text.trim() === currentContent.trim()) return null;
+
+        return (
+          <div className="inline-warning" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '8px 0', padding: '10px 14px', borderRadius: '6px' }}>
+            <div>
+              <b>⚠️ 检测到外部修改：</b>外部 Word 文件「{matching.title}」内容较新。
+            </div>
+            <button
+              type="button"
+              className="primary"
+              disabled={busy || saving}
+              onClick={() => {
+                if (activeTab === 'body') setBodyText(matching.text!);
+                else if (activeTab === 'basis') setBasisText(matching.text!);
+                else if (activeTab !== 'corrections') setAppParts(prev => ({ ...prev, [activeTab]: matching.text! }));
+                setDirty(true);
+                setStatusMessage(`已载入「${matching.title}」的外部修改，可核对排版后保存为新版本。`);
+              }}
+            >
+              📥 载入外部修改到编辑器
+            </button>
+          </div>
+        );
+      })()}
 
       {statusMessage && (
         <p className={`settings-notice ${statusMessage.includes('失败') ? 'is-error' : 'is-success'}`} role="status">

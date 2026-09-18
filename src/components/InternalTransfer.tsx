@@ -96,11 +96,38 @@ export function InternalTransfer({profileKey,item,refreshSeq,navigate}:{profileK
   const roles:TransferFileRole[]=view?.route==='application'?['application']:['baseline','application',...(view?.route==='reply'?['reply' as const]:[])];
   const roleName={baseline:'修改前申请文件（比对用，可选）',application:view?.route==='application'?'完整申请文件':'本次修改后的申请文件（有修改时）',reply:'意见陈述书 Word'};
   const step=view?.steps.find(s=>s.id===review?.stepId),user=step?.users.find(u=>u.id===review?.userId);
-  return <section className="internal-transfer"><div className="section-heading"><div><h3>{view?.sourceMode==='local'?'本地文件提交':'提交到下一内部流程'}</h3><p className="section-copy">整理本次材料、核对业务表单，再转交下一办理人。</p></div>{inspecting?<div className="transfer-inspecting"><RefreshCw size={14} className="spin"/><span>正在检查递交方案…</span></div>:view?null:<div className="button-row"><button className="primary" disabled={busy} onClick={()=>void act(()=>desktop!.transfer.prepare(profileKey,item.id,'workbench'))}>使用工作台稿件<ArrowRight size={15}/></button><button disabled={busy} onClick={()=>void act(()=>desktop!.transfer.prepare(profileKey,item.id,'local'))}>本地文件提交</button></div>}</div>
-    {!inspecting&&!view&&<p className="note"><strong>推荐方案</strong>：使用工作台已完成起草与定稿的成果直接生成提交文件。如果你已在外部完成撰写、答复或补正，也可选择“本地文件提交”直接导入本地 DOCX 文件。</p>}{error&&<p className="inline-warning" role="alert">{error}</p>}
+  return <section className="internal-transfer"><div className="section-heading"><div><h3>{view?.sourceMode==='local'?'本地文件提交':'提交到下一内部流程'}</h3><p className="section-copy">整理本次材料、核对业务表单，再转交下一办理人。</p></div>
+    {inspecting ? (
+      <div className="transfer-inspecting"><RefreshCw size={14} className="spin"/><span>正在检查递交方案…</span></div>
+    ) : (
+      <div className="button-row">
+        {view ? (
+          view.phase === 'draft' && (
+            <button
+              disabled={busy}
+              onClick={() => {
+                const targetMode = view.sourceMode === 'local' ? 'workbench' : 'local';
+                transferCache.delete(cacheKey);
+                void act(() => desktop!.transfer.prepare(profileKey, item.id, targetMode));
+              }}
+            >
+              {view.sourceMode === 'local' ? '切换为工作台方案' : '🔄 切换为本地文件人工提交'}
+            </button>
+          )
+        ) : (
+          <>
+            <button className="primary" disabled={busy} onClick={()=>void act(()=>desktop!.transfer.prepare(profileKey,item.id,'workbench'))}>使用工作台稿件<ArrowRight size={15}/></button>
+            <button disabled={busy} onClick={()=>void act(()=>desktop!.transfer.prepare(profileKey,item.id,'local'))}>本地文件人工提交</button>
+          </>
+        )}
+      </div>
+    )}
+  </div>
+    {!inspecting&&!view&&<p className="note"><strong>推荐方案</strong>：使用工作台已完成起草与定稿的成果直接生成提交文件。如果你已在外部完成撰写、答复或补正，也可选择“本地文件人工提交”直接导入本地 DOCX 文件。</p>}
+    {error&&<div className="inline-warning" role="alert"><p>{error}</p><div className="button-row" style={{marginTop:'8px'}}><button className="primary" disabled={busy} onClick={()=>{transferCache.delete(cacheKey);void act(()=>desktop!.transfer.prepare(profileKey,item.id,'local'));}}>进入本地文件人工提交（跳过工作台）</button></div></div>}
     {view&&review&&<>
       {view.phase==='draft'&&<div className="button-row"><button disabled={busy} onClick={()=>{transferCache.delete(cacheKey);setView(undefined);setReview(undefined);setTab(0);}}>更换文件来源</button>{view.sourceMode==='workbench'&&<button disabled={busy} onClick={()=>void act(()=>desktop!.transfer.reprepare(profileKey,view.id))}>重新获取工作台稿件</button>}</div>}
-      {view.phase==='draft'&&<p className="note">{view.sourceMode==='local'?'本地文件方案：仅使用你选择的本次文件，补正内容由你填写。':'工作台稿件方案：自动获取可用稿件并生成提交副本，请确认版本和文件；也可手动选择文件。'}</p>}
+      {view.phase==='draft'&&<p className="note">{view.sourceMode==='local'?'本地文件人工方案：仅使用你选择的本次文件，补正内容由你填写。若需随时更换文件，可点击下方【选择文件】。':'工作台稿件方案：自动获取可用稿件并生成提交副本，请确认版本和文件；也可随时点击【选择文件】手动替换。'}</p>}
       <div className="transfer-context"><b>{view.caseNumber}</b><span>{view.processName}</span><span>当前：{view.currentNode||(view.phase==='uncertain'?'实例状态待核验':'未创建递交实例')}{view.currentUser&&` · ${view.currentUser}`}</span></div>
       {view.phase==='saved'&&<div className="transfer-saved-banner">
         <div>
@@ -147,6 +174,14 @@ export function InternalTransfer({profileKey,item,refreshSeq,navigate}:{profileK
               if(desktop?.agent?.getCase){
                 try{
                   const agentCase=await desktop.agent.getCase(profileKey,item.id);
+                  const matchingArt = agentCase.artifacts.find(a => 
+                    (role === 'reply' && a.kind === 'final-word') ||
+                    (role === 'application' && (a.kind === 'final-application-CLAIMS' || a.kind === 'final-amendment'))
+                  );
+                  if (matchingArt?.text) {
+                    setPreviewDoc({ title: `${roleName[role]}${matchingArt.externallyModified ? '（外部已修改）' : ''}`, text: matchingArt.text });
+                    return;
+                  }
                   const draft=agentCase.process.drafts.find(d=>d.id===view.sourceDraft?.id)
                     ?? agentCase.process.drafts.find(d=>d.adoptStatus==='adopted')
                     ?? agentCase.process.drafts.at(-1);

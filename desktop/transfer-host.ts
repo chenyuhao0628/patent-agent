@@ -175,38 +175,42 @@ export class TransferHost {
       if(f){const source=await this.desktop.casePath(caseId,f.relativePath);if(f.hash&&digest(await fs.readFile(source))!==f.hash)throw new Error('撰写完成稿已被外部修改，请手动选择确切版本。');await this.attach(s,'application',source);}
     }
     if(sourceMode==='workbench'&&(route==='reply'||route==='correction')){
-      const agent=await this.agent.getCase(key,caseId);this.guard(s);
-      const artifact=agent.artifacts.filter(a=>a.kind==='final-word'&&a.versionId===agent.process.finalized?.draftVersionId).sort((a,b)=>b.at.localeCompare(a.at))[0];
-      const adopted=currentDraft(agent.process);
-      const pending=[...agent.process.drafts].reverse().find(d=>d.adoptStatus==='pending'&&(!agent.process.userSelectedStrategyId||d.strategyId===agent.process.userSelectedStrategyId));
-      const draft=pending&&(!adopted||(pending.at??'')>(adopted.at??''))?pending:adopted;
-      if(draft){s.view.sourceDraft={id:draft.id,at:draft.at,pending:draft.adoptStatus==='pending'};s.view.results.push('已自动获取'+(draft.adoptStatus==='pending'?'最新待采用稿':'当前采用稿')+'的提交副本，请确认本次使用的版本。不会自动采用或覆盖工作稿。');}
-      else s.view.results.push('未找到当前策略的可用工作台稿件，请先生成稿件或选择本地文件。');
-      if(route==='correction'&&draft&&draft.correctionContents?.length){
-        const usedIds=new Set<string>();
-        s.view.review.form.corrections=draft.correctionContents.map((row,Sort)=>{
-          const saved=s.view.review.form.corrections.find(old=>!usedIds.has(old.ChangeId)&&old.FileName===row.FileName&&old.PositionInFile===row.PositionInFile);
-          const ChangeId=saved?.ChangeId||randomUUID();usedIds.add(ChangeId);
-          return {...saved,...row,ChangeId,Sort};
-        });
-        s.view.results.push('已带入当前采用版本的补正字段，请核对文件名称、具体位置、补正前和补正后。');
-      }
-      if(route==='reply'&&artifact&&artifact.versionId===draft?.id)await this.attach(s,'reply',await this.desktop.casePath(caseId,artifact.relativePath));
-      else if(route==='reply'&&draft?.text.trim()&&this.options.templatesRoot&&agent.process.classification.status==='classified'&&agent.process.classification.noticeCategory==='审查意见通知书'){
-        const bytes=await exportReplyDocx(this.options.templatesRoot,draft.text,agent.process.classification.officeActionRound);this.guard(s);
-        const source=await this.desktop.casePath(caseId,`03_定稿/内部提交准备/提交材料_${id}/意见陈述书-待提交.docx`);await fs.mkdir(path.dirname(source),{recursive:true});await fs.writeFile(source,bytes,{flag:'wx',mode:0o600});this.guard(s);await this.attach(s,'reply',source);
-        s.view.results.push('已按自动获取稿件生成意见陈述书待提交副本；个人 AI 审查可选，请核对本次材料。');
-      }
-      if(draft&&draft.applicationParts===undefined)s.view.results.push('该版本尚未保存完整的修改申请内容；已带入答复正文。如有申请文件修改，请在稿件中核对并保存“本次修改文件”，或手动选择修改后文件。');
-      if(draft&&draft.applicationParts&&Object.keys(draft.applicationParts).length&&this.options.templatesRoot){
-        const bytes=await exportApplicationParts(this.options.templatesRoot,draft.applicationParts);this.guard(s);
-        const source=await this.desktop.casePath(caseId,`03_定稿/内部提交准备/提交材料_${id}/本次修改申请文件.docx`);
-        await fs.mkdir(path.dirname(source),{recursive:true});await fs.writeFile(source,bytes,{flag:'wx',mode:0o600});
-        await this.attach(s,'application',source);
-        const selected=new Set<string>(Object.keys(draft.applicationParts).map(k=>APPLICATION_PART_LABELS[k as keyof typeof APPLICATION_PART_LABELS]));
-        s.view.parts=s.view.parts.map(p=>selected.has(p.name)?{...p,available:true,reason:p.changed===null?'已采用稿明确修改此部分，缺少可比较基线，请人工核对。':p.reason}:{...p,changed:false,available:false,reason:'本次采用稿未修改此部分，不加入递交材料。'});
-        s.view.review.keepCodes=s.view.parts.filter(p=>p.available&&p.changed!==false).map(p=>p.code);
-        s.view.results.push('已带入自动获取版本的完整修改部分并预选递交清单；请核对五书选择和补正表单，本地完整稿及历史保留。');
+      try {
+        const agent=await this.agent.getCase(key,caseId);this.guard(s);
+        const artifact=agent.artifacts.filter(a=>a.kind==='final-word'&&a.versionId===agent.process.finalized?.draftVersionId).sort((a,b)=>b.at.localeCompare(a.at))[0];
+        const adopted=currentDraft(agent.process);
+        const pending=[...agent.process.drafts].reverse().find(d=>d.adoptStatus==='pending'&&(!agent.process.userSelectedStrategyId||d.strategyId===agent.process.userSelectedStrategyId));
+        const draft=pending&&(!adopted||(pending.at??'')>(adopted.at??''))?pending:adopted;
+        if(draft){s.view.sourceDraft={id:draft.id,at:draft.at,pending:draft.adoptStatus==='pending'};s.view.results.push('已自动获取'+(draft.adoptStatus==='pending'?'最新待采用稿':'当前采用稿')+'的提交副本，请确认本次使用的版本。不会自动采用或覆盖工作稿。');}
+        else s.view.results.push('未找到当前策略的可用工作台稿件，请先生成稿件或选择本地文件。');
+        if(route==='correction'&&draft&&draft.correctionContents?.length){
+          const usedIds=new Set<string>();
+          s.view.review.form.corrections=draft.correctionContents.map((row,Sort)=>{
+            const saved=s.view.review.form.corrections.find(old=>!usedIds.has(old.ChangeId)&&old.FileName===row.FileName&&old.PositionInFile===row.PositionInFile);
+            const ChangeId=saved?.ChangeId||randomUUID();usedIds.add(ChangeId);
+            return {...saved,...row,ChangeId,Sort};
+          });
+          s.view.results.push('已带入当前采用版本的补正字段，请核对文件名称、具体位置、补正前和补正后。');
+        }
+        if(route==='reply'&&artifact&&artifact.versionId===draft?.id)await this.attach(s,'reply',await this.desktop.casePath(caseId,artifact.relativePath));
+        else if(route==='reply'&&draft?.text.trim()&&this.options.templatesRoot&&agent.process.classification.status==='classified'&&agent.process.classification.noticeCategory==='审查意见通知书'){
+          const bytes=await exportReplyDocx(this.options.templatesRoot,draft.text,agent.process.classification.officeActionRound);this.guard(s);
+          const source=await this.desktop.casePath(caseId,`03_定稿/内部提交准备/提交材料_${id}/意见陈述书-待提交.docx`);await fs.mkdir(path.dirname(source),{recursive:true});await fs.writeFile(source,bytes,{flag:'wx',mode:0o600});this.guard(s);await this.attach(s,'reply',source);
+          s.view.results.push('已按自动获取稿件生成意见陈述书待提交副本；个人 AI 审查可选，请核对本次材料。');
+        }
+        if(draft&&draft.applicationParts===undefined)s.view.results.push('该版本尚未保存完整的修改申请内容；已带入答复正文。如有申请文件修改，请在稿件中核对并保存“本次修改文件”，或手动选择修改后文件。');
+        if(draft&&draft.applicationParts&&Object.keys(draft.applicationParts).length&&this.options.templatesRoot){
+          const bytes=await exportApplicationParts(this.options.templatesRoot,draft.applicationParts);this.guard(s);
+          const source=await this.desktop.casePath(caseId,`03_定稿/内部提交准备/提交材料_${id}/本次修改申请文件.docx`);
+          await fs.mkdir(path.dirname(source),{recursive:true});await fs.writeFile(source,bytes,{flag:'wx',mode:0o600});
+          await this.attach(s,'application',source);
+          const selected=new Set<string>(Object.keys(draft.applicationParts).map(k=>APPLICATION_PART_LABELS[k as keyof typeof APPLICATION_PART_LABELS]));
+          s.view.parts=s.view.parts.map(p=>selected.has(p.name)?{...p,available:true,reason:p.changed===null?'已采用稿明确修改此部分，缺少可比较基线，请人工核对。':p.reason}:{...p,changed:false,available:false,reason:'本次采用稿未修改此部分，不加入递交材料。'});
+          s.view.review.keepCodes=s.view.parts.filter(p=>p.available&&p.changed!==false).map(p=>p.code);
+          s.view.results.push('已带入自动获取版本的完整修改部分并预选递交清单；请核对五书选择和补正表单，本地完整稿及历史保留。');
+        }
+      } catch (err) {
+        s.view.results.push('读取工作台稿件时遇到提示：' + (err as Error).message + '。你可直接使用下方【选择文件】手动上传，或点击切换为本地文件提交。');
       }
     }
     await this.persist(s);return this.view(s);

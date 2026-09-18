@@ -542,6 +542,7 @@ export function AgentWorkbench({
               draft={adopted}
               isCorrection={process.classification.noticeCategory === '补正通知书'}
               busy={busy || !formal}
+              externalArtifacts={view.artifacts.filter(a => a.externallyModified && a.text)}
               onSave={async payload => {
                 const next = await api!.command(profileKey, caseId, { type: 'updateDraft', ...payload });
                 apply(next, gen.current);
@@ -627,7 +628,7 @@ export function AgentArtifacts({ view, caseId }: { view: AgentCaseView; caseId: 
 
   const draft = view.process.drafts.find(item => item.id === preview?.versionId)
     ?? currentAdopted;
-  const text = preview ? artifactPreviewText(preview.kind, draft) : undefined;
+  const text = preview ? (preview.text || artifactPreviewText(preview.kind, draft)) : undefined;
 
   // Pre-finalization draft items
   const draftItems: Array<{ id: string; title: string; text?: string }> = [];
@@ -706,6 +707,11 @@ export function AgentArtifacts({ view, caseId }: { view: AgentCaseView; caseId: 
                 外部打开此文件
               </button>
             </div>
+            {preview.externallyModified && (
+              <div className="inline-warning" style={{ margin: '8px 0', padding: '8px 12px', borderRadius: '6px' }}>
+                <b>⚠️ 检测到外部修改：</b>此文件已在外部被手动修改，下方预览已实时展示外部最新正文。
+              </div>
+            )}
             {text ? (
               <FormattedFormulaText className="agent-preview" text={text} />
             ) : (

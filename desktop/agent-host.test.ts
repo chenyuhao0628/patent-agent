@@ -13,6 +13,7 @@ import type { AgentModelService } from './agent-host.ts';
 import type { Case } from '../src/domain/workflow.ts';
 import type { RuntimeModelConfig } from './model-service.ts';
 import type { ModelConfigPublic } from '../src/domain/models.ts';
+import { currentDraft } from '../src/domain/agent.ts';
 
 const rulesRoot = fileURLToPath(new URL('../resources/reply-rules', import.meta.url));
 
@@ -1286,4 +1287,90 @@ test('unfinalize 仅在已定稿时允许撤销，未定稿时拒绝并抛出 NO
   );
   await host.shutdown();
 });
+
+test('定稿后手工草稿变动或刷新不会抛出 ALREADY_FINALIZED 崩溃，撤销定稿后平滑同步', async t => {
+  const { service, host } = await setup(t);
+  const c = await prepareCase(service, 'FIN_SYNC');
+  await readyAnalysis(host, c.id, ['n-FIN_SYNC', 'a-FIN_SYNC']);
+  await host.command('local', c.id, { type: 'run', action: 'analysis' });
+  await host.waitIdle();
+  await host.command('local', c.id, { type: 'strategy', strategyId: 's2' });
+  await host.command('local', c.id, { type: 'run', action: 'draft' });
+  await host.waitIdle();
+  let view = await host.getCase('local', c.id);
+  const pending = view.process.drafts.find(item => item.adoptStatus === 'pending')!;
+  await host.command('local', c.id, { type: 'adopt', versionId: pending.id });
+  await host.command('local', c.id, {
+    type: 'applicationParts',
+    parts: { CLAIMS: '1. 一种测试装置，其特征在于……' }
+  });
+  // 定稿
+  const finalizedView = await host.command('local', c.id, { type: 'finalize' });
+  assert.ok(finalizedView.process.finalized);
+
+  // 模拟用户在外部或手工工作稿中修改了正文并触发刷新
+  const ws = structuredClone(service.workspace);
+  const foundCase = ws.cases.find(item => item.id === c.id)!;
+  foundCase.localDraft = '用户在定稿后手动修改的权利要求书正文';
+  foundCase.sharedDraftHash = 'new-fake-hash-123';
+  await service.save('local', ws);
+  service.changed();
+
+  // 此时 getCase 绝不能抛出 ALREADY_FINALIZED 崩溃，必须安全返回
+  const refreshedView = await host.getCase('local', c.id);
+  assert.ok(refreshedView.process.finalized);
+
+  // 撤回定稿
+  const unfinalizedView = await host.command('local', c.id, { type: 'unfinalize' });
+  assert.equal(unfinalizedView.process.finalized, null);
+  // 撤回定稿后，手工稿变动安全同步为新草稿
+  const current = currentDraft(unfinalizedView.process);
+  assert.equal(current?.text, '用户在定稿后手动修改的权利要求书正文');
+
+  await host.shutdown();
+});
+
+test('定稿 Word 文件在外部被修改后，artifactsOf 仍保留该产物且标记 externallyModified 并提取 text', async t => {
+  const { service, host } = await setup(t);
+  const c = await prepareCase(service, 'FIN_EXT');
+  await readyAnalysis(host, c.id, ['n-FIN_EXT', 'a-FIN_EXT']);
+  await host.command('local', c.id, { type: 'run', action: 'analysis' });
+  await host.waitIdle();
+  await host.command('local', c.id, { type: 'strategy', strategyId: 's2' });
+  await host.command('local', c.id, { type: 'run', action: 'draft' });
+  await host.waitIdle();
+  let view = await host.getCase('local', c.id);
+  const pending = view.process.drafts.find(item => item.adoptStatus === 'pending')!;
+  await host.command('local', c.id, { type: 'adopt', versionId: pending.id });
+  await host.command('local', c.id, {
+    type: 'applicationParts',
+    parts: { CLAIMS: '1. 原始定稿权利要求。' }
+  });
+  // 定稿
+  view = await host.command('local', c.id, { type: 'finalize' });
+  const wordArtifact = view.artifacts.find(item => item.kind === 'final-application-CLAIMS')!;
+  assert.ok(wordArtifact);
+  assert.equal(wordArtifact.externallyModified, false);
+
+  // 模拟用户在外部使用 Word 修改该文件
+  const caseRoot = await service.casePath(c.id);
+  const absPath = path.join(caseRoot, wordArtifact.relativePath);
+  const { exportApplicationParts } = await import('./document-export.ts');
+  const modifiedBytes = await exportApplicationParts(path.join(rulesRoot, '..', 'document-templates'), {
+    CLAIMS: '1. 用户在外部用 Word 调整后的新权利要求。'
+  });
+  await fs.writeFile(absPath, modifiedBytes);
+
+  // 刷新读取
+  const afterEditView = await host.getCase('local', c.id);
+  const targetArtifact = afterEditView.artifacts.find(item => item.id === wordArtifact.id);
+  assert.ok(targetArtifact, '外部修改后，该 artifact 不应被静默丢弃');
+  assert.equal(targetArtifact.externallyModified, true, '应标记为外部已修改');
+  assert.match(targetArtifact.title, /外部已修改/);
+  assert.match(targetArtifact.text ?? '', /用户在外部用 Word 调整后的新权利要求/);
+
+  await host.shutdown();
+});
+
+
 

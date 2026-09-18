@@ -11,6 +11,8 @@ import { readFrozenMaterial, MAX_MATERIAL_BYTES } from './agent-document-reader.
 import * as fs from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import JSZip from 'jszip';
+import { DOMParser } from '@xmldom/xmldom';
 import type { AgentAPI, AgentCaseView, AgentCommand, AgentTaskView, AgentPreparation } from '../src/agent-api.ts';
 import type { AgentAction, AgentProcessState, DraftVersion, JobArtifact, MaterialEntry } from '../src/domain/agent.ts';
 import {
@@ -550,6 +552,33 @@ export class AgentHost implements AgentAPI {
     return merged;
   }
 
+  private async extractDocxParagraphs(bytes: Buffer): Promise<string | undefined> {
+    try {
+      const zip = await JSZip.loadAsync(bytes);
+      const xml = await zip.file('word/document.xml')?.async('string');
+      if (!xml) return undefined;
+      const doc = new DOMParser().parseFromString(xml, 'application/xml');
+      const paragraphs = Array.from(doc.getElementsByTagNameNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main', 'p'));
+      const lines: string[] = [];
+      for (const p of paragraphs) {
+        const texts: string[] = [];
+        for (const child of Array.from(p.childNodes)) {
+          if (child.nodeType === 1) {
+            const el = child as Element;
+            if (el.localName === 'del') continue;
+            const textNodes = Array.from(el.getElementsByTagNameNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main', 't'));
+            for (const t of textNodes) texts.push(t.textContent ?? '');
+          }
+        }
+        lines.push(texts.join(''));
+      }
+      const result = lines.join('\n').trim();
+      return result || undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
   private defaultClassification(c: Case) {
     const kind = currentWork(c).kind;
     if (kind === 'reply' || kind === 'correction') return { status: 'unclassified' as const };
@@ -565,7 +594,16 @@ export class AgentHost implements AgentAPI {
       store.lastObservedText[key] = text;
       return state;
     }
-    const next = unwrap(recordUserDraft(state, { caseId: c.id, processKey: state.scope.processKey, text }));
+    // 定稿锁定状态下不自动生成正式草稿版本，且暂不更新 lastObservedHash，
+    // 保证定稿解除（unfinalize）后可顺利将外部/手工草稿变动载入为新草稿
+    if (state.finalized) {
+      return state;
+    }
+    const result = recordUserDraft(state, { caseId: c.id, processKey: state.scope.processKey, text });
+    if (!result.ok) {
+      return state;
+    }
+    const next = result.state;
     if (hash) store.lastObservedHash[key] = hash;
     store.lastObservedText[key] = text;
     return next;
@@ -625,15 +663,29 @@ export class AgentHost implements AgentAPI {
           if (isUnsafePath(file.relativePath)) continue;
           const target = await managedPath(root, file.relativePath);
           await assertNoSymlinkAncestors(root, target);
-          const hash = digest(await fs.readFile(target));
-          if (hash !== file.hash) continue;
+          let fileBytes: Buffer;
+          try {
+            fileBytes = await fs.readFile(target);
+          } catch {
+            continue;
+          }
+          const hash = digest(fileBytes);
+          const externallyModified = hash !== file.hash;
+          let text: string | undefined;
+          if (file.relativePath.endsWith('.docx')) {
+            text = await this.extractDocxParagraphs(fileBytes);
+          } else if (file.relativePath.endsWith('.json')) {
+            try { text = fileBytes.toString('utf8'); } catch {}
+          }
           artifacts.push({
             id: `${index.runId}:${file.relativePath}`,
-            title: file.title,
+            title: file.title + (externallyModified ? ' (外部已修改)' : ''),
             kind: file.kind,
             relativePath: portable(file.relativePath),
             at: file.at,
             versionId: file.versionId,
+            externallyModified,
+            text,
           });
         }
       } catch { /* skip unreadable or mismatched indexes */ }
@@ -851,6 +903,7 @@ export class AgentHost implements AgentAPI {
     else if (command.type === 'finalize') state = await this.finalizeAlreadyLocked(ticket.profileKey, c, state);
     else if (command.type === 'unfinalize') {
       state = unwrap(unfinalizeProcess(state, { caseId: c.id, processKey: state.scope.processKey }));
+      state = this.syncManualDraft(store, state, c);
     }
     else if (command.type === 'setStage') {
       state = unwrap(setProcessStage(state, { caseId: c.id, processKey: state.scope.processKey, targetStage: command.stage }));
