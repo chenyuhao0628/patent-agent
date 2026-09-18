@@ -157,6 +157,7 @@ app.whenReady().then(async()=>{
   handle('caseInfo',(key:string,id:string)=>service.caseInfo(key,id));
   handle('refreshCaseOutcomes',(key:string)=>service.refreshCaseOutcomes(key),true,true);
   handle('refreshCaseOutcome',(key:string,id:string)=>service.refreshCaseOutcome(key,id),true,true);
+  handle('selectCurrentProcess',(key:string,id:string,processId:string)=>service.selectCurrentProcess(key,id,processId),true,true);
   handle('bootstrap',()=>service.state());
   handle('verifyLogin',async()=>{const s=await service.verifyLogin(true);if(s.account?.status==='authenticated'&&s.workspace.settings.workRoot&&!service.isWorkMigrationBusy())void service.sync({source:'login'}).catch(()=>{});return s;});
   handle('extensions',async(method:string,key:string,...args:any[])=>{

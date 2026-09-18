@@ -109,6 +109,8 @@ export function AgentWorkbench({
   const [originals, setOriginals] = useState<{ id: string; name: string }[] | null>(null);
   const [commandError, setCommandError] = useState<{ text: string; discussionId?: string } | null>(null);
   const [unfinalizeModal, setUnfinalizeModal] = useState(false);
+  const [draftDirty, setDraftDirty] = useState(false);
+  const [finalizeDirtyHint, setFinalizeDirtyHint] = useState('');
   const api = desktop?.agent;
   const expected = { profileKey, caseId, processKey };
 
@@ -190,7 +192,7 @@ export function AgentWorkbench({
   }, [!!view, caseId, formal]);
 
   const run = async (command: AgentCommand) => {
-    if (!api || commandBusy) return;
+    if (!api || commandBusy) return false;
     setCommandBusy(true);
     const token = gen.current;
     const errorDiscussion = command.type === 'run' ? (command.discussionId ?? discussionId) : discussionId;
@@ -203,7 +205,7 @@ export function AgentWorkbench({
       if(command.type==='discussion')setDiscussionId(next.process.discussions.at(-1)?.id);
       if(command.type==='manageDiscussion')setDiscussionId(command.operation==='restore'?command.discussionId:next.process.mainDiscussionId);
       if (command.type === 'run' && command.action !== 'discuss') { setStageOpen(false); setSelectedStage(undefined); }
-      if (command.type === 'adopt') setSelectedStage(3);
+      if (command.type === 'adopt') setSelectedStage(2);
       if(command.type==='restoreDraft')setRestoreId(undefined);
       if(command.type==='strategy'&&command.startDraft)setStageOpen(false);
       if (command.type === 'finalize') setSelectedStage(4);
@@ -212,9 +214,11 @@ export function AgentWorkbench({
         const idx = command.stage === 'materials' ? 0 : command.stage === 'strategy' ? 1 : command.stage === 'draft' ? 2 : command.stage === 'review' ? 3 : 4;
         setSelectedStage(idx);
       }
+      return true;
     } catch (err) {
-      if (token !== gen.current) return;
+      if (token !== gen.current) return false;
       setCommandError({ text: sanitizeAgentError((err as Error).message), discussionId: errorDiscussion });
+      return false;
     } finally { if (token === gen.current) setCommandBusy(false); }
   };
 
@@ -258,14 +262,11 @@ export function AgentWorkbench({
   const openStage = (index: number) => { setSelectedStage(index); setStageOpen(true); };
   const stepBackStage = async (targetIndex: number) => {
     const stageName: AgentStage = targetIndex === 0 ? 'materials' : targetIndex === 1 ? 'strategy' : targetIndex === 2 ? 'draft' : targetIndex === 3 ? 'review' : 'final';
-    try {
-      if (formal && !process.finalized) {
-        await run({ type: 'setStage', stage: stageName });
-      }
-      setSelectedStage(targetIndex);
-    } catch {
-      setSelectedStage(targetIndex);
+    if (formal && !process.finalized) {
+      const ok = await run({ type: 'setStage', stage: stageName });
+      if (!ok) return;
     }
+    setSelectedStage(targetIndex);
   };
   const analysisBlock = agentActionBlocker(view, 'analysis', formal);
   const draftBlock = agentActionBlocker(view, 'draft', formal);
@@ -319,7 +320,7 @@ export function AgentWorkbench({
   return <div ref={frame} className={`agent-workbench${stageOpen ? ' is-stage-open' : ''}`}>
     <header className="agent-workbench-head">
       <div>
-        <h3>{formal ? (process.classification.noticeCategory==='补正通知书'?'本案对话 · 补正办理':'本案对话 · 答复办理') : '本案对话'}</h3>
+        <h3>{formal ? (currentWork(item).kind==='correction'||process.classification.noticeCategory==='补正通知书'?'本案对话 · 补正办理':'本案对话 · 答复办理') : '本案对话'}</h3>
         <p className="agent-current-stage">{showProgress?`当前阶段：${STAGES[current]}`:"材料讨论"}</p>
         {!formal && !showProgress && <p>{writeIncomplete ? '完整撰写申请文件尚未完成，当前只开放围绕本案材料的讨论。' : reviewIncomplete ? '独立导入审查尚未完成，当前只开放围绕本案材料的讨论。' : '本页用于材料讨论，正式办理请进入本案对应业务。'}</p>}
       </div>
@@ -517,7 +518,7 @@ export function AgentWorkbench({
               {adopted && <button type="button" disabled={!!reviseBlock || busy} onClick={startRevise}>回主讨论修订</button>}
             </>}
           </div>}
-          {adopted && [2, 3].includes(shownStage) && !process.finalized && process.classification.noticeCategory === '补正通知书' && (
+          {adopted && [2, 3, 4].includes(shownStage) && !process.finalized && process.classification.noticeCategory === '补正通知书' && (
             <CorrectionContentsEditor
               draft={adopted}
               busy={busy || !formal}
@@ -527,7 +528,7 @@ export function AgentWorkbench({
               }}
             />
           )}
-          {adopted && [2, 3].includes(shownStage) && !process.finalized && (
+          {adopted && ([2, 3].includes(shownStage) || (shownStage === 4 && adopted.applicationParts === undefined)) && !process.finalized && (
             <ApplicationPartsEditor
               draft={adopted}
               busy={busy || !formal}
@@ -543,6 +544,7 @@ export function AgentWorkbench({
               isCorrection={process.classification.noticeCategory === '补正通知书'}
               busy={busy || !formal}
               externalArtifacts={view.artifacts.filter(a => a.externallyModified && a.text)}
+              onDirtyChange={dirty => { setDraftDirty(dirty); if (!dirty) setFinalizeDirtyHint(''); }}
               onSave={async payload => {
                 const next = await api!.command(profileKey, caseId, { type: 'updateDraft', ...payload });
                 apply(next, gen.current);
@@ -555,17 +557,21 @@ export function AgentWorkbench({
             {!process.finalized && <div className="button-row">
               <button type="button" disabled={busy} onClick={() => void stepBackStage(2)}>⬅️ 退回起草修改</button>
               <button type="button" disabled={busy} onClick={() => void stepBackStage(3)}>⬅️ 退回独立复核</button>
-              <button className="primary" type="button" disabled={!!finalizeBlock || busy || adopted?.applicationParts===undefined || (process.classification.noticeCategory==='补正通知书'&&!adopted?.correctionContents?.length)} onClick={() => void run({ type: 'finalize' })}>确认定稿</button>
+              <button className="primary" type="button" disabled={!!finalizeBlock || busy || adopted?.applicationParts===undefined || (process.classification.noticeCategory==='补正通知书'&&!adopted?.correctionContents?.length)} onClick={() => {
+                if (draftDirty) { setFinalizeDirtyHint('有未保存的微调，请先保存或重置后再定稿。'); return; }
+                void run({ type: 'finalize' });
+              }}>确认定稿</button>
             </div>}
+            {finalizeDirtyHint && <p className="agent-note" role="alert">{finalizeDirtyHint}</p>}
             {finalizeBlock && <p className="agent-note">{finalizeBlock}</p>}
             {process.finalized && <div className="finalized-status-block">
               <p><b>定稿已完成</b>：{process.classification.noticeCategory==='补正通知书'?'已保存补正字段和本次修改的申请文件。':process.finalized.word.generated?'已生成正式 Word 文件并归档。':'已保存历史定稿。'}{process.finalized.word.message ? ` ${process.finalized.word.message}` : ''}</p>
               <p className="agent-note">已自动生成正式文件，并在下方展开正文预览。核对无误后，可在左侧切换至【提交】页转交下一办理人。</p>
-              <div className="finalized-actions">
+              {formal && process.access !== 'readonly' && <div className="finalized-actions">
                 <button type="button" className="btn-unfinalize" disabled={busy} onClick={() => setUnfinalizeModal(true)}>
                   ↩️ 撤销定稿 / 重新编辑
                 </button>
-              </div>
+              </div>}
             </div>}
           </div>}
         </>}

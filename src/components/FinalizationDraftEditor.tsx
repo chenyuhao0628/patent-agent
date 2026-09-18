@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { APPLICATION_PART_LABELS, type ApplicationParts } from '../domain/application-parts.ts';
-import type { CorrectionContent } from '../domain/correction.ts';
+import { CORRECTION_FILES, type CorrectionContent } from '../domain/correction.ts';
 import type { DraftVersion } from '../domain/agent.ts';
 import { FormattedFormulaText } from './FormattedFormulaText.tsx';
 import { reidentifyFormulas, wrapSelectionAsFormula } from '../domain/formula-identifier.ts';
@@ -14,6 +14,7 @@ export function FinalizationDraftEditor({
   busy,
   externalArtifacts,
   onSave,
+  onDirtyChange,
 }: {
   draft: DraftVersion;
   isCorrection: boolean;
@@ -27,6 +28,7 @@ export function FinalizationDraftEditor({
     amendmentBasis?: string;
     reviewNotes?: string;
   }) => Promise<void>;
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const [activeTab, setActiveTab] = useState<DocumentTab>(() => (isCorrection ? 'corrections' : 'body'));
   const [bodyText, setBodyText] = useState(draft.text || '');
@@ -36,6 +38,8 @@ export function FinalizationDraftEditor({
     (draft.correctionContents || []).map(c => ({ ...c }))
   );
   const [dirty, setDirty] = useState(false);
+  useEffect(() => { onDirtyChange?.(dirty); }, [dirty]);
+  useEffect(() => () => { onDirtyChange?.(false); }, []);
   const [saving, setSaving] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
   const [viewMode, setViewMode] = useState<'split' | 'edit' | 'preview'>('split');
@@ -355,7 +359,7 @@ export function FinalizationDraftEditor({
                       setDirty(true);
                     }}
                   >
-                    {['权利要求书', '说明书', '说明书摘要', '说明书附图', '摘要附图', '其他'].map(n => (
+                    {(CORRECTION_FILES.includes(row.FileName) ? CORRECTION_FILES : [row.FileName, ...CORRECTION_FILES]).map(n => (
                       <option key={n}>{n}</option>
                     ))}
                   </select>

@@ -1005,6 +1005,25 @@ test('0.5 queue: formal continuation waits for human strategy; selected strategy
   assert.equal(ctl.starts,2);assert.equal(v.process.drafts.length,1);assert.equal(v.process.currentDraftVersionId,null);await host.shutdown();
 });
 
+test('0.5 queue: skip failed items and deliver later unfailed messages',async t=>{
+  let release!:()=>void;const ctl:RunnerCtl={starts:0,gate:new Promise(resolve=>{release=resolve;})};
+  const {service,host}=await setup(t,ctl);const c=await prepareCase(service,'QUEUEFAIL');
+  let v=await host.command('local',c.id,{type:'run',action:'discuss',userMessage:'first'});const discussionId=v.process.mainDiscussionId;
+  await host.command('local',c.id,{type:'queue',operation:'add',discussionId,text:'bad workflow',purpose:'workflow'});
+  await host.command('local',c.id,{type:'queue',operation:'add',discussionId,text:'later discuss',purpose:'discuss'});
+  ctl.gate=undefined;release();await host.waitIdle();v=await host.getCase('local',c.id);
+  let queued=v.process.discussions[0].queuedMessages??[];
+  assert.ok(queued[0].error);
+  assert.equal(queued[1].text,'later discuss');assert.equal(queued[1].error,undefined);assert.equal(ctl.starts,1);
+  await host.command('local',c.id,{type:'run',action:'discuss',userMessage:'second',discussionId});await host.waitIdle();
+  v=await host.getCase('local',c.id);
+  queued=v.process.discussions[0].queuedMessages??[];
+  assert.equal(queued.length,1);assert.ok(queued[0].error);
+  assert.equal(v.process.discussions[0].messages.some(m=>m.text==='later discuss'),true);
+  assert.equal(ctl.starts,3);
+  await host.shutdown();
+});
+
 test('0.5 restore: explicit restoration creates a new version and preserves current manual text',async t=>{
   const {service,host}=await setup(t);const c=await prepareCase(service,'RESTORE050');await readyAnalysis(host,c.id,['n-RESTORE050','a-RESTORE050']);
   await host.command('local',c.id,{type:'run',action:'analysis'});await host.waitIdle();

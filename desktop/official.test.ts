@@ -126,7 +126,7 @@ test('F2 unknown and draft keep local progress except meaningful 300/400 递交�
   assert.equal(sentCase.current?.kind,'waiting');
   assert.equal(sentCase.current?.label,WAITING_OFFICIAL_LABEL);
   assert.equal(sentCase.current?.processId,'p');
-  assert.equal(caseStatus(sentCase),'已完成 · 已提交官方');
+  assert.equal(caseStatus(sentCase),'已递交，等待官方处理结果');
   assert.equal(editableCurrent(sentCase),false);
   assert.equal(businessKind(sentCase),'审查意见');
 });
@@ -168,7 +168,9 @@ test('F4 newer active or dated completed main beats stale preferred; personal sc
   const aux=proc({id:'fee',name:'缴申请费',status:0});
   assert.equal(selectCurrentProcess([old,otherMain,aux],[{CaseProcId:'old',CaseProcFinishDate:'2026-01-01',CaseProcOperateInfo:{IsExistsHand:true}}], 'old', ['old'])?.id,'old');
   assert.equal(selectCurrentProcess([old,proc({id:'new',name:'请求复审',status:0})],[],old.id)?.id,'new');
-  assert.equal(selectCurrentProcess([proc({id:'a',name:'答复审查意见',status:0}),proc({id:'b',name:'答复补正',status:0})],[],'a'),undefined);
+  assert.equal(selectCurrentProcess([proc({id:'a',name:'答复审查意见',status:0}),proc({id:'b',name:'答复补正',status:0})],[],'a')?.id,'a');
+  assert.equal(selectCurrentProcess([proc({id:'a',name:'答复审查意见',status:0}),proc({id:'b',name:'答复补正',status:0})],[],'gone'),undefined);
+  assert.equal(selectCurrentProcess([proc({id:'a',name:'答复审查意见',status:0}),proc({id:'b',name:'答复补正',status:0})],[]),undefined);
   assert.equal(selectCurrentProcess([old,proc({id:'fee',name:'缴申请费',status:0})],[],old.id)?.id,old.id);
   const staleReceived=proc({id:'old',name:'答复审查意见',status:400,handId:'hand',submission:{state:'received',checkedAt:'2026-09-12T00:00:00.000Z'}});
   const fresh=proc({id:'new',name:'答复审查意见（二）',status:0});

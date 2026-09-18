@@ -114,7 +114,7 @@ export function caseStatus(c:Case) {
   const w=currentWork(c),r=activeRound(c),sub=processSubmission(c),process=currentRemoteOf(c,w);
   const title=w.label??workNames[w.kind];
   if(c.source==='baseland'&&process&&!['queued','sending','failed'].includes(sub?.state??'')){
-    if(isConfirmedOfficialSubmission(sub))return '已完成 · 已提交官方';
+    if(sub&&isConfirmedOfficialSubmission(sub))return officialStatusLabel(sub);
     if(process.status===0&&!process.handId)return '待处理 · 尚未启动递交';
     // status 500 is handled below via needSendOfficial / unverified paths; handId alone must not elevate it to 递交中 or 已交官方.
     if(process.status!==500&&([200,300,400].includes(process.status)||process.handId))return `递交中 · ${process.currentFlow?.user||'办理人待核对'} · ${process.currentFlow?.name||'节点待核对'}`;

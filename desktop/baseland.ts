@@ -130,7 +130,7 @@ export function selectCurrentProcess(processes:RemoteProcess[],rows:Obj[]=[],pre
   };
   const internallyActive=scoped.filter(isInternallyActiveProcess);
   if(internallyActive.length===1)return internallyActive[0];
-  if(internallyActive.length>1)return undefined;
+  if(internallyActive.length>1)return preferredId?internallyActive.find(p=>p.id===preferredId):undefined;
   const finishedMain=scoped.filter(p=>{
     if(p.status!==500||!mainProcessKind(p.name)||isAuxiliaryProcess(p.name))return false;
     return !!p.handId||existsHandFromRow(byId.get(p.id));

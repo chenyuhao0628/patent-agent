@@ -8,7 +8,7 @@ import {
   caseStatusCategory, statusCategoryLabels,
 } from './library.ts';
 import type { CaseStatusCategory } from './library.ts';
-import { normalizeCase, WAITING_OFFICIAL_LABEL } from './lifecycle.ts';
+import { normalizeCase, INTERNAL_ENDED_WAIT_LABEL, WAITING_OFFICIAL_LABEL } from './lifecycle.ts';
 
 const TODAY = new Date(2026, 8, 12, 15, 45, 0);
 
@@ -215,8 +215,8 @@ test('submission source distinguishes hand delivery from send-status; archived d
     { officialDeadline: '2026-09-11', submission: { state: 'sent', source: 'send-status', checkedAt: '2026-09-12T00:00:00.000Z' } },
   );
   assert.equal(waitingOfficialLabel(hand), '已递交，等待官方处理结果');
-  assert.equal(libraryStatus(hand).short, '已完成 · 已提交官方');
-  assert.match(libraryStatus(hand).full,/已提交官方/);
+  assert.equal(libraryStatus(hand).short, '等待官方');
+  assert.match(libraryStatus(hand).full,/已递交，等待官方处理结果/);
   assert.equal(waitingOfficialLabel(sendStatus), '递交成功，等待回执');
   assert.equal(waitingOfficialLabel(received), '已收到回执，等待官方处理结果');
   assert.equal(isConfirmedWaitingOfficial(hand), true);
@@ -297,6 +297,8 @@ test('personal active external process stays in deadline stats; unowned external
   assert.equal(isActiveWork(restore), true);
   assert.equal(isConfirmedWaitingOfficial(restore), false);
   assert.equal(isUrgencyEligible(unowned), false);
+  assert.equal(caseStatusCategory(unowned), 'other');
+  assert.equal(libraryStatus(unowned).short, '已离开个人案件');
   const result = queryLibrary([restore, unowned], { now: TODAY, archived: 'all' });
   assert.equal(result.counts.active, 1);
   assert.equal(result.counts.overdue, 1);
@@ -373,7 +375,7 @@ test('a case with an official conclusion leaves waiting-official and shows the c
 
   assert.deepEqual(libraryStatus(granted), { short: '已授权', full: '已授权 · 办理登记手续通知书（200602） 2026-09-14' });
   assert.deepEqual(libraryStatus(rejected).short, '已驳回');
-  assert.equal(libraryStatus(waiting).short, '已完成 · 已提交官方');
+  assert.equal(libraryStatus(waiting).short, '等待官方');
   assert.equal(inOfficialWaiting(granted), false);
   assert.equal(inOfficialWaiting(unlisted), true);
 });
@@ -394,6 +396,15 @@ test('caseStatusCategory classifies cases into lifecycle categories accurately',
   assert.equal(caseStatusCategory(granted), 'granted');
   assert.equal(caseStatusCategory(rejected), 'rejected');
   assert.equal(caseStatusCategory(closed), 'closed');
+
+  const internalEnded = fixture({
+    id: 'internal-ended',
+    source: 'baseland',
+    current: { kind: 'waiting', processId: 'p1', label: INTERNAL_ENDED_WAIT_LABEL, node: INTERNAL_ENDED_WAIT_LABEL },
+    remote: { caseId: 'r', syncedAt: '', processes: [{ id: 'p1', name: '提出申请', status: 500, node: '', undertaker: '', deadline: '' }] },
+  });
+  assert.equal(caseStatusCategory(internalEnded), 'other');
+  assert.notEqual(libraryStatus(internalEnded).short, '办理中');
 });
 
 test('official outcomes and closed cases leave active work and urgency', () => {

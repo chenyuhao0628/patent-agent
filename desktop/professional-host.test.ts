@@ -90,6 +90,7 @@ test('writing references copy same-name originals separately, isolate cases, fee
  await fs.writeFile(path.join(a,'交底.txt'),'甲案技术');await fs.writeFile(path.join(b,'交底.txt'),'第二版本');
  let v=await f.host.addReferences('local',f.id,[path.join(a,'交底.txt'),path.join(b,'交底.txt')]);
  assert.equal(v.materials.length,2);assert.notEqual(v.materials[0].relativePath,v.materials[1].relativePath);
+ assert.equal(v.record.selectedMaterialIds?.length,2);
  const saved=v.materials[0];assert.equal(await fs.readFile(path.join(a,'交底.txt'),'utf8'),'甲案技术');
  await f.service.createCase({title:'另案',number:'QA-2',kind:'write'});const other=f.service.workspace.cases.at(-1)!;
  assert.equal((await f.host.getCase('local',other.id)).materials.length,0);
@@ -97,7 +98,9 @@ test('writing references copy same-name originals separately, isolate cases, fee
  await assert.rejects(f.host.removeReference('local',other.id,saved.id),/仅可移除/);
  await f.host.command('local',f.id,{type:'write',message:'采用交底',materialIds:[saved.id]});await settled(f.host,f.id);
  assert.equal(f.inputs.at(-1)!.materials.length,1);assert.equal(f.inputs.at(-1)!.materials[0].name,'交底.txt');
+ assert.deepEqual((await f.host.getCase('local',f.id)).record.selectedMaterialIds,[saved.id]);
  v=await f.host.removeReference('local',f.id,saved.id);assert.equal(v.materials.length,1);
+ assert.equal(v.record.selectedMaterialIds?.includes(saved.id),false);
  assert.equal(await fs.readFile(await f.service.casePath(f.id,saved.relativePath!),'utf8'),'甲案技术');
  assert.equal(await fs.readFile(path.join(a,'交底.txt'),'utf8'),'甲案技术');
  const disk=JSON.parse(await fs.readFile(path.join(f.root,'data/profiles/local/workspace.json'),'utf8'));assert.equal(disk.cases.find((c:any)=>c.id===f.id).materials.length,1);

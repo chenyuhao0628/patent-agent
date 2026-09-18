@@ -1391,10 +1391,25 @@ export function finalizeBlocker(state: AgentProcessState): AgentFailure | null {
   if (activeJob(state)) return agentFail('JOB_RUNNING');
   const draft = currentDraft(state);
   if (!draft) return agentFail('DRAFT_VERSION_REQUIRED', '没有有效稿件，不能定稿。');
+  if (draft.applicationParts === undefined) {
+    return agentFail('ACTION_NOT_ALLOWED', '请先核对本次修改文件；没有修改也要明确保存。');
+  }
+  if (state.classification.noticeCategory === '补正通知书' && !draft.correctionContents?.length) {
+    return agentFail('ACTION_NOT_ALLOWED', '请先准备并核对逐条补正字段。');
+  }
   if (state.userSelectedStrategyId && draft.strategyId && draft.strategyId !== state.userSelectedStrategyId) {
     return agentFail('STRATEGY_INVALID', '当前稿件不属于用户选定的策略，请按新策略起草并复核。');
   }
-  // Independent review is optional; findings remain visible without blocking user finalization.
+  const hadAnalysis = state.analysisHistory.length > 0;
+  if (state.analysis) {
+    if (!state.userSelectedStrategyId) return agentFail('STRATEGY_NOT_SELECTED');
+    if (analysisBaselineStale(state)) {
+      return agentFail('MATERIALS_STALE', '材料或分类已变更，请重新分析后再定稿。');
+    }
+  } else if (hadAnalysis) {
+    return agentFail('MATERIALS_STALE', '材料或分类已变更，请重新分析后再定稿。');
+  }
+  // Independent review is optional; handmade drafts that never ran analysis can still finalize.
   return null;
 }
 
@@ -1424,6 +1439,7 @@ export function finalizeProcess(state: AgentProcessState, cmd: ScopeCommand & { 
 export function unfinalizeProcess(state: AgentProcessState, cmd: ScopeCommand & { at?: string }): AgentResult<{ reverted: boolean }> {
   const mismatch = checkScope(state, cmd);
   if (mismatch) return mismatch;
+  if (state.access === 'readonly') return agentFail('READONLY');
   if (activeJob(state)) return agentFail('JOB_RUNNING');
   if (!state.finalized) return agentFail('NOT_FINALIZED');
   const next = clone(state);

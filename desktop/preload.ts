@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('patentDesktop',{
   caseInfo:(key:string,id:string)=>call('caseInfo',key,id),
   refreshCaseOutcomes:(key:string)=>call('refreshCaseOutcomes',key),
   refreshCaseOutcome:(key:string,id:string)=>call('refreshCaseOutcome',key,id),
+  selectCurrentProcess:(key:string,id:string,processId:string)=>call('selectCurrentProcess',key,id,processId),
   openCaseDirectory:(id:string)=>call('openCaseDirectory',id),openMaterial:(id:string,rel:string)=>call('openMaterial',id,rel),findOriginals:(id:string)=>call('findOriginals',id),copyOriginal:(id:string,source:string)=>call('copyOriginal',id,source),
   previewWorkMigration:(key:string,destination:string)=>call('previewWorkMigration',key,destination),
   startWorkMigration:(key:string,previewId:string)=>call('startWorkMigration',key,previewId),

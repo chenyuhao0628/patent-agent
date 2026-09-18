@@ -47,6 +47,7 @@ export type DesktopAPI={
   caseInfo:(key:string,caseId:string)=>Promise<DesktopState>;
   refreshCaseOutcomes:(key:string)=>Promise<DesktopState>;
   refreshCaseOutcome:(key:string,caseId:string)=>Promise<DesktopState>;
+  selectCurrentProcess:(key:string,caseId:string,processId:string)=>Promise<DesktopState>;
   flow:(caseId:string)=>Promise<FlowView>; openCaseDirectory:(caseId:string)=>Promise<void>;
   findOriginals:(caseId:string)=>Promise<{id:string;name:string}[]>; copyOriginal:(caseId:string,id:string)=>Promise<DesktopState>;
   openMaterial:(caseId:string,relativePath:string)=>Promise<void>;

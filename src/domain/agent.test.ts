@@ -135,6 +135,7 @@ const draftArtifact: DraftingArtifact = {
   kind: 'draft',
   body: '尊敬的审查员：\n本申请意见陈述如下。',
   amendmentText: '1. 一种装置，其特征在于还包括限位件。',
+  applicationParts: {},
   amendmentBasis: '限位件记载于说明书第0018段。',
   reviewNotes: '对比文件全文已核。',
   strategyId: 's2',
@@ -372,6 +373,41 @@ test('无问题复核后由用户定稿，保留文本与时间且不声称 Word
   const refinalized = unwrap(finalizeProcess(unfinalized.state, scope));
   assert.equal(refinalized.state.stage, 'final');
   assert.equal(refinalized.state.finalizeHistory.length, 2);
+
+  const readonlyBlocked = unfinalizeProcess({ ...finalized.state, access: 'readonly' }, scope);
+  assert.equal(readonlyBlocked.ok, false);
+  if (!readonlyBlocked.ok) assert.equal(readonlyBlocked.code, 'READONLY');
+});
+
+test('finalizeBlocker：无修改范围不能定稿；手工稿可定稿；过期或归档分析不能定稿', () => {
+  const missingParts = unwrap(recordUserDraft(created(), { ...scope, text: '纯手工稿' }));
+  assert.equal(missingParts.state.drafts.at(-1)!.applicationParts, undefined);
+  const missing = finalizeProcess(missingParts.state, scope);
+  assert.equal(missing.ok, false);
+  if (!missing.ok) assert.equal(missing.code, 'ACTION_NOT_ALLOWED');
+
+  const handmade = unwrap(recordUserDraft(created(), { ...scope, text: '纯手工稿', applicationParts: {} }));
+  assert.equal(handmade.state.analysis, null);
+  assert.equal(handmade.state.analysisHistory.length, 0);
+  assert.equal(finalizeProcess(handmade.state, scope).ok, true);
+
+  const analyzedOnly = unwrap(recordUserDraft(analyzed(), { ...scope, text: '有分析未选策略', applicationParts: {} }));
+  const noStrategy = finalizeProcess(analyzedOnly.state, scope);
+  assert.equal(noStrategy.ok, false);
+  if (!noStrategy.ok) assert.equal(noStrategy.code, 'STRATEGY_NOT_SELECTED');
+
+  const live = adopted();
+  live.analysis!.materialFingerprint = 'stale';
+  const stale = finalizeProcess(live, scope);
+  assert.equal(stale.ok, false);
+  if (!stale.ok) assert.equal(stale.code, 'MATERIALS_STALE');
+
+  const archived = unwrap(confirmMaterials(adopted(), { ...scope, selectedIds: ['n1'] }));
+  assert.equal(archived.state.analysis, null);
+  assert.ok(archived.state.analysisHistory.length >= 1);
+  const archivedBlock = finalizeProcess(archived.state, scope);
+  assert.equal(archivedBlock.ok, false);
+  if (!archivedBlock.ok) assert.equal(archivedBlock.code, 'MATERIALS_STALE');
 });
 
 test('同案进行中任务互斥，不同案件可以并行且消息不串', () => {

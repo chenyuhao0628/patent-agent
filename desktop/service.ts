@@ -572,7 +572,14 @@ export class DesktopService {
     const blocked=latest.current?.kind==='external'&&!keepId;
     latest.remote={caseId:latest.remote!.caseId,syncedAt:view.at,processes:this.scopedPersonalProcesses(latest,view,personalIds)};
     const internallyActive=latest.remote.processes.filter(x=>personalIds.includes(x.id)&&isInternallyActiveProcess(x));
-    const selectedId=blocked?undefined:view.currentProcessId&&personalIds.includes(view.currentProcessId)?view.currentProcessId:internallyActive.length>1?undefined:keepId;
+    const inPersonal=(id?:string)=>!!id&&personalIds.includes(id);
+    const inActive=(id?:string)=>!!id&&internallyActive.some(x=>x.id===id);
+    let selectedId:string|undefined;
+    if(!blocked){
+      if(internallyActive.length===1)selectedId=internallyActive[0].id;
+      else if(internallyActive.length>1)selectedId=inActive(view.currentProcessId)?view.currentProcessId:inActive(keepId)?keepId:undefined;
+      else selectedId=inPersonal(view.currentProcessId)?view.currentProcessId:inPersonal(keepId)?keepId:undefined;
+    }
     const proc=selectedId?latest.remote.processes.find(p=>p.id===selectedId):undefined;
     let stageChanged=!!proc&&!!keepId&&proc.id!==keepId;
     if(!blocked&&proc&&personalIds.includes(proc.id)){
@@ -584,11 +591,30 @@ export class DesktopService {
       if(proc.submission&&!proc.submission.refreshError&&(proc.submission.state!=='unknown'||!/稍后重试/.test(proc.submission.message??''))){
         this.submissionCache.set(this.officialCacheKey(latest,proc.id),{at:Date.now(),submission:proc.submission,handId:proc.handId,currentFlow:proc.currentFlow,needSendOfficial:proc.needSendOfficial,canEdit:proc.canEdit});
       }
-    }else if(!blocked&&internallyActive.length>1){
+    }else if(!blocked&&internallyActive.length>1&&!inActive(keepId)){
       stageChanged=!!keepId;
       assignCurrentProcess(latest,undefined,view.at);
     }else applyCaseDeadline(latest);
     return stageChanged;
+  }
+  async selectCurrentProcess(key:string,caseId:string,processId:string){
+    this.assertKey(key);this.assertNotMigrating();
+    return this.enqueuePersist(async()=>{
+      this.assertKey(key);this.assertNotMigrating();
+      const c=this.findCase(caseId);
+      if(c.archived)throw new Error('案件已归档，不能切换当前阶段。');
+      if(!c.remote)throw new Error('本地案件尚未关联贝思兰德。');
+      const p=c.remote.processes.find(x=>x.id===processId);
+      if(!p)throw new Error('目标流程不在本案个人流程中。');
+      if(!isInternallyActiveProcess(p))throw new Error('该流程已结束或不是当前可办理的内部流程。');
+      const at=new Date().toISOString();
+      assignCurrentProcess(c,p,at);
+      await this.files().ensureCase(c);
+      await this.files().saveDraft(c);
+      await this.persist();
+      this.changed();
+      return this.state();
+    });
   }
   private flowRequests=new Map<string,ReturnType<DesktopService['readCaseFlow']>>();
   flow(id:string,enqueueWrite?:<T>(fn:()=>Promise<T>)=>Promise<T>){

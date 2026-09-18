@@ -128,7 +128,7 @@ test('caseStatus prefers CurrentFlowInfo.name over 200/300/400 dictionary labels
     currentFlow: { name: '递交官方', user: '乙' },
     submission: { state: 'received', source: 'send-status', checkedAt: '2026-09-12T00:00:00.000Z', message: '已收到回执' },
   });
-  assert.match(caseStatus(official), /已完成.*已提交官方/);
+  assert.match(caseStatus(official), /已收到回执，等待官方处理结果/);
   assert.doesNotMatch(caseStatus(official), /客户审核|递交官方/);
 });
 
@@ -184,6 +184,20 @@ test('normalizeCase switches stale official cache to unique personal active and 
   assert.equal(ambiguous.current?.processId, undefined);
   assert.equal(ambiguous.localDraft, '保留的稿件');
   assert.equal(currentHandling(ambiguous).officialWaiting, false);
+  const keepCurrent = normalizeCase({
+    id: 'c-keep', title: '合成装置', number: 'SYN-KEEP', type: '发明', deadline: '', archived: false, tags: [], rounds: [],
+    source: 'baseland',
+    current: { kind: 'reply', processId: 'oa', remoteStatus: 0, label: '第一次审查意见答复' },
+    remote: {
+      caseId: 'r-keep', syncedAt: '',
+      processes: [
+        { id: 'oa', name: '第一次审查意见答复', status: 0, node: '', undertaker: '', deadline: '' },
+        { id: 'corr', name: '答复补正', status: 0, node: '', undertaker: '', deadline: '' },
+      ],
+    },
+  });
+  assert.equal(keepCurrent.current?.kind, 'reply');
+  assert.equal(keepCurrent.current?.processId, 'oa');
 });
 
 test('previous completed receipt does not hide a new OA on another current process', () => {
@@ -224,8 +238,8 @@ test('case status shows the official conclusion instead of the waiting-for-offic
     remote: { caseId: 'r1', syncedAt: '', processes: [{ id: 'p1', name: '第一次审查意见答复', status: 500, node: '结束', undertaker: '甲', deadline: '', submission: { state: 'received', source: 'send-status', checkedAt: '', message: '已收到回执' } }] },
     ...(outcome ? { officialOutcome: outcome } : {}),
   });
-  assert.equal(caseStatus(make()), '已完成 · 已提交官方');
-  assert.equal(caseStatus(make({ state: 'none', checkedAt: '2026-09-15T00:00:00.000Z' })), '已完成 · 已提交官方', '未见结果不改写过程状态');
+  assert.equal(caseStatus(make()), '已收到回执，等待官方处理结果');
+  assert.equal(caseStatus(make({ state: 'none', checkedAt: '2026-09-15T00:00:00.000Z' })), '已收到回执，等待官方处理结果', '未见结果不改写过程状态');
   assert.equal(caseStatus(make({ state: 'granted', noticeName: '办理登记手续通知书', noticeTypeCode: '200602', postDate: '2026-09-14', checkedAt: '2026-09-15T00:00:00.000Z' })), '已授权 · 办理登记手续通知书（200602） 2026-09-14');
   assert.equal(caseStatus(make({ state: 'rejected', noticeName: '驳回决定', noticeTypeCode: '300305', checkedAt: '2026-09-15T00:00:00.000Z' })), '已驳回 · 驳回决定（300305）');
 });

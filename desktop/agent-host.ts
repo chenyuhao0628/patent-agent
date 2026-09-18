@@ -1409,8 +1409,8 @@ export class AgentHost implements AgentAPI {
     await this.emitTerminal(live, store, state, c);
     if(!this.shuttingDown&&this.liveScopeStillValid(live,c)){
       const discussion=state.discussions.find(d=>d.id===job.discussionId&&!d.archived);
-      const queued=discussion?.queuedMessages?.find(q=>q.branchId===(discussion.activeBranchId??'original'));
-      if(discussion&&queued&&!queued.error){const next=await this.deliverQueuedAlreadyLocked({profileKey:live.profileKey,generation:live.generation},c,state,store,discussion.id,queued.id);this.emit(next);}
+      const queued=discussion?.queuedMessages?.find(q=>q.branchId===(discussion.activeBranchId??'original')&&!q.error);
+      if(discussion&&queued){const next=await this.deliverQueuedAlreadyLocked({profileKey:live.profileKey,generation:live.generation},c,state,store,discussion.id,queued.id);this.emit(next);}
     }
   }
 

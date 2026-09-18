@@ -104,6 +104,7 @@ export class ProfessionalHost {
       if(record.phase===0&&!command.message.trim()&&!c.title.trim())throw new Error('请提供名称或技术交底。');
       const materials=materialList(c),picked=command.materialIds.map(mid=>materials.find(m=>m.id===mid));
       if(picked.some(m=>!m?.ready||!m.relativePath))throw new Error('所选材料尚未准备好。');
+      record.selectedMaterialIds=[...command.materialIds];
       await this.start(key,c,record,'writing',command.message,picked.map(m=>({name:m!.name,role:m!.role,relativePath:m!.relativePath!})));
     }else if(command.type==='review'){
       const item=(await this.queue(key)).find(q=>q.source.id===command.sourceId&&q.source.caseId===id);
@@ -189,12 +190,21 @@ export class ProfessionalHost {
         const target=await managedPath(directory,rel,true);await fs.writeFile(target,file.bytes,{flag:'wx',mode:0o600});
         added.push({id:materialId,name:file.name,role:'撰写参考材料',location:'本机导入',excerpt:'',ready:true,relativePath:rel});
       }
-      await this.service.updateReferences(key,id,expected,added);this.changed(key);return this.view(key,id);
+      await this.service.updateReferences(key,id,expected,added);
+      const latest=this.guard(key,id,expected.process);
+      const record=this.record(await this.store(key),latest);
+      record.selectedMaterialIds=[...new Set([...(record.selectedMaterialIds??[]),...added.map(m=>m.id)])];
+      await this.persist(key);
+      this.changed(key);return this.view(key,id);
     }finally{this.service.flowFileWrites--;}
   });}
   async removeReference(key:string,id:string,materialId:string):Promise<ProfessionalCaseView>{return this.serial(async()=>{
     const c=this.guard(key,id);if(this.active.has(id))throw new Error('请先停止本案任务，再移除材料。');
     await this.service.updateReferences(key,id,{generation:this.service.generation,root:this.service.workspace.settings.workRoot,process:keyOf(c)},[],materialId);
+    const latest=this.guard(key,id);
+    const record=this.record(await this.store(key),latest);
+    record.selectedMaterialIds=(record.selectedMaterialIds??[]).filter(mid=>mid!==materialId);
+    await this.persist(key);
     this.changed(key);return this.view(key,id);
   });}
   noteSubmitted(key:string,caseId:string){const live=this.active.get(caseId);if(live?.key===key&&live.job.kind==='review'){live.abort.abort();live.handle?.abort();}this.changed(key);}

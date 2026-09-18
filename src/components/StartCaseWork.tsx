@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import type { Case } from '../domain/workflow.ts';
-import { currentWork } from '../domain/lifecycle.ts';
+import { currentWork, internalTransferAvailable } from '../domain/lifecycle.ts';
 import { desktop } from '../desktop.ts';
 import { Modal } from './Primitives.tsx';
 
 export function StartCaseWork({item,profileKey}:{item:Case;profileKey?:string}) {
   const [confirm,setConfirm]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('');
   const p=item.remote?.processes.find(p=>p.id===currentWork(item).processId);
-  if(!desktop||!profileKey||item.archived||p?.status!==0||p.handId)return null;
+  if(!desktop||!profileKey||item.archived||p?.status!==0||p.handId||!internalTransferAvailable(item))return null;
   const start=async()=>{setBusy(true);setError('');try {
     const view=await desktop!.transfer.prepare(profileKey,item.id);
     const result=await desktop!.transfer.startHand(profileKey,view.id);

@@ -130,11 +130,17 @@ function isFinishedOrWaitingBusiness(c: Case): boolean {
   return false;
 }
 
+function leftPersonalCase(c: Case): boolean {
+  const work = currentWork(c);
+  return (work.kind === 'external' && !work.processId) || /不在当前个人案件/.test(work.label ?? '');
+}
+
 export function caseStatusCategory(c: Case): CaseStatusCategory {
   if (c.remoteClosure?.finished) return 'closed';
   if (hasOfficialOutcome(c)) {
     return outcomeView(c) === 'granted' ? 'granted' : 'rejected';
   }
+  if (leftPersonalCase(c)) return 'other';
   if (isConfirmedWaitingOfficial(c) || inOfficialWaiting(c) || !!waitingOfficialLabel(c)) {
     return 'waiting_official';
   }
@@ -146,7 +152,8 @@ export function caseStatusCategory(c: Case): CaseStatusCategory {
     full.startsWith('待处理 · ') ||
     handling.node === '待办' ||
     handling.handlerKind === 'pending-undertaker' ||
-    work.kind === 'needs-confirmation'
+    work.kind === 'needs-confirmation' ||
+    full.includes('官方递交待核验')
   ) {
     return 'pending';
   }
@@ -161,8 +168,13 @@ export function caseStatusCategory(c: Case): CaseStatusCategory {
     return 'transferring';
   }
 
-  if (full.includes('流程已结束') || full.includes('当前流程已办结') || full.includes('内部流程已结束')) {
-    return 'closed';
+  if (
+    work.kind === 'waiting' ||
+    full.includes('流程已结束') ||
+    full.includes('当前流程已办结') ||
+    full.includes('内部流程已结束')
+  ) {
+    return 'other';
   }
 
   if (
@@ -221,7 +233,8 @@ export function libraryStatus(c: Case): { short: string; full: string } {
   if (c.archived) return { short: '已归档', full };
   // 官方结论优先：列表里直接显示"已授权/已驳回"，不再显示为等待官方。
   if (hasOfficialOutcome(c)) return { short: outcomeLabels[outcomeView(c)], full };
-  if(c.source==='baseland'&&/^(待处理|递交中|已完成) · /.test(full))return {short:full,full};
+  if (leftPersonalCase(c)) return { short: '已离开个人案件', full };
+  if(c.source==='baseland'&&/^(待处理|递交中) · /.test(full))return {short:full,full};
   if(c.remoteClosure?.finished)return {short:'已结案',full:'贝思兰德确认案件已结案'};
   if (/当前流程已办结|已结束，等待|内部流程已结束/.test(full)) return { short: inOfficialWaiting(c)?'等待官方':'流程已结束', full };
   const waiting = waitingOfficialLabel(c);

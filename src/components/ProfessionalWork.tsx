@@ -30,8 +30,14 @@ export function ReviewQueue({profileKey,open}:{profileKey:string;open:(id:string
 }
 export function ProfessionalWork({profileKey,item,mode,sourceId,navigate}:{profileKey:string;item:Case;mode:'writing'|'review';sourceId?:string;navigate:(tab:CaseTab)=>void}){
   const [view,setView]=useState<ProfessionalCaseView|null>(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[selected,setSelected]=useState<string[]>([]),[decision,setDecision]=useState(''),[selectedSource,setSelectedSource]=useState(sourceId||''),[preview,setPreview]=useState(''),[history,setHistory]=useState(false),[reportId,setReportId]=useState('');
-  const gen=useRef(0),expectedProcess=agentProcessKey(item);
-  useEffect(()=>{const token=++gen.current;setView(null);setError('');const refresh=()=>void desktop!.professional.getCase(profileKey,item.id).then(v=>{if(token===gen.current&&v.profileKey===profileKey&&v.processKey===expectedProcess)setView(v);}).catch(e=>{if(token===gen.current)setError(e.message);});refresh();const unsub=desktop!.professional.onState(key=>{if(key===profileKey)refresh();});return()=>{gen.current++;unsub();};},[profileKey,item.id,expectedProcess]);
+  const gen=useRef(0),expectedProcess=agentProcessKey(item),restored=useRef(false);
+  useEffect(()=>{const token=++gen.current;restored.current=false;setView(null);setSelected([]);setError('');const refresh=()=>void desktop!.professional.getCase(profileKey,item.id).then(v=>{if(token===gen.current&&v.profileKey===profileKey&&v.processKey===expectedProcess)setView(v);}).catch(e=>{if(token===gen.current)setError(e.message);});refresh();const unsub=desktop!.professional.onState(key=>{if(key===profileKey)refresh();});return()=>{gen.current++;unsub();};},[profileKey,item.id,expectedProcess]);
+  useEffect(()=>{
+    if(!view||restored.current)return;
+    restored.current=true;
+    const ready=new Set(view.materials.filter(m=>m.ready).map(m=>m.id));
+    setSelected((view.record.selectedMaterialIds??[]).filter(id=>ready.has(id)));
+  },[view]);
   const run=async(cmd:ProfessionalCommand)=>{const token=gen.current;setBusy(true);setError('');try{const v=await desktop!.professional.command(profileKey,item.id,cmd);if(token===gen.current){setView(v);if(cmd.type==='confirm')setDecision('');}}catch(e){if(token===gen.current)setError((e as Error).message);}finally{if(token===gen.current)setBusy(false);}};
   const pick=async()=>{const token=gen.current;setBusy(true);setError('');try{const v=await desktop!.professional.pickFiles(profileKey,item.id);if(token===gen.current){setView(v);setSelectedSource(v.queue.find(q=>!q.archived)?.source.id||'');}}catch(e){if(token===gen.current)setError((e as Error).message);}finally{if(token===gen.current)setBusy(false);}};
   const references=async(removeId?:string)=>{const token=gen.current;setBusy(true);setError('');try{
