@@ -122,8 +122,8 @@
 
 ## 安装与更新
 
-- macOS Apple Silicon：以 `release/release-manifest.json` 中的 0.12.14 `.pkg` 和 `.app` 为准。
-- Windows x64：以 `release/release-manifest.json` 中的 0.12.14 NSIS `.exe` 为准。
+- macOS Apple Silicon：以 `release/release-manifest.json` 中的 0.13.0 `.pkg` 和 `.app` 为准。
+- Windows x64：以 `release/release-manifest.json` 中的 0.13.0 NSIS `.exe` 为准。
 
 安装器沿用固定应用标识，覆盖程序并保留用户数据。Mac 安装到所选安装域的“Applications”目录；安装前的系统目录旧版本不在此断言，以 `release/release-manifest.json` 与实际 Info.plist 为准。Windows 使用 NSIS 安装器，保留安装路径与 AppData。旧便携版应退出后使用安装器，原便携 EXE 不属于安装器管理的文件。
 
