@@ -9,6 +9,10 @@ import { BaselandClient, mergePersonalRows } from './baseland.ts';
 import { CaseFiles, managedPath, safeName, validateRoots } from './files.ts';
 import { currentWork, editableCurrent } from '../src/domain/lifecycle.ts';
 import type { Case } from '../src/domain/workflow.ts';
+import { currentHandling } from '../src/domain/handling.ts';
+import { isConfirmedWaitingOfficial, waitingOfficialLabel, caseStatusCategory } from '../src/domain/library.ts';
+import { workflowNodes } from '../src/domain/workflow-nodes.ts';
+import { WAITING_OFFICIAL_LABEL } from '../src/domain/stage-verdict.ts';
 
 const origin='https://fixture.baselandtec.com';
 const pdf=Buffer.from('%PDF-1.7\nFictional patent fixture\n%%EOF');
@@ -337,3 +341,231 @@ test('0.5 login: late validation cannot restore logged-out identity, unreadable 
   const key=saved.key;const reopened=f.make();reopened.vault={...reopened.vault,decrypt:()=>{throw new Error('unavailable');}};
   await reopened.init();assert.equal(reopened.key,key);assert.equal(reopened.auth.phase,'unreadable');assert.equal(reopened.client,null);
 });
+
+test('0.5 auto-reauthorize: requests with expired token transparently re-login and retry without failing',async()=>{
+  const {BaselandClient}=await import('./baseland.ts');
+  let reauthCalls=0;
+  const client=new BaselandClient('https://test.baselandtec.com','expired-token',async(input,init)=>{
+    const url=String(input);
+    if(url.includes('/Auth/GetLoginInfo')){
+      const auth=init?.headers?(init.headers as any).Authorization:undefined;
+      if(auth!=='fresh-token'){
+        return new Response(JSON.stringify({IsSuccess:false,Message:'登录Token已过期'}),{status:401});
+      }
+      return Response.json({IsSuccess:true,Data:{UserName:'alice',RealName:'爱丽丝'}});
+    }
+    return Response.json({IsSuccess:true,Data:{}});
+  });
+
+  client.onUnauthorized=async()=>{
+    reauthCalls++;
+    client.token='fresh-token';
+    return true;
+  };
+
+  const identity=await client.identity('alice');
+  assert.equal(identity.displayName,'爱丽丝');
+  assert.equal(client.token,'fresh-token');
+  assert.equal(reauthCalls,1);
+});
+
+test('0.5 auto-reauthorize: concurrent reauthorize calls are deduplicated into single flight',async t=>{
+  const f=await fixture(t),service=f.make();await service.init();
+  await service.login({origin,username:'alice',password:'fixture-password',remember:true});
+
+  let loginCalls=0;
+  const originalFactory=service.clientFactory;
+  service.clientFactory=(o,token)=>{
+    const c=originalFactory(o,token);
+    const origLogin=c.login.bind(c);
+    c.login=async(u,p)=>{
+      loginCalls++;
+      await new Promise(res=>setTimeout(res,30));
+      return origLogin(u,p);
+    };
+    return c;
+  };
+
+  const results=await Promise.all([
+    service.reauthorize(),
+    service.reauthorize(),
+    service.reauthorize(),
+    service.reauthorize(),
+  ]);
+
+  assert.deepEqual(results,[true,true,true,true]);
+  assert.equal(loginCalls,1,'Only 1 login request should be sent across concurrent reauthorize calls');
+});
+
+test('0.5 auto-reauthorize: sync with expired status transparently reauthorizes before execution',async t=>{
+  const f=await fixture(t),service=f.make();await service.init();
+  await service.login({origin,username:'alice',password:'fixture-password',remember:true});
+  await service.settings(service.key,{...service.workspace.settings,workRoot:f.work});
+
+  service.account!.status='expired';
+  service.auth={phase:'expired',message:'登录已过期',attempts:0};
+
+  let reauthorized=false;
+  const origReauth=service.reauthorize.bind(service);
+  service.reauthorize=async()=>{
+    reauthorized=true;
+    return origReauth();
+  };
+
+  await service.sync({source:'manual'});
+  assert.equal(reauthorized,true);
+  assert.equal(service.account?.status,'authenticated');
+  assert.equal(service.auth.phase,'authenticated');
+});
+
+test('0.5 auto-reauthorize: mid-sync 401 transparently retries request and finishes sync successfully',async t=>{
+  const f=await fixture(t),service=f.make();await service.init();
+  await service.login({origin,username:'alice',password:'fixture-password',remember:true});
+  await service.settings(service.key,{...service.workspace.settings,workRoot:f.work});
+
+  let simulated401=true;
+  const originalFetcher=service.client!.fetcher;
+  const wrappedFetcher:typeof fetch=async(input,init)=>{
+    const url=String(input);
+    if(url.includes('/GetPersonalProcStatistics')&&simulated401){
+      simulated401=false;
+      return new Response(JSON.stringify({IsSuccess:false,Message:'Token已失效'}),{status:401});
+    }
+    return originalFetcher(input,init);
+  };
+  service.client!.fetcher=wrappedFetcher;
+
+  let reauthTriggered=false;
+  const origReauth=service.reauthorize.bind(service);
+  service.reauthorize=async()=>{
+    reauthTriggered=true;
+    return origReauth();
+  };
+
+  const state=await service.sync({source:'manual'});
+  assert.equal(reauthTriggered,true,'reauthorize must be triggered mid-sync on 401');
+  assert.equal(state.account?.status,'authenticated');
+  assert.equal(state.auth?.phase,'authenticated');
+  assert.equal(state.sync.running,false);
+  assert.match(state.sync.message,/已保存|已同步/);
+});
+
+test('0.5 auto-reauthorize: expired token with unremembered session gracefully fails and stops retrying',async t=>{
+  const f=await fixture(t),service=f.make();await service.init();
+  await service.login({origin,username:'alice',password:'fixture-password',remember:false});
+  await service.settings(service.key,{...service.workspace.settings,workRoot:f.work});
+
+  service.client!.fetcher=async()=>new Response(JSON.stringify({IsSuccess:false,Message:'Token已失效'}),{status:401});
+
+  const state=await service.sync({source:'manual'});
+  assert.equal(state.account?.status,'expired');
+  assert.equal(state.auth?.phase,'expired');
+  assert.match(state.auth?.message||'',/登录已过期/);
+});
+
+test('local case submission: saveWorkspace persists current and localSubmission and closes workflow', async t => {
+  const f = await fixture(t), service = f.make(); await service.init();
+  await service.settings(service.key, { ...service.workspace.settings, workRoot: f.work });
+  await service.createCase({ title: '本地测试案件', number: 'LOC-2026-001', kind: 'write' });
+  const c = service.workspace.cases.find(x => x.number === 'LOC-2026-001')!;
+  assert.equal(c.source, 'local');
+  assert.equal(c.current?.kind, 'write');
+
+  // Simulate local case official submission
+  const submittedWorkspace = structuredClone(service.workspace);
+  const target = submittedWorkspace.cases.find(x => x.number === 'LOC-2026-001')!;
+  target.current = {
+    kind: 'waiting',
+    label: WAITING_OFFICIAL_LABEL,
+    node: WAITING_OFFICIAL_LABEL,
+    party: '官方',
+    handler: '官方',
+  };
+  target.localSubmission = {
+    at: '2026-09-22',
+    method: '专利业务办理系统 (CPC 客户端)',
+    receiptNo: 'CPC-2026-001-REC',
+    remark: '测试递交成功',
+  };
+
+  await service.save(service.key, submittedWorkspace);
+
+  // Reload and verify persistence
+  const saved = service.workspace.cases.find(x => x.number === 'LOC-2026-001')!;
+  assert.equal(saved.current?.kind, 'waiting');
+  assert.equal(saved.current?.label, WAITING_OFFICIAL_LABEL);
+  assert.equal(saved.localSubmission?.method, '专利业务办理系统 (CPC 客户端)');
+  assert.equal(saved.localSubmission?.receiptNo, 'CPC-2026-001-REC');
+
+  // Verify domain functions
+  assert.equal(currentHandling(saved).officialWaiting, true);
+  assert.equal(isConfirmedWaitingOfficial(saved), true);
+  assert.equal(waitingOfficialLabel(saved), '已递交，等待官方处理结果');
+  assert.equal(caseStatusCategory(saved), 'waiting_official');
+
+  const nodes = workflowNodes(saved);
+  assert.equal(nodes.at(-1)?.label, '递交官方');
+  assert.equal(nodes.at(-1)?.state, 'done');
+
+  // Test revocation
+  const revokedWorkspace = structuredClone(service.workspace);
+  const revTarget = revokedWorkspace.cases.find(x => x.number === 'LOC-2026-001')!;
+  revTarget.current = { kind: 'write' };
+  revTarget.localSubmission = undefined;
+  await service.save(service.key, revokedWorkspace);
+
+  const restored = service.workspace.cases.find(x => x.number === 'LOC-2026-001')!;
+  assert.equal(restored.current?.kind, 'write');
+  assert.equal(restored.localSubmission, undefined);
+  assert.equal(currentHandling(restored).officialWaiting, false);
+  assert.equal(isConfirmedWaitingOfficial(restored), false);
+});
+
+test('name mismatch IPC confirmation round-trip: resolves true on positive response, false on rejection or timeout', async () => {
+  const mockIpc = new Map<string, Function>();
+  let sentPayload: any = null;
+  const mockWindow = {
+    isDestroyed: () => false,
+    webContents: {
+      send: (event: string, payload: any) => {
+        if (event === 'desktop:transferConfirmNameRequest') sentPayload = payload;
+      },
+    },
+  };
+
+  const confirmName = async ({ applicationName, caseName }: { applicationName: string; caseName: string }) => {
+    if (!mockWindow || mockWindow.isDestroyed()) return false;
+    const reqId = `cn_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    return new Promise<boolean>((resolve) => {
+      let settled = false;
+      const finish = (result: boolean) => {
+        if (settled) return;
+        settled = true;
+        resolve(result);
+      };
+      mockIpc.set('desktop:transferConfirmNameResponse', (_e: unknown, id: string, confirmed: boolean) => {
+        if (id === reqId) finish(Boolean(confirmed));
+      });
+      mockWindow.webContents.send('desktop:transferConfirmNameRequest', { reqId, applicationName, caseName });
+    });
+  };
+
+  // Test confirm true
+  const promise1 = confirmName({ applicationName: '申请抬头', caseName: '系统名称' });
+  assert.equal(sentPayload.applicationName, '申请抬头');
+  assert.equal(sentPayload.caseName, '系统名称');
+
+  const handler1 = mockIpc.get('desktop:transferConfirmNameResponse')!;
+  handler1(null, sentPayload.reqId, true);
+  const result1 = await promise1;
+  assert.equal(result1, true);
+
+  // Test confirm false
+  const promise2 = confirmName({ applicationName: '申请抬头2', caseName: '系统名称2' });
+  const handler2 = mockIpc.get('desktop:transferConfirmNameResponse')!;
+  handler2(null, sentPayload.reqId, false);
+  const result2 = await promise2;
+  assert.equal(result2, false);
+});
+
+

@@ -32,6 +32,11 @@ export type TransferFilePreviewResult = {
   content?: string;
   parts?: Array<{ code: string; name: string; content: string }>;
 };
+export type NameDiscrepancyRequest = {
+  reqId: string;
+  applicationName: string;
+  caseName: string;
+};
 export type TransferAPI = {
   inspect(profileKey: string, caseId: string): Promise<TransferView | null>;
   prepare(profileKey: string, caseId: string, sourceMode?: TransferSource): Promise<TransferView>;
@@ -46,4 +51,6 @@ export type TransferAPI = {
   refresh(profileKey: string, id: string): Promise<TransferView>;
   reprepare(profileKey: string, id: string): Promise<TransferView>;
   revoke(profileKey: string, id: string): Promise<TransferView>;
+  onConfirmNameRequest?: (callback: (req: NameDiscrepancyRequest) => void) => () => void;
+  respondConfirmName?: (reqId: string, confirmed: boolean) => Promise<void> | void;
 };

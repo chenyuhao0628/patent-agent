@@ -100,7 +100,7 @@ export class DesktopService {
   flowFileWrites=0;
   private persistGate:Promise<unknown>=Promise.resolve();
   private savedCredentials?:{username:string;password:string};
-  private reauthorizing=false;
+  private reauthTask?:Promise<boolean>;
   constructor(root:string,vault:Vault,clientFactory=(origin:string,token?:string)=>new BaselandClient(origin,token)) {this.root=root;this.vault=vault;this.clientFactory=clientFactory;}
   profileFile(){return path.join(this.root,'profiles',this.key,'workspace.json');}
   async init(verify=true){
@@ -116,6 +116,7 @@ export class DesktopService {
           }catch{}
         }
         this.key=saved.key;this.account={...saved.account,status:'offline'};this.client=this.clientFactory(saved.account.origin,token);
+        this.client.onUnauthorized=()=>this.reauthorize();
       }
       catch{this.account=null;this.key=saved.key;this.client=null;this.savedCredentials=undefined;this.auth={phase:'unreadable',message:'本机登录凭证无法读取，请重新登录；原账号案件记录已保留。',attempts:0};}
     }
@@ -124,30 +125,40 @@ export class DesktopService {
     if(this.client&&this.account){this.auth={phase:'verifying',message:'正在验证登录…',attempts:0};if(verify)await this.verifyLogin(true);}
   }
   async reauthorize():Promise<boolean>{
-    if(this.reauthorizing||!this.savedCredentials||!this.account)return false;
-    this.reauthorizing=true;
-    try{
-      const client=this.clientFactory(this.account.origin);
-      const refreshed=await client.login(this.savedCredentials.username,this.savedCredentials.password);
-      this.client=client;
-      this.account={...refreshed,remembered:true};
-      const encrypted=this.vault.encrypt(client.token).toString('base64');
-      const credentials=this.vault.encrypt(JSON.stringify(this.savedCredentials)).toString('base64');
-      await atomicJSON(path.join(this.root,'session.json'),{key:this.key,account:this.account,encrypted,credentials});
-      this.auth={phase:'authenticated',message:'登录已自动重新获取授权',attempts:0,lastCheckedAt:new Date().toISOString()};
-      this.syncState.message='登录已自动重新获取授权，可以同步个人案件。';
-      this.changed();
-      return true;
-    }catch(e){
-      if(e instanceof BaselandAuthError&&['expired','forbidden'].includes(e.kind)){
-        this.savedCredentials=undefined;
-        const saved=await readJSON<any>(path.join(this.root,'session.json'),null);
-        if(saved){delete saved.credentials;await atomicJSON(path.join(this.root,'session.json'),saved);}
+    if(this.reauthTask)return this.reauthTask;
+    const account=this.account,creds=this.savedCredentials;
+    if(!creds||!account)return false;
+    const task=(async()=>{
+      try{
+        const client=this.clientFactory(account.origin);
+        client.onUnauthorized=()=>this.reauthorize();
+        const refreshed=await client.login(creds.username,creds.password);
+        client.onUnauthorized=()=>this.reauthorize();
+        if(this.client)this.client.token=client.token;
+        this.client=client;
+        this.account={...refreshed,remembered:true};
+        const encrypted=this.vault.encrypt(client.token).toString('base64');
+        const credentials=this.vault.encrypt(JSON.stringify(creds)).toString('base64');
+        await atomicJSON(path.join(this.root,'session.json'),{key:this.key,account:this.account,encrypted,credentials});
+        this.auth={phase:'authenticated',message:'登录已自动重新获取授权',attempts:0,lastCheckedAt:new Date().toISOString()};
+        this.syncState.message='登录已自动重新获取授权，可以同步个人案件。';
+        this.changed();
+        return true;
+      }catch(e){
+        if(e instanceof BaselandAuthError&&['expired','forbidden'].includes(e.kind)){
+          this.savedCredentials=undefined;
+          const saved=await readJSON<any>(path.join(this.root,'session.json'),null);
+          if(saved){delete saved.credentials;await atomicJSON(path.join(this.root,'session.json'),saved);}
+          this.auth={phase:e.kind,message:e.kind==='expired'?'登录凭证已失效，请重新输入密码。':'当前账号无权访问，请核对权限。',attempts:0,lastCheckedAt:new Date().toISOString()};
+          if(this.account)this.account={...this.account,status:'expired'};
+          this.changed();
+        }
+        return false;
       }
-      return false;
-    }finally{
-      this.reauthorizing=false;
-    }
+    })();
+    this.reauthTask=task;
+    task.finally(()=>{if(this.reauthTask===task)this.reauthTask=undefined;});
+    return task;
   }
   auth:import('../src/desktop.ts').AuthState={phase:'signed-out',message:'未登录',attempts:0};
   private verification?:Promise<DesktopState>;
@@ -223,7 +234,7 @@ export class DesktopService {
       this.controller?.abort();this.generation++;this.verification=undefined;this.submissionCache.clear();this.caseClosureCache.clear();this.fileListCache.clear();this.syncSignals=undefined;
       this.persistGate=Promise.resolve();
       this.syncPreparing=false;
-      this.key=nextKey;this.client=client;this.account=account;this.workspace=nextWorkspace;this.auth={phase:'authenticated',message:'登录已验证',attempts:0,lastCheckedAt:new Date().toISOString()};
+      this.key=nextKey;this.client=client;this.client.onUnauthorized=()=>this.reauthorize();this.account=account;this.workspace=nextWorkspace;this.auth={phase:'authenticated',message:'登录已验证',attempts:0,lastCheckedAt:new Date().toISOString()};
       this.syncState={running:false,message:'已登录，准备读取工作目录。'};
       this.storageState={running:false,message:'请选择当前账号的总工作文件夹。'};
       if(this.workspace.settings.workRoot)await this.refreshShared(this.key);
@@ -242,7 +253,7 @@ export class DesktopService {
     this.generation++;this.verification=undefined;this.controller?.abort();this.submissionCache.clear();this.caseClosureCache.clear();this.fileListCache.clear();this.syncSignals=undefined;await this.persist();await fs.rm(path.join(this.root,'session.json'),{force:true});
     this.persistGate=Promise.resolve();
     this.syncPreparing=false;
-    this.client=null;this.account=null;this.savedCredentials=undefined;this.auth={phase:'signed-out',message:'已退出登录',attempts:0};this.key='local';this.workspace=await readJSON(this.profileFile(),empty());
+    this.client=null;this.account=null;this.savedCredentials=undefined;this.reauthTask=undefined;this.auth={phase:'signed-out',message:'已退出登录',attempts:0};this.key='local';this.workspace=await readJSON(this.profileFile(),empty());
     this.syncState={running:false,message:'已退出账号。'};this.storageState={running:false,message:'请选择总工作文件夹。'};if(this.workspace.settings.workRoot)await this.refreshShared(this.key);
     this.syncState={running:false,message:'已退出账号；原账号的本机记录已保留。'};this.changed();return this.state();
   }
@@ -329,6 +340,19 @@ export class DesktopService {
       if(c.source==='local'){
         if(typeof edit.title==='string'&&edit.title.trim())c.title=edit.title.trim().slice(0,250);
         if(typeof edit.deadline==='string'){if(!edit.deadline)c.deadline='';else if(officialDate(edit.deadline))c.deadline=officialDate(edit.deadline);}
+        if(edit.current&&['write','review','reply','correction','waiting'].includes(edit.current.kind)){
+          c.current=structuredClone(edit.current);
+        }
+        if(edit.localSubmission){
+          c.localSubmission={
+            at:typeof edit.localSubmission.at==='string'?edit.localSubmission.at:new Date().toISOString(),
+            method:typeof edit.localSubmission.method==='string'?edit.localSubmission.method.slice(0,100):'',
+            receiptNo:typeof edit.localSubmission.receiptNo==='string'?edit.localSubmission.receiptNo.slice(0,100):undefined,
+            remark:typeof edit.localSubmission.remark==='string'?edit.localSubmission.remark.slice(0,500):undefined,
+          };
+        }else if(edit.localSubmission===undefined||edit.localSubmission===null){
+          c.localSubmission=undefined;
+        }
       }
       if(editableCurrent(c)&&edit.current?.processId===c.current?.processId){
         c.localDraft=typeof edit.localDraft==='string'?edit.localDraft:c.localDraft;
@@ -339,7 +363,7 @@ export class DesktopService {
       if(c.localDraft!==undefined)c.directory=await files.saveDraft(c);
     }
     this.assertKey(key);
-    this.workspace={...this.workspace,cases:this.workspace.cases.map(c=>{const changed=next.cases.find(x=>x.id===c.id);if(!changed)return c;return {...c,archived:changed.archived,tags:changed.tags,...(c.source==='local'?{title:changed.title,deadline:changed.deadline}:{}),...(c.current?.processId===changed.current?.processId?{localDraft:changed.localDraft,localVersions:changed.localVersions,directory:changed.directory,sharedDraftHash:changed.sharedDraftHash}:{})};})};
+    this.workspace={...this.workspace,cases:this.workspace.cases.map(c=>{const changed=next.cases.find(x=>x.id===c.id);if(!changed)return c;return {...c,archived:changed.archived,tags:changed.tags,...(c.source==='local'?{title:changed.title,deadline:changed.deadline,current:changed.current,localSubmission:changed.localSubmission}:{}),...(c.current?.processId===changed.current?.processId?{localDraft:changed.localDraft,localVersions:changed.localVersions,directory:changed.directory,sharedDraftHash:changed.sharedDraftHash}:{})};})};
     await this.persist();
   }
   async createCase(input:{title:string;number:string;kind:'write'|'review'}) {
@@ -380,12 +404,16 @@ export class DesktopService {
   private async syncNow(full:boolean){
     this.assertNotMigrating();
     if(this.syncState.running||this.syncPreparing)return this.state();
+    if(this.account&&this.account.status!=='authenticated'&&this.savedCredentials){
+      await this.reauthorize();
+    }
     if(!this.client||this.account?.status!=='authenticated')throw new Error('请先登录贝思兰德。');
     if(!this.workspace.settings.workRoot)throw new Error('请先选择总工作文件夹。');
     const startingKey=this.key,startingGeneration=this.generation;this.syncPreparing=true;
     try{await this.refreshShared(startingKey);}finally{if(startingGeneration===this.generation)this.syncPreparing=false;}
     if(this.stopping||this.migrationLock||startingKey!==this.key||startingGeneration!==this.generation)return this.state();
     const key=this.key,generation=this.generation,client=this.client,controller=new AbortController();this.controller=controller;
+    if(client&&!client.onUnauthorized)client.onUnauthorized=()=>this.reauthorize();
     const settings={...this.workspace.settings},persistFile=this.profileFile();
     const check=()=>{controller.signal.throwIfAborted();if(generation!==this.generation||key!==this.key||settings.workRoot!==this.workspace.settings.workRoot)throw new Error('同步范围已变化。');};
     const downloads=new CaseFiles(settings,key,false,check),files=new CaseFiles(settings,key,true,check);

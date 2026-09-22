@@ -230,10 +230,15 @@ export function validOrigin(input:string) {
 export const profileKey=(origin:string,username:string)=>digest(origin+'\n'+username.trim().toLowerCase()).slice(0,24);
 export class BaselandClient {
   origin:string; token:string; fetcher:typeof fetch;
+  onUnauthorized?:()=>Promise<boolean>;
   constructor(origin:string,token='',fetcher=fetch){this.origin=validOrigin(origin);this.token=token;this.fetcher=fetcher;}
-  async uploadDocument(name:string,bytes:Buffer,signal?:AbortSignal):Promise<string>{
+  async uploadDocument(name:string,bytes:Buffer,signal?:AbortSignal,retried=false):Promise<string>{
     const form=new FormData();form.set('file',new Blob([Uint8Array.from(bytes)],{type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'}),name);
     const response=await this.fetcher(API+'/NoPermissionRequired/FileStorageUploadFile?1=1',{method:'POST',headers:{Origin:this.origin,Referer:this.origin+'/login.html',Language:'zh-CN',Authorization:this.token},body:form,redirect:'error',signal:signal?AbortSignal.any([signal,AbortSignal.timeout(90000)]):AbortSignal.timeout(90000)});
+    if(response.status===401&&!retried&&this.onUnauthorized){
+      const renewed=await this.onUnauthorized();
+      if(renewed)return this.uploadDocument(name,bytes,signal,true);
+    }
     if(!response.ok)throw new Error(`文件上传未完成（HTTP ${response.status}）。`);
     const data=await response.json() as Obj;
     const code=businessCode(data.Data);
@@ -241,17 +246,34 @@ export class BaselandClient {
     if(data.IsSuccess!==true||typeof data.Data?.FileNo!=='string'||!data.Data.FileNo)throw new Error('贝思兰德未返回上传文件编号。');
     return data.Data.FileNo;
   }
-  async request(endpoint:string,body?:unknown,params?:Record<string,string>,signal?:AbortSignal,kind:'data'|'list'='data') {
+  async request(endpoint:string,body?:unknown,params?:Record<string,string>,signal?:AbortSignal,kind:'data'|'list'='data',retried=false):Promise<any> {
     const started=Date.now();
     diagnostic('baseland','request_started',{operation:endpoint});
     const url=new URL(API+endpoint);for(const [k,v] of Object.entries(params??{}))url.searchParams.set(k,v);
     let response:Response;
     try{response=await this.fetcher(url,{method:body?'POST':'GET',headers:{Origin:this.origin,Referer:this.origin+'/login.html',Language:'zh-CN','Content-Type':'application/json',...(this.token?{Authorization:this.token}:{})},body:body?JSON.stringify(body):undefined,redirect:'error',signal:signal?AbortSignal.any([signal,AbortSignal.timeout(30000)]):AbortSignal.timeout(30000)});}catch(error){diagnostic('baseland','request_failed',{operation:endpoint,durationMs:Date.now()-started,...diagnosticError(error)});throw new Error(signal?.aborted?'操作已停止。':'无法连接贝思兰德，请检查网络后重试。');}
     diagnostic('baseland','response',{operation:endpoint,statusCode:response.status,durationMs:Date.now()-started});
-    if(response.status===401||response.status===403)throw new BaselandAuthError(response.status===401?'expired':'forbidden','登录已失效或账号无权限，请重新登录。');
+    if(response.status===401||response.status===403){
+      if(response.status===401&&endpoint!=='/Auth/GetToken'&&!retried&&this.onUnauthorized){
+        const renewed=await this.onUnauthorized();
+        if(renewed)return this.request(endpoint,body,params,signal,kind,true);
+      }
+      throw new BaselandAuthError(response.status===401?'expired':'forbidden','登录已失效或账号无权限，请重新登录。');
+    }
     if(!response.ok)throw new Error(`贝思兰德请求失败（HTTP ${response.status}）。`);
     const data=await response.json() as Obj;
-    if(data.IsSuccess!==true){if(endpoint==='/Auth/GetToken')throw loginFailure(data.Message);if(/权限/.test(data.Message??''))throw new BaselandAuthError('forbidden','当前账号无权访问该数据。');if(/登录|Token|token|认证|过期/.test(data.Message??''))throw new BaselandAuthError('expired','登录已失效，请重新登录。');throw new Error(/权限/.test(data.Message??'')?'当前账号无权访问该数据。':/登录|Token|token|认证|过期/.test(data.Message??'')?'登录已失效，请重新登录。':'贝思兰德未确认请求成功，请核对账号或稍后重试。');}
+    if(data.IsSuccess!==true){
+      if(endpoint==='/Auth/GetToken')throw loginFailure(data.Message);
+      if(/权限/.test(data.Message??''))throw new BaselandAuthError('forbidden','当前账号无权访问该数据。');
+      if(/登录|Token|token|认证|过期/.test(data.Message??'')){
+        if(!retried&&this.onUnauthorized){
+          const renewed=await this.onUnauthorized();
+          if(renewed)return this.request(endpoint,body,params,signal,kind,true);
+        }
+        throw new BaselandAuthError('expired','登录已失效，请重新登录。');
+      }
+      throw new Error(/权限/.test(data.Message??'')?'当前账号无权访问该数据。':/登录|Token|token|认证|过期/.test(data.Message??'')?'登录已失效，请重新登录。':'贝思兰德未确认请求成功，请核对账号或稍后重试。');
+    }
     // Login/detail objects must never be replaced by a default empty DataList.
     const result=kind==='list'?(data.DataList??data.ListData??data.Data):data.Data;
     if(typeof result==='string'&&/^[A-Za-z][A-Za-z0-9_]{1,90}$/.test(result)&&/\/(?:AddCaseHandForm|IsHasCaseHandForm|InsertFormOpinionStatement|UpdateFormOpinionStatement|SubmitHandFlow)$/.test(endpoint))diagnostic('baseland','business_result',{operation:endpoint,code:result});
@@ -367,9 +389,13 @@ export class BaselandClient {
     return count;
   }
   async files(processId:string,signal:AbortSignal) {const data=listOf(await this.request('/CaseInfo/GetCaseProcFileList',undefined,{caseProcId:processId},signal,'list'));if(!Array.isArray(data))throw new Error('文件列表结构尚未识别。');return data;}
-  async download(fileNo:string,signal:AbortSignal) {
+  async download(fileNo:string,signal:AbortSignal,retried=false):Promise<Buffer> {
     const url=new URL(API+'/NoPermissionRequired/FileStorageGetFile');url.searchParams.set('fileNo',fileNo);url.searchParams.set('forBlob','true');
     const r=await this.fetcher(url,{headers:{Authorization:this.token,Origin:this.origin,Language:'zh-CN'},redirect:'error',signal:AbortSignal.any([signal,AbortSignal.timeout(60000)])});
+    if(r.status===401&&!retried&&this.onUnauthorized){
+      const renewed=await this.onUnauthorized();
+      if(renewed)return this.download(fileNo,signal,true);
+    }
     if(!r.ok)throw new Error(`附件下载失败（HTTP ${r.status}）。`);
     const max=100*1024*1024;if(Number(r.headers.get('content-length'))>max)throw new Error('附件超过 100MB，请单独处理。');
     if(!r.body)throw new Error('附件内容为空。');

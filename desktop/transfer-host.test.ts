@@ -305,6 +305,7 @@ test('pickTransferRecipient uses last preference, sole candidate, otherwise requ
   assert.equal(pickTransferRecipient([a,b],{userId:'missing'}),undefined);
   assert.equal(pickTransferRecipient([a,b,c],{userId:'u2',stepId:'s2'}),c);
   assert.equal(pickTransferRecipient([a,b,c],{userId:'u2',stepId:'gone'}),b);
+  assert.equal(pickTransferRecipient([a,b],{userId:'',userName:'乙'}),b);
 });
 
 test('prepare leaves recipient empty when multiple candidates and no preference',async t=>{
@@ -339,6 +340,19 @@ test('successful save remembers recipient for the next preparation',async t=>{
   const fresh=await next.prepare(service.key,c.id);
   assert.equal(fresh.review.stepId,'step-1');
   assert.equal(fresh.review.userId,'u-b');
+});
+
+test('successful save updates view.steps and resolves recipient',async t=>{
+  const {service,client,host,c,source}=await setup(t);
+  client.nextUsers=[{value:'u-1',label:'杨佳'}];
+  let v=await host.prepare(service.key,c.id);
+  assert.equal(v.review.userId,'u-1');
+  v=await host.addFile(service.key,v.id,'reply',source);
+  v=await host.save(service.key,v.id,v.review);
+  assert.equal(v.phase,'saved');
+  assert.equal(v.steps.length,1);
+  assert.equal(v.steps[0].users[0].name,'杨佳');
+  assert.equal(v.review.userId,'u-1');
 });
 
 test('isRemoteTransferSaved validates contracts across reply, application, and correction routes',()=>{

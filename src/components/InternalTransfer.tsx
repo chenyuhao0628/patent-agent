@@ -5,7 +5,7 @@ import type { Case } from '../domain/workflow.ts';
 import { currentWork, internalTransferAvailable } from '../domain/lifecycle.ts';
 import { currentHandling } from '../domain/handling.ts';
 import { FIVE_PARTS } from '../transfer-api.ts';
-import type { TransferView, TransferReview, TransferFileRole, TransferForm } from '../transfer-api.ts';
+import type { TransferView, TransferReview, TransferFileRole, TransferForm, NameDiscrepancyRequest } from '../transfer-api.ts';
 import { Modal, Note } from './Primitives.tsx';
 import { FormattedFormulaText } from './FormattedFormulaText.tsx';
 
@@ -42,7 +42,18 @@ export function InternalTransfer({profileKey,item,refreshSeq,navigate}:{profileK
   const [confirm,setConfirm]=useState<'save'|'submit'|'start'|'revoke'|'clearRemote'>();
   const [inspecting,setInspecting]=useState<boolean>(()=>!transferCache.has(cacheKey));
   const [previewDoc, setPreviewDoc]=useState<{title:string;text:string}|null>(null);
+  const [nameConfirmReq, setNameConfirmReq]=useState<NameDiscrepancyRequest|null>(null);
   const scope=useRef('');scope.current=cacheKey;
+  useEffect(()=>{
+    if(!desktop?.transfer?.onConfirmNameRequest)return;
+    return desktop.transfer.onConfirmNameRequest(req=>setNameConfirmReq(req));
+  },[]);
+  const handleNameConfirm=(confirmed:boolean)=>{
+    if(nameConfirmReq){
+      desktop?.transfer?.respondConfirmName?.(nameConfirmReq.reqId,confirmed);
+      setNameConfirmReq(null);
+    }
+  };
   const lastRefreshSeq=useRef(refreshSeq);
   useEffect(()=>{
     if(refreshSeq!==undefined&&refreshSeq!==lastRefreshSeq.current){
@@ -104,6 +115,40 @@ export function InternalTransfer({profileKey,item,refreshSeq,navigate}:{profileK
   useEffect(()=>{
     if(view) transferCache.set(cacheKey,{view:review?{...view,review}:view,review,tab});
   },[cacheKey,view,review,tab]);
+
+  useEffect(()=>{
+    if(!view?.steps?.length||!review)return;
+    let nextStepId=review.stepId;
+    let nextUserId=review.userId;
+    let changed=false;
+
+    const validStep=view.steps.find(s=>s.id===nextStepId);
+    if(!validStep){
+      if(view.steps.length===1){
+        nextStepId=view.steps[0].id;
+        changed=true;
+      }
+    }
+
+    const activeStep=view.steps.find(s=>s.id===nextStepId);
+    if(activeStep?.users?.length){
+      const validUser=activeStep.users.find(u=>u.id===nextUserId);
+      if(!validUser){
+        const yj=activeStep.users.find(u=>u.name==='杨佳');
+        if(yj){
+          nextUserId=yj.id;
+          changed=true;
+        }else if(activeStep.users.length===1){
+          nextUserId=activeStep.users[0].id;
+          changed=true;
+        }
+      }
+    }
+
+    if(changed){
+      setReview(r=>r?{...r,stepId:nextStepId,userId:nextUserId}:r);
+    }
+  },[view?.steps,review?.stepId,review?.userId]);
   const latest=useRef({view,review,profileKey});
   latest.current={view,review,profileKey};
   useEffect(()=>()=>{
@@ -211,8 +256,8 @@ export function InternalTransfer({profileKey,item,refreshSeq,navigate}:{profileK
         <div className="button-row">
           <button type="button" disabled={busy} onClick={()=>void handlePreviewDoc({role:view.route==='reply'?'reply':'application'})} title="预览保存至系统的正文与公式"><Eye size={14}/> 预览递交材料（含公式）</button>
           <button disabled={busy} onClick={()=>setConfirm('revoke')}>撤销本次保存</button>
-          <button className="primary" disabled={busy||view.canEditRemote===false||!user} onClick={()=>{setTab(2);setConfirm('submit');}}>
-            直接转交给 {user?.name||'下一办理人'}<ArrowRight size={14}/>
+          <button className="primary" disabled={busy||view.canEditRemote===false} onClick={()=>{setTab(2);if(user)setConfirm('submit');}}>
+            {user?`直接转交给 ${user.name}`:'前往选择办理人并转交'}<ArrowRight size={14}/>
           </button>
         </div>
       </div>}
@@ -323,7 +368,7 @@ export function InternalTransfer({profileKey,item,refreshSeq,navigate}:{profileK
           </div>}
           <div className="button-row">
             <button disabled={!!view.sourceDraft&&review.confirmedDraftId!==view.sourceDraft.id} onClick={()=>void goTab(1)}>继续核对表单<ArrowRight size={15}/></button>
-            {view.phase==='saved'&&<button className="primary" disabled={busy||view.canEditRemote===false||!user} onClick={()=>{setTab(2);setConfirm('submit');}}>已保存就绪，直接转交<ArrowRight size={14}/></button>}
+            {view.phase==='saved'&&<button className="primary" disabled={busy||view.canEditRemote===false} onClick={()=>{setTab(2);if(user)setConfirm('submit');}}>已保存就绪，直接转交{user?`给 ${user.name}`:''}<ArrowRight size={14}/></button>}
           </div>
         </>}
         {tab===1&&<div className="transfer-form"><label className="field">指定摘要附图（默认图 1）<input disabled={locked} value={review.form.abstractFigure} onChange={e=>form({abstractFigure:e.target.value})}/></label><h4>{view.route==='reply'?'意见陈述书':view.route==='correction'?'补正内容核对':'提出申请请求书'}</h4>
@@ -337,10 +382,16 @@ export function InternalTransfer({profileKey,item,refreshSeq,navigate}:{profileK
           {view.route==='application'&&<>{Object.entries(declarations).map(([key,label])=><label className="checkbox" key={key}><input type="checkbox" disabled={locked} checked={review.form.declarations[key]||false} onChange={e=>form({declarations:{...review.form.declarations,[key]:e.target.checked}})}/>{label}</label>)}<Note>已有请求书的其他字段与记录编号会保留；请在贝思兰德核对申请人、发明人等案件基本信息。</Note></>}
           <div className="button-row">
             <button onClick={()=>void goTab(2)}>继续选择下一办理人<ArrowRight size={15}/></button>
-            {view.phase==='saved'&&<button className="primary" disabled={busy||view.canEditRemote===false||!user} onClick={()=>{setTab(2);setConfirm('submit');}}>已保存就绪，直接转交<ArrowRight size={14}/></button>}
+            {view.phase==='saved'&&<button className="primary" disabled={busy||view.canEditRemote===false} onClick={()=>{setTab(2);if(user)setConfirm('submit');}}>已保存就绪，直接转交{user?`给 ${user.name}`:''}<ArrowRight size={14}/></button>}
           </div>
         </div>}
-        {tab===2&&<><div className="form-grid"><label className="field">下一流程<select disabled={lockedRecipient} value={review.stepId} onChange={e=>patch({stepId:e.target.value,userId:''})}><option value="">选择流程</option>{view.steps.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></label><label className="field">下一办理人<select disabled={lockedRecipient} value={review.userId} onChange={e=>patch({userId:e.target.value})}><option value="">选择办理人</option>{step?.users.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}</select></label></div><label className="field">转交备注<textarea disabled={lockedRecipient} maxLength={1000} value={review.remark} onChange={e=>patch({remark:e.target.value})}/></label>
+        {tab===2&&<><div className="form-grid"><label className="field">下一流程<select disabled={lockedRecipient} value={review.stepId} onChange={e=>{
+          const nextStepId=e.target.value;
+          const st=view.steps.find(s=>s.id===nextStepId);
+          const defaultUser=st?.users.find(u=>u.name==='杨佳')||(st?.users.length===1?st.users[0]:undefined);
+          patch({stepId:nextStepId,userId:defaultUser?.id||''});
+        }}><option value="">选择流程</option>{view.steps.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></label><label className="field">下一办理人<select disabled={lockedRecipient} value={review.userId} onChange={e=>patch({userId:e.target.value})}><option value="">选择办理人</option>{step?.users.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}</select></label></div><label className="field">转交备注<textarea disabled={lockedRecipient} maxLength={1000} value={review.remark} onChange={e=>patch({remark:e.target.value})}/></label>
+          {view.phase==='saved'&&!user&&<div className="inline-warning" style={{margin:'8px 0'}}><p>请在上方选择下一流程与办理人（如：递交官方 · 杨佳）以完成转交。</p></div>}
           {view.existingFileNames.length>0&&<div style={{margin:'12px 0',padding:'12px',borderRadius:'8px',border:'1px solid var(--line)',background:'var(--surface,#f8fafc)'}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px'}}>
               <b>贝思兰德递交材料清单 · {view.existingFileNames.length} 件</b>
@@ -390,6 +441,22 @@ export function InternalTransfer({profileKey,item,refreshSeq,navigate}:{profileK
       {previewDoc && (
         <Modal title={previewDoc.title} onClose={() => setPreviewDoc(null)}>
           <FormattedFormulaText text={previewDoc.text} className="agent-preview" />
+        </Modal>
+      )}
+      {nameConfirmReq && (
+        <Modal title="确认申请文件名称差异" onClose={() => handleNameConfirm(false)}>
+          <p>贝思兰德要求确认申请文件名称与系统案件名称不一致。</p>
+          <div className="note" style={{ margin: '12px 0' }}>
+            <p><b>申请文件名称：</b>{nameConfirmReq.applicationName}</p>
+            <p><b>当前案件显示名称：</b>{nameConfirmReq.caseName}</p>
+          </div>
+          <p className="muted" style={{ fontSize: '13px' }}>
+            确认后仅重试本次设置；此前上传文件保留。请核对服务端案件名称后决定。
+          </p>
+          <div className="action-bar">
+            <button type="button" onClick={() => handleNameConfirm(false)}>暂不确认</button>
+            <button type="button" className="primary" onClick={() => handleNameConfirm(true)}>确认名称差异并保存设置</button>
+          </div>
         </Modal>
       )}
     </>}

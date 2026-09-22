@@ -32,6 +32,14 @@ export function pickTransferRecipient(options:TransferRecipientOption[],preferen
       return sameStep??matched[0];
     }
   }
+  if(preference?.userName){
+    const matched=options.filter(o=>o.user.name===preference.userName);
+    if(matched.length===1)return matched[0];
+    if(matched.length>1){
+      const sameStep=preference.stepId?matched.find(o=>o.step.id===preference.stepId):undefined;
+      return sameStep??matched[0];
+    }
+  }
   if(options.length===1)return options[0];
 }
 
@@ -98,6 +106,27 @@ export class TransferHost {
           s.files[f.role]={...f};
         }
       }
+      if(s.view.steps.length===0&&this.desktop.account?.status==='authenticated'&&this.desktop.client){
+        const route:TransferRoute=work.kind==='write'?'application':work.kind==='reply'?'reply':work.kind==='correction'?'correction':null as any;
+        if(route){
+          try{
+            const r=await readRemoteTransfer(this.desktop.client,work.processId,route);
+            if(r?.steps?.length){
+              s.remote=r;
+              s.view.steps=r.steps;
+              if(!s.view.review.stepId||!s.view.review.userId){
+                const options=r.steps.flatMap(step=>step.users.map(user=>({step,user})));
+                const picked=pickTransferRecipient(options,this.desktop.workspace.settings.lastTransferRecipient);
+                if(picked){
+                  if(!s.view.review.stepId)s.view.review.stepId=picked.step.id;
+                  if(!s.view.review.userId)s.view.review.userId=picked.user.id;
+                }
+              }
+              await this.persist(s);
+            }
+          }catch{}
+        }
+      }
       this.sessions.set(s.view.id,s);
       return structuredClone(s.view);
     }
@@ -161,12 +190,22 @@ export class TransferHost {
     prior.sort((a,b)=>b.view.at.localeCompare(a.view.at));
     if(prior.length&&!ignorePrior&&!disposableEmptyDraft(prior[0].view)){
       const previous=prior[0];s.view=previous.view;
+      if(s.remote){
+        s.view.steps=s.remote.steps;
+        s.view.existingFileNames=remoteFileNames([...(s.remote.files||[]),...(s.remote.form?.File?[s.remote.form.File]:[])]);
+        if(!s.view.review.stepId||!s.view.review.userId){
+          const options=s.remote.steps.flatMap(step=>step.users.map(user=>({step,user})));
+          const picked=pickTransferRecipient(options,this.desktop.workspace.settings.lastTransferRecipient);
+          if(picked){
+            if(!s.view.review.stepId)s.view.review.stepId=picked.step.id;
+            if(!s.view.review.userId)s.view.review.userId=picked.user.id;
+          }
+        }
+      }
       if(s.view.phase==='saved'){
         if(s.view.handId!==s.remote?.handId||!s.remote?.hand.IsReviewing){
           s.view.phase='uncertain';
           s.view.error='应用重开后，服务端递交实例或权限已变化，请先核对当前材料和流程。';
-        }else if(s.remote){
-          s.view.existingFileNames=remoteFileNames(s.remote.files);
         }
       }
       for(const f of s.view.files){if(!['application','baseline','reply'].includes(f.role)||!([`03_定稿/内部提交准备/${s.view.id}/`,`03_定稿/内部提交准备/提交材料_${s.view.id}/`].some(prefix=>f.relativePath.startsWith(prefix)))||f.relativePath.includes('..'))throw new Error('内部提交文件记录无效。');s.files[f.role]={...f};}
@@ -348,7 +387,23 @@ export class TransferHost {
     let wrote=false;
     // Persist intent before the first remote write. An interrupted attempt never looks unsent.
     s.view.phase='uncertain';s.view.results.push('正在保存本次文件与业务表单；中断后需回读核对。');await this.persist(s);
-    try{s.remote=await saveRemoteTransfer({client:this.desktop.client!,processId:s.view.processId,caseTitle:s.view.caseTitle,route:s.view.route,remote:s.remote,review:s.view.review,application,reply,confirmName:this.options.confirmName,guard:()=>this.guard(s),onWrite:()=>{wrote=true;},checkpoint:async message=>{s.view.results.push(message);await this.persist(s);}});s.view.phase='saved';s.view.at=new Date().toISOString();s.view.existingFileNames=remoteFileNames(s.remote.files);s.view.results.push('可以核对接收人并执行内部转交。');await this.rememberRecipient(s);}
+    try{
+      s.remote=await saveRemoteTransfer({client:this.desktop.client!,processId:s.view.processId,caseTitle:s.view.caseTitle,route:s.view.route,remote:s.remote,review:s.view.review,application,reply,confirmName:this.options.confirmName,guard:()=>this.guard(s),onWrite:()=>{wrote=true;},checkpoint:async message=>{s.view.results.push(message);await this.persist(s);}});
+      s.view.phase='saved';
+      s.view.at=new Date().toISOString();
+      s.view.existingFileNames=remoteFileNames(s.remote.files);
+      s.view.steps=s.remote.steps;
+      if(!s.view.review.stepId||!s.view.review.userId){
+        const options=s.remote.steps.flatMap(step=>step.users.map(user=>({step,user})));
+        const picked=pickTransferRecipient(options,this.desktop.workspace.settings.lastTransferRecipient);
+        if(picked){
+          if(!s.view.review.stepId)s.view.review.stepId=picked.step.id;
+          if(!s.view.review.userId)s.view.review.userId=picked.user.id;
+        }
+      }
+      s.view.results.push('可以核对接收人并执行内部转交。');
+      await this.rememberRecipient(s);
+    }
     catch(e){if(!wrote)s.view.phase='draft';s.view.error=(e as Error).message;s.view.results.push('保存未能全部核验，尚未转交。');}
     await this.persist(s);return this.view(s);
   });}
@@ -498,7 +553,7 @@ export class TransferHost {
     if(!r||s.view.phase!=='draft'&&r.handId!==s.view.handId){
       s.view.phase='uncertain';s.view.error='本次递交实例已变化，无法确认原方案结果。请在贝思兰德核对。';
     }else{
-      s.view.canEditRemote=r.hand.IsReviewing===true;s.view.currentNode=r.hand.CurrentFlowInfo?.FlowNodeName;s.view.currentUser=r.hand.CurrentFlowInfo?.FlowUserName;s.view.existingFileNames=remoteFileNames(r.files);
+      s.view.canEditRemote=r.hand.IsReviewing===true;s.view.currentNode=r.hand.CurrentFlowInfo?.FlowNodeName;s.view.currentUser=r.hand.CurrentFlowInfo?.FlowUserName;s.view.existingFileNames=remoteFileNames(r.files);s.view.steps=r.steps;
       if(s.view.phase==='draft'){
         s.remote=r;
         if(!s.view.revokedByUser && isRemoteTransferSaved(r,s.view.route)){
@@ -506,6 +561,7 @@ export class TransferHost {
           s.view.at=new Date().toISOString();
           const rFiles=[...(r.files||[]),...(r.form?.File?[r.form.File]:[])];
           s.view.existingFileNames=remoteFileNames(rFiles);
+          s.view.steps=r.steps;
           s.view.error=undefined;
           s.view.results.push('刷新确认服务端文件与表单已保存就绪，可直接选择下一办理人并转交。');
           const options=r.steps.flatMap(step=>step.users.map(user=>({step,user})));
@@ -546,6 +602,15 @@ export class TransferHost {
           s.view.phase='uncertain';s.view.error='保存后服务端材料或流程已变化，请重新核对。';
         }else{
           s.remote=r;
+          s.view.steps=r.steps;
+          if(!s.view.review.stepId||!s.view.review.userId){
+            const options=r.steps.flatMap(step=>step.users.map(user=>({step,user})));
+            const picked=pickTransferRecipient(options,this.desktop.workspace.settings.lastTransferRecipient);
+            if(picked){
+              if(!s.view.review.stepId)s.view.review.stepId=picked.step.id;
+              if(!s.view.review.userId)s.view.review.userId=picked.user.id;
+            }
+          }
           s.view.results.push('刷新已核对服务端最新材料与流程。');
         }
       }

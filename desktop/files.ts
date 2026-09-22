@@ -134,7 +134,7 @@ export class CaseFiles {
     }
     // Shared business index only. Conversations, jobs, model configuration and credentials stay local.
     this.guard();
-    if(publish)await atomicJSON(manifestPath,{schema:2,id:c.id,profile:this.profile,number:c.number,title:c.title,type:c.type,deadline:c.deadline,applicationNumber:c.applicationNumber,companyName:c.companyName,caseRemark:c.caseRemark,caseInfoAt:c.caseInfoAt,remoteClosure:c.remoteClosure,officialOutcome:c.officialOutcome,remoteCaseId:c.remote?.caseId,current:c.current,source:c.source,remote:c.remote,materials:(c.materials??[]).map(sharedMaterial),rounds:c.rounds.map(r=>({id:r.id,name:r.name,priorArt:r.priorArt,materials:r.materials.map(sharedMaterial)}))});
+    if(publish)await atomicJSON(manifestPath,{schema:2,id:c.id,profile:this.profile,number:c.number,title:c.title,type:c.type,deadline:c.deadline,applicationNumber:c.applicationNumber,companyName:c.companyName,caseRemark:c.caseRemark,caseInfoAt:c.caseInfoAt,remoteClosure:c.remoteClosure,officialOutcome:c.officialOutcome,remoteCaseId:c.remote?.caseId,current:c.current,source:c.source,localSubmission:c.localSubmission,remote:c.remote,materials:(c.materials??[]).map(sharedMaterial),rounds:c.rounds.map(r=>({id:r.id,name:r.name,priorArt:r.priorArt,materials:r.materials.map(sharedMaterial)}))});
     return relative;
   }
   async writeMaterial(c:Case,folder:string,fileNo:string,name:string,content:Buffer) {

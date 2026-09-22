@@ -92,7 +92,34 @@ app.whenReady().then(async()=>{
   const professionalHost=new ProfessionalHost(service,agentHost,modelService,hostRun,path.join(app.getAppPath(),'resources'));
   professionalHost.beforeWriting=(key,id)=>ensureCaseStarted(service,key,id);
   professionalHost.changed=key=>{if(window&&!window.isDestroyed())window.webContents.send('desktop:professionalState',key);};
-  const transferHost=new TransferHost(service,agentHost,{confirmName:async({applicationName,caseName})=>{const answer=await dialog.showMessageBox({type:'question',title:'确认申请文件名称差异',message:'贝思兰德要求确认申请文件名称与系统案件名称不一致。',detail:`申请文件名称：${applicationName}\n当前案件显示名称：${caseName}\n确认后仅重试本次设置；此前上传文件保留。请核对服务端案件名称后决定。`,buttons:['暂不确认','确认名称差异并保存设置'],defaultId:0,cancelId:0,noLink:true});return answer.response===1;},templatesRoot:path.join(app.getAppPath(),'resources','document-templates'),applicationFile:(key,id)=>professionalHost.submissionApplication(key,id)});
+  const transferHost=new TransferHost(service,agentHost,{
+    confirmName:async({applicationName,caseName})=>{
+      if(!window||window.isDestroyed())return false;
+      const reqId=`cn_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+      return new Promise<boolean>((resolve)=>{
+        let settled=false;
+        const finish=(result:boolean)=>{
+          if(settled)return;
+          settled=true;
+          clearTimeout(timer);
+          ipcMain.removeListener('desktop:transferConfirmNameResponse',onResponse);
+          resolve(result);
+        };
+        const timer=setTimeout(()=>finish(false),5*60*1000);
+        const onResponse=(_e:unknown,id:string,confirmed:boolean)=>{
+          if(id===reqId)finish(Boolean(confirmed));
+        };
+        ipcMain.on('desktop:transferConfirmNameResponse',onResponse);
+        try{
+          window!.webContents.send('desktop:transferConfirmNameRequest',{reqId,applicationName,caseName});
+        }catch{
+          finish(false);
+        }
+      });
+    },
+    templatesRoot:path.join(app.getAppPath(),'resources','document-templates'),
+    applicationFile:(key,id)=>professionalHost.submissionApplication(key,id),
+  });
   window=new BrowserWindow({show:!startHidden,width:1400,height:940,minWidth:900,minHeight:650,title:'专利工作台',icon:path.join(app.getAppPath(),'resources/branding/icon.png'),backgroundColor:'#f6f7f9',webPreferences:{preload:path.join(__dirname,'preload.cjs'),nodeIntegration:false,contextIsolation:true,sandbox:true}});
   window.on('unresponsive',()=>diagnostic('renderer','unresponsive'));
   window.on('responsive',()=>diagnostic('renderer','responsive'));
