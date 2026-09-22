@@ -52,7 +52,7 @@ export function outcomeDetail(c: Case): string {
   const time = stamp(outcome.checkedAt);
   const when = time ? `判读时间：${time}` : '判读时间未记录';
   if (outcome.state === 'none') {
-    const caveat = outcome.incomplete ? '官文清单未取完，结果待复核。' : '官文清单里没有授权或驳回类官文；未见结果不等于未授权。';
+    const caveat = outcome.incomplete ? '官文清单未取完，结果待复核。' : '官文清单里没有授权或驳回类官文。';
     return `${caveat}${when}。`;
   }
   const name = outcome.noticeName || (outcome.state === 'granted' ? '办理登记手续通知书' : '驳回决定');

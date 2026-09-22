@@ -40,7 +40,8 @@ test('official outcome labels distinguish concluded, unlisted, unread and local 
 });
 
 test('unlisted outcome never claims the patent is unauthorised', () => {
-  assert.match(outcomeDetail(decided('none')), /未见结果不等于未授权/);
+  assert.match(outcomeDetail(decided('none')), /没有授权或驳回类官文/);
+  assert.doesNotMatch(outcomeDetail(decided('none')), /未授权/);
   assert.match(outcomeDetail(fixture()), /尚未判读/);
   const truncated = fixture({ officialOutcome: { state: 'none', checkedAt: '2026-09-15T02:00:00.000Z', incomplete: true } });
   assert.match(outcomeDetail(truncated), /清单未取完/);

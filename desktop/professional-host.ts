@@ -58,7 +58,7 @@ export class ProfessionalHost {
     if(source.supersededAt)return '已有后续稿件版本';
     if(c.archived)return '案件已归档';
     if(keyOf(c)!==source.processKey)return '已进入后续办理流程';
-    if(currentHandling(c).officialWaiting)return '已递交官方';
+    if(currentHandling(c).officialWaiting)return '已递交，等待官方处理结果';
     if(!c.directory)return undefined;
     const folder=await this.service.casePath(c.id,'04_内部说明');
     let names:string[]=[];try{names=await fs.readdir(folder);}catch{return undefined;}

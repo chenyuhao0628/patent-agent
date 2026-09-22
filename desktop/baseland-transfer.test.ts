@@ -52,7 +52,7 @@ test('reply without a new application still prunes only human-reviewed current s
 
 test('server editing permission is required before uploads even for the case undertaker',async()=>{
  const {client,review}=await setup('reply');client.canEdit=false;const remote=(await readRemoteTransfer(client,'proc-1','reply'))!;let wrote=false;
- await assert.rejects(saveRemoteTransfer({client,remote,review,route:'reply',processId:'proc-1',caseTitle:'合成案件',reply:{name:'reply.docx',bytes:Buffer.from('x')},guard,onWrite:()=>{wrote=true;},checkpoint:async()=>{}}),/未授权/);
+ await assert.rejects(saveRemoteTransfer({client,remote,review,route:'reply',processId:'proc-1',caseTitle:'合成案件',reply:{name:'reply.docx',bytes:Buffer.from('x')},guard,onWrite:()=>{wrote=true;},checkpoint:async()=>{}}),/不能编辑/);
  assert.equal(wrote,false);
 });
 

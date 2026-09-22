@@ -166,7 +166,7 @@ function reviewedForm(route:TransferRoute,r:RemoteTransfer,review:TransferReview
   return route==='correction'?{...defaultTransferForm(r),corrections:review.form.corrections}:review.form;
 }
 export function validateReview(route:TransferRoute,r:RemoteTransfer,review:TransferReview,hasApplication:boolean,hasReply:boolean){
-  if(!flag(r.hand.IsReviewing))throw new Error('贝思兰德当前未授权本账号编辑此递交节点。');
+  if(!flag(r.hand.IsReviewing))throw new Error('当前账号不能编辑此递交节点。');
   if(!review||!Array.isArray(review.keepCodes)||!review.form)throw new Error('核对表单无效。');
   if(new Set(review.keepCodes).size!==review.keepCodes.length||review.keepCodes.some(c=>!FIVE_PARTS.some(p=>p.code===c)))throw new Error('五书选择无效。');
   if(route==='application'&&(!hasApplication||review.keepCodes.length!==5))throw new Error('提出申请需要完整申请文件和五书。');
@@ -349,7 +349,7 @@ export async function clearRemoteTransfer(
   const r = await readRemoteTransfer(client, processId, route);
   guard();
   if (!r || !r.handId) return null;
-  if (!flag(r.hand.IsReviewing)) throw new Error('贝思兰德当前未授权本账号编辑此递交节点，无法清空材料。');
+  if (!flag(r.hand.IsReviewing)) throw new Error('当前账号不能编辑此递交节点，无法清空材料。');
 
   const params = { caseHandId: r.handId };
   const q = async (ep: string, body?: Obj, p?: Record<string, string>, kind: 'data' | 'list' = 'data') => {

@@ -8,7 +8,7 @@ import {
   caseStatusCategory, statusCategoryLabels,
 } from './library.ts';
 import type { CaseStatusCategory } from './library.ts';
-import { normalizeCase, INTERNAL_ENDED_WAIT_LABEL, WAITING_OFFICIAL_LABEL } from './lifecycle.ts';
+import { normalizeCase, INTERNAL_ENDED_WAIT_LABEL, UNVERIFIED_OFFICIAL_LABEL, WAITING_OFFICIAL_LABEL } from './lifecycle.ts';
 
 const TODAY = new Date(2026, 8, 12, 15, 45, 0);
 
@@ -404,7 +404,14 @@ test('caseStatusCategory classifies cases into lifecycle categories accurately',
     remote: { caseId: 'r', syncedAt: '', processes: [{ id: 'p1', name: '提出申请', status: 500, node: '', undertaker: '', deadline: '' }] },
   });
   assert.equal(caseStatusCategory(internalEnded), 'other');
-  assert.notEqual(libraryStatus(internalEnded).short, '办理中');
+  assert.equal(libraryStatus(internalEnded).short, '等待后续流程');
+  const unverifiedOfficial = fixture({
+    id: 'unverified-official',
+    source: 'baseland',
+    current: { kind: 'needs-confirmation', processId: 'p1', label: UNVERIFIED_OFFICIAL_LABEL, node: '待核验' },
+    remote: { caseId: 'r2', syncedAt: '', processes: [{ id: 'p1', name: '提出申请', status: 500, node: '', undertaker: '', deadline: '' }] },
+  });
+  assert.equal(libraryStatus(unverifiedOfficial).short, '官方递交待核验');
 });
 
 test('official outcomes and closed cases leave active work and urgency', () => {

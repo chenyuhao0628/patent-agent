@@ -233,7 +233,7 @@ export function InternalTransfer({profileKey,item,refreshSeq,navigate}:{profileK
       {view.error&&<p role="alert" className="inline-warning">{view.error}</p>}
       {view.results.length>0&&<ol className="transfer-results">{view.results.map((s,i)=><li key={i}>{s}</li>)}</ol>}
       {!view.handId?<Note>{view.phase==='uncertain'?'启动结果尚未确认，请点击顶栏【刷新本案】核对。':'当前没有递交实例。核对案件后，可启动本次内部递交流程。'}<button disabled={busy||view.phase!=='draft'} onClick={()=>setConfirm('start')}>启动递交实例</button></Note>:<>
-        {view.canEditRemote===false&&<Note>贝思兰德当前未授权本账号编辑此节点。可查看材料与流程，保存和转交暂不可用。</Note>}<nav className="surface-switch">{['本次材料','业务表单','下一办理人与结果'].map((name,i)=><button key={name} className={tab===i?'active':''} onClick={()=>void goTab(i)}>{i+1} · {name}</button>)}</nav>
+        {view.canEditRemote===false&&<Note>当前账号不能编辑此节点。可查看材料与流程，保存和转交暂不可用。</Note>}<nav className="surface-switch">{['本次材料','业务表单','下一办理人与结果'].map((name,i)=><button key={name} className={tab===i?'active':''} onClick={()=>void goTab(i)}>{i+1} · {name}</button>)}</nav>
         {tab===0&&<>
           {view.existingFileNames.length>0&&<div className="note"><strong>远端材料已就绪</strong>：贝思兰德当前已存在上述 {view.existingFileNames.length} 个文件。下方本地文件仅在需要修改或补充时选择。</div>}
           <div className="transfer-files">{roles.map(role=>{

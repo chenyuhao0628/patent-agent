@@ -236,6 +236,9 @@ export function libraryStatus(c: Case): { short: string; full: string } {
   if (leftPersonalCase(c)) return { short: '已离开个人案件', full };
   if(c.source==='baseland'&&/^(待处理|递交中) · /.test(full))return {short:full,full};
   if(c.remoteClosure?.finished)return {short:'已结案',full:'贝思兰德确认案件已结案'};
+  if (full.includes('官方递交待核验')) return { short: '官方递交待核验', full };
+  if (full.includes('等待后续流程')) return { short: '等待后续流程', full };
+  if (full.includes('待核验')) return { short: '待核验', full };
   if (/当前流程已办结|已结束，等待|内部流程已结束/.test(full)) return { short: inOfficialWaiting(c)?'等待官方':'流程已结束', full };
   const waiting = waitingOfficialLabel(c);
   if (waiting) return { short: '等待官方', full: full && full !== waiting ? `${waiting} · ${full}` : waiting };
