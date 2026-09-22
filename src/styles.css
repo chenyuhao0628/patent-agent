@@ -32,3 +32,9 @@
 .formula-inline-wrap{display:inline-block;vertical-align:middle;margin:0 2px}
 .formula-block-wrap{display:block;margin:12px 0;text-align:center;overflow-x:auto}
 .formula-fallback{font-family:monospace;background:#f5f3ff;color:#5548a8;padding:2px 4px;border-radius:4px;font-size:12px}
+.preview-image-figure{margin:14px auto;text-align:center;display:flex;flex-direction:column;align-items:center;max-width:100%}
+.preview-image-box{background:var(--surface-muted,#f8fafc);border:1px solid var(--line,#e2e8f0);border-radius:8px;padding:8px;display:inline-flex;justify-content:center;align-items:center;max-width:100%;box-shadow:0 1px 4px rgba(0,0,0,0.06)}
+.preview-image-content{max-width:100%;max-height:550px;height:auto;object-fit:contain;border-radius:4px;cursor:zoom-in;display:block}
+.preview-image-content:hover{opacity:0.96}
+.preview-image-caption{margin-top:6px;font-size:12px;color:var(--muted,#64748b);font-weight:500}
+.doc-preview-modal-body{max-height:72vh!important;font-size:13px;line-height:1.85;padding:18px;background:var(--surface-muted,#f8fafc);overflow-y:auto}

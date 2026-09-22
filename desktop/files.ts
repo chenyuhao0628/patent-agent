@@ -8,31 +8,260 @@ import type { Case, Material, Settings } from '../src/domain/workflow.ts';
 export const digest=(s:string|Buffer)=>createHash('sha256').update(s).digest('hex');
 export const portable=(s:string)=>s.replaceAll('\\','/');
 
-export async function extractDocxParagraphs(bytes: Buffer): Promise<string | undefined> {
+const W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+const R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+
+export const FIVE_PARTS_SPEC: Array<{ code: string; name: string }> = [
+  { code: '100001', name: '权利要求书' },
+  { code: '100002', name: '说明书' },
+  { code: '100003', name: '说明书附图' },
+  { code: '100004', name: '说明书摘要' },
+  { code: '100005', name: '摘要附图' },
+];
+
+export function getImageMime(filename: string, buffer?: Buffer): string {
+  const ext = filename.split('.').pop()?.toLowerCase();
+  if (ext === 'png') return 'image/png';
+  if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg';
+  if (ext === 'gif') return 'image/gif';
+  if (ext === 'webp') return 'image/webp';
+  if (ext === 'svg') return 'image/svg+xml';
+  if (ext === 'bmp') return 'image/bmp';
+
+  if (buffer && buffer.length >= 8) {
+    if (buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]))) return 'image/png';
+    if (buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF) return 'image/jpeg';
+    if (buffer.subarray(0, 4).toString('ascii') === 'GIF8') return 'image/gif';
+    if (buffer.subarray(0, 4).toString('ascii') === 'RIFF' && buffer.subarray(8, 12).toString('ascii') === 'WEBP') return 'image/webp';
+    if (buffer[0] === 0x42 && buffer[1] === 0x4D) return 'image/bmp';
+  }
+  return 'image/png';
+}
+
+export function bufferToDataUrl(buffer: Buffer, mime: string): string {
+  return `data:${mime};base64,${buffer.toString('base64')}`;
+}
+
+export function resolveWordTarget(target: string): string {
+  let cleaned = target.replace(/\\/g, '/').replace(/^\/+/, '');
+  if (cleaned.startsWith('word/')) return cleaned;
+  if (cleaned.startsWith('../')) cleaned = cleaned.replace(/^\.\.\//, '');
+  if (cleaned.startsWith('./')) cleaned = cleaned.replace(/^\.\//, '');
+  return cleaned.startsWith('word/') ? cleaned : `word/${cleaned}`;
+}
+
+export type DocxExtractedContent = {
+  text: string;
+  parts?: Array<{ code: string; name: string; content: string }>;
+  imagesCount: number;
+};
+
+export async function extractDocxContent(
+  bytes: Buffer,
+  options?: { maxImages?: number; maxImageBytes?: number; includeImages?: boolean }
+): Promise<DocxExtractedContent> {
+  const maxImages = options?.maxImages ?? 40;
+  const maxImageBytes = options?.maxImageBytes ?? 5 * 1024 * 1024;
+  const includeImages = options?.includeImages ?? true;
+
   try {
     const zip = await JSZip.loadAsync(bytes);
     const xml = await zip.file('word/document.xml')?.async('string');
-    if (!xml) return undefined;
-    const doc = new DOMParser().parseFromString(xml, 'application/xml');
-    const paragraphs = Array.from(doc.getElementsByTagNameNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main', 'p'));
-    const lines: string[] = [];
-    for (const p of paragraphs) {
-      const texts: string[] = [];
-      for (const child of Array.from(p.childNodes)) {
-        if (child.nodeType === 1) {
-          const el = child as Element;
-          if (el.localName === 'del') continue;
-          const textNodes = Array.from(el.getElementsByTagNameNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main', 't'));
-          for (const t of textNodes) texts.push(t.textContent ?? '');
+    if (!xml) return { text: '', imagesCount: 0 };
+
+    const relxml = await zip.file('word/_rels/document.xml.rels')?.async('string');
+    const parser = new DOMParser();
+    const rels = new Map<string, string>();
+    if (relxml) {
+      const relDoc = parser.parseFromString(relxml, 'application/xml');
+      for (const rel of Array.from(relDoc.getElementsByTagName('Relationship'))) {
+        const id = rel.getAttribute('Id');
+        const target = rel.getAttribute('Target');
+        if (id && target) rels.set(id, target);
+      }
+    }
+
+    const imageCache = new Map<string, string>();
+    let imagesCount = 0;
+
+    if (includeImages) {
+      for (const [id, target] of rels.entries()) {
+        const lower = target.toLowerCase();
+        const isImageRel = lower.match(/\.(png|jpe?g|gif|webp|svg|bmp|tiff?)$/) || lower.includes('media/');
+        if (!isImageRel) continue;
+
+        const resolved = resolveWordTarget(target);
+        const file = zip.file(resolved) || zip.file(target) || zip.file(target.replace(/^\.\.\//, ''));
+        if (file) {
+          if (imagesCount >= maxImages) {
+            imageCache.set(id, 'LIMIT_REACHED');
+            continue;
+          }
+          try {
+            const imgBuffer = await file.async('nodebuffer');
+            if (imgBuffer.length > maxImageBytes) {
+              imageCache.set(id, 'TOO_LARGE');
+            } else {
+              const mime = getImageMime(target, imgBuffer);
+              const dataUrl = bufferToDataUrl(imgBuffer, mime);
+              imageCache.set(id, dataUrl);
+              imagesCount++;
+            }
+          } catch {
+            imageCache.set(id, 'ERROR');
+          }
         }
       }
-      lines.push(texts.join(''));
     }
-    const result = lines.join('\n').trim();
-    return result || undefined;
+
+    const doc = parser.parseFromString(xml, 'application/xml');
+    const body = doc.getElementsByTagNameNS(W, 'body')[0];
+    if (!body) return { text: '', imagesCount };
+
+    let imageCounter = 0;
+    function renderParagraph(p: Element): string {
+      const segments: string[] = [];
+
+      function walk(node: Node) {
+        if (node.nodeType === 1) {
+          const el = node as Element;
+          if (el.localName === 'del') return;
+
+          if (el.localName === 't') {
+            const t = el.textContent ?? '';
+            if (t) segments.push(t);
+            return;
+          }
+
+          if (includeImages && (el.localName === 'drawing' || el.localName === 'pict')) {
+            const docPr = el.getElementsByTagNameNS('*', 'docPr')[0];
+            const docName = docPr?.getAttribute('name') || docPr?.getAttribute('descr') || '';
+
+            const allDescendants = Array.from(el.getElementsByTagName('*'));
+            for (const child of allDescendants) {
+              const relId = child.getAttributeNS(R, 'embed')
+                || child.getAttributeNS(R, 'id')
+                || child.getAttribute('r:embed')
+                || child.getAttribute('r:id')
+                || child.getAttributeNS(R, 'link')
+                || child.getAttribute('r:link');
+
+              if (relId && imageCache.has(relId)) {
+                const val = imageCache.get(relId)!;
+                if (val === 'TOO_LARGE') {
+                  segments.push(`\n[附图过大，已略过预览]\n`);
+                } else if (val === 'LIMIT_REACHED') {
+                  segments.push(`\n[附图数量已达上限]\n`);
+                } else if (val === 'ERROR') {
+                  segments.push(`\n[附图解析失败]\n`);
+                } else {
+                  imageCounter++;
+                  const label = docName || `附图 ${imageCounter}`;
+                  segments.push(`\n\n![${label}](${val})\n\n`);
+                }
+              }
+            }
+            return;
+          }
+
+          for (const child of Array.from(el.childNodes)) {
+            walk(child);
+          }
+        }
+      }
+
+      for (const child of Array.from(p.childNodes)) {
+        walk(child);
+      }
+      return segments.join('').trim();
+    }
+
+    let currentSectionNodes: Element[] = [];
+    const sections: Array<{ title: string; paragraphs: string[] }> = [];
+
+    const finishSection = async (sectPr: Element) => {
+      const refs = Array.from(sectPr.getElementsByTagNameNS(W, 'headerReference'));
+      const headerId = (refs.find(r => r.getAttributeNS(W, 'type') === 'default') ?? refs[0])?.getAttributeNS(R, 'id')
+        || refs[0]?.getAttribute('r:id');
+      const headerPath = headerId && rels.get(headerId);
+      let title = '';
+      if (headerPath) {
+        const resolvedHeader = resolveWordTarget(headerPath);
+        const headerXml = await (zip.file(resolvedHeader) || zip.file('word/' + headerPath.replace(/^\.\//, '')) || zip.file(headerPath))?.async('string');
+        if (headerXml) {
+          title = (parser.parseFromString(headerXml, 'application/xml').documentElement.textContent ?? '').replace(/\s/g, '');
+        }
+      }
+
+      const paras: string[] = [];
+      for (const node of currentSectionNodes) {
+        if (node.localName === 'p') {
+          const pText = renderParagraph(node);
+          if (pText) paras.push(pText);
+        } else {
+          const ps = Array.from(node.getElementsByTagNameNS(W, 'p'));
+          for (const p of ps) {
+            const pText = renderParagraph(p);
+            if (pText) paras.push(pText);
+          }
+        }
+      }
+
+      sections.push({ title, paragraphs: paras });
+      currentSectionNodes = [];
+    };
+
+    for (const node of Array.from(body.childNodes).filter(n => n.nodeType === 1) as Element[]) {
+      if (node.localName === 'sectPr') {
+        await finishSection(node);
+      } else {
+        currentSectionNodes.push(node);
+        const innerSect = node.getElementsByTagNameNS(W, 'sectPr')[0];
+        if (innerSect) await finishSection(innerSect);
+      }
+    }
+    if (currentSectionNodes.length > 0) {
+      const paras: string[] = [];
+      for (const node of currentSectionNodes) {
+        if (node.localName === 'p') {
+          const pText = renderParagraph(node);
+          if (pText) paras.push(pText);
+        } else {
+          const ps = Array.from(node.getElementsByTagNameNS(W, 'p'));
+          for (const p of ps) {
+            const pText = renderParagraph(p);
+            if (pText) paras.push(pText);
+          }
+        }
+      }
+      sections.push({ title: '', paragraphs: paras });
+    }
+
+    const allParas = sections.flatMap(s => s.paragraphs);
+    const fullText = allParas.join('\n\n').trim();
+
+    let parts: Array<{ code: string; name: string; content: string }> | undefined;
+    const hasFivePartTitle = sections.some(s => FIVE_PARTS_SPEC.some(p => s.title.includes(p.name) || p.name.includes(s.title)));
+    if (hasFivePartTitle) {
+      parts = FIVE_PARTS_SPEC.map(p => {
+        const matched = sections.find(s => s.title.includes(p.name) || p.name.includes(s.title));
+        return {
+          code: p.code,
+          name: p.name,
+          content: matched?.paragraphs.join('\n\n') || '（本部分无正文）',
+        };
+      });
+    }
+
+    return { text: fullText, parts, imagesCount };
   } catch {
-    return undefined;
+    return { text: '', imagesCount: 0 };
   }
+}
+
+export async function extractDocxParagraphs(bytes: Buffer): Promise<string | undefined> {
+  const res = await extractDocxContent(bytes);
+  return res.text || undefined;
 }
 const sharedMaterial=(m:Material)=>({id:m.id,name:m.name,role:m.role,location:m.location,fileNo:m.fileNo,relativePath:m.relativePath?portable(m.relativePath):undefined});
 export function safeName(value:string,max=36) {

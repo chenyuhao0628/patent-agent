@@ -12,10 +12,10 @@ import type { AgentHost } from './agent-host.ts';
 import { currentWork, internalTransferAvailable } from '../src/domain/lifecycle.ts';
 import { currentHandling } from '../src/domain/handling.ts';
 import { FIVE_PARTS } from '../src/transfer-api.ts';
-import type { TransferView, TransferFileRole, TransferReview, TransferRoute } from '../src/transfer-api.ts';
+import type { TransferView, TransferFileRole, TransferReview, TransferRoute, TransferFilePreviewResult } from '../src/transfer-api.ts';
 import { compareApplication, applicationSections } from './application-diff.ts';
 import { inspectZipLimits, MAX_MATERIAL_BYTES } from './agent-document-reader.ts';
-import { atomicJSON, digest, extractDocxParagraphs, managedPath, readJSON, safeName } from './files.ts';
+import { atomicJSON, digest, extractDocxContent, extractDocxParagraphs, getImageMime, bufferToDataUrl, managedPath, readJSON, safeName } from './files.ts';
 import { clearRemoteTransfer, defaultTransferForm, existingTransferParts, isRemoteTransferSaved, matchesNextFlow, readRemoteTransfer, rehydrateRemoteSavedView, remoteFileNames, saveRemoteTransfer, submitRemoteTransfer, validateReview } from './baseland-transfer.ts';
 import type { RemoteTransfer } from './baseland-transfer.ts';
 type Session={view:TransferView;remote:RemoteTransfer|null;generation:number;root:string;files:Partial<Record<TransferFileRole,{name:string;relativePath:string;hash:string}>>};
@@ -444,35 +444,92 @@ export class TransferHost {
     await this.persist(s);
     return this.view(s);
   });}
-  async previewFile(key:string,id:string,fileRef:{role?:TransferFileRole;partCode?:string;fileNo?:string;name?:string}):Promise<{name:string;content?:string;parts?:Array<{code:string;name:string;content:string}>}>{
+  private async generateFilePreview(name: string, bytes: Buffer, role?: TransferFileRole): Promise<TransferFilePreviewResult> {
+    const ext = name.split('.').pop()?.toLowerCase();
+    const isImageExt = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'].includes(ext || '');
+    const isImageMagic = bytes.length >= 4 && (
+      bytes.subarray(0, 4).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47])) ||
+      (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) ||
+      bytes.subarray(0, 4).toString('ascii') === 'GIF8' ||
+      (bytes.length >= 12 && bytes.subarray(0, 4).toString('ascii') === 'RIFF' && bytes.subarray(8, 12).toString('ascii') === 'WEBP') ||
+      (bytes[0] === 0x42 && bytes[1] === 0x4d)
+    );
+
+    if (isImageExt || isImageMagic) {
+      const mime = getImageMime(name, bytes);
+      const dataUrl = bufferToDataUrl(bytes, mime);
+      return {
+        name,
+        content: `![${name}](${dataUrl})`,
+        dataUrl,
+        mediaType: 'image',
+      };
+    }
+
+    if (ext === 'txt' || ext === 'md' || ext === 'json') {
+      try {
+        return { name, content: bytes.toString('utf8'), mediaType: 'text' };
+      } catch {
+        return { name, content: '（文本解析失败）', mediaType: 'text' };
+      }
+    }
+
+    if (bytes.length >= 4 && bytes.subarray(0, 4).equals(Buffer.from('%PDF'))) {
+      return {
+        name,
+        content: `（PDF 文件：${name}，请使用系统关联程序打开查看完整版式）`,
+        mediaType: 'unknown',
+      };
+    }
+
+    const docx = await extractDocxContent(bytes, { maxImages: 40, maxImageBytes: 5 * 1024 * 1024 });
+    let parts = docx.parts;
+
+    if ((role === 'application' || role === 'baseline') && (!parts || parts.length === 0)) {
+      const sections = await applicationSections(bytes).catch(() => new Map());
+      if (sections.size > 0) {
+        parts = FIVE_PARTS.map(p => ({ code: p.code, name: p.name, content: sections.get(p.code)?.text || '（本部分无正文）' }));
+      }
+    }
+
+    return {
+      name,
+      content: docx.text || '暂无可用正文或附图预览',
+      parts,
+      mediaType: 'docx',
+    };
+  }
+
+  async previewFile(key:string,id:string,fileRef:{role?:TransferFileRole;partCode?:string;fileNo?:string;name?:string}):Promise<TransferFilePreviewResult>{
     const s=this.get(key,id);
     let name=fileRef.name||'材料预览';
-    let content:string|undefined;
-    let parts:Array<{code:string;name:string;content:string}>|undefined;
 
     if(fileRef.partCode){
       const p=s.view.parts.find(item=>item.code===fileRef.partCode);
       if(p){
         name=p.name;
-        content=p.after||p.before||p.reason;
+        let content=p.after||p.before||p.reason;
+        if(!content && s.files.application){
+          try{
+            const target=await this.desktop.casePath(s.view.caseId,s.files.application.relativePath);
+            const bytes=await fs.readFile(target);
+            const preview=await this.generateFilePreview(s.files.application.name,bytes,'application');
+            const matched=preview.parts?.find(pt=>pt.code===fileRef.partCode);
+            if(matched?.content){
+              content=matched.content;
+            }
+          }catch{}
+        }
+        return {name,content: content || '（本部分无正文）'};
       }
-      return {name,content};
     }
 
     if(fileRef.role){
       const f=s.files[fileRef.role];
       if(f){
-        name=f.name;
         const target=await this.desktop.casePath(s.view.caseId,f.relativePath);
         const bytes=await fs.readFile(target);
-        if(fileRef.role==='application'||fileRef.role==='baseline'){
-          const sections=await applicationSections(bytes).catch(()=>new Map());
-          if(sections.size>0){
-            parts=FIVE_PARTS.map(p=>({code:p.code,name:p.name,content:sections.get(p.code)?.text||'（本部分无正文）'}));
-          }
-        }
-        content=await extractDocxParagraphs(bytes);
-        return {name,content,parts};
+        return this.generateFilePreview(f.name,bytes,fileRef.role);
       }
     }
 
@@ -480,8 +537,7 @@ export class TransferHost {
       const rFile=s.remote?.files.find(rf=>rf.fileNo===fileRef.fileNo);
       name=fileRef.name||rFile?.name||`远端文件_${fileRef.fileNo}`;
       const bytes=await this.desktop.client.download(fileRef.fileNo,AbortSignal.timeout(30000));
-      content=await extractDocxParagraphs(bytes);
-      return {name,content};
+      return this.generateFilePreview(name,bytes);
     }
 
     if(fileRef.name&&s.remote&&this.desktop.client){
@@ -491,31 +547,22 @@ export class TransferHost {
       if(fNo){
         name=fileRef.name;
         const bytes=await this.desktop.client.download(fNo,AbortSignal.timeout(30000));
-        content=await extractDocxParagraphs(bytes);
-        return {name,content};
+        return this.generateFilePreview(name,bytes);
       }
     }
 
     const appFile=s.files.application;
     if(appFile){
-      name=appFile.name;
       const target=await this.desktop.casePath(s.view.caseId,appFile.relativePath);
       const bytes=await fs.readFile(target);
-      const sections=await applicationSections(bytes).catch(()=>new Map());
-      if(sections.size>0){
-        parts=FIVE_PARTS.map(p=>({code:p.code,name:p.name,content:sections.get(p.code)?.text||'（本部分无正文）'}));
-      }
-      content=await extractDocxParagraphs(bytes);
-      return {name,content,parts};
+      return this.generateFilePreview(appFile.name,bytes,'application');
     }
 
     const replyFile=s.files.reply;
     if(replyFile){
-      name=replyFile.name;
       const target=await this.desktop.casePath(s.view.caseId,replyFile.relativePath);
       const bytes=await fs.readFile(target);
-      content=await extractDocxParagraphs(bytes);
-      return {name,content};
+      return this.generateFilePreview(replyFile.name,bytes,'reply');
     }
 
     if(s.remote&&this.desktop.client){
@@ -525,8 +572,7 @@ export class TransferHost {
         const first=validFiles[0];
         name=first.FileName||first.name||'远端材料';
         const bytes=await this.desktop.client.download(first.FileNo||first.fileNo,AbortSignal.timeout(30000));
-        content=await extractDocxParagraphs(bytes);
-        return {name,content};
+        return this.generateFilePreview(name,bytes);
       }
     }
 

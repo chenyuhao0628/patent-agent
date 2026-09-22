@@ -440,7 +440,7 @@ export function InternalTransfer({profileKey,item,refreshSeq,navigate}:{profileK
       </Modal>}
       {previewDoc && (
         <Modal title={previewDoc.title} onClose={() => setPreviewDoc(null)}>
-          <FormattedFormulaText text={previewDoc.text} className="agent-preview" />
+          <FormattedFormulaText text={previewDoc.text} className="agent-preview doc-preview-modal-body" />
         </Modal>
       )}
       {nameConfirmReq && (

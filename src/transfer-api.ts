@@ -31,6 +31,8 @@ export type TransferFilePreviewResult = {
   name: string;
   content?: string;
   parts?: Array<{ code: string; name: string; content: string }>;
+  mediaType?: 'docx' | 'image' | 'text' | 'unknown';
+  dataUrl?: string;
 };
 export type NameDiscrepancyRequest = {
   reqId: string;
