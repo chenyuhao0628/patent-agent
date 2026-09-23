@@ -1,8 +1,0 @@
-/PiCaseInfo/GetCaseProcList
-/CrCaseInfo/CrGetCaseReviewDraftList
-/TmCaseInfo/GetCaseFeeList
-/TsCaseInfo/GetCaseFeeList
-/Finance/GetBillChooseFeeList
-/PayOrder/GetCaseFeeItemList
-/ContractQuery/GetContractChooseCollectionMoneyList
-/Email/GetCaseDetailEmailAttachInfo

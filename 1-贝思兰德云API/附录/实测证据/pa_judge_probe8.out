@@ -1,7 +1,0 @@
-TOKEN len=80
-=== GetPersonalCaseCount(POST) vs GetPersonalCase（同一 body）===
-  waitHand     Count -> IsSuccess=True Code=0 Message=None Data=18  | 列表行数=18
-  auditing     Count -> IsSuccess=True Code=0 Message=None Data=0  | 列表行数=0
-  waitDeliver  Count -> IsSuccess=True Code=0 Message=None Data=0  | 列表行数=0
-  delivering   Count -> IsSuccess=True Code=0 Message=None Data=7  | 列表行数=7
-  finish       Count -> IsSuccess=True Code=0 Message=None Data=25  | 列表行数=25
