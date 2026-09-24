@@ -30,11 +30,11 @@
 
 ## 3. 证据
 
-- 源码、锁文件、macOS 应用 `Info.plist` 和安装清单的版本都是 `0.13.0`。
-- 清单 `builtAt` 为 `2026-09-18T06:40:28.753Z`：
-  - macOS `.app` 树哈希 `0e8f839da7ade69ca2fa1960bc53b2fc349297fc913bb06e61a3a15f654c4ffd`
-  - macOS `.pkg` `1a92d70cffdcc795fdf3b0265af20b3fb399bb6649544a27d67a091846e59b7e`
-  - Windows `.exe` `843a12108056242e08e18990473c8480e1aa4b3960eb318c8d8039fbe17a0af2`
+- 源码、锁文件、macOS 应用 `Info.plist` 和安装清单的版本都是 `0.14.0`。
+- 清单 `builtAt` 为 `2026-09-24T09:32:32.014Z`：
+  - macOS `.app` 树哈希 `04d059f82eea0f080aef792cbc0a2a491fb65b6f15fb5561765788e1d6973558`
+  - macOS `.pkg` `1ef3b92efc9319c716b2218a45903b8c0db970d4a9162119b4c844eae1a527ae`
+  - Windows `.exe` `3e935342148fa69c10922ff3948b68ecbe88f1235e7aef3f768505241eaca7f7`
 - 自动化命令是 `npm test`，类型检查包含在 `npm run build`。一次通过记录不自动延续到后续改动。
 - 贝思兰德只读实测材料在 `work/baseland-api/`。该目录不是产品代码。
 
