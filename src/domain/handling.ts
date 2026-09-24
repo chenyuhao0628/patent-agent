@@ -114,22 +114,6 @@ export function currentHandling(c: Case, hint?: HandlingFlowHint): CurrentHandli
     };
   }
 
-  if (c.source === 'local' && (!!c.localSubmission || (work.kind === 'waiting' && (work.label === WAITING_OFFICIAL_LABEL || work.party === OFFICIAL_PARTY)))) {
-    return {
-      kind: 'waiting',
-      processId: work.processId,
-      processName: name,
-      node: OFFICIAL_WAIT_NODE,
-      party: OFFICIAL_PARTY,
-      handler: OFFICIAL_PARTY,
-      handlerKind: 'official',
-      officialWaiting: true,
-      unverified: false,
-      status,
-      showStepFraction: false,
-    };
-  }
-
   if (work.kind === 'needs-confirmation' && !process) {
     return {
       kind: work.kind,

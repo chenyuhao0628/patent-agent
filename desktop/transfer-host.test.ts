@@ -211,6 +211,49 @@ test('unknown and confirmation results never unlock manual resubmission through 
  }
 });
 
+test('uncertain submit result cannot be revoked to draft and must be read back',async t=>{
+  const {service,client,host,c,source}=await setup(t);
+  let v=await host.prepare(service.key,c.id);v=await host.addFile(service.key,v.id,'reply',source);v=await host.save(service.key,v.id,v.review);
+  client.badRecipient=true;v=await host.submit(service.key,v.id);
+  assert.equal(v.phase,'uncertain');assert.equal(v.submissionAttempted,true);
+  await assert.rejects(host.revoke(service.key,v.id),/必须先.*刷新|核对/);
+  assert.equal((await host.inspect(service.key,c.id))!.phase,'uncertain');
+});
+
+test('failed local save can be revoked back to draft and re-saved without a dead end',async t=>{
+  const {service,client,host,c,source}=await setup(t);
+  let v=await host.prepare(service.key,c.id,false,'local');
+  v=await host.addFile(service.key,v.id,'reply',source);
+  const upload=client.uploadDocument.bind(client);let broken=true;
+  client.uploadDocument=((name:string,bytes:Buffer)=>{if(broken)throw new Error('文件上传未完成（HTTP 502）。');return upload();}) as typeof client.uploadDocument;
+  v=await host.save(service.key,v.id,v.review);
+  assert.equal(v.phase,'uncertain');
+  assert.match(v.error!,/文件上传未完成/);
+  // 刷新只做核对：文件其实没有保存上去时不会自动回退，也不会误判为已保存
+  v=await host.refresh(service.key,v.id);assert.equal(v.phase,'uncertain');
+  // 撤销本次保存回到草稿后文件副本保留，可重新保存并转交
+  v=await host.revoke(service.key,v.id);assert.equal(v.phase,'draft');assert.equal(v.files.length,1);
+  broken=false;
+  v=await host.save(service.key,v.id,v.review);assert.equal(v.phase,'saved');
+  v=await host.submit(service.key,v.id);assert.equal(v.phase,'submitted');
+});
+
+test('partially written application save re-reads the server before an allowed retry',async t=>{
+  const {service,client,host,c,source}=await setup(t);
+  c.current!.kind='write';c.current!.processId='proc-write';c.remote!.processes[0].id='proc-write';c.remote!.processes[0].name='提出申请';
+  const original=client.request.bind(client);let broken=true;
+  client.request=async(ep:string,b:any,p:any)=>{if(broken&&ep.endsWith('UpdateFormInstructionsAndImageSetting'))throw new Error('设置未保存（HTTP 502）。');return original(ep,b,p);};
+  let v=await host.prepare(service.key,c.id,false,'local');
+  v=await host.addFile(service.key,v.id,'application',source);
+  v=await host.save(service.key,v.id,v.review);
+  assert.equal(v.phase,'uncertain');
+  assert.equal(client.group.length>0,true,'服务端已写入部分五书');
+  broken=false;
+  // 撤销回草稿必须带走本次已写入的服务端状态，否则重试会被旧指纹挡住
+  v=await host.revoke(service.key,v.id);assert.equal(v.phase,'draft');
+  v=await host.save(service.key,v.id,v.review);assert.equal(v.phase,'saved');
+});
+
 test('local reply bypasses agent, supports manual Word, restores source and blocks alternate saved plan',async t=>{
  const {service,agent,host,c,source,client}=await setup(t);agent.getCase=async()=>{throw new Error('must not read AI state');};
  let v=await host.prepare(service.key,c.id,false,'local');assert.equal(v.sourceMode,'local');assert.equal(v.files.length,0);

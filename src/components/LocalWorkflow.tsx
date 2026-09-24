@@ -13,7 +13,6 @@ import '../outcome.css';
 import { workflowBusiness, workflowNodes, workflowNodeStatus } from '../domain/workflow-nodes.ts';
 function phase(c: Case) {
   const w = currentWork(c);
-  if (c.source === 'local' && (!!c.localSubmission || (w.kind === 'waiting' && (w.label === WAITING_OFFICIAL_LABEL || w.party === '官方')))) return 'done';
   const p = c.remote?.processes.find(p => p.id === w.processId);
   return localWorkflowPhase({ submission: processSubmission(c), status: p?.status, handId: p?.handId, needSendOfficial: p?.needSendOfficial });
 }

@@ -2,7 +2,7 @@ import { currentHandling } from './handling.ts';
 import type { Case, RemoteProcess } from './workflow.ts';
 import { hasOfficialOutcome, outcomeLabels, outcomeView } from './outcome.ts';
 import { internalTransferAvailable, activeRound, caseStatus, currentWork, processBusinessKind, workModule } from './lifecycle.ts';
-import { stageVerdict, WAITING_OFFICIAL_LABEL, OFFICIAL_PARTY } from './stage-verdict.ts';
+import { stageVerdict } from './stage-verdict.ts';
 import {
   currentRemoteProcess, deadlineView as caseDeadlineView, DEADLINE_HEADER, localDayOrdinal, MS_PER_DAY, parseCalendarDay,
 } from './deadlines.ts';
@@ -109,16 +109,10 @@ export function businessKind(c: Case): BusinessKind {
 export function isConfirmedWaitingOfficial(c: Case): boolean {
   // 已出官方结论（授权/驳回）的案件不再算"等待官方"：结果已经到案，等的是后续处理而不是结果。
   if (hasOfficialOutcome(c)) return false;
-  const w = currentWork(c);
-  if (c.source === 'local' && (!!c.localSubmission || (w.kind === 'waiting' && (w.label === WAITING_OFFICIAL_LABEL || w.party === OFFICIAL_PARTY)))) return true;
   return stageVerdict({ submission: currentRemoteProcess(c)?.submission }) === 'waiting-official';
 }
 
 export function waitingOfficialLabel(c: Case): string | null {
-  const w = currentWork(c);
-  if (c.source === 'local' && (!!c.localSubmission || (w.kind === 'waiting' && (w.label === WAITING_OFFICIAL_LABEL || w.party === OFFICIAL_PARTY)))) {
-    return '已递交，等待官方处理结果';
-  }
   const { submissionState, submissionSource } = processFields(c);
   if (submissionState === 'received') return '已收到回执，等待官方处理结果';
   if (submissionState !== 'sent') return null;

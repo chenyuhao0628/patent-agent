@@ -1,5 +1,5 @@
 import { ensureCaseStarted } from './start-work.ts';
-import { assertWriteResult, BaselandBusinessError } from './baseland-results.ts';
+import { BaselandBusinessError } from './baseland-results.ts';
 import { currentDraft } from '../src/domain/agent.ts';
 import { exportReplyDocx, exportApplicationParts } from './document-export.ts';
 import { APPLICATION_PART_LABELS } from '../src/domain/application-parts.ts';
@@ -15,7 +15,7 @@ import { FIVE_PARTS } from '../src/transfer-api.ts';
 import type { TransferView, TransferFileRole, TransferReview, TransferRoute, TransferFilePreviewResult } from '../src/transfer-api.ts';
 import { compareApplication, applicationSections } from './application-diff.ts';
 import { inspectZipLimits, MAX_MATERIAL_BYTES } from './agent-document-reader.ts';
-import { atomicJSON, digest, extractDocxContent, extractDocxParagraphs, getImageMime, bufferToDataUrl, managedPath, readJSON, safeName } from './files.ts';
+import { atomicJSON, digest, extractDocxContent, getImageMime, bufferToDataUrl, managedPath, readJSON, safeName } from './files.ts';
 import { clearRemoteTransfer, defaultTransferForm, existingTransferParts, isRemoteTransferSaved, matchesNextFlow, readRemoteTransfer, rehydrateRemoteSavedView, remoteFileNames, saveRemoteTransfer, submitRemoteTransfer, validateReview } from './baseland-transfer.ts';
 import type { RemoteTransfer } from './baseland-transfer.ts';
 type Session={view:TransferView;remote:RemoteTransfer|null;generation:number;root:string;files:Partial<Record<TransferFileRole,{name:string;relativePath:string;hash:string}>>};
@@ -411,11 +411,22 @@ export class TransferHost {
     const s=this.get(key,id);
     if(s.view.phase==='submitted')throw new Error('已确认内部转交，不能撤销。');
     if(s.view.phase!=='saved'&&s.view.phase!=='uncertain')throw new Error('当前状态无需撤销。');
+    if(s.view.phase==='uncertain'&&s.view.submissionAttempted)throw new Error('本次内部转交请求已发送但结果未确认，必须先用【刷新本案】核对，不能撤销到草稿重复办理。');
+    const interrupted=s.view.phase==='uncertain';
     s.view.phase='draft';
     s.view.revokedByUser=true;
     s.view.at=new Date().toISOString();
     s.view.error=undefined;
-    s.view.results.push('已撤销本次保存，返回草稿编辑状态；原表单与材料保留，可修改后重新保存。');
+    // A save may have written remote state before failing. Re-read so the next
+    // attempt compares against the current server fingerprint instead of the
+    // pre-write one, otherwise every retry is rejected as "服务端已变化".
+    if(interrupted&&this.desktop.account?.status==='authenticated'&&this.desktop.client){
+      try{
+        const r=await readRemoteTransfer(this.desktop.client,s.view.processId,s.view.route);this.guard(s);
+        if(r){s.remote=r;s.view.handId=r.handId;s.view.currentNode=r.hand.CurrentFlowInfo?.FlowNodeName;s.view.currentUser=r.hand.CurrentFlowInfo?.FlowUserName;s.view.canEditRemote=r.hand.IsReviewing===true;s.view.steps=r.steps;s.view.existingFileNames=remoteFileNames([...(r.files||[]),...(r.form?.File?[r.form.File]:[])]);}
+      }catch{}
+    }
+    s.view.results.push(interrupted?'已撤销本次未完成的保存，返回草稿编辑状态；已回读服务端当前材料，原表单与本地文件保留，可修改后重新保存。':'已撤销本次保存，返回草稿编辑状态；原表单与材料保留，可修改后重新保存。');
     await this.persist(s);
     return this.view(s);
   });}

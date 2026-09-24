@@ -99,8 +99,9 @@ export class DesktopService {
   migrationTestHook?:(phase:'beforeStaging'|'copying'|'verifying'|'beforePublish')=>void|Promise<void>;
   flowFileWrites=0;
   private persistGate:Promise<unknown>=Promise.resolve();
-  private savedCredentials?:{username:string;password:string};
   private reauthTask?:Promise<boolean>;
+  private reauthController?:AbortController;
+  private savedCredentials?:{username:string;password:string};
   constructor(root:string,vault:Vault,clientFactory=(origin:string,token?:string)=>new BaselandClient(origin,token)) {this.root=root;this.vault=vault;this.clientFactory=clientFactory;}
   profileFile(){return path.join(this.root,'profiles',this.key,'workspace.json');}
   async init(verify=true){
@@ -126,38 +127,45 @@ export class DesktopService {
   }
   async reauthorize():Promise<boolean>{
     if(this.reauthTask)return this.reauthTask;
-    const account=this.account,creds=this.savedCredentials;
-    if(!creds||!account)return false;
+    const account=this.account,creds=this.savedCredentials,generation=this.generation,targetKey=this.key;
+    if(!creds||!account||targetKey==='local')return false;
+    const controller=new AbortController();
+    this.reauthController=controller;
     const task=(async()=>{
       try{
         const client=this.clientFactory(account.origin);
         client.onUnauthorized=()=>this.reauthorize();
-        const refreshed=await client.login(creds.username,creds.password);
+        const refreshed=await client.login(creds.username,creds.password,controller.signal);
         client.onUnauthorized=()=>this.reauthorize();
+        if(controller.signal.aborted||generation!==this.generation||targetKey!==this.key||!this.account||this.account.username!==account.username||this.account.origin!==account.origin)return false;
         if(this.client)this.client.token=client.token;
         this.client=client;
         this.account={...refreshed,remembered:true};
         const encrypted=this.vault.encrypt(client.token).toString('base64');
         const credentials=this.vault.encrypt(JSON.stringify(creds)).toString('base64');
+        if(controller.signal.aborted||generation!==this.generation||targetKey!==this.key||!this.account||this.account.username!==account.username)return false;
         await atomicJSON(path.join(this.root,'session.json'),{key:this.key,account:this.account,encrypted,credentials});
         this.auth={phase:'authenticated',message:'登录已自动重新获取授权',attempts:0,lastCheckedAt:new Date().toISOString()};
         this.syncState.message='登录已自动重新获取授权，可以同步个人案件。';
         this.changed();
         return true;
       }catch(e){
+        if(controller.signal.aborted||generation!==this.generation||targetKey!==this.key)return false;
         if(e instanceof BaselandAuthError&&['expired','forbidden'].includes(e.kind)){
           this.savedCredentials=undefined;
           const saved=await readJSON<any>(path.join(this.root,'session.json'),null);
-          if(saved){delete saved.credentials;await atomicJSON(path.join(this.root,'session.json'),saved);}
+          if(saved&&saved.key===targetKey){delete saved.credentials;await atomicJSON(path.join(this.root,'session.json'),saved);}
           this.auth={phase:e.kind,message:e.kind==='expired'?'登录凭证已失效，请重新输入密码。':'当前账号无权访问，请核对权限。',attempts:0,lastCheckedAt:new Date().toISOString()};
-          if(this.account)this.account={...this.account,status:'expired'};
+          if(this.account&&this.account.username===account.username)this.account={...this.account,status:'expired'};
           this.changed();
         }
         return false;
       }
     })();
     this.reauthTask=task;
-    task.finally(()=>{if(this.reauthTask===task)this.reauthTask=undefined;});
+    task.finally(()=>{
+      if(this.reauthTask===task){this.reauthTask=undefined;this.reauthController=undefined;}
+    });
     return task;
   }
   auth:import('../src/desktop.ts').AuthState={phase:'signed-out',message:'未登录',attempts:0};
@@ -217,7 +225,13 @@ export class DesktopService {
     this.assertNotMigrating();
     if(this.loginBusy)throw new Error('正在登录，请稍候。');
     if(!input.username.trim()||!input.password.trim())throw new Error('请填写账号和密码。');
-    this.loginBusy=true;const generation=this.generation;
+    this.loginBusy=true;
+    this.reauthController?.abort();
+    const pendingReauth=this.reauthTask;
+    this.reauthTask=undefined;
+    this.reauthController=undefined;
+    if(pendingReauth)await pendingReauth.catch(()=>{});
+    const generation=this.generation;
     try{
       const client=this.clientFactory(input.origin),account=await client.login(input.username.trim(),input.password);
       if(generation!==this.generation)throw new Error('登录操作已取消。');
@@ -250,10 +264,15 @@ export class DesktopService {
   private filesystemBusy(){return this.storageState.running||this.syncPreparing||this.syncState.running||this.flowFileWrites>0;}
   async logout(){
     this.assertNotMigrating();
+    this.reauthController?.abort();
+    const pendingReauth=this.reauthTask;
+    this.reauthTask=undefined;
+    this.reauthController=undefined;
+    if(pendingReauth)await pendingReauth.catch(()=>{});
     this.generation++;this.verification=undefined;this.controller?.abort();this.submissionCache.clear();this.caseClosureCache.clear();this.fileListCache.clear();this.syncSignals=undefined;await this.persist();await fs.rm(path.join(this.root,'session.json'),{force:true});
     this.persistGate=Promise.resolve();
     this.syncPreparing=false;
-    this.client=null;this.account=null;this.savedCredentials=undefined;this.reauthTask=undefined;this.auth={phase:'signed-out',message:'已退出登录',attempts:0};this.key='local';this.workspace=await readJSON(this.profileFile(),empty());
+    this.client=null;this.account=null;this.savedCredentials=undefined;this.auth={phase:'signed-out',message:'已退出登录',attempts:0};this.key='local';this.workspace=await readJSON(this.profileFile(),empty());
     this.syncState={running:false,message:'已退出账号。'};this.storageState={running:false,message:'请选择总工作文件夹。'};if(this.workspace.settings.workRoot)await this.refreshShared(this.key);
     this.syncState={running:false,message:'已退出账号；原账号的本机记录已保留。'};this.changed();return this.state();
   }
@@ -340,18 +359,8 @@ export class DesktopService {
       if(c.source==='local'){
         if(typeof edit.title==='string'&&edit.title.trim())c.title=edit.title.trim().slice(0,250);
         if(typeof edit.deadline==='string'){if(!edit.deadline)c.deadline='';else if(officialDate(edit.deadline))c.deadline=officialDate(edit.deadline);}
-        if(edit.current&&['write','review','reply','correction','waiting'].includes(edit.current.kind)){
+        if(edit.current&&['write','review','reply','correction'].includes(edit.current.kind)){
           c.current=structuredClone(edit.current);
-        }
-        if(edit.localSubmission){
-          c.localSubmission={
-            at:typeof edit.localSubmission.at==='string'?edit.localSubmission.at:new Date().toISOString(),
-            method:typeof edit.localSubmission.method==='string'?edit.localSubmission.method.slice(0,100):'',
-            receiptNo:typeof edit.localSubmission.receiptNo==='string'?edit.localSubmission.receiptNo.slice(0,100):undefined,
-            remark:typeof edit.localSubmission.remark==='string'?edit.localSubmission.remark.slice(0,500):undefined,
-          };
-        }else if(edit.localSubmission===undefined||edit.localSubmission===null){
-          c.localSubmission=undefined;
         }
       }
       if(editableCurrent(c)&&edit.current?.processId===c.current?.processId){
@@ -363,7 +372,7 @@ export class DesktopService {
       if(c.localDraft!==undefined)c.directory=await files.saveDraft(c);
     }
     this.assertKey(key);
-    this.workspace={...this.workspace,cases:this.workspace.cases.map(c=>{const changed=next.cases.find(x=>x.id===c.id);if(!changed)return c;return {...c,archived:changed.archived,tags:changed.tags,...(c.source==='local'?{title:changed.title,deadline:changed.deadline,current:changed.current,localSubmission:changed.localSubmission}:{}),...(c.current?.processId===changed.current?.processId?{localDraft:changed.localDraft,localVersions:changed.localVersions,directory:changed.directory,sharedDraftHash:changed.sharedDraftHash}:{})};})};
+    this.workspace={...this.workspace,cases:this.workspace.cases.map(c=>{const changed=next.cases.find(x=>x.id===c.id);if(!changed)return c;return {...c,archived:changed.archived,tags:changed.tags,...(c.source==='local'?{title:changed.title,deadline:changed.deadline,current:changed.current}:{}),...(c.current?.processId===changed.current?.processId?{localDraft:changed.localDraft,localVersions:changed.localVersions,directory:changed.directory,sharedDraftHash:changed.sharedDraftHash}:{})};})};
     await this.persist();
   }
   async createCase(input:{title:string;number:string;kind:'write'|'review'}) {
@@ -818,6 +827,7 @@ export class DesktopService {
   async shutdown(){
     this.stopping=true;
     this.controller?.abort();
+    this.reauthController?.abort();
     this.abortWorkMigration();
     if(this.migrationTask)await this.migrationTask.catch(()=>{});
     if(this.syncRequest)await this.syncRequest.promise.catch(()=>{});

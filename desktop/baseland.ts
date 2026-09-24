@@ -228,17 +228,20 @@ export function validOrigin(input:string) {
   return url.origin;
 }
 export const profileKey=(origin:string,username:string)=>digest(origin+'\n'+username.trim().toLowerCase()).slice(0,24);
+export function isIdempotentRead(endpoint:string):boolean{
+  if(endpoint==='/Auth/GetToken'||endpoint.includes('FileStorageUploadFile'))return false;
+  if(/(?:Add|Insert|Update|Delete|Modify|Submit|Start|Upload)/i.test(endpoint))return false;
+  if(/(?:Get|Query|Snapshot|List|Statistics|Count|History|Record|Info|Setting|Type)/i.test(endpoint))return true;
+  return false;
+}
 export class BaselandClient {
   origin:string; token:string; fetcher:typeof fetch;
   onUnauthorized?:()=>Promise<boolean>;
   constructor(origin:string,token='',fetcher=fetch){this.origin=validOrigin(origin);this.token=token;this.fetcher=fetcher;}
-  async uploadDocument(name:string,bytes:Buffer,signal?:AbortSignal,retried=false):Promise<string>{
+  async uploadDocument(name:string,bytes:Buffer,signal?:AbortSignal):Promise<string>{
     const form=new FormData();form.set('file',new Blob([Uint8Array.from(bytes)],{type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'}),name);
     const response=await this.fetcher(API+'/NoPermissionRequired/FileStorageUploadFile?1=1',{method:'POST',headers:{Origin:this.origin,Referer:this.origin+'/login.html',Language:'zh-CN',Authorization:this.token},body:form,redirect:'error',signal:signal?AbortSignal.any([signal,AbortSignal.timeout(90000)]):AbortSignal.timeout(90000)});
-    if(response.status===401&&!retried&&this.onUnauthorized){
-      const renewed=await this.onUnauthorized();
-      if(renewed)return this.uploadDocument(name,bytes,signal,true);
-    }
+    if(response.status===401)throw new BaselandAuthError('expired','登录已失效，请重新登录。');
     if(!response.ok)throw new Error(`文件上传未完成（HTTP ${response.status}）。`);
     const data=await response.json() as Obj;
     const code=businessCode(data.Data);
@@ -254,7 +257,7 @@ export class BaselandClient {
     try{response=await this.fetcher(url,{method:body?'POST':'GET',headers:{Origin:this.origin,Referer:this.origin+'/login.html',Language:'zh-CN','Content-Type':'application/json',...(this.token?{Authorization:this.token}:{})},body:body?JSON.stringify(body):undefined,redirect:'error',signal:signal?AbortSignal.any([signal,AbortSignal.timeout(30000)]):AbortSignal.timeout(30000)});}catch(error){diagnostic('baseland','request_failed',{operation:endpoint,durationMs:Date.now()-started,...diagnosticError(error)});throw new Error(signal?.aborted?'操作已停止。':'无法连接贝思兰德，请检查网络后重试。');}
     diagnostic('baseland','response',{operation:endpoint,statusCode:response.status,durationMs:Date.now()-started});
     if(response.status===401||response.status===403){
-      if(response.status===401&&endpoint!=='/Auth/GetToken'&&!retried&&this.onUnauthorized){
+      if(response.status===401&&endpoint!=='/Auth/GetToken'&&!retried&&this.onUnauthorized&&isIdempotentRead(endpoint)){
         const renewed=await this.onUnauthorized();
         if(renewed)return this.request(endpoint,body,params,signal,kind,true);
       }
@@ -266,7 +269,7 @@ export class BaselandClient {
       if(endpoint==='/Auth/GetToken')throw loginFailure(data.Message);
       if(/权限/.test(data.Message??''))throw new BaselandAuthError('forbidden','当前账号无权访问该数据。');
       if(/登录|Token|token|认证|过期/.test(data.Message??'')){
-        if(!retried&&this.onUnauthorized){
+        if(!retried&&this.onUnauthorized&&isIdempotentRead(endpoint)){
           const renewed=await this.onUnauthorized();
           if(renewed)return this.request(endpoint,body,params,signal,kind,true);
         }
@@ -279,17 +282,17 @@ export class BaselandClient {
     if(typeof result==='string'&&/^[A-Za-z][A-Za-z0-9_]{1,90}$/.test(result)&&/\/(?:AddCaseHandForm|IsHasCaseHandForm|InsertFormOpinionStatement|UpdateFormOpinionStatement|SubmitHandFlow)$/.test(endpoint))diagnostic('baseland','business_result',{operation:endpoint,code:result});
     return result;
   }
-  async identity(username:string):Promise<Account> {
-    const raw=await this.request('/Auth/GetLoginInfo',undefined,{checkVersion:'false',isLogin:'true'});
+  async identity(username:string,signal?:AbortSignal):Promise<Account> {
+    const raw=await this.request('/Auth/GetLoginInfo',undefined,{checkVersion:'false',isLogin:'true'},signal);
     const data=(raw??{}) as Obj;let user:Obj=data.UserInfo??data.TenantUserInfo??data.User??data;
-    try{const more=await this.request('/TenantUser/GetCurrentUserInfo');if(more&&typeof more==='object')user={...user,...more};}catch{/* Optional profile details; GetLoginInfo already verified the session. */}
+    try{const more=await this.request('/TenantUser/GetCurrentUserInfo',undefined,undefined,signal);if(more&&typeof more==='object')user={...user,...more};}catch(e){if(signal?.aborted)throw e;/* Optional profile details; GetLoginInfo already verified the session. */}
     return {username,displayName:clean(user.RealName??user.UserRealName??user.Name??user.UserName)||username,organization:clean(data.TenantName??data.TenantInfo?.TenantName??user.TenantName),origin:this.origin,userId:clean(user.UserId??user.TenantUserId??user.Id),status:'authenticated',remembered:false};
   }
-  async login(username:string,password:string) {
-    const data=await this.request('/Auth/GetToken',{UserName:username.trim(),Password:password.trim()});
+  async login(username:string,password:string,signal?:AbortSignal) {
+    const data=await this.request('/Auth/GetToken',{UserName:username.trim(),Password:password.trim()},undefined,signal);
     if(data?.IsSuccess===false)throw loginFailure(data.ResultString??data.Message);
     if(typeof data?.Token!=='string'||!data.Token.trim())throw new Error('贝思兰德登录响应格式未识别，尚未取得有效登录。请在机构网页确认能否正常登录。');
-    this.token=data.Token;return this.identity(username);
+    this.token=data.Token;return this.identity(username,signal);
   }
   async personalCasesSnapshot(signal:AbortSignal,initial?:PersonalProcessStatistic[]) {
     const rows:Obj[]=[];

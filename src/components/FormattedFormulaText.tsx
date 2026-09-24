@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 
@@ -23,7 +23,22 @@ function renderMathHtml(formula: string, display: boolean): string {
   }
 }
 
+function isSafeImageSrc(src: string): boolean {
+  return /^(?:data:image\/(?:png|jpeg|jpg|gif|webp|bmp|svg\+xml);base64,|blob:)/i.test(src);
+}
+
 export function FormattedFormulaText({ text, className = 'text-preview', style }: Props) {
+  const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
+
+  useEffect(() => {
+    if (!lightbox) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setLightbox(null);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [lightbox]);
+
   const elements = useMemo(() => {
     if (!text) return null;
     const lines = text.split('\n');
@@ -41,22 +56,19 @@ export function FormattedFormulaText({ text, className = 'text-preview', style }
                 return <span key={segIndex}>{seg.content}</span>;
               }
               if (seg.type === 'image') {
+                const safe = isSafeImageSrc(seg.src);
                 return (
                   <figure key={segIndex} className="preview-image-figure">
                     <div className="preview-image-box">
                       <img
-                        src={seg.src}
+                        src={safe ? seg.src : ''}
                         alt={seg.alt || '预览图片'}
                         className="preview-image-content"
                         loading="lazy"
-                        title="点击在新窗口查看原图"
+                        title={safe ? '点击全屏查看大图' : '不支持的图片来源'}
                         onClick={() => {
-                          if (seg.src.startsWith('data:') || seg.src.startsWith('blob:') || seg.src.startsWith('http')) {
-                            const w = window.open('', '_blank');
-                            if (w) {
-                              w.document.write(`<!DOCTYPE html><html><head><title>${seg.alt || '原图'}</title><style>body{margin:0;background:#0f172a;display:flex;justify-content:center;align-items:center;min-height:100vh;}img{max-width:98vw;max-height:98vh;object-fit:contain;box-shadow:0 4px 20px rgba(0,0,0,0.6);border-radius:4px;}</style></head><body><img src="${seg.src}" /></body></html>`);
-                              w.document.close();
-                            }
+                          if (safe) {
+                            setLightbox({ src: seg.src, alt: seg.alt || '原图' });
                           }
                         }}
                       />
@@ -85,6 +97,32 @@ export function FormattedFormulaText({ text, className = 'text-preview', style }
   return (
     <div className={`formatted-formula-text ${className}`} style={style}>
       {elements}
+      {lightbox && (
+        <div
+          className="image-lightbox-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="图片全屏预览"
+          onClick={() => setLightbox(null)}
+        >
+          <div className="image-lightbox-modal" onClick={e => e.stopPropagation()}>
+            <div className="image-lightbox-header">
+              <span className="image-lightbox-title">{lightbox.alt || '原图预览'}</span>
+              <button
+                type="button"
+                className="icon-button image-lightbox-close"
+                onClick={() => setLightbox(null)}
+                aria-label="关闭预览"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="image-lightbox-body">
+              <img src={lightbox.src} alt={lightbox.alt || '原图预览'} />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

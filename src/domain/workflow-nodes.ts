@@ -1,7 +1,6 @@
 import type { Case } from './workflow.ts';
 import type { LocalProgress } from './local-progress.ts';
 import { currentWork, isConfirmedOfficialSubmission, processSubmission, processBusinessKind } from './lifecycle.ts';
-import { WAITING_OFFICIAL_LABEL, OFFICIAL_PARTY } from './stage-verdict.ts';
 import { WRITING_PHASES } from '../professional-api.ts';
 export type WorkflowNode = { label: string; state: 'done' | 'current' | 'pending' | 'unknown' | 'optional'; at?: string; detail?: string; closedBySubmission?: boolean };
 export function workflowBusiness(c: Case) {
@@ -10,7 +9,7 @@ export function workflowBusiness(c: Case) {
 }
 export function workflowNodes(c: Case, progress?: LocalProgress): WorkflowNode[] {
   const w = currentWork(c), p = c.remote?.processes.find(p => p.id === w.processId);
-  const done = isConfirmedOfficialSubmission(processSubmission(c)) || (c.source === 'local' && (!!c.localSubmission || (w.kind === 'waiting' && (w.label === WAITING_OFFICIAL_LABEL || w.party === OFFICIAL_PARTY))));
+  const done = isConfirmedOfficialSubmission(processSubmission(c));
   const remote = c.source === 'baseland';
   const started = !!p?.handId || !!p && [200, 300, 400].includes(p.status) || done;
   const forwarded = !done && !!p?.currentFlow && (p.currentFlow.serial ?? 0) > 1 && p.canEdit === false;
@@ -31,11 +30,13 @@ export function workflowNodes(c: Case, progress?: LocalProgress): WorkflowNode[]
     return { label: label === '采用稿件' ? '起草／修改' : label, state };
   });
   if (!remote) {
-    const localWithSubmit: WorkflowNode[] = [
+    const nodes: WorkflowNode[] = [
       ...local,
-      { label: '递交官方', state: done ? 'done' : hasCurrent ? 'pending' : 'current', at: c.localSubmission?.at, detail: c.localSubmission?.method },
+      { label: '转交下一办理人', state: hasCurrent ? 'pending' : 'current', detail: '杨佳' },
+      { label: '提交官方', state: 'pending' },
+      { label: '已完成', state: 'pending' },
     ];
-    return done ? localWithSubmit.map(node => node.state === 'done' ? node : { ...node, state: 'done', closedBySubmission: true }) : localWithSubmit;
+    return nodes;
   }
   const nodes: WorkflowNode[] = [
     { label: '待处理', state: started ? 'done' : p?.status === 0 ? 'current' : 'unknown' },

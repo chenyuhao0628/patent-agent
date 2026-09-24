@@ -28,7 +28,7 @@ export function CaseSpace({requestedRoundId,item,tab,navigate,dispatch,updateCas
   const primary:CaseTab=current.kind==='correction'?'reply':['write','reply','review'].includes(current.kind)?current.kind as CaseTab:'overview';
   const childReview=current.kind==='write'&&design.review?.source==='writing';
   const allowed=tab===primary||tab==='review'&&childReview;
-  const tabs:CaseTab[]=['overview','materials',...(desktop?['discussion' as CaseTab]:[]),...(primary!=='overview'&&!(desktop&&primary==='reply')?[primary]:[]),...(desktop&&primary!=='review'?['review' as CaseTab]:tab==='review'&&childReview?['review' as CaseTab]:[]),'history','outputs','flow','submit'];
+  const tabs:CaseTab[]=['overview','materials',...(desktop?['discussion' as CaseTab]:[]),...(primary!=='overview'&&!(desktop&&primary==='reply')?[primary]:[]),...(desktop&&primary!=='review'?['review' as CaseTab]:tab==='review'&&childReview?['review' as CaseTab]:[]),'history','outputs','flow',...(item.source==='baseland'?['submit' as CaseTab]:[])];
   const [refreshing, setRefreshing] = useState(false);
   const [flowRefreshError, setFlowRefreshError] = useState('');
   const [refreshSeq, setRefreshSeq] = useState(0);
@@ -109,7 +109,7 @@ export function CaseSpace({requestedRoundId,item,tab,navigate,dispatch,updateCas
     ? '本次提交已结束，文件与办理记录保留查看。'
     : !canTransfer
     ? '当前阶段不能内部转交。'
-    : '核对本次材料、表单和下一办理人，保存后转交内部流程。个人 AI 审查为可选项。';
+    : '核对本次材料、表单和下一办理人（默认：杨佳），保存后转交内部流程。本程序仅办理内部流转，不直接递交官方。';
   const updateDesign=(next:typeof design)=>{if(editable&&allowed)void updateCase({design:next});};
   const recentFiles=artifactsFor(item,design).slice(-3).reverse();
   return <div className={`case-space ${tab==='discussion'||tab==='reply'?'conversation-space':''} ${['reply','write','review','discussion'].includes(tab)?'focused-space':''}`}>

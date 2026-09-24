@@ -124,7 +124,11 @@ export function InternalTransfer({profileKey,item,refreshSeq,navigate}:{profileK
 
     const validStep=view.steps.find(s=>s.id===nextStepId);
     if(!validStep){
-      if(view.steps.length===1){
+      const officialStep=view.steps.find(s=>s.name.includes('递交官方')||s.name.includes('提交官方'));
+      if(officialStep){
+        nextStepId=officialStep.id;
+        changed=true;
+      }else if(view.steps.length===1){
         nextStepId=view.steps[0].id;
         changed=true;
       }
@@ -140,6 +144,9 @@ export function InternalTransfer({profileKey,item,refreshSeq,navigate}:{profileK
           changed=true;
         }else if(activeStep.users.length===1){
           nextUserId=activeStep.users[0].id;
+          changed=true;
+        }else if(nextUserId){
+          nextUserId='';
           changed=true;
         }
       }
@@ -243,7 +250,7 @@ export function InternalTransfer({profileKey,item,refreshSeq,navigate}:{profileK
     )}
   </div>
     {!inspecting&&!view&&<p className="note"><strong>推荐方案</strong>：使用工作台已完成起草与定稿的成果直接生成提交文件。如果你已在外部完成撰写、答复或补正，也可选择“本地文件人工提交”直接导入本地 DOCX 文件。</p>}
-    {error&&<div className="inline-warning" role="alert"><p>{error}</p><div className="button-row" style={{marginTop:'8px'}}><button className="primary" disabled={busy} onClick={()=>{transferCache.delete(cacheKey);void act(()=>desktop!.transfer.prepare(profileKey,item.id,'local'));}}>进入本地文件人工提交（跳过工作台）</button></div></div>}
+    {error&&<div className="inline-warning" role="alert"><p>{error}</p><div className="button-row" style={{marginTop:'8px'}}>{view?.phase==='uncertain'?(view.submissionAttempted?<button className="primary" disabled={busy} onClick={()=>void act(()=>desktop!.transfer.refresh(profileKey,view.id))}>刷新核对转交结果</button>:<button className="primary" disabled={busy} onClick={()=>void act(()=>desktop!.transfer.revoke(profileKey,view.id))}>返回草稿重新整理（保留本次文件与表单）</button>):<button className="primary" disabled={busy} onClick={()=>{transferCache.delete(cacheKey);void act(()=>desktop!.transfer.prepare(profileKey,item.id,'local'));}}>进入本地文件人工提交（跳过工作台）</button>}</div></div>}
     {view&&review&&<>
       {view.phase==='draft'&&<div className="button-row"><button disabled={busy} onClick={()=>{transferCache.delete(cacheKey);setView(undefined);setReview(undefined);setTab(0);}}>更换文件来源</button>{view.sourceMode==='workbench'&&<button disabled={busy} onClick={()=>void act(()=>desktop!.transfer.reprepare(profileKey,view.id))}>重新获取工作台稿件</button>}</div>}
       {view.phase==='draft'&&<p className="note">{view.sourceMode==='local'?'本地文件人工方案：仅使用你选择的本次文件。补正内容在「本次材料」填写并保存到本地草稿。若需随时更换文件，可点击下方【选择文件】。':'工作台稿件方案：自动获取可用稿件并生成提交副本，请确认版本和文件；也可随时点击【选择文件】手动替换。补正内容在「本次材料」核对并保存。'}</p>}
@@ -275,9 +282,9 @@ export function InternalTransfer({profileKey,item,refreshSeq,navigate}:{profileK
         {view.phase==='saved'&&<p className="muted">上述材料已在贝思兰德递交实例落盘保存，无需重复上传。核对表单与下一办理人后即可直接转交。</p>}
       </div>}
       {view.sourceDraft&&<div className="transfer-source-confirm"><p>自动获取：{view.sourceDraft.pending?'最新待采用稿':'当前采用稿'}{view.sourceDraft.at?` · ${new Date(view.sourceDraft.at).toLocaleString('zh-CN')}`:''} · 版本 {view.sourceDraft.id.slice(0,8)}</p><label className="checkbox"><input type="checkbox" disabled={locked} checked={review.confirmedDraftId===view.sourceDraft.id} onChange={e=>patch({confirmedDraftId:e.target.checked?view.sourceDraft!.id:undefined})}/>确认本次提交使用此版本（不会自动采用或覆盖工作稿）</label></div>}
-      {view.error&&<p role="alert" className="inline-warning">{view.error}</p>}
+      {view.error&&<div role="alert" className="inline-warning"><p>{view.error}</p>{view.phase==='uncertain'&&<div className="button-row" style={{marginTop:'8px'}}>{view.submissionAttempted?<button disabled={busy} onClick={()=>void act(()=>desktop!.transfer.refresh(profileKey,view.id))}>刷新核对转交结果</button>:<button className="primary" disabled={busy} onClick={()=>void act(()=>desktop!.transfer.revoke(profileKey,view.id))}>返回草稿重新整理（保留本次文件与表单）</button>}</div>}</div>}
       {view.results.length>0&&<ol className="transfer-results">{view.results.map((s,i)=><li key={i}>{s}</li>)}</ol>}
-      {!view.handId?<Note>{view.phase==='uncertain'?'启动结果尚未确认，请点击顶栏【刷新本案】核对。':'当前没有递交实例。核对案件后，可启动本次内部递交流程。'}<button disabled={busy||view.phase!=='draft'} onClick={()=>setConfirm('start')}>启动递交实例</button></Note>:<>
+      {!view.handId?<Note>{view.phase==='uncertain'?'启动结果尚未确认，请先点击【刷新本案】核对；若确认尚未创建递交实例，可返回草稿重新开始。':'当前没有递交实例。核对案件后，可启动本次内部递交流程。'}<button disabled={busy||view.phase!=='draft'} onClick={()=>setConfirm('start')}>启动递交实例</button>{view.phase==='uncertain'&&<button disabled={busy} onClick={()=>setConfirm('revoke')}>返回草稿重新开始</button>}</Note>:<>
         {view.canEditRemote===false&&<Note>当前账号不能编辑此节点。可查看材料与流程，保存和转交暂不可用。</Note>}<nav className="surface-switch">{['本次材料','业务表单','下一办理人与结果'].map((name,i)=><button key={name} className={tab===i?'active':''} onClick={()=>void goTab(i)}>{i+1} · {name}</button>)}</nav>
         {tab===0&&<>
           {view.existingFileNames.length>0&&<div className="note"><strong>远端材料已就绪</strong>：贝思兰德当前已存在上述 {view.existingFileNames.length} 个文件。下方本地文件仅在需要修改或补充时选择。</div>}
@@ -391,7 +398,7 @@ export function InternalTransfer({profileKey,item,refreshSeq,navigate}:{profileK
           const defaultUser=st?.users.find(u=>u.name==='杨佳')||(st?.users.length===1?st.users[0]:undefined);
           patch({stepId:nextStepId,userId:defaultUser?.id||''});
         }}><option value="">选择流程</option>{view.steps.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></label><label className="field">下一办理人<select disabled={lockedRecipient} value={review.userId} onChange={e=>patch({userId:e.target.value})}><option value="">选择办理人</option>{step?.users.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}</select></label></div><label className="field">转交备注<textarea disabled={lockedRecipient} maxLength={1000} value={review.remark} onChange={e=>patch({remark:e.target.value})}/></label>
-          {view.phase==='saved'&&!user&&<div className="inline-warning" style={{margin:'8px 0'}}><p>请在上方选择下一流程与办理人（如：递交官方 · 杨佳）以完成转交。</p></div>}
+          {view.phase==='saved'&&!user&&<div className="inline-warning" style={{margin:'8px 0'}}><p>请在上方选择下一流程与办理人（默认：杨佳）以完成转交。</p></div>}
           {view.existingFileNames.length>0&&<div style={{margin:'12px 0',padding:'12px',borderRadius:'8px',border:'1px solid var(--line)',background:'var(--surface,#f8fafc)'}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px'}}>
               <b>贝思兰德递交材料清单 · {view.existingFileNames.length} 件</b>
@@ -406,9 +413,11 @@ export function InternalTransfer({profileKey,item,refreshSeq,navigate}:{profileK
               </li>)}
             </ul>
           </div>}
-          <div className="action-bar"><span>{view.phase==='submitted'?'内部转交已确认':view.phase==='saved'?'文件与表单保存已核验':view.phase==='uncertain'?'结果待核对，请点击顶栏【刷新本案】':'请核对文件、表单和接收人'}</span>
+          <div className="action-bar"><span>{view.phase==='submitted'?'内部转交已确认':view.phase==='saved'?'文件与表单保存已核验':view.phase==='uncertain'?'保存结果待核对：可点击顶栏【刷新本案】核验，或返回草稿重新整理':'请核对文件、表单和接收人'}</span>
             <div className="button-row">
               {view.phase==='saved'&&<button disabled={busy} onClick={()=>setConfirm('revoke')}>撤销保存 / 重新编辑</button>}
+              {view.phase==='uncertain'&&!view.submissionAttempted&&<button disabled={busy} onClick={()=>setConfirm('revoke')}>返回草稿重新整理</button>}
+              {view.phase==='uncertain'&&view.submissionAttempted&&<button disabled={busy} onClick={()=>void act(()=>desktop!.transfer.refresh(profileKey,view.id))}>刷新核对转交结果</button>}
               {view.phase==='draft'?<button className="primary" disabled={locked||!user||!!view.sourceDraft&&review.confirmedDraftId!==view.sourceDraft.id} onClick={()=>setConfirm('save')}>核对并保存材料</button>:view.phase==='saved'?<button className="primary" disabled={busy||view.canEditRemote===false||!user} onClick={()=>setConfirm('submit')}>转交给 {user?.name||'下一办理人'}</button>:null}
             </div>
           </div>
@@ -418,7 +427,7 @@ export function InternalTransfer({profileKey,item,refreshSeq,navigate}:{profileK
         <p><b>{view.caseNumber} · {view.caseTitle}</b></p>
         <p>{view.processName} → {step?.name||'本次内部递交流程'}{user&&` · ${user.name}`}</p>
         {confirm==='save'&&<><p>保留：{review.keepCodes.map(c=>FIVE_PARTS.find(p=>p.code===c)?.name).join('、')||'本次未选择五书修改部分'}{view.route==='reply'?'；意见陈述书 Word':''}{view.route==='correction'?'；结构化补正书':''}</p>{view.parts.length>0&&view.route!=='application'&&<p>从本次递交列表移除：完整混合申请文件、{FIVE_PARTS.filter(p=>!review.keepCodes.includes(p.code)).map(p=>p.name).join('、')||'无其他部分'}。本地及历史文件保留。</p>}</>}
-        {confirm==='revoke'&&<p>撤销后将回到草稿状态，允许重新选择文件、调整五书勾选或修改表单。原已填写的表单字段、补正内容与接收人将完整保留，修改后可随时再次核对并保存。</p>}
+        {confirm==='revoke'&&<p>{view.phase==='uncertain'?'本次保存未全部核验完成。撤销后将回到草稿状态，并回读贝思兰德当前材料重新比对；本地文件与已填表单保留，可重新选择文件后再次保存。':'撤销后将回到草稿状态，允许重新选择文件、调整五书勾选或修改表单。原已填写的表单字段、补正内容与接收人将完整保留，修改后可随时再次核对并保存。'}</p>}
         {confirm==='clearRemote'&&<div className="inline-warning" style={{marginTop:'8px'}}><p><strong>⚠️ 高风险操作</strong>：确定清空贝思兰德系统内已上传的文件与表单吗？</p><p>这将调用系统接口物理删除当前流程节点已上传的五书、修改文件或意见陈述书，并重置表单为草稿状态。操作成功后无法撤回，但本地工作台材料仍保留。</p></div>}
         <p>{confirm==='submit'?'将已核验材料转交上述内部办理人；后续官方递交由接收人办理。':confirm==='save'?'请确认上述案件、材料范围及表单内容准确。':''}</p>
         <div className="action-bar">

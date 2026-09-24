@@ -5,14 +5,13 @@ import os from 'node:os';
 import path from 'node:path';
 import { createCipheriv, createDecipheriv, randomBytes, randomUUID } from 'node:crypto';
 import { DesktopService } from './service.ts';
-import { BaselandClient, mergePersonalRows } from './baseland.ts';
+import { BaselandAuthError, BaselandClient, mergePersonalRows } from './baseland.ts';
 import { CaseFiles, managedPath, safeName, validateRoots } from './files.ts';
-import { currentWork, editableCurrent } from '../src/domain/lifecycle.ts';
+import { currentWork, editableCurrent, internalTransferAvailable } from '../src/domain/lifecycle.ts';
 import type { Case } from '../src/domain/workflow.ts';
 import { currentHandling } from '../src/domain/handling.ts';
-import { isConfirmedWaitingOfficial, waitingOfficialLabel, caseStatusCategory } from '../src/domain/library.ts';
+import { isConfirmedWaitingOfficial, caseStatusCategory } from '../src/domain/library.ts';
 import { workflowNodes } from '../src/domain/workflow-nodes.ts';
-import { WAITING_OFFICIAL_LABEL } from '../src/domain/stage-verdict.ts';
 
 const origin='https://fixture.baselandtec.com';
 const pdf=Buffer.from('%PDF-1.7\nFictional patent fixture\n%%EOF');
@@ -44,7 +43,7 @@ async function fixture(t:test.TestContext){
     return Response.json({IsSuccess:true,Data:data});
   };
   const make=(device='本机记录')=>new DesktopService(path.join(root,device),vault,(o,token)=>new BaselandClient(o,token,fetcher));
-  return {root,originals,work,make,requests,repair:()=>{broken=false;}};
+  return {root,originals,work,make,vault,fetcher,requests,repair:()=>{broken=false;}};
 }
 test('native files use stable case folders, preserve originals, reject symlink escapes and unsafe names',async t=>{
   const f=await fixture(t),files=new CaseFiles({provider:'',baseUrl:'',model:'',originalLibrary:f.originals,workRoot:f.work},'alice');
@@ -463,7 +462,158 @@ test('0.5 auto-reauthorize: expired token with unremembered session gracefully f
   assert.match(state.auth?.message||'',/登录已过期/);
 });
 
-test('local case submission: saveWorkspace persists current and localSubmission and closes workflow', async t => {
+test('reauthorize race condition: logout cancels in-flight reauthorize and session.json is not recreated with old account', async t => {
+  const f = await fixture(t);
+  let delayedLogin = false;
+  const slowClientFactory = (origin: string, token?: string) => {
+    const c = new BaselandClient(origin, token, f.fetcher);
+    const origLogin = c.login.bind(c);
+    c.login = async (u: string, p: string, signal?: AbortSignal) => {
+      if (delayedLogin) {
+        await new Promise((res, rej) => {
+          const timer = setTimeout(res, 60);
+          signal?.addEventListener('abort', () => {
+            clearTimeout(timer);
+            rej(new Error('操作已停止。'));
+          });
+        });
+      }
+      return origLogin(u, p, signal);
+    };
+    return c;
+  };
+  const service = new DesktopService(path.join(f.root, 'race-service'), f.vault, slowClientFactory);
+  await service.init();
+  await service.login({ origin, username: 'alice', password: 'fixture-password', remember: true });
+  delayedLogin = true;
+
+  // Start reauthorize in background
+  const reauthPromise = service.reauthorize();
+
+  // User logs out concurrently
+  await service.logout();
+
+  // Await the background reauth task
+  const reauthResult = await reauthPromise;
+  assert.equal(reauthResult, false, 'reauthorize should return false after logout');
+
+  // Verify account isolation
+  assert.equal(service.key, 'local');
+  assert.equal(service.account, null);
+  assert.equal(service.auth.phase, 'signed-out');
+  const sessionExists = await fs.stat(path.join(service.root, 'session.json')).then(() => true, () => false);
+  assert.equal(sessionExists, false, 'session.json must not be recreated after logout');
+});
+
+test('reauthorize AbortController truly cancels in-flight login network request via signal', async t => {
+  const f = await fixture(t);
+  let networkAborted = false;
+  let requestStarted = false;
+  let resolveNetwork: (() => void) | undefined;
+
+  const abortableFetcher: typeof fetch = async (input, init) => {
+    const u = new URL(String(input));
+    if (u.pathname.endsWith('/Auth/GetToken') && requestStarted) {
+      assert.ok(init?.signal, 'login request must receive an AbortSignal');
+      return new Promise<Response>((resolve, reject) => {
+        const onAbort = () => {
+          networkAborted = true;
+          reject(new DOMException('The operation was aborted', 'AbortError'));
+        };
+        if (init?.signal?.aborted) {
+          onAbort();
+          return;
+        }
+        init?.signal?.addEventListener('abort', onAbort);
+        resolveNetwork = () => {
+          init?.signal?.removeEventListener('abort', onAbort);
+          resolve(Response.json({ IsSuccess: true, Data: { Token: 'secret-token-alice' } }));
+        };
+      });
+    }
+    return f.fetcher(input, init);
+  };
+
+  const clientFactory = (origin: string, token?: string) => new BaselandClient(origin, token, abortableFetcher);
+  const service = new DesktopService(path.join(f.root, 'abort-net-service'), f.vault, clientFactory);
+  await service.init();
+  await service.login({ origin, username: 'alice', password: 'fixture-password', remember: true });
+
+  requestStarted = true;
+  const reauthPromise = service.reauthorize();
+
+  // Wait a tick to ensure fetcher has received the request and is hanging on network
+  await new Promise(res => setTimeout(res, 10));
+  assert.equal(networkAborted, false, 'network request should still be in-flight before abort');
+
+  // Trigger logout which aborts reauthController
+  const logoutStart = Date.now();
+  await service.logout();
+  const elapsed = Date.now() - logoutStart;
+
+  // The network request must have been aborted directly by the signal
+  assert.equal(networkAborted, true, 'network request must be aborted via AbortSignal');
+  assert.ok(elapsed < 500, `logout should complete immediately upon network abort, took ${elapsed}ms`);
+
+  const reauthResult = await reauthPromise;
+  assert.equal(reauthResult, false);
+  assert.equal(service.auth.phase, 'signed-out');
+  resolveNetwork?.();
+});
+
+test('401 retry: idempotent read retries after reauth, non-idempotent write does not retry', async t => {
+  let reauthCount = 0;
+  const client = new BaselandClient('https://mock.baselandtec.com', 'initial-token');
+  client.onUnauthorized = async () => {
+    reauthCount++;
+    client.token = 'refreshed-token';
+    return true;
+  };
+
+  let getCallCount = 0;
+  let submitCallCount = 0;
+  let uploadCallCount = 0;
+
+  client.fetcher = async (input, init) => {
+    const url = String(input);
+    if (url.includes('/GetPersonalProcStatistics')) {
+      getCallCount++;
+      if (getCallCount === 1) return new Response(JSON.stringify({ IsSuccess: false, Message: 'token已失效' }), { status: 401 });
+      return new Response(JSON.stringify({ IsSuccess: true, Data: [{ Code: 0, Count: 1 }] }));
+    }
+    if (url.includes('/SubmitHandFlow')) {
+      submitCallCount++;
+      return new Response(JSON.stringify({ IsSuccess: false, Message: '401 Unauthorized' }), { status: 401 });
+    }
+    if (url.includes('FileStorageUploadFile')) {
+      uploadCallCount++;
+      return new Response(JSON.stringify({ IsSuccess: false }), { status: 401 });
+    }
+    return new Response(JSON.stringify({ IsSuccess: true, Data: null }));
+  };
+
+  // 1. Idempotent read: should retry once after onUnauthorized
+  const stats = await client.request('/CaseInfo/GetPersonalProcStatistics');
+  assert.equal(getCallCount, 2, 'Read request should be retried once on 401');
+  assert.equal(reauthCount, 1);
+  assert.deepEqual(stats, [{ Code: 0, Count: 1 }]);
+
+  // 2. Non-idempotent write: must NOT retry on 401
+  await assert.rejects(
+    async () => client.request('/CaseInfo/SubmitHandFlow', { CaseHandId: 'h-1' }),
+    (err: any) => err instanceof BaselandAuthError && err.kind === 'expired'
+  );
+  assert.equal(submitCallCount, 1, 'SubmitHandFlow write request must not be sent twice');
+
+  // 3. Document upload write: must NOT retry on 401
+  await assert.rejects(
+    async () => client.uploadDocument('test.docx', Buffer.from('test')),
+    (err: any) => err instanceof BaselandAuthError && err.kind === 'expired'
+  );
+  assert.equal(uploadCallCount, 1, 'uploadDocument must not be sent twice');
+});
+
+test('local cases remain local workbench cases without official submission', async t => {
   const f = await fixture(t), service = f.make(); await service.init();
   await service.settings(service.key, { ...service.workspace.settings, workRoot: f.work });
   await service.createCase({ title: '本地测试案件', number: 'LOC-2026-001', kind: 'write' });
@@ -471,54 +621,29 @@ test('local case submission: saveWorkspace persists current and localSubmission 
   assert.equal(c.source, 'local');
   assert.equal(c.current?.kind, 'write');
 
-  // Simulate local case official submission
-  const submittedWorkspace = structuredClone(service.workspace);
-  const target = submittedWorkspace.cases.find(x => x.number === 'LOC-2026-001')!;
-  target.current = {
-    kind: 'waiting',
-    label: WAITING_OFFICIAL_LABEL,
-    node: WAITING_OFFICIAL_LABEL,
-    party: '官方',
-    handler: '官方',
-  };
-  target.localSubmission = {
-    at: '2026-09-22',
-    method: '专利业务办理系统 (CPC 客户端)',
-    receiptNo: 'CPC-2026-001-REC',
-    remark: '测试递交成功',
-  };
+  // Verify domain functions for local case
+  assert.equal(internalTransferAvailable(c), false);
+  assert.equal(currentHandling(c).officialWaiting, false);
+  assert.equal(isConfirmedWaitingOfficial(c), false);
+  assert.equal(caseStatusCategory(c), 'in_progress');
 
-  await service.save(service.key, submittedWorkspace);
+  const nodes = workflowNodes(c);
+  assert.ok(nodes.some(n => n.label === '提交官方'), 'workflow display should show 提交官方');
+  assert.ok(nodes.some(n => n.label === '转交下一办理人'), 'workflow display should show 转交下一办理人');
+  assert.equal(nodes[0].label, '打开案件');
 
-  // Reload and verify persistence
+  // Update local fields and persist
+  const updatedWorkspace = structuredClone(service.workspace);
+  const target = updatedWorkspace.cases.find(x => x.number === 'LOC-2026-001')!;
+  target.title = '更新后的本地案件';
+  target.deadline = '2026-11-01';
+  await service.save(service.key, updatedWorkspace);
+
   const saved = service.workspace.cases.find(x => x.number === 'LOC-2026-001')!;
-  assert.equal(saved.current?.kind, 'waiting');
-  assert.equal(saved.current?.label, WAITING_OFFICIAL_LABEL);
-  assert.equal(saved.localSubmission?.method, '专利业务办理系统 (CPC 客户端)');
-  assert.equal(saved.localSubmission?.receiptNo, 'CPC-2026-001-REC');
-
-  // Verify domain functions
-  assert.equal(currentHandling(saved).officialWaiting, true);
-  assert.equal(isConfirmedWaitingOfficial(saved), true);
-  assert.equal(waitingOfficialLabel(saved), '已递交，等待官方处理结果');
-  assert.equal(caseStatusCategory(saved), 'waiting_official');
-
-  const nodes = workflowNodes(saved);
-  assert.equal(nodes.at(-1)?.label, '递交官方');
-  assert.equal(nodes.at(-1)?.state, 'done');
-
-  // Test revocation
-  const revokedWorkspace = structuredClone(service.workspace);
-  const revTarget = revokedWorkspace.cases.find(x => x.number === 'LOC-2026-001')!;
-  revTarget.current = { kind: 'write' };
-  revTarget.localSubmission = undefined;
-  await service.save(service.key, revokedWorkspace);
-
-  const restored = service.workspace.cases.find(x => x.number === 'LOC-2026-001')!;
-  assert.equal(restored.current?.kind, 'write');
-  assert.equal(restored.localSubmission, undefined);
-  assert.equal(currentHandling(restored).officialWaiting, false);
-  assert.equal(isConfirmedWaitingOfficial(restored), false);
+  assert.equal(saved.title, '更新后的本地案件');
+  assert.equal(saved.deadline, '2026-11-01');
+  assert.equal(saved.current?.kind, 'write');
+  assert.equal(currentHandling(saved).officialWaiting, false);
 });
 
 test('name mismatch IPC confirmation round-trip: resolves true on positive response, false on rejection or timeout', async () => {
@@ -567,5 +692,3 @@ test('name mismatch IPC confirmation round-trip: resolves true on positive respo
   const result2 = await promise2;
   assert.equal(result2, false);
 });
-
-

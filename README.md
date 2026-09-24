@@ -1,4 +1,4 @@
-# 专利工作台 0.13.0
+# 专利工作台 0.14.0
 
 独立桌面应用。覆盖案件管理、答复、补正、五阶段撰写、可选的个人审查，以及贝思兰德内部流转。模型通过随包的 OpenCode 接入，不要求安装旧项目源码。
 
@@ -6,7 +6,7 @@
 
 ## 安装
 
-以 `release/release-manifest.json` 中的 `0.13.0` 为准：
+以 `release/release-manifest.json` 中的 `0.14.0` 为准：
 
 - macOS Apple Silicon：`.pkg` 或 `.app`
 - Windows x64：NSIS `.exe`
