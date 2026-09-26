@@ -345,7 +345,7 @@ app.whenReady().then(async()=>{
     });
   });
   handle('agentGetCase',ipcArgs(ipcProfileKey,ipcCaseId),(profileKey,caseId)=>agentHost.getCase(profileKey,caseId));
-  handle('agentReviewSources',ipcArgs(ipcProfileKey),profileKey=>agentHost.reviewSources(profileKey));
+  handle('agentReviewSources',ipcArgs(ipcProfileKey,ipcOptional(ipcCaseId)),(profileKey,caseId)=>agentHost.reviewSources(profileKey,caseId));
   handle('agentCommand',ipcArgs(ipcProfileKey,ipcCaseId,ipcAgentCommand),(profileKey,caseId,command)=>agentHost.command(profileKey,caseId,command));
   handle('agentProgress',ipcArgs(ipcProfileKey),(profileKey)=>agentHost.listProgress(profileKey));
   handle('agentTasks',ipcArgs(ipcProfileKey),async(profileKey)=>[...await agentHost.listTasks(profileKey),...await professionalHost.listTasks(profileKey)]);

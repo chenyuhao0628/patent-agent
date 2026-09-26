@@ -141,7 +141,7 @@ const api: DesktopAPI = {
     onPreparation: (callback: (event: AgentPreparation) => void) => onState('desktop:agentPreparation', callback),
     listProgress: profileKey => call('agentProgress', profileKey),
     getCase: (profileKey, caseId) => call('agentGetCase', profileKey, caseId),
-    reviewSources: async profileKey => arrayResult(await call('agentReviewSources', profileKey), '答复历史'),
+    reviewSources: async (profileKey, caseId) => arrayResult(await call('agentReviewSources', profileKey, caseId), '答复历史'),
     command: (profileKey, caseId, command) => call('agentCommand', profileKey, caseId, command),
     listTasks: profileKey => call('agentTasks', profileKey),
     onState: callback => onState('desktop:agentState', callback),

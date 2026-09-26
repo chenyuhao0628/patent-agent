@@ -44,7 +44,7 @@ export type AgentAPI = {
   onPreparation?: (callback:(event:AgentPreparation)=>void)=>()=>void;
   listProgress?: (profileKey: string) => Promise<import('./domain/local-progress.ts').LocalProgress[]>;
   getCase(profileKey: string, caseId: string): Promise<AgentCaseView>;
-  reviewSources?: (profileKey: string) => Promise<ReviewSource[]>;
+  reviewSources?: (profileKey: string, caseId?: string) => Promise<ReviewSource[]>;
   command(profileKey: string, caseId: string, command: AgentCommand): Promise<AgentCaseView>;
   listTasks(profileKey: string): Promise<AgentTaskView[]>;
   onState(callback: (view: AgentCaseView) => void): () => void;

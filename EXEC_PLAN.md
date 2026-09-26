@@ -181,3 +181,11 @@
 - preload 的模型调用、主进程模型解析结果和 dispatch 统一使用方法元组；未知输入仍只在 IPC 入口解析，运行时校验规则保持不变。
 - 验证：模型 IPC 回归测试通过；`npm test` 556 项通过；`npx tsc --noEmit` 通过；`npm run build` 通过；`git diff --check` 通过。
 - 本阶段未调用真实模型、贝思兰德写接口或真实案件材料，未进行 GUI 视觉和安装包验收。
+
+## 20. 2026-09-26 历史成果案件级读取
+
+- `AgentAPI.reviewSources` 和 `agentReviewSources` IPC 增加可选 `caseId`；案件历史读取只请求当前案件的答复/补正成果，不再把账户级成果列表交给渲染层再过滤。
+- 内部审查队列继续使用账户级读取，以汇总多个案件的待审稿件；两种用途在接口调用处明确区分。
+- 新增 Agent Host 回归测试，确认案件级读取不会返回其他案件成果。
+- 验证：`npm test` 556 项通过；`npx tsc --noEmit` 通过；`npm run build` 通过；`git diff --check` 通过。
+- 本阶段未调用真实模型、贝思兰德写接口或真实案件材料，未进行 GUI 视觉和安装包验收。

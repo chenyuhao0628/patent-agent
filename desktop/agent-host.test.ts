@@ -339,6 +339,7 @@ test('策略门、独立复核、定稿 Word、采用冲突与成果索引隔离
   const okPending = view.process.drafts.find(item => item.adoptStatus === 'pending')!;
   await host.command('local', c2.id, { type: 'adopt', versionId: okPending.id });
   const reviewSource=(await host.reviewSources('local')).find(s=>s.caseId===c2.id)!;assert.equal(reviewSource.files.length,2);assert(reviewSource.files.every(f=>f.hash));assert.equal(reviewSource.supersededAt,undefined);
+  const scopedSources=await host.reviewSources('local',c2.id);assert.equal(scopedSources.length,1);assert.equal(scopedSources[0].caseId,c2.id);
   view = await host.getCase('local', c2.id);
   await host.command('local', c2.id, { type: 'run', action: 'review' });
   await host.waitIdle();
@@ -1390,6 +1391,5 @@ test('定稿 Word 文件在外部被修改后，artifactsOf 仍保留该产物�
 
   await host.shutdown();
 });
-
 
 

@@ -288,11 +288,12 @@ export class AgentHost implements AgentAPI {
     return this.enqueue(() => this.getCaseAlreadyLocked(ticket, caseId));
   }
 
-  async reviewSources(profileKey:string):Promise<import('../src/professional-api.ts').ReviewSource[]> {
+  async reviewSources(profileKey:string, caseId?:string):Promise<import('../src/professional-api.ts').ReviewSource[]> {
     const ticket=this.capture(profileKey);
     return this.enqueue(async()=>{
       const store=await this.loadStore(profileKey);this.assertTicket(ticket);
       return store.processes.flatMap(state=>{
+        if(caseId&&state.scope.caseId!==caseId)return [];
         if(!isReplyClassified(state.classification))return [];
         const c=this.desktop.workspace.cases.find(c=>c.id===state.scope.caseId);
         if(!c)return [];

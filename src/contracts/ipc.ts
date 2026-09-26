@@ -119,7 +119,7 @@ export type DesktopIpcChannels = {
   professionalRemoveReference: { args: [profileKey: string, caseId: string, materialId: string]; result: ProfessionalCaseView };
   professionalOpen: { args: [profileKey: string, caseId: string, relativePath: string]; result: void };
   agentGetCase: { args: [profileKey: string, caseId: string]; result: AgentCaseView };
-  agentReviewSources: { args: [profileKey: string]; result: ReviewSource[] };
+  agentReviewSources: { args: [profileKey: string, caseId?: string]; result: ReviewSource[] };
   agentCommand: { args: [profileKey: string, caseId: string, command: AgentCommand]; result: AgentCaseView };
   agentProgress: { args: [profileKey: string]; result: LocalProgress[] };
   agentTasks: { args: [profileKey: string]; result: AgentTaskView[] };

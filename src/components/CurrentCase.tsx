@@ -50,7 +50,7 @@ export function CaseHistory({item,profileKey}:{item:Case;profileKey?:string}){
     setRemoteLoading(true);
     const loads:Promise<HistoryRecord[]>[]=[];
     if(desktop.agent.reviewSources){
-      loads.push(desktop.agent.reviewSources(profileKey).then(sources=>sources.filter(source=>source.caseId===item.id).map(sourceHistoryRecord)));
+      loads.push(desktop.agent.reviewSources(profileKey,item.id).then(sources=>sources.map(sourceHistoryRecord)));
     }
     loads.push(desktop.professional.getCase(profileKey,item.id).then(view=>{
       const records:HistoryRecord[]=[];
