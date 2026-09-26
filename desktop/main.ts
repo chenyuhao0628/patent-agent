@@ -52,6 +52,7 @@ import {
   ipcTransferSource,
   ipcWorkspace,
 } from './ipc-contracts.ts';
+import { serializeContractError } from '../src/contracts/version.ts';
 
 app.setName('专利工作台');
 if(process.env.PATENT_AGENT_DATA_DIR)app.setPath('userData',path.resolve(process.env.PATENT_AGENT_DATA_DIR));
@@ -125,6 +126,8 @@ app.whenReady().then(async()=>{
     confirmName:async({applicationName,caseName})=>{
       if(!window||window.isDestroyed())return false;
       const reqId=`cn_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+      const requestGeneration=service.generation;
+      const requestProfileKey=service.key;
       return new Promise<boolean>((resolve)=>{
         let settled=false;
         const finish=(result:boolean)=>{
@@ -135,8 +138,11 @@ app.whenReady().then(async()=>{
           resolve(result);
         };
         const timer=setTimeout(()=>finish(false),5*60*1000);
-        const onResponse=(_e:unknown,id:string,confirmed:boolean)=>{
-          if(id===reqId)finish(Boolean(confirmed));
+        const onResponse=(event:Electron.IpcMainEvent,id:unknown,confirmed:unknown)=>{
+          if(event.sender!==window?.webContents||event.senderFrame!==window.webContents.mainFrame)return;
+          if(service.generation!==requestGeneration||service.key!==requestProfileKey){finish(false);return;}
+          if(typeof id!=='string'||typeof confirmed!=='boolean')return;
+          if(id===reqId)finish(confirmed);
         };
         ipcMain.on('desktop:transferConfirmNameResponse',onResponse);
         try{
@@ -196,7 +202,7 @@ app.whenReady().then(async()=>{
       if(rejectIfMigrating)service.assertMigrationNotAccepted();
       const parsed=parser(args);
       return await (queued?serial(async()=>fn(...parsed)):fn(...parsed));
-    }catch(e){diagnostic('ipc','failed',{operation:name,...diagnosticError(e)});if(e instanceof Error)throw e;throw new Error('操作未完成。');}finally{if(name!=='diagnosticReport')diagnostic('ipc','finished',{operation:name,durationMs:Date.now()-started});}
+    }catch(e){diagnostic('ipc','failed',{operation:name,...diagnosticError(e)});throw serializeContractError(e);}finally{if(name!=='diagnosticReport')diagnostic('ipc','finished',{operation:name,durationMs:Date.now()-started});}
   });}
   handle('diagnosticExport',ipcNoArgs,exportDiagnostics);
   let rendererReports=0,rendererWindow=0;
@@ -402,7 +408,7 @@ app.whenReady().then(async()=>{
         getGeneration:()=>service.generation,
         chosenDsh,
       },modelRequests,event.sender,event.senderFrame,request.method,request.profileKey,request.args,request.requestId);
-    }catch(e){diagnostic('ipc','failed',{operation:name,...diagnosticError(e)});throw new Error((e as Error).message||'操作未完成。');}finally{diagnostic('ipc','finished',{operation:name,durationMs:Date.now()-started});}
+    }catch(e){diagnostic('ipc','failed',{operation:name,...diagnosticError(e)});throw serializeContractError(e);}finally{diagnostic('ipc','finished',{operation:name,durationMs:Date.now()-started});}
   });
   ipcMain.handle('desktop:modelCancel',async(event,requestId)=>{
     if(event.sender!==window?.webContents||event.senderFrame!==window.webContents.mainFrame)throw new Error('不接受非应用窗口请求。');

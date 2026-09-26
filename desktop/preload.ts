@@ -5,14 +5,13 @@ import type { NameDiscrepancyRequest, TransferFilePreviewRef, TransferReview, Tr
 import type { ProfessionalCommand } from '../src/professional-api.ts';
 import type { ProviderSaveInput, UpstreamModel } from '../src/domain/models.ts';
 import type { ApplicationPreferences } from '../src/application-api.ts';
-import { DESKTOP_CONTRACT_VERSION } from '../src/contracts/version.ts';
+import { DESKTOP_CONTRACT_VERSION, deserializeContractError } from '../src/contracts/version.ts';
 
 const call = async <T>(name: string, ...args: unknown[]): Promise<T> => {
   try {
     return await ipcRenderer.invoke(`desktop:${name}`, ...args) as T;
   } catch (error) {
-    throw new Error((error instanceof Error ? error.message : String(error))
-      .replace(/^Error invoking remote method 'desktop:[^']+': (?:Error: )?/, ''));
+    throw deserializeContractError(error);
   }
 };
 

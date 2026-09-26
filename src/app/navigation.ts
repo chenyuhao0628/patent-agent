@@ -14,7 +14,7 @@ const CORE_NAV_ITEMS: NavigationItem[] = [
 ];
 const FEATURE_NAV_ITEMS: NavigationItem[] = FEATURE_MODULES.map(feature => ({
   id: feature.id,
-  label: feature.id === 'reply' ? '答复' : feature.id === 'write' ? '撰写' : feature.id === 'review' ? '审查' : '内部流转',
+  label: feature.label,
   icon: feature.icon,
 }));
 export const NAV_ITEMS: NavigationItem[] = [

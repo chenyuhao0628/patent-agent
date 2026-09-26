@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5173 --strictPort",
     "build": "tsc --noEmit && vite build && node scripts/build-desktop.mjs",
-    "test": "node --experimental-strip-types --test src/domain/*.test.ts desktop/*.test.ts scripts/*.test.mjs",
+    "test": "node --experimental-strip-types --test src/domain/*.test.ts src/app/*.test.ts desktop/*.test.ts scripts/*.test.mjs",
     "preview": "vite preview --host 127.0.0.1 --port 5173 --strictPort",
     "desktop": "npm run build && electron .",
     "package:release": "node scripts/package-release.mjs",

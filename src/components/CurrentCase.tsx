@@ -16,7 +16,10 @@ import { AgentArtifacts, AgentWorkbench } from './AgentWorkbench.tsx';
 import '../flow.css';
 
 const flowCache = new Map<string, FlowView>();
-export function setCaseFlowCache(caseId: string, view: FlowView){ flowCache.set(caseId, view); }
+function flowCacheKey(profileKey: string | undefined, caseId: string): string {
+  return `${profileKey ?? 'preview'}:${caseId}`;
+}
+export function setCaseFlowCache(profileKey: string | undefined, caseId: string, view: FlowView){ flowCache.set(flowCacheKey(profileKey, caseId), view); }
 
 export function CaseHistory({item}:{item:Case}){
   const [preview,setPreview]=useState('');
@@ -55,13 +58,14 @@ function processTag(p:RemoteProcess,currentId:string|undefined){
   const row=processRowHandling(p,currentId);
   return row.tag?<span className="tag">{row.tag}</span>:null;
 }
-export function RemoteFlow({item}:{item:Case}){
-  const [cachedFlow,setFlow]=useState<FlowView|null>(()=>flowCache.get(item.id)??null),[busy,setBusy]=useState(false),[error,setError]=useState('');
+export function RemoteFlow({item,profileKey}:{item:Case;profileKey?:string}){
+  const cacheKey = flowCacheKey(profileKey, item.id);
+  const [cachedFlow,setFlow]=useState<FlowView|null>(()=>flowCache.get(cacheKey)??null),[busy,setBusy]=useState(false),[error,setError]=useState('');
   const refresh=async()=>{
     setBusy(true);setError('');
     try{
       const view=await desktop!.flow(item.id);
-      flowCache.set(item.id,view);
+      flowCache.set(cacheKey,view);
       setFlow(view);
     }catch(e){
       setError((e as Error).message);
@@ -70,12 +74,12 @@ export function RemoteFlow({item}:{item:Case}){
     }
   };
   useEffect(()=>{
-    const c=flowCache.get(item.id);
+    const c=flowCache.get(cacheKey);
     if(c)setFlow(c);
     else if(desktop&&item.remote&&!busy){
       void refresh();
     }
-  },[item.id,item.remote?.syncedAt]);
+  },[cacheKey,item.id,item.remote?.syncedAt]);
   const flow=cachedFlow&&cachedFlow.currentProcessId===item.current?.processId&&(!cachedFlow.processes?.caseId||!item.remote?.caseId||cachedFlow.processes.caseId===item.remote.caseId)?cachedFlow:null;
   const processes=flow?.processes?.processes??item.remote?.processes??[];
   const currentId=item.current?.processId??flow?.currentProcessId;

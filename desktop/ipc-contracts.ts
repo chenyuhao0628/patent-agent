@@ -32,7 +32,8 @@ function fieldArray(record: Record<string, unknown>, key: string, label = key): 
 
 function optionalString(record: Record<string, unknown>, key: string, label = key, maxLength = 4096): string | undefined {
   if (record[key] === undefined) return undefined;
-  return assertString(record[key], label, maxLength);
+  if (typeof record[key] !== 'string' || (record[key] as string).length > maxLength) throw new Error(`${label}无效。`);
+  return record[key] as string;
 }
 
 function requiredText(record: Record<string, unknown>, key: string, label = key, maxLength = 4096): string {
@@ -48,18 +49,44 @@ function stringArray(record: Record<string, unknown>, key: string, label = key, 
   return values as string[];
 }
 
+function ipcTransferForm(value: unknown): Record<string, unknown> {
+  const form = assertRecord(value, '内部流转表单无效。');
+  for (const key of ['noticeDate', 'noticeName', 'noticeNo', 'abstractFigure'] as const) {
+    if (typeof form[key] !== 'string' || (form[key] as string).length > 4096) throw new Error('内部流转表单无效。');
+  }
+  if (form.correctionReason !== 1 && form.correctionReason !== 2) throw new Error('补正原因无效。');
+  for (const key of ['addEntrust', 'otherProof', 'experimentData'] as const) {
+    if (typeof form[key] !== 'boolean') throw new Error('内部流转表单无效。');
+  }
+  if (!Array.isArray(form.corrections) || form.corrections.length > 100) throw new Error('补正条目无效。');
+  for (const row of form.corrections) {
+    const item = assertRecord(row, '补正条目无效。');
+    for (const key of ['ChangeId', 'FileName', 'PositionInFile', 'CorrectionBefore', 'CorrectionAfter'] as const) {
+      if (typeof item[key] !== 'string' || !item[key] || (item[key] as string).length > 100000) throw new Error('补正条目无效。');
+    }
+    if (!Number.isSafeInteger(item.Sort) || Number(item.Sort) < 0) throw new Error('补正条目序号无效。');
+  }
+  const declarations = assertRecord(form.declarations, '声明内容无效。');
+  for (const value of Object.values(declarations)) {
+    if (typeof value !== 'boolean') throw new Error('声明内容无效。');
+  }
+  return form;
+}
+
 function oneOf<T extends string>(value: unknown, values: readonly T[], label: string): T {
   const candidate = assertString(value, label, 128);
   if (!values.includes(candidate as T)) throw new Error(`${label}无效。`);
   return candidate as T;
 }
 
+type IpcValueParser = ((value: unknown) => unknown) & { optional?: boolean };
 export type IpcArgumentParser = (args: readonly unknown[]) => unknown[];
 
-export function ipcArgs(...parsers: Array<(value: unknown) => unknown>): IpcArgumentParser {
+export function ipcArgs(...parsers: IpcValueParser[]): IpcArgumentParser {
   return args => {
-    if (args.length !== parsers.length) throw new Error('IPC 参数数量无效。');
-    return parsers.map((parser, index) => parser(args[index]));
+    const required = parsers.filter(parser => !parser.optional).length;
+    if (args.length < required || args.length > parsers.length) throw new Error('IPC 参数数量无效。');
+    return parsers.map((parser, index) => index >= args.length ? undefined : parser(args[index]));
   };
 }
 
@@ -68,8 +95,10 @@ export function ipcNoArgs(args: readonly unknown[]): unknown[] {
   return [];
 }
 
-export function ipcOptional(parser: (value: unknown) => unknown): (value: unknown) => unknown {
-  return value => value === undefined ? undefined : parser(value);
+export function ipcOptional(parser: (value: unknown) => unknown): IpcValueParser {
+  const optional: IpcValueParser = value => value === undefined ? undefined : parser(value);
+  optional.optional = true;
+  return optional;
 }
 
 export function ipcDirectoryKind(value: unknown): 'originalLibrary' | 'workRoot' {
@@ -351,7 +380,7 @@ export function ipcProfessionalCommand(value: unknown): ProfessionalCommand {
 
 function ipcClassification(value: unknown): ClassificationInput {
   const record = assertRecord(value, '分类内容无效。');
-  if (record.status !== 'classified' && record.status !== 'unclassified' && record.status !== 'unknown') {
+  if (record.status !== undefined && record.status !== 'classified' && record.status !== 'unclassified' && record.status !== 'unknown') {
     throw new Error('分类状态无效。');
   }
   if (record.patentType !== undefined && !['发明', '实用新型', '待核对', 'unknown'].includes(record.patentType as string)) {
@@ -372,8 +401,14 @@ function ipcClassification(value: unknown): ClassificationInput {
 
 export function ipcTransferReview(value: unknown): TransferReview {
   const record = assertRecord(value, '内部流转核对内容无效。');
-  if (!Array.isArray(record.keepCodes) || !record.form || typeof record.stepId !== 'string' || typeof record.userId !== 'string' || typeof record.remark !== 'string') {
+  if (!Array.isArray(record.keepCodes) || record.keepCodes.length > 5
+    || record.keepCodes.some(code => typeof code !== 'string' || !code.trim() || code.length > 32)
+    || typeof record.stepId !== 'string' || !record.stepId.trim() || record.stepId.length > 256
+    || typeof record.userId !== 'string' || !record.userId.trim() || record.userId.length > 256
+    || typeof record.remark !== 'string' || record.remark.length > 100000) {
     throw new Error('内部流转核对内容不完整。');
   }
+  if (new Set(record.keepCodes as string[]).size !== record.keepCodes.length) throw new Error('五书选择无效。');
+  ipcTransferForm(record.form);
   return value as TransferReview;
 }

@@ -13,6 +13,7 @@ import { desktop } from '../desktop.ts';
 import type { DesktopState } from '../desktop.ts';
 import type { Action, Case, Workspace } from '../domain/workflow.ts';
 import { currentRoute, internalTransferAvailable } from '../domain/lifecycle.ts';
+import { FEATURE_MODULE_BY_ID } from './features.ts';
 
 type PageContentProps = {
   page: string;
@@ -99,6 +100,10 @@ export function PageContent({
         if (found) onOpenCase(found, 'review', source);
       }}
     />;
+  }
+
+  if (module && !FEATURE_MODULE_BY_ID[module]) {
+    return <Empty title="业务模块不可用"><a href="#/library">返回案件库</a></Empty>;
   }
 
   if (page === 'settings') {

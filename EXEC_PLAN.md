@@ -114,3 +114,14 @@
 - `desktop/preload.ts` 改为按 `DesktopAPI` 实例编译，事件回调、业务 API 和模型 API 不再以无类型对象暴露。
 - 新增通道参数和模型解析测试；`npm test`：542 项通过；`npx tsc --noEmit`：通过；`npm run build`：通过；`git diff --check`：通过。
 - 本阶段仍未调用真实模型、贝思兰德写接口或真实案件材料，未进行 GUI 视觉和安装包验收。
+
+## 12. 2026-09-26 完整开发阶段：领域视图、能力注册和边界回归
+
+- 新增 `src/domain/case-view.ts`，按身份、当前阶段、材料、活动流程和官方结论投影案件；投影复制嵌套数据，不静默去重冲突材料。
+- `CaseSpace` 使用案件投影视图提供可编辑和内部流转能力状态，并继续保留兼容 `Case` 写入适配。
+- `Feature Registry` 增加案件可打开条件和能力上下文；全局业务导航和案件页签使用同一注册表判断答复、撰写、审查和内部流转边界。
+- IPC 合法输入允许 UI 合法的空文本和 nullable 模型参数；分类、模型思考级别、内部流转表单、尾部可选参数增加回归校验。
+- ContractError 经过 Electron IPC 时保留稳定错误码；内部流转名称确认回传校验窗口/frame、请求类型和账号代次。
+- 流程缓存键绑定 `profileKey + caseId`，账号切换不会复用其他账号的流程视图。
+- 新增领域投影、Feature Registry、IPC 错误和输入边界测试；`npm test`：552 项通过；`npx tsc --noEmit`：通过；`npm run build`：通过；`git diff --check`：通过。
+- 本阶段未调用真实模型、贝思兰德写接口或真实案件材料，未进行 GUI 视觉和安装包验收。

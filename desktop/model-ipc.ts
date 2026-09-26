@@ -27,17 +27,20 @@ export function isModelWriteMethod(value: string): boolean {
   return WRITE.has(value);
 }
 
-function optionalString(record: Record<string, unknown>, key: string, label: string, maxLength = 4096): void {
-  if (record[key] !== undefined && (typeof record[key] !== 'string' || (record[key] as string).length > maxLength)) {
+function optionalString(record: Record<string, unknown>, key: string, label: string, maxLength = 4096, nullable = false): void {
+  if (record[key] !== undefined && record[key] !== null && (typeof record[key] !== 'string' || (record[key] as string).length > maxLength)) {
     throw new Error(`${label}无效。`);
   }
+  if (!nullable && record[key] === null) throw new Error(`${label}无效。`);
 }
 
-function optionalBoolean(record: Record<string, unknown>, key: string, label: string): void {
+function optionalBoolean(record: Record<string, unknown>, key: string, label: string, nullable = false): void {
+  if (nullable && record[key] === null) return;
   if (record[key] !== undefined && typeof record[key] !== 'boolean') throw new Error(`${label}无效。`);
 }
 
-function optionalPositiveInteger(record: Record<string, unknown>, key: string, label: string): void {
+function optionalPositiveInteger(record: Record<string, unknown>, key: string, label: string, nullable = false): void {
+  if (nullable && record[key] === null) return;
   if (record[key] !== undefined && (!Number.isSafeInteger(record[key]) || Number(record[key]) < 1)) {
     throw new Error(`${label}无效。`);
   }
@@ -50,7 +53,7 @@ function validateModelSaveInput(value: unknown): ProviderSaveInput {
   optionalString(record, 'id', '供应商标识', 256);
   optionalString(record, 'key', '模型密钥', 100000);
   optionalBoolean(record, 'clearKey', '清除密钥');
-  if (record.protocol !== undefined && !MODEL_PROTOCOLS.includes(record.protocol as typeof MODEL_PROTOCOLS[number])) {
+  if (record.protocol !== undefined && record.protocol !== null && !MODEL_PROTOCOLS.includes(record.protocol as typeof MODEL_PROTOCOLS[number])) {
     throw new Error('模型协议无效。');
   }
   if (record.models !== undefined) {
@@ -60,13 +63,23 @@ function validateModelSaveInput(value: unknown): ProviderSaveInput {
       assertString(model.modelId, '模型标识', 512);
       assertString(model.displayName, '模型名称', 512);
       optionalString(model, 'id', '模型项标识', 256);
-      if (model.protocol !== undefined && !MODEL_PROTOCOLS.includes(model.protocol as typeof MODEL_PROTOCOLS[number])) throw new Error('模型协议无效。');
-      for (const key of ['contextWindow', 'maxOutput', 'reasoningBudgetTokens'] as const) optionalPositiveInteger(model, key, key);
+      if (model.protocol !== undefined && model.protocol !== null && !MODEL_PROTOCOLS.includes(model.protocol as typeof MODEL_PROTOCOLS[number])) throw new Error('模型协议无效。');
+      for (const key of ['contextWindow', 'maxOutput', 'reasoningBudgetTokens'] as const) optionalPositiveInteger(model, key, key, true);
       for (const key of ['reasoningAdaptive', 'reasoningIncludeThoughts', 'reasoningOverridden'] as const) optionalBoolean(model, key, key);
       optionalString(model, 'reasoningLevelId', '思考级别', 256);
-      optionalString(model, 'reasoningOutputEffort', '输出思考级别', 256);
-      if (model.geminiMode !== undefined && model.geminiMode !== 'level' && model.geminiMode !== 'budget') throw new Error('Gemini 思考模式无效。');
-      if (model.reasoningLevels !== undefined && (!Array.isArray(model.reasoningLevels) || model.reasoningLevels.length > 100)) throw new Error('思考级别列表无效。');
+      optionalString(model, 'reasoningOutputEffort', '输出思考级别', 256, true);
+      if (model.geminiMode !== undefined && model.geminiMode !== null && model.geminiMode !== 'level' && model.geminiMode !== 'budget') throw new Error('Gemini 思考模式无效。');
+      if (model.reasoningLevels !== undefined) {
+        if (!Array.isArray(model.reasoningLevels) || model.reasoningLevels.length > 100) throw new Error('思考级别列表无效。');
+        for (const levelValue of model.reasoningLevels) {
+          const level = assertRecord(levelValue, '思考级别无效。');
+          assertString(level.id, '思考级别标识', 256);
+          assertString(level.label, '思考级别名称', 256);
+          assertString(level.protocolValue, '思考级别参数', 256);
+          assertString(level.source, '思考级别来源', 64);
+          assertString(level.hint, '思考级别说明', 2000);
+        }
+      }
     }
   }
   return value as ProviderSaveInput;
@@ -78,7 +91,7 @@ function validateUpstreamModels(value: unknown): UpstreamModel[] {
     const model = assertRecord(item, '远端模型项无效。');
     assertString(model.id, '远端模型标识', 512);
     optionalString(model, 'name', '远端模型名称', 512);
-    if (model.protocol !== undefined && !MODEL_PROTOCOLS.includes(model.protocol as typeof MODEL_PROTOCOLS[number])) throw new Error('模型协议无效。');
+    if (model.protocol !== undefined && model.protocol !== null && !MODEL_PROTOCOLS.includes(model.protocol as typeof MODEL_PROTOCOLS[number])) throw new Error('模型协议无效。');
     optionalPositiveInteger(model, 'contextWindow', '上下文窗口');
     optionalPositiveInteger(model, 'maxOutput', '最大输出');
     if (model.reasoning !== undefined) assertRecord(model.reasoning, '远端思考能力无效。');

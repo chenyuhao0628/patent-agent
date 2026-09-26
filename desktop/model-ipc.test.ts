@@ -51,6 +51,27 @@ test('model IPC parser validates method, scoped arguments and request identity',
   assert.deepEqual(parseModelIpcRequest('deleteProvider', 'alice', ['provider-1'], 'req-1'), {
     method: 'deleteProvider', profileKey: 'alice', args: ['provider-1'], requestId: 'req-1',
   });
+  assert.doesNotThrow(() => parseModelIpcRequest('saveProvider', 'alice', [{
+    name: 'x',
+    baseURL: 'https://example.test',
+    models: [{
+      modelId: 'm',
+      displayName: 'M',
+      protocol: null,
+      contextWindow: null,
+      maxOutput: null,
+      reasoningBudgetTokens: null,
+      reasoningOutputEffort: null,
+      geminiMode: null,
+      reasoningLevels: [{
+        id: 'low',
+        label: '低',
+        protocolValue: 'low',
+        source: 'manual',
+        hint: '测试级别',
+      }],
+    }],
+  }]));
   assert.throws(() => parseModelIpcRequest('list', 'alice', ['extra']), /参数数量无效/);
   assert.throws(() => parseModelIpcRequest('saveProvider', 'alice', [{ name: 'x', baseURL: 'https://example.test', key: 1 }]), /模型密钥无效/);
   assert.throws(() => parseModelIpcRequest('addDiscoveredModels', 'alice', ['p', [{ id: 1 }]]), /远端模型标识无效/);

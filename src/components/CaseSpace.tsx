@@ -20,15 +20,27 @@ import { MaterialsView } from './MaterialsView.tsx';
 import { Modal, Note } from './Primitives.tsx';
 import { CaseHistory, CurrentCase, RemoteFlow, setCaseFlowCache } from './CurrentCase.tsx';
 import { agentProcessKey, desktop } from '../desktop.ts';
+import { FEATURE_MODULES, featureAvailable, featureContext } from '../app/features.ts';
+import { projectCaseView } from '../domain/case-view.ts';
 
 export const caseTabs={overview:'概览',materials:'材料',discussion:'本案对话',reply:'答复',write:'撰写',review:'审查',history:'办理历史',outputs:'成果',flow:'贝思兰德流程',submit:'提交'};
 export type CaseTab=keyof typeof caseTabs;
 export function CaseSpace({requestedRoundId,item,tab,navigate,updateCase,profileKey}:{requestedRoundId?:string;item:Case;tab:CaseTab;navigate:(t:CaseTab)=>void;updateCase:(patch:Partial<Case>)=>void|Promise<void>;profileKey?:string}){
-  const current=currentWork(item),r=activeRound(item),design=item.design??initialDesign(),editable=editableCurrent(item),handling=currentHandling(item);
+  const projected = projectCaseView(item);
+  const current=projected.stage.current,r=activeRound(item),design=item.design??initialDesign(),editable=projected.stage.editable,handling=currentHandling(item);
   const primary:CaseTab=current.kind==='correction'?'reply':['write','reply','review'].includes(current.kind)?current.kind as CaseTab:'overview';
   const childReview=current.kind==='write'&&design.review?.source==='writing';
-  const allowed=tab===primary||tab==='review'&&childReview;
-  const tabs:CaseTab[]=['overview','materials',...(desktop?['discussion' as CaseTab]:[]),...(primary!=='overview'&&!(desktop&&primary==='reply')?[primary]:[]),...(desktop&&primary!=='review'?['review' as CaseTab]:tab==='review'&&childReview?['review' as CaseTab]:[]),'history','outputs','flow',...(item.source==='baseland'?['submit' as CaseTab]:[])];
+  const featureCtx = featureContext(!!desktop);
+  const canOpenFeature = (id: 'reply' | 'write' | 'review' | 'transfer') => featureAvailable(FEATURE_MODULES.find(feature => feature.id === id)!, featureCtx, item);
+  const allowed = tab === primary || tab === 'review' && (childReview || canOpenFeature('review'));
+  const featureTabs: CaseTab[] = [
+    ...(desktop && canOpenFeature('reply') ? ['discussion' as CaseTab] : []),
+    ...(!desktop && canOpenFeature('reply') ? ['reply' as CaseTab] : []),
+    ...(canOpenFeature('write') ? ['write' as CaseTab] : []),
+    ...(canOpenFeature('review') ? ['review' as CaseTab] : []),
+    ...(canOpenFeature('transfer') ? ['submit' as CaseTab] : []),
+  ];
+  const tabs:CaseTab[]=['overview','materials',...featureTabs,'history','outputs','flow'];
   const [refreshing, setRefreshing] = useState(false);
   const [flowRefreshError, setFlowRefreshError] = useState('');
   const [refreshSeq, setRefreshSeq] = useState(0);
@@ -53,7 +65,7 @@ export function CaseSpace({requestedRoundId,item,tab,navigate,updateCase,profile
       await desktop.sync('manual');
       if (item.remote) {
         const flowView = await desktop.flow(item.id);
-        setCaseFlowCache(item.id, flowView);
+        setCaseFlowCache(profileKey, item.id, flowView);
       }
       if (profileKey && item.remote) {
         await desktop.refreshCaseOutcome(profileKey, item.id);
@@ -102,7 +114,7 @@ export function CaseSpace({requestedRoundId,item,tab,navigate,updateCase,profile
     }
   };
   const officialConclusion = hasOfficialOutcome(item) ? outcomeStatement(item) : '';
-  const canTransfer = internalTransferAvailable(item);
+  const canTransfer = projected.stage.transferAvailable;
   const submitCopy = officialConclusion
     ? `官方结论已到：${officialConclusion}。`
     : handling.officialWaiting
@@ -131,7 +143,7 @@ export function CaseSpace({requestedRoundId,item,tab,navigate,updateCase,profile
           : <ReviewWorkbench item={item} design={design} update={updateDesign} openWriting={()=>{if(current.kind==='write'){updateDesign({...design,writing:{...design.writing,stage:design.review?.completed&&reviewMatchesWriting(design)?'final':'draft'}});navigate('write');}}} openMaterials={()=>navigate('materials')}/>
         : <section className="business-workspace"><h2>本案当前为{current.label??workNames[current.kind]}</h2><Note>本案不能同时开启其他主业务。历史工作内容仍保留。</Note><button onClick={()=>navigate(primary)}>返回当前阶段</button></section>)}
     {tab==='history'&&<CaseHistory item={item}/>}
-    {tab==='flow'&&<RemoteFlow item={item}/>}
+    {tab==='flow'&&<RemoteFlow item={item} profileKey={profileKey}/>}
     {tab==='submit'&&(desktop&&profileKey?<section className="business-workspace"><h2>提交</h2>{officialConclusion&&<p className="submission-complete">官方结论：{officialConclusion}。本案已有授权或驳回结论，当前不能内部转交。</p>}{!officialConclusion&&handling.officialWaiting&&<p className="submission-complete">已递交，等待官方处理结果，无需重复提交。历史文件可在成果和办理历史中查看。</p>}{!officialConclusion&&!handling.officialWaiting&&!canTransfer&&<p className="submission-complete">当前阶段不能内部转交。</p>}<p className="section-copy">{submitCopy}</p><InternalTransfer profileKey={profileKey} item={item} refreshSeq={refreshSeq} navigate={navigate}/></section>:<Note>请在桌面程序中使用贝思兰德内部提交。</Note>)}
     {tab==='outputs'&&(desktop&&profileKey?<CurrentCase item={item} update={updateCase} profileKey={profileKey} outputsOnly/>:<TransferWorkbench item={item} design={design} update={next=>{if(current.kind!=='needs-confirmation')void updateCase({design:next});}} openWriting={()=>navigate(primary)} openReply={()=>navigate(primary)}/>)}
     {showInfo&&<Modal title="案件管理" onClose={()=>setShowInfo(false)}><CaseForm item={item} save={patch=>{void updateCase(patch);setShowInfo(false);}}/></Modal>}

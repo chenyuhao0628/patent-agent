@@ -16,6 +16,25 @@ export class ContractError extends Error {
   }
 }
 
+const CONTRACT_ERROR_PREFIX = 'PATENT_CONTRACT_ERROR:';
+
+export function serializeContractError(error: unknown): Error {
+  if (!(error instanceof ContractError)) {
+    return error instanceof Error ? error : new Error('操作未完成。');
+  }
+  const serialized = new Error(`${CONTRACT_ERROR_PREFIX}${error.code}:${error.message}`);
+  serialized.name = 'ContractError';
+  return serialized;
+}
+
+export function deserializeContractError(error: unknown): Error {
+  const raw = error instanceof Error ? error.message : String(error);
+  const message = raw.replace(/^Error invoking remote method 'desktop:[^']+': (?:Error: )?/, '');
+  const match = new RegExp(`^${CONTRACT_ERROR_PREFIX}(INVALID_ARGUMENT|INVALID_PROFILE|INVALID_CASE|INVALID_REQUEST):(.*)$`, 's').exec(message);
+  if (match) return new ContractError(match[1] as ContractErrorCode, match[2]);
+  return new Error(message);
+}
+
 export function assertRecord(value: unknown, message = '请求对象无效。'): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new ContractError('INVALID_ARGUMENT', message);
