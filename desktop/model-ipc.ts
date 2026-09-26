@@ -4,7 +4,7 @@ import type { ModelService } from './model-service.ts';
 import type { ProviderSaveInput, UpstreamModel } from '../src/domain/models.ts';
 import { assertProfileKey, assertRecord, assertString } from '../src/contracts/version.ts';
 import { MODEL_PROTOCOLS } from '../src/domain/models.ts';
-import type { ModelIpcMethod as SharedModelIpcMethod, ModelIpcResult } from '../src/contracts/ipc.ts';
+import type { ModelIpcMethod as SharedModelIpcMethod, ModelIpcMethodArgs, ModelIpcResult } from '../src/contracts/ipc.ts';
 
 export const MODEL_WRITE_METHODS = ['saveProvider', 'deleteProvider', 'setDefault', 'addDiscoveredModels', 'importDshProvider'] as const;
 export const MODEL_READ_METHODS = ['list', 'testConnection', 'listRemoteModels', 'previewDshProviders'] as const;
@@ -13,7 +13,7 @@ export type ModelIpcMethod = SharedModelIpcMethod;
 export type ParsedModelIpcRequest = {
   method: ModelIpcMethod;
   profileKey: string;
-  args: unknown[];
+  args: ModelIpcMethodArgs[ModelIpcMethod];
   requestId?: string;
 };
 
@@ -120,7 +120,7 @@ export function parseModelIpcRequest(
     ? (profileKeyValue === '' ? '' : assertProfileKey(profileKeyValue))
     : assertProfileKey(profileKeyValue);
   if (!Array.isArray(argsValue)) throw new Error('模型接口参数无效。');
-  const args = [...argsValue];
+  const args = [...argsValue] as ModelIpcMethodArgs[ModelIpcMethod];
   const exact = (count: number) => { if (args.length !== count) throw new Error('模型接口参数数量无效。'); };
   switch (method) {
     case 'list':
@@ -213,7 +213,7 @@ export async function dispatchModelMethod(
   service: ModelService,
   method: ModelIpcMethod,
   profileKey: string,
-  args: unknown[],
+  args: ModelIpcMethodArgs[ModelIpcMethod],
   signal?: AbortSignal,
 ): Promise<ModelIpcResult> {
   switch (method) {
@@ -277,8 +277,9 @@ export async function handleModelIpc(
   if (!host.isMainFrame(sender, frame)) throw new Error('不接受非应用窗口请求。');
   if (typeof profileKey !== 'string') throw new Error('账号标识无效。');
   if (!isModelIpcMethod(method)) throw new Error('不支持的模型接口。');
+  const typedArgs = args as ModelIpcMethodArgs[ModelIpcMethod];
   if (method === 'previewDshProviders' || method === 'importDshProvider') {
-    assertChosenDirectory(String(args[0]), host.chosenDsh);
+    assertChosenDirectory(String(typedArgs[0]), host.chosenDsh);
   }
   const generation = host.getGeneration();
   if (method !== 'previewDshProviders' && profileKey !== host.getProfileKey()) throw new Error('账号已切换，本次旧页面操作未保存。');
@@ -297,7 +298,7 @@ export async function handleModelIpc(
   try {
     const run = async () => {
       if (!accountStillCurrent()) throw new Error('账号已切换，本次旧页面操作未保存。');
-      const result = await dispatchModelMethod(host.modelService, method, profileKey, args, signal);
+      const result = await dispatchModelMethod(host.modelService, method, profileKey, typedArgs, signal);
       if (!accountStillCurrent()) throw new Error('账号已切换，本次旧页面操作未保存。');
       return result;
     };

@@ -6,7 +6,7 @@ import type { ProfessionalCommand } from '../src/professional-api.ts';
 import type { ConnectionTestResult, DshProviderPreview, ModelConfigPublic, ProviderSaveInput, UpstreamModel } from '../src/domain/models.ts';
 import type { ApplicationPreferences } from '../src/application-api.ts';
 import type { Extension } from './extensions.ts';
-import type { DesktopEventPayloads, IpcArgs, IpcChannel, IpcResult, ModelIpcMethod } from '../src/contracts/ipc.ts';
+import type { DesktopEventPayloads, IpcArgs, IpcChannel, IpcResult, ModelIpcArgs, ModelIpcMethod, ModelIpcMethodArgs } from '../src/contracts/ipc.ts';
 import type { DesktopState } from '../src/contracts/desktop-state.ts';
 import { DESKTOP_CONTRACT_VERSION, deserializeContractError } from '../src/contracts/version.ts';
 
@@ -57,10 +57,10 @@ type ModelResultFor<Method extends ModelIpcMethod> =
 const modelCall = async <Method extends ModelIpcMethod>(
   method: Method,
   profileKey: string,
-  args: unknown[],
+  args: ModelIpcMethodArgs[Method],
   requestId?: string,
 ): Promise<ModelResultFor<Method>> => {
-  const value = await call('model', method, profileKey, args, requestId);
+  const value = await call('model', ...( [method, profileKey, args, requestId] as ModelIpcArgs));
   if (method === 'listRemoteModels') return arrayResult<UpstreamModel>(value, '远端模型') as ModelResultFor<Method>;
   if (method === 'previewDshProviders') return arrayResult<DshProviderPreview>(value, 'DSH 供应商') as ModelResultFor<Method>;
   return objectResult<ModelConfigPublic | ConnectionTestResult>(value, '模型') as ModelResultFor<Method>;

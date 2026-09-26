@@ -42,23 +42,32 @@ export type PriorArtIpcArgs =
 
 export type PriorArtIpcResult = { configured: boolean; provider: string; baseURL: string } | DesktopState;
 
-export type ModelIpcMethod =
-  | 'saveProvider'
-  | 'deleteProvider'
-  | 'setDefault'
-  | 'addDiscoveredModels'
-  | 'importDshProvider'
-  | 'list'
-  | 'testConnection'
-  | 'listRemoteModels'
-  | 'previewDshProviders';
+export type ModelRequestOptions = {
+  modelEntryId?: string;
+  requestId?: string;
+};
 
-export type ModelIpcArgs = [
-  method: ModelIpcMethod,
-  profileKey: string,
-  args: unknown[],
-  requestId?: string,
-];
+export type ModelIpcMethodArgs = {
+  saveProvider: [input: ProviderSaveInput];
+  deleteProvider: [providerId: string];
+  setDefault: [providerId: string, modelEntryId: string];
+  addDiscoveredModels: [providerId: string, models: UpstreamModel[]];
+  importDshProvider: [dshDirectory: string, providerKey: string];
+  list: [];
+  testConnection: [providerId: string, options?: ModelRequestOptions];
+  listRemoteModels: [providerId: string, options?: ModelRequestOptions];
+  previewDshProviders: [dshDirectory: string];
+};
+
+export type ModelIpcMethod = keyof ModelIpcMethodArgs;
+export type ModelIpcArgs = {
+  [Method in ModelIpcMethod]: [
+    method: Method,
+    profileKey: string,
+    args: ModelIpcMethodArgs[Method],
+    requestId?: string,
+  ]
+}[ModelIpcMethod];
 
 export type ModelIpcResult =
   | ModelConfigPublic

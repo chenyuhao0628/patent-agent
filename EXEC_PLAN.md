@@ -174,3 +174,10 @@
 - 专业工作台在无视图时优先显示读取错误，不再同时显示错误和加载状态；已有视图发生命令或刷新错误时保留当前内容并显示错误。
 - 验证：`npm test` 556 项通过；`npx tsc --noEmit` 通过；`npm run build` 通过；`git diff --check` 通过。
 - 本阶段未调用真实模型、贝思兰德写接口或真实案件材料，未进行 GUI 视觉和安装包验收。
+
+## 19. 2026-09-26 模型 IPC 方法元组闭合
+
+- `src/contracts/ipc.ts` 新增 `ModelIpcMethodArgs`，按模型方法关联参数元组和可选请求选项；`ModelIpcArgs` 不再暴露 `unknown[]`。
+- preload 的模型调用、主进程模型解析结果和 dispatch 统一使用方法元组；未知输入仍只在 IPC 入口解析，运行时校验规则保持不变。
+- 验证：模型 IPC 回归测试通过；`npm test` 556 项通过；`npx tsc --noEmit` 通过；`npm run build` 通过；`git diff --check` 通过。
+- 本阶段未调用真实模型、贝思兰德写接口或真实案件材料，未进行 GUI 视觉和安装包验收。
