@@ -390,3 +390,11 @@ type FeatureModule = {
 - `DesktopScope` 的案件级结构要求 `caseId` 与 `processKey` 成对出现；渲染层比较、IPC 解析和主进程保存入口均拒绝部分作用域，不能使用缺失字段绕过流程核对。
 - 自动化证据：`npm test` 564 项通过；`npx tsc --noEmit` 通过；`npm run build` 通过；`git diff --check` 通过。
 - 本阶段未进行真实模型、真实案件材料、GUI 视觉、退出恢复、模板 Word 版式、macOS 覆盖安装、Windows 实机安装、服务端写入或官方递交验收。
+
+2026-09-26 完成独立审查可写边界统一：
+
+- 新增 `professionalWorkEditable` 和 `professionalWritingEditable` 领域策略，Feature Registry、Professional Host 和案件状态共同使用当前业务与 `editableCurrent` 判定。
+- 直接 IPC 的人工稿登记、外部完成稿导入、撰写参考材料移除和撰写阶段命令均拒绝归档、结案、官方等待、后续办理或当前节点不可编辑的案件。
+- 现有独立审查来源在案件进入只读状态后仍保留历史查看，但不再允许启动新的审查任务；新增回归覆盖 UI 能力判断和主进程绕过 UI 的调用。
+- 自动化证据：`npm test` 565 项通过；`npx tsc --noEmit` 通过；`npm run build` 通过；`git diff --check` 通过。
+- 本阶段未进行真实模型、真实案件材料、GUI 视觉、退出恢复、模板 Word 版式、macOS 覆盖安装、Windows 实机安装、服务端写入或官方递交验收。

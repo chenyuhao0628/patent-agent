@@ -4,6 +4,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { Case } from '../src/domain/workflow.ts';
 import { currentWork, editableCurrent } from '../src/domain/lifecycle.ts';
+import { professionalWorkEditable, professionalWritingEditable } from '../src/domain/professional-policy.ts';
 import { currentHandling } from '../src/domain/handling.ts';
 import { hasOfficialOutcome } from '../src/domain/outcome.ts';
 import { WRITING_PHASES } from '../src/professional-api.ts';
@@ -64,6 +65,7 @@ export class ProfessionalHost {
     if(keyOf(c)!==source.processKey)return '已进入后续办理流程';
     if(currentHandling(c).officialWaiting)return '已递交，等待官方处理结果';
     if(!['write','reply','correction','review'].includes(currentWork(c).kind))return '当前业务不可继续审查';
+    if(!professionalWorkEditable(c))return '当前案件仅可查看';
     if(!c.directory)return undefined;
     const folder=await this.service.casePath(c.id,'04_内部说明');
     let names:string[]=[];try{names=await fs.readdir(folder);}catch{return undefined;}
@@ -104,7 +106,7 @@ export class ProfessionalHost {
     if(command.type==='stop'){const live=this.active.get(id);live?.abort.abort();live?.handle?.abort();return this.view(key,id);}
     if(this.active.has(id))throw new Error('本案有撰写或审查任务在运行。');
     if(command.type==='write'){
-      if(!editableCurrent(c)||currentWork(c).kind!=='write'||record.completed)throw new Error('当前案件不能启动该撰写阶段。');
+      if(!professionalWritingEditable(c)||record.completed)throw new Error('当前案件不能启动该撰写阶段。');
       if(typeof command.message!=='string'||command.message.length>PROFESSIONAL_WRITE_MESSAGE_MAX||!Array.isArray(command.materialIds))throw new Error('撰写输入无效。');
       if(record.phase===0&&!command.message.trim()&&!c.title.trim())throw new Error('请提供名称或技术交底。');
       const materials=materialList(c),picked=command.materialIds.map(mid=>materials.find(m=>m.id===mid));
@@ -117,7 +119,7 @@ export class ProfessionalHost {
       if(!record.sources.some(s=>s.id===item.source.id))record.sources.push(structuredClone(item.source));
       await this.start(key,c,record,'review','',item.source.files,item.source);
     }else if(command.type==='confirm'){
-      if(!editableCurrent(c)||currentWork(c).kind!=='write')throw new Error('当前流程已不允许确认撰写结果。');
+      if(!professionalWritingEditable(c))throw new Error('当前流程已不允许确认撰写结果。');
       const job=record.jobs.filter(j=>j.kind==='writing'&&j.phase===record.phase&&j.state==='completed').at(-1);
       if(!job||job.id!==command.jobId||record.completed)throw new Error('阶段结果已变化，请核对当前版本。');
       if(typeof command.decision!=='string'||command.decision.length>PROFESSIONAL_DECISION_MAX||record.phase<2&&!command.decision.trim())throw new Error('请明确所选方向或保护架构，再确认本阶段。');
@@ -135,10 +137,10 @@ export class ProfessionalHost {
       record.confirmations.push(confirmation);
       await this.persist(key);
     }else if(command.type==='restart'){
-      if(!editableCurrent(c)||currentWork(c).kind!=='write'||!Number.isInteger(command.phase)||command.phase<0||command.phase>record.phase)throw new Error('不能回到指定阶段。');
+      if(!professionalWritingEditable(c)||!Number.isInteger(command.phase)||command.phase<0||command.phase>record.phase)throw new Error('不能回到指定阶段。');
       record.phase=command.phase;record.completed=false;record.confirmations=record.confirmations.filter(x=>x.phase<command.phase);await this.persist(key);
     }else if(command.type==='ready-manual'){
-      if(c.archived||c.remoteClosure?.finished||hasOfficialOutcome(c)||!c.localDraft?.trim()||!['write','reply','correction'].includes(currentWork(c).kind)||currentHandling(c).officialWaiting)throw new Error('本案没有可列入审查的当前工作稿。');
+      if(!professionalWorkEditable(c)||hasOfficialOutcome(c)||!c.localDraft?.trim()||!['write','reply','correction'].includes(currentWork(c).kind))throw new Error('本案没有可列入审查的当前工作稿。');
       const hash=digest(c.localDraft),sourceId='manual-'+digest(c.id+'\0'+record.processKey+'\0'+hash);
       if(!record.sources.some(s=>s.id===sourceId))record.sources.push({id:sourceId,caseId:id,processKey:record.processKey,title:'已完成的人工工作稿',business:currentWork(c).kind==='write'?'申请':currentWork(c).kind==='correction'?'补正':'答复',at:new Date().toISOString(),text:c.localDraft,files:[]});
       await this.persist(key);
@@ -163,7 +165,7 @@ export class ProfessionalHost {
   }
   async addFiles(key:string,id:string,paths:string[]):Promise<ProfessionalCaseView>{return this.serial(async()=>{
     const c=this.guard(key,id),processKey=keyOf(c),root=this.service.workspace.settings.workRoot,generation=this.service.generation,record=this.record(await this.store(key),c);
-    if(c.archived||c.remoteClosure?.finished||hasOfficialOutcome(c)||currentHandling(c).officialWaiting||!['write','reply','correction','review'].includes(currentWork(c).kind))throw new Error('当前案件仅可查看，不能新增独立审查稿件。');
+    if(!professionalWorkEditable(c)||hasOfficialOutcome(c))throw new Error('当前案件仅可查看，不能新增独立审查稿件。');
     if(this.active.has(id))throw new Error('请先停止本案任务再选择完成稿。');
     if(!paths.length||paths.length>12)throw new Error('每次可选择 1–12 份完成稿。');
     const files:WorkFile[]=[];
@@ -176,7 +178,7 @@ export class ProfessionalHost {
   });}
   async addReferences(key:string,id:string,paths:string[]):Promise<ProfessionalCaseView>{return this.serial(async()=>{
     const c=this.guard(key,id),expected={generation:this.service.generation,root:this.service.workspace.settings.workRoot,process:keyOf(c)};
-    if(this.active.has(id)||!editableCurrent(c)||currentWork(c).kind!=='write')throw new Error('请在可编辑的撰写阶段、任务停止后添加材料。');
+    if(this.active.has(id)||!professionalWritingEditable(c))throw new Error('请在可编辑的撰写阶段、任务停止后添加材料。');
     if(!paths.length||paths.length>12)throw new Error('每次可添加 1–12 份参考材料。');
     const prepared:Array<{name:string;bytes:Buffer}>=[];
     for(const source of paths){
@@ -206,6 +208,7 @@ export class ProfessionalHost {
   });}
   async removeReference(key:string,id:string,materialId:string):Promise<ProfessionalCaseView>{return this.serial(async()=>{
     const c=this.guard(key,id);if(this.active.has(id))throw new Error('请先停止本案任务，再移除材料。');
+    if(!professionalWritingEditable(c))throw new Error('请在可编辑的撰写阶段移除材料。');
     await this.service.updateReferences(key,id,{generation:this.service.generation,root:this.service.workspace.settings.workRoot,process:keyOf(c)},[],materialId);
     const latest=this.guard(key,id);
     const record=this.record(await this.store(key),latest);

@@ -5,6 +5,7 @@ import type { LucideIcon } from 'lucide-react';
 import { ArrowRightLeft, FileSearch, MessageSquare, PenLine } from 'lucide-react';
 import { currentWork, editableCurrent, internalTransferAvailable, processBusinessKind } from '../domain/lifecycle.ts';
 import { currentHandling } from '../domain/handling.ts';
+import { professionalWorkEditable, professionalWritingEditable } from '../domain/professional-policy.ts';
 
 export type FeatureModule = {
   id: Module;
@@ -57,7 +58,7 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
     desktopOnly: true,
     canView: hasWritingHistory,
     canStart: caseItem => activeCase(caseItem) && currentWork(caseItem).kind === 'write',
-    canEdit: caseItem => editableCurrent(caseItem) && currentWork(caseItem).kind === 'write',
+    canEdit: professionalWritingEditable,
   },
   {
     id: 'review',
@@ -67,10 +68,8 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
     capabilities: ['case.read', 'artifact.read', 'professional.review'],
     desktopOnly: true,
     canView: () => true,
-    canStart: caseItem => activeCase(caseItem) && ['write', 'reply', 'correction', 'review'].includes(currentWork(caseItem).kind),
-    canEdit: caseItem => !caseItem.archived
-      && !currentHandling(caseItem).officialWaiting
-      && currentWork(caseItem).kind !== 'waiting',
+    canStart: professionalWorkEditable,
+    canEdit: professionalWorkEditable,
   },
   {
     id: 'transfer',

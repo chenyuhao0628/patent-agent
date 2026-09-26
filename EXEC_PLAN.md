@@ -219,3 +219,10 @@
 - `DesktopScope` 的案件级字段必须成对出现：有 `caseId` 就必须有 `processKey`，反之亦然。渲染层、IPC 解析器和主进程保存入口都拒绝部分作用域，缺失字段不能成为通配。
 - 验证：`npm test` 564 项通过；`npx tsc --noEmit` 通过；`npm run build` 通过；`git diff --check` 通过。
 - 未验收：真实模型、真实案件材料、GUI 视觉、退出恢复、模板 Word 版式、macOS 覆盖安装、Windows 实机安装、服务端写入和官方递交。
+
+## 25. 2026-09-26 独立审查可写边界统一
+
+- 新增 `professionalWorkEditable` 和 `professionalWritingEditable` 领域策略，Feature Registry、Professional Host 和案件状态共同使用当前业务与 `editableCurrent` 判定。
+- 直接 IPC 的人工稿登记、外部完成稿导入、撰写参考材料移除和撰写阶段命令均拒绝只读案件；历史来源保留查看但不再启动新的独立审查任务。
+- 验证：`npm test` 565 项通过；`npx tsc --noEmit` 通过；`npm run build` 通过；`git diff --check` 通过。
+- 未验收：真实模型、真实案件材料、GUI 视觉、退出恢复、模板 Word 版式、macOS 覆盖安装、Windows 实机安装、服务端写入和官方递交。

@@ -111,4 +111,13 @@ test('feature access exposes one consistent visibility, start and edit decision'
     startable: true,
     editable: true,
   });
+  const readonly = fixture({
+    current: { kind: 'reply', processId: 'p-1', remoteStatus: 200 },
+    remote: {
+      caseId: 'remote-1',
+      syncedAt: '',
+      processes: [{ id: 'p-1', name: '审查意见答复', status: 200, node: '审核', undertaker: '其他人', deadline: '', canEdit: false }],
+    },
+  });
+  assert.equal(featureAccess(FEATURE_MODULE_BY_ID.review, context, readonly).editable, false);
 });

@@ -138,3 +138,22 @@ test('review history becomes readonly when the current business is external',asy
  assert.match(view[0].archiveReason??'',/不可继续审查/);
  await assert.rejects(f.host.command('local',f.id,{type:'review',sourceId:source.id}),/归档|不属于/);
 });
+
+test('professional source writes reuse the main-process editable business boundary',async t=>{
+ const f=await fixture(t);const reference=path.join(f.root,'参考.md');const finished=path.join(f.root,'完成稿.txt');
+ await fs.writeFile(reference,'技术交底');await fs.writeFile(finished,'完成稿正文');
+ const imported=await f.host.addReferences('local',f.id,[reference]);
+ const c=f.service.findCase(f.id);
+ c.localDraft='已有完成稿';
+ await f.host.command('local',f.id,{type:'ready-manual'});
+ c.source='baseland';
+ c.current={kind:'reply',processId:'reply-1',remoteStatus:200};
+ c.remote={caseId:'remote-1',syncedAt:'',processes:[{id:'reply-1',name:'审查意见答复',status:200,node:'审核',undertaker:'其他人',deadline:'',canEdit:false}]};
+ c.localDraft='不应进入审查队列';
+ await assert.rejects(f.host.command('local',f.id,{type:'ready-manual'}),/没有可列入审查/);
+ await assert.rejects(f.host.addFiles('local',f.id,[finished]),/仅可查看/);
+ await assert.rejects(f.host.removeReference('local',f.id,imported.materials[0].id),/可编辑的撰写阶段/);
+ const source=(await f.host.listReviews('local'))[0];
+ assert.equal(source.archived,true);
+ await assert.rejects(f.host.command('local',f.id,{type:'review',sourceId:source.source.id}),/归档/);
+});
