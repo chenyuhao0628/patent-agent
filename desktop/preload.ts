@@ -5,21 +5,28 @@ import type { NameDiscrepancyRequest, TransferFilePreviewRef, TransferReview, Tr
 import type { ProfessionalCommand } from '../src/professional-api.ts';
 import type { ProviderSaveInput, UpstreamModel } from '../src/domain/models.ts';
 import type { ApplicationPreferences } from '../src/application-api.ts';
+import type { DesktopEventPayloads, IpcArgs, IpcChannel, IpcResult } from '../src/contracts/ipc.ts';
 import { DESKTOP_CONTRACT_VERSION, deserializeContractError } from '../src/contracts/version.ts';
 
-const call = async <T>(name: string, ...args: unknown[]): Promise<T> => {
+const call = async <Name extends IpcChannel>(name: Name, ...args: IpcArgs<Name>): Promise<IpcResult<Name>> => {
   try {
-    return await ipcRenderer.invoke(`desktop:${name}`, ...args) as T;
+    return await ipcRenderer.invoke(`desktop:${name}`, ...args) as IpcResult<Name>;
   } catch (error) {
     throw deserializeContractError(error);
   }
 };
 
-const modelCall = <T>(method: string, profileKey: string, args: unknown[], requestId?: string) =>
-  call<T>('model', method, profileKey, args, requestId);
+const callAs = async <Name extends IpcChannel, T = IpcResult<Name>>(name: Name, ...args: IpcArgs<Name>): Promise<T> =>
+  call(name, ...args) as Promise<T>;
 
-const onState = <T>(channel: string, callback: (value: T) => void): (() => void) => {
-  const listener = (_event: Electron.IpcRendererEvent, value: T) => callback(value);
+const modelCall = <T>(method: string, profileKey: string, args: unknown[], requestId?: string) =>
+  callAs<'model', T>('model', method, profileKey, args, requestId);
+
+const onState = <Name extends keyof DesktopEventPayloads>(
+  channel: Name,
+  callback: (value: DesktopEventPayloads[Name]) => void,
+): (() => void) => {
+  const listener = (_event: Electron.IpcRendererEvent, value: DesktopEventPayloads[Name]) => callback(value);
   ipcRenderer.on(channel, listener);
   return () => ipcRenderer.removeListener(channel, listener);
 };
@@ -29,7 +36,7 @@ const api: DesktopAPI = {
   diagnosticExport: () => call('diagnosticExport'),
   diagnosticReport: input => call('diagnosticReport', input),
   extensions: {
-    test: (profileKey, id) => call('extensions', 'test', profileKey, id),
+    test: (profileKey, id) => callAs<'extensions', { tools: number }>('extensions', 'test', profileKey, id),
     list: profileKey => call('extensions', 'list', profileKey),
     toggle: (profileKey, id, value) => call('extensions', 'toggle', profileKey, id, value),
     remove: (profileKey, id) => call('extensions', 'remove', profileKey, id),
@@ -38,12 +45,12 @@ const api: DesktopAPI = {
     importSkill: profileKey => call('extensions', 'importSkill', profileKey),
   },
   priorArt: {
-    status: profileKey => call('priorArt', 'status', profileKey),
-    save: (profileKey, value) => call('priorArt', 'save', profileKey, value),
-    clear: profileKey => call('priorArt', 'clear', profileKey),
-    importLegacy: profileKey => call('priorArt', 'importLegacy', profileKey),
-    test: profileKey => call('priorArt', 'test', profileKey),
-    prepare: (profileKey, caseId, value) => call('priorArt', 'prepare', profileKey, caseId, value),
+    status: profileKey => callAs('priorArt', 'status', profileKey),
+    save: (profileKey, value) => callAs('priorArt', 'save', profileKey, value),
+    clear: profileKey => callAs('priorArt', 'clear', profileKey),
+    importLegacy: profileKey => callAs('priorArt', 'importLegacy', profileKey),
+    test: profileKey => callAs('priorArt', 'test', profileKey),
+    prepare: (profileKey, caseId, value) => callAs('priorArt', 'prepare', profileKey, caseId, value),
   },
   verifyLogin: () => call('verifyLogin'),
   bootstrap: () => call('bootstrap'),
@@ -80,9 +87,9 @@ const api: DesktopAPI = {
       modelCall('listRemoteModels', profileKey, [providerId, options], options?.requestId),
     addDiscoveredModels: (profileKey, providerId, models: UpstreamModel[]) =>
       modelCall('addDiscoveredModels', profileKey, [providerId, models]),
-    previewDshProviders: dshDirectory => call('model', 'previewDshProviders', '', [dshDirectory]),
+    previewDshProviders: dshDirectory => modelCall('previewDshProviders', '', [dshDirectory]),
     importDshProvider: (profileKey, dshDirectory, providerKey) =>
-      call('model', 'importDshProvider', profileKey, [dshDirectory, providerKey]),
+      modelCall('importDshProvider', profileKey, [dshDirectory, providerKey]),
     cancelRequest: requestId => call('modelCancel', requestId),
     selectDshDirectory: () => call('selectDshDirectory'),
   },

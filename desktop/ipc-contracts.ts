@@ -201,7 +201,7 @@ export function ipcMaterialId(value: unknown): string {
 
 export function ipcRelativePath(value: unknown): string {
   const relativePath = assertString(value, '文件路径', 1024).replaceAll('\\', '/');
-  if (relativePath.startsWith('/') || /^[A-Za-z]:($|\/)/.test(relativePath) || relativePath.split('/').some(part => part === '..' || part === '.' || part === '')) {
+  if (relativePath.includes('\0') || relativePath.startsWith('/') || /^[A-Za-z]:/.test(relativePath) || relativePath.split('/').some(part => part === '..' || part === '.' || part === '')) {
     throw new Error('文件路径无效。');
   }
   return relativePath;
@@ -282,6 +282,14 @@ export function ipcSettings(value: unknown): Settings {
         || (extension.kind !== '技能' && extension.kind !== 'MCP') || typeof extension.enabled !== 'boolean';
     })) throw new Error('设置内容无效。');
   }
+  if (record.lastTransferRecipient !== undefined) {
+    const recipient = assertRecord(record.lastTransferRecipient, '设置内容无效。');
+    if (typeof recipient.userId !== 'string' || !recipient.userId.trim() || recipient.userId.length > 256
+      || (recipient.userName !== undefined && (typeof recipient.userName !== 'string' || recipient.userName.length > 256))
+      || (recipient.stepId !== undefined && (typeof recipient.stepId !== 'string' || recipient.stepId.length > 256))) {
+      throw new Error('设置内容无效。');
+    }
+  }
   return value as Settings;
 }
 
@@ -299,17 +307,28 @@ export function ipcAgentCommand(value: unknown): AgentCommand {
   if (!AGENT_COMMANDS.has(type)) throw new Error('不支持的 Agent 操作。');
   if (type === 'queue') {
     fieldString(record, 'discussionId', '讨论标识');
-    oneOf(record.operation, ['add', 'edit', 'remove', 'send'], '队列操作');
+    const operation = oneOf(record.operation, ['add', 'edit', 'remove', 'send'], '队列操作');
+    if (record.purpose !== undefined) oneOf(record.purpose, ['workflow', 'discuss'], '发送用途');
     optionalString(record, 'id', '队列消息标识');
     optionalString(record, 'text', '队列内容', 100000);
     optionalString(record, 'expectedRunId', '任务标识');
+    if (operation === 'add' && (typeof record.text !== 'string' || !record.text.trim())) throw new Error('队列内容无效。');
+    if (operation !== 'add' && (typeof record.id !== 'string' || !record.id.trim())) throw new Error('队列消息标识无效。');
+    if (operation === 'edit' && (typeof record.text !== 'string' || !record.text.trim())) throw new Error('队列内容无效。');
   } else if (type === 'conversation') {
     fieldString(record, 'discussionId', '讨论标识');
-    oneOf(record.operation, ['continue', 'retry', 'edit', 'regenerate'], '对话操作');
+    const operation = oneOf(record.operation, ['continue', 'retry', 'edit', 'regenerate'], '对话操作');
     optionalString(record, 'queueId', '队列标识');
     optionalString(record, 'runId', '任务标识');
     optionalString(record, 'messageId', '消息标识');
     optionalString(record, 'text', '对话内容', 100000);
+    if ((operation === 'continue' || operation === 'retry') && (typeof record.runId !== 'string' || !record.runId.trim())) {
+      throw new Error('任务标识无效。');
+    }
+    if ((operation === 'edit' || operation === 'regenerate') && (typeof record.messageId !== 'string' || !record.messageId.trim())) {
+      throw new Error('消息标识无效。');
+    }
+    if (operation === 'edit' && (typeof record.text !== 'string' || !record.text.trim())) throw new Error('对话内容无效。');
   } else if (type === 'clearConversation' || type === 'branch' || type === 'manageDiscussion') {
     fieldString(record, 'discussionId', '讨论标识');
     if (type === 'branch') fieldString(record, 'branchId', '分支标识');

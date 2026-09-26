@@ -125,3 +125,10 @@
 - 流程缓存键绑定 `profileKey + caseId`，账号切换不会复用其他账号的流程视图。
 - 新增领域投影、Feature Registry、IPC 错误和输入边界测试；`npm test`：552 项通过；`npx tsc --noEmit`：通过；`npm run build`：通过；`git diff --check`：通过。
 - 本阶段未调用真实模型、贝思兰德写接口或真实案件材料，未进行 GUI 视觉和安装包验收。
+
+## 13. 2026-09-26 通道级契约与条件输入收敛
+
+- 新增 `src/contracts/ipc.ts`，集中声明公开 IPC 通道的参数元组、返回值和单向事件载荷。
+- `desktop/preload.ts` 的桥接调用按通道表编译；`desktop/main.ts` 的注册器通道名按同一表约束。
+- Agent 队列/对话命令补齐条件字段、用途枚举和非空要求；设置收件人对象、Windows 驱动器相对路径和 NUL 路径增加边界拒绝。
+- 本阶段未调用真实模型、贝思兰德写接口或真实案件材料，未进行 GUI 视觉和安装包验收。

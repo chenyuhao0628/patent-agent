@@ -41,7 +41,7 @@ test('IPC contract guards accept scoped commands', () => {
     origin: 'https://example.test', username: 'u', password: 'p', remember: false,
   });
   assert.deepEqual(ipcCreateCaseInput({ title: '案件', number: 'CN-1', kind: 'write' }), { title: '案件', number: 'CN-1', kind: 'write' });
-  assert.deepEqual(ipcSettings({ provider: 'p', baseUrl: '', model: '' }), { provider: 'p', baseUrl: '', model: '' });
+  assert.deepEqual(ipcSettings({ provider: 'p', baseUrl: '', model: '', lastTransferRecipient: { userId: 'u', userName: '', stepId: '' } }), { provider: 'p', baseUrl: '', model: '', lastTransferRecipient: { userId: 'u', userName: '', stepId: '' } });
   assert.deepEqual(ipcTransferFilePreviewRef({ role: 'reply', name: 'reply.docx' }), { role: 'reply', name: 'reply.docx' });
   assert.deepEqual(ipcAgentCommand({ type: 'applicationParts', parts: { CLAIMS: '1. 一种装置。' } }), { type: 'applicationParts', parts: { CLAIMS: '1. 一种装置。' } });
   assert.equal(ipcRelativePath('04_内部说明/report.docx'), '04_内部说明/report.docx');
@@ -61,6 +61,8 @@ test('IPC contract guards accept scoped commands', () => {
   });
   assert.deepEqual(ipcAgentCommand({ type: 'opened' }), { type: 'opened' });
   assert.deepEqual(ipcAgentCommand({ type: 'run', action: 'discuss' }), { type: 'run', action: 'discuss' });
+  assert.deepEqual(ipcAgentCommand({ type: 'queue', discussionId: 'd-1', operation: 'add', text: '待发送', purpose: 'discuss' }), { type: 'queue', discussionId: 'd-1', operation: 'add', text: '待发送', purpose: 'discuss' });
+  assert.deepEqual(ipcAgentCommand({ type: 'conversation', discussionId: 'd-1', operation: 'retry', runId: 'run-1' }), { type: 'conversation', discussionId: 'd-1', operation: 'retry', runId: 'run-1' });
   assert.deepEqual(ipcAgentCommand({ type: 'classify', classification: { patentType: '发明' } }), { type: 'classify', classification: { patentType: '发明' } });
   assert.deepEqual(ipcProfessionalCommand({ type: 'write', message: '开始', materialIds: [] }), { type: 'write', message: '开始', materialIds: [] });
   assert.deepEqual(ipcProfessionalCommand({ type: 'write', materialIds: [] }), { type: 'write', materialIds: [] });
@@ -108,11 +110,17 @@ test('IPC contract guards reject malformed or unsupported commands', () => {
   assert.throws(() => ipcCaseId(''), /案件标识无效/);
   assert.throws(() => ipcRelativePath('/etc/passwd'), /文件路径无效/);
   assert.throws(() => ipcRelativePath('../secret'), /文件路径无效/);
+  assert.throws(() => ipcRelativePath('C:relative.txt'), /文件路径无效/);
+  assert.throws(() => ipcRelativePath('safe/\0name.txt'), /文件路径无效/);
   assert.throws(() => ipcTransferRole('secret'), /文件用途无效/);
   assert.throws(() => ipcTransferSource('remote'), /材料来源无效/);
   assert.throws(() => ipcAgentCommand({ type: 'unknown' }), /不支持的 Agent 操作/);
   assert.throws(() => ipcAgentCommand({ type: 'run' }), /Agent 动作无效/);
   assert.throws(() => ipcAgentCommand({ type: 'materials', selectedIds: 'not-array' }), /材料选择无效/);
+  assert.throws(() => ipcAgentCommand({ type: 'queue', discussionId: 'd-1', operation: 'add', text: '内容', purpose: 'other' }), /发送用途无效/);
+  assert.throws(() => ipcAgentCommand({ type: 'queue', discussionId: 'd-1', operation: 'remove' }), /队列消息标识无效/);
+  assert.throws(() => ipcAgentCommand({ type: 'conversation', discussionId: 'd-1', operation: 'edit', messageId: 'm-1' }), /对话内容无效/);
+  assert.throws(() => ipcAgentCommand({ type: 'conversation', discussionId: 'd-1', operation: 'retry' }), /任务标识无效/);
   assert.throws(() => ipcProfessionalCommand({ type: 'unknown' }), /不支持的专业工作操作/);
   assert.throws(() => ipcProfessionalCommand({ type: 'write' }), /材料选择无效/);
   assert.throws(() => ipcBoolean('true', '启用状态'), /启用状态无效/);
@@ -121,6 +129,7 @@ test('IPC contract guards reject malformed or unsupported commands', () => {
   assert.throws(() => ipcLoginInput({ origin: 'x', username: 'u', password: 'p', remember: 'no' }), /记住登录无效/);
   assert.throws(() => ipcCreateCaseInput({ title: '案件', number: 'CN-1', kind: 'other' }), /当前业务无效/);
   assert.throws(() => ipcSettings({ provider: 'p' }), /设置内容无效/);
+  assert.throws(() => ipcSettings({ provider: 'p', baseUrl: '', model: '', lastTransferRecipient: { userId: '' } }), /设置内容无效/);
   assert.throws(() => ipcTransferFilePreviewRef({ name: 1 }), /文件预览请求无效/);
   assert.throws(() => ipcWorkspace({ schema: 2, cases: [], settings: {} }), /案件记录格式不正确/);
   assert.throws(() => ipcAgentCommand({ type: 'applicationParts', parts: [] }), /申请文件部分/);

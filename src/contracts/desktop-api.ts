@@ -11,6 +11,7 @@ import type {
   FolderOrganizationReport,
   MigrationPreview,
 } from './desktop-state.ts';
+export type { DesktopEventPayloads, DesktopIpcChannels, IpcArgs, IpcChannel, IpcResult } from './ipc.ts';
 
 export type DesktopCaseAPI = {
   saveWorkspace(key: string, workspace: import('../domain/workflow.ts').Workspace): Promise<void>;
