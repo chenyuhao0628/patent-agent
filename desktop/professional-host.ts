@@ -6,6 +6,7 @@ import type { Case } from '../src/domain/workflow.ts';
 import { currentWork, editableCurrent } from '../src/domain/lifecycle.ts';
 import { currentHandling } from '../src/domain/handling.ts';
 import { WRITING_PHASES } from '../src/professional-api.ts';
+import { PROFESSIONAL_DECISION_MAX, PROFESSIONAL_WRITE_MESSAGE_MAX } from '../src/professional-api.ts';
 import type { ProfessionalCaseView, ProfessionalCommand, ProfessionalJob, ProfessionalRecord, ReviewQueueItem, ReviewSource, WorkFile } from '../src/professional-api.ts';
 import type { AgentHost, AgentHostRun, AgentHostRunHandle, AgentHostMaterialSnapshot } from './agent-host.ts';
 import type { DesktopService } from './service.ts';
@@ -100,7 +101,7 @@ export class ProfessionalHost {
     if(this.active.has(id))throw new Error('本案有撰写或审查任务在运行。');
     if(command.type==='write'){
       if(!editableCurrent(c)||currentWork(c).kind!=='write'||record.completed)throw new Error('当前案件不能启动该撰写阶段。');
-      if(typeof command.message!=='string'||command.message.length>80000||!Array.isArray(command.materialIds))throw new Error('撰写输入无效。');
+      if(typeof command.message!=='string'||command.message.length>PROFESSIONAL_WRITE_MESSAGE_MAX||!Array.isArray(command.materialIds))throw new Error('撰写输入无效。');
       if(record.phase===0&&!command.message.trim()&&!c.title.trim())throw new Error('请提供名称或技术交底。');
       const materials=materialList(c),picked=command.materialIds.map(mid=>materials.find(m=>m.id===mid));
       if(picked.some(m=>!m?.ready||!m.relativePath))throw new Error('所选材料尚未准备好。');
@@ -115,7 +116,7 @@ export class ProfessionalHost {
       if(!editableCurrent(c)||currentWork(c).kind!=='write')throw new Error('当前流程已不允许确认撰写结果。');
       const job=record.jobs.filter(j=>j.kind==='writing'&&j.phase===record.phase&&j.state==='completed').at(-1);
       if(!job||job.id!==command.jobId||record.completed)throw new Error('阶段结果已变化，请核对当前版本。');
-      if(typeof command.decision!=='string'||command.decision.length>20000||record.phase<2&&!command.decision.trim())throw new Error('请明确所选方向或保护架构，再确认本阶段。');
+      if(typeof command.decision!=='string'||command.decision.length>PROFESSIONAL_DECISION_MAX||record.phase<2&&!command.decision.trim())throw new Error('请明确所选方向或保护架构，再确认本阶段。');
       const confirmation={jobId:job.id,phase:record.phase,decision:command.decision.trim(),at:new Date().toISOString()};
       if(record.phase<4)record.phase++;
       else {

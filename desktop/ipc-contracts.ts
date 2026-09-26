@@ -2,6 +2,7 @@ import type { AgentCommand } from '../src/domain/agent-command.ts';
 import { validateApplicationParts } from '../src/domain/application-parts.ts';
 import { validateCorrectionContents } from '../src/domain/correction.ts';
 import type { ClassificationInput } from '../src/domain/agent.ts';
+import { PROFESSIONAL_DECISION_MAX, PROFESSIONAL_WRITE_MESSAGE_MAX } from '../src/professional-api.ts';
 import type { ProfessionalCommand } from '../src/professional-api.ts';
 import type { TransferFilePreviewRef, TransferReview } from '../src/transfer-api.ts';
 import type { Settings, Workspace } from '../src/domain/workflow.ts';
@@ -394,11 +395,11 @@ export function ipcProfessionalCommand(value: unknown): ProfessionalCommand {
   const type = assertString(record.type, '专业工作操作类型', 64);
   if (!PROFESSIONAL_COMMANDS.has(type)) throw new Error('不支持的专业工作操作。');
   if (type === 'write') {
-    if (typeof record.message !== 'string' || record.message.length > 100000) throw new Error('撰写要求无效。');
+    if (typeof record.message !== 'string' || record.message.length > PROFESSIONAL_WRITE_MESSAGE_MAX) throw new Error('撰写要求无效。');
     stringArray(record, 'materialIds', '材料选择');
   } else if (type === 'confirm') {
     fieldString(record, 'jobId', '任务标识');
-    if (typeof record.decision !== 'string' || record.decision.length > 100000) throw new Error('确认意见无效。');
+    if (typeof record.decision !== 'string' || record.decision.length > PROFESSIONAL_DECISION_MAX) throw new Error('确认意见无效。');
   } else if (type === 'restart') {
     if (!Number.isInteger(record.phase) || Number(record.phase) < 0 || Number(record.phase) > 4) throw new Error('撰写阶段无效。');
   } else if (type === 'review') {

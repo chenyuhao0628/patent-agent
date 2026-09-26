@@ -28,6 +28,7 @@ import {
   ipcDocumentToolsConfig,
   ipcWorkspace,
 } from './ipc-contracts.ts';
+import { PROFESSIONAL_DECISION_MAX, PROFESSIONAL_WRITE_MESSAGE_MAX } from '../src/professional-api.ts';
 
 test('IPC contract guards accept scoped commands', () => {
   assert.equal(ipcProfileKey('account-1'), 'account-1');
@@ -164,6 +165,8 @@ test('IPC contract guards reject malformed or unsupported commands', () => {
   assert.throws(() => ipcAgentCommand({ type: 'materials', selectedIds: [''] }), /材料选择无效/);
   assert.throws(() => ipcAgentCommand({ type: 'run', action: 'invalid' }), /Agent 动作无效/);
   assert.throws(() => ipcProfessionalCommand({ type: 'write', materialIds: ['ok'], message: 1 }), /撰写要求无效/);
+  assert.throws(() => ipcProfessionalCommand({ type: 'write', materialIds: [], message: 'x'.repeat(PROFESSIONAL_WRITE_MESSAGE_MAX + 1) }), /撰写要求无效/);
+  assert.throws(() => ipcProfessionalCommand({ type: 'confirm', jobId: 'job-1', decision: 'x'.repeat(PROFESSIONAL_DECISION_MAX + 1) }), /确认意见无效/);
   assert.throws(() => ipcTransferReview({ keepCodes: [] }), /核对内容不完整/);
   assert.throws(() => ipcTransferReview({
     keepCodes: [],

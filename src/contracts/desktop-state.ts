@@ -84,7 +84,7 @@ export type DesktopState = {
   auth?: AuthState;
   profileKey: string;
   /** Monotonic desktop-session scope; UI caches must not cross this boundary. */
-  scopeVersion?: number;
+  scopeVersion: number;
   account: Account | null;
   workspace: Workspace;
   sync: SyncState;

@@ -1,4 +1,6 @@
 export const PROFESSIONAL_API_CONTRACT_VERSION = 1 as const;
+export const PROFESSIONAL_WRITE_MESSAGE_MAX = 80_000;
+export const PROFESSIONAL_DECISION_MAX = 20_000;
 export { WRITING_PHASES } from './domain/professional-policy.ts';
 export type { WritingPhase } from './domain/professional-policy.ts';
 export type WorkFile={name:string;relativePath:string;hash?:string;role:string};

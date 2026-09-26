@@ -10,7 +10,7 @@ import { deadlineFieldLabel, deadlineFieldValue, processDeadlineView } from '../
 import { agentProcessKey, desktop, shouldAcceptAgentView } from '../desktop.ts';
 import type { AgentCaseView, FlowNode, FlowView } from '../desktop.ts';
 import { hasOfficialOutcome, outcomeStatement, stamp as safeStamp } from '../domain/outcome.ts';
-import { Modal, Note } from './Primitives.tsx';
+import { ErrorState, LoadingState, Modal, Note, ReadonlyState } from './Primitives.tsx';
 import { FormattedFormulaText } from './FormattedFormulaText.tsx';
 import { AgentArtifacts, AgentWorkbench } from './AgentWorkbench.tsx';
 import type { DesktopScope } from '../app/scope.ts';
@@ -41,15 +41,16 @@ function sourceHistoryRecord(source: { id: string; title: string; business: stri
 export function CaseHistory({item,profileKey}:{item:Case;profileKey?:string}){
   const [preview,setPreview]=useState('');
   const [remoteRecords,setRemoteRecords]=useState<HistoryRecord[]>([]);
-  const [remoteLoading,setRemoteLoading]=useState(false);
+  const [remoteLoading,setRemoteLoading]=useState(false),[remoteError,setRemoteError]=useState('');
   useEffect(()=>{
     let alive=true;
     setRemoteRecords([]);
+    setRemoteError('');
     if(!desktop||!profileKey)return;
     setRemoteLoading(true);
     const loads:Promise<HistoryRecord[]>[]=[];
     if(desktop.agent.reviewSources){
-      loads.push(desktop.agent.reviewSources(profileKey).then(sources=>sources.filter(source=>source.caseId===item.id).map(sourceHistoryRecord)).catch(()=>[]));
+      loads.push(desktop.agent.reviewSources(profileKey).then(sources=>sources.filter(source=>source.caseId===item.id).map(sourceHistoryRecord)));
     }
     loads.push(desktop.professional.getCase(profileKey,item.id).then(view=>{
       const records:HistoryRecord[]=[];
@@ -63,16 +64,19 @@ export function CaseHistory({item,profileKey}:{item:Case;profileKey?:string}){
         });
       }
       return records;
-    }).catch(()=>[]));
-    void Promise.all(loads).then(groups=>{
+    }));
+    void Promise.allSettled(loads).then(results=>{
       if(!alive)return;
       const seen=new Set<string>();
+      const groups=results.flatMap(result=>result.status==='fulfilled'?[result.value]:[]);
+      const failures=results.filter(result=>result.status==='rejected').map(result=>result.reason instanceof Error?result.reason.message:'历史成果读取失败');
       setRemoteRecords(groups.flat().filter(record=>!seen.has(record.id)&&seen.add(record.id)));
+      setRemoteError([...new Set(failures.filter(Boolean))].join('；'));
     }).finally(()=>{if(alive)setRemoteLoading(false);});
     return()=>{alive=false;};
   },[item.id,profileKey]);
   const records=[...historyRecords(item),...remoteRecords];
-  return <section className="business-workspace"><h2>办理历史</h2><p className="section-copy">历史记录可查看，当前办理阶段保持不变。远程成果按案件和流程归并，不影响当前办理。</p><div className="artifact-catalog">{records.map(record=><button key={record.id} onClick={()=>setPreview(record.text)}><FileText/><span><b>{record.title}</b><small>{record.detail}</small></span></button>)}</div>{remoteLoading&&!records.length&&<Note>正在读取已保存的远程成果…</Note>}{!remoteLoading&&!records.length&&<Note>暂无历史办理记录。</Note>}{preview&&<Modal title="历史内容 · 只读" onClose={()=>setPreview('')}><FormattedFormulaText text={preview}/></Modal>}</section>;
+  return <section className="business-workspace"><h2>办理历史</h2><p className="section-copy">历史记录可查看，当前办理阶段保持不变。远程成果按案件和流程归并，不影响当前办理。</p>{remoteError&&<ErrorState message={remoteError}/>}<div className="artifact-catalog">{records.map(record=><button key={record.id} onClick={()=>setPreview(record.text)}><FileText/><span><b>{record.title}</b><small>{record.detail}</small></span></button>)}</div>{remoteLoading&&!records.length&&<LoadingState>正在读取已保存的远程成果…</LoadingState>}{!remoteLoading&&!remoteError&&!records.length&&<Note>暂无历史办理记录。</Note>}{preview&&<Modal title="历史内容 · 只读" onClose={()=>setPreview('')}><FormattedFormulaText text={preview}/></Modal>}</section>;
 }
 function stepClass(n:FlowNode){
   if(n.type==='official'&&n.isCurrent)return 'flow-step is-current is-official';
@@ -140,7 +144,7 @@ export function RemoteFlow({item,profileKey,scopeVersion}:{item:Case;profileKey?
   const handlerText=handlingHandlerText(handling);
   const progressCaption=officialWaitProgressCaption(handling,flow?.nodes);
   const conclusion=hasOfficialOutcome(item)?outcomeStatement(item):undefined;
-  return <section className="business-workspace remote-flow"><div className="section-heading"><div><h2>贝思兰德流程</h2><p className="section-copy">当前办理以实际流程节点为准；提交官方后由官方继续办理，回执只证明接收成功。</p></div>{busy&&<div className="transfer-inspecting"><RefreshCw size={14} className="spin"/><span>正在查询最新流程…</span></div>}</div>{error&&<p role="alert" className="inline-warning">{error}</p>}{!item.remote?<Note>本案尚未关联贝思兰德，登录后同步的案件会显示系统流程。</Note>:<><p className="muted">流程信息时间：{infoStampText||'尚未查询'}</p>
+  return <section className="business-workspace remote-flow"><div className="section-heading"><div><h2>贝思兰德流程</h2><p className="section-copy">当前办理以实际流程节点为准；提交官方后由官方继续办理，回执只证明接收成功。</p></div>{busy&&<div className="transfer-inspecting"><RefreshCw size={14} className="spin"/><span>正在查询最新流程…</span></div>}</div>{error&&<ErrorState message={error} onRetry={()=>void refresh()}/>} {!item.remote?<Note>本案尚未关联贝思兰德，登录后同步的案件会显示系统流程。</Note>:<><p className="muted">流程信息时间：{infoStampText||'尚未查询'}</p>
     {conclusion&&<p className="flow-official-conclusion">官方结论：{conclusion}。结论来自官文清单只读判读；贝思兰德所内流程不会自动推进，下面仍是最后一次递交与回执记录。</p>}
     <div className={`flow-official${sub?` is-${sub.state}`:''}${sub?.refreshError?' is-stale':''}${officialWaiting?' is-current-handling':''}`}><h3>{sub?officialStatusLabel(sub):'官方递交状态未确认'}{officialWaiting&&<span className="tag">当前办理</span>}</h3>
       <p>{sub?.message&&sub.message!==officialStatusLabel(sub)?sub.message:officialWaiting?(sub?.state==='received'?'已收到官方回执，继续等待官方处理结果。':'已递交，等待官方处理结果。'):sub?.state==='unknown'?'不能仅凭内部节点或承办人判断是否已递交官方。':sub?.state==='draft'?'未递交官方，当前仍在内部递交办理。':'查询后显示官方递交结果。'}</p>
@@ -220,7 +224,7 @@ export function CurrentCase({item,update,materialsOnly=false,discussionOnly=fals
   return <section className="business-workspace"><div className="section-heading"><div><h2>{materialsOnly?'案件材料':'当前办理'}</h2><p className="section-copy">{handling.node} · {handling.status}</p></div><button onClick={()=>void action(()=>desktop!.openCaseDirectory(item.id))}><FolderOpen size={16}/>打开案件目录</button></div>{error&&<p role="alert" className="inline-warning">{error}</p>}
     {materialsOnly&&<div className={`material-source-summary ${pendingMaterials?'is-warning':'is-ready'}`} role="status"><FileText size={18}/><div><b>{item.source==='baseland'?'本案材料已同步到本机目录':'本案材料已保存在本机目录'}</b><p>{readyMaterials} 份材料可直接打开{pendingMaterials?`，${pendingMaterials} 份仍待下载或核对`:''}。文件就绪不等于已完成模型阅读；分析任务会单独保留真实读取证据。</p></div><span>{materials.length} 份材料</span></div>}
     {!materialsOnly&&profileKey&&<AgentWorkbench key={`${profileKey}-${item.id}-${processKey}`} profileKey={profileKey} item={item} formal={formal}/>}
-    {!materialsOnly&&<><div className="manual-draft-heading"><div><h3>手工工作稿</h3><p>用于直接编辑正文、自动保存与保留版本；运行中也不会中断或覆盖这段人工稿。</p></div><button onClick={()=>setShowDraft(!showDraft)}>{showDraft?'收起手工稿':item.localDraft?.trim()?'打开已保存的手工稿':'打开手工编辑器'}</button></div>{showDraft&&<><label className="field">手工稿正文<textarea className="native-draft" value={draft} onChange={e=>edit(e.target.value)} onBlur={flushAutosave} readOnly={!editable} placeholder="在这里直接编辑正文，保存到本案工作目录…"/></label><div className="action-bar"><span className="muted">{dirty?'正在保存…':message||'稿件保存在本案工作目录'}</span><div className="button-row"><button disabled={!editable||!dirty} onClick={()=>void save(false)}>保存工作稿</button><button className="primary" disabled={!editable||!draft.trim()||dirty} onClick={()=>void save(true)}>保存新版本</button></div></div></>}{!editable&&<Note>当前阶段仅可查看稿件；从贝思兰德更新当前办理状态后，再继续对应业务。</Note>}</>}
+    {!materialsOnly&&<><div className="manual-draft-heading"><div><h3>手工工作稿</h3><p>用于直接编辑正文、自动保存与保留版本；运行中也不会中断或覆盖这段人工稿。</p></div><button onClick={()=>setShowDraft(!showDraft)}>{showDraft?'收起手工稿':item.localDraft?.trim()?'打开已保存的手工稿':'打开手工编辑器'}</button></div>{showDraft&&<><label className="field">手工稿正文<textarea className="native-draft" value={draft} onChange={e=>edit(e.target.value)} onBlur={flushAutosave} readOnly={!editable} placeholder="在这里直接编辑正文，保存到本案工作目录…"/></label><div className="action-bar"><span className="muted">{dirty?'正在保存…':message||'稿件保存在本案工作目录'}</span><div className="button-row"><button disabled={!editable||!dirty} onClick={()=>void save(false)}>保存工作稿</button><button className="primary" disabled={!editable||!draft.trim()||dirty} onClick={()=>void save(true)}>保存新版本</button></div></div></>}{!editable&&<ReadonlyState>当前阶段仅可查看稿件；从贝思兰德更新当前办理状态后，再继续对应业务。</ReadonlyState>}</>}
     {materialsOnly&&profileKey&&<PriorArtPanel item={item} profileKey={profileKey} onUpdated={()=>{}}/>}
     <div className="section-heading"><h3>本案材料 · {materials.length}</h3><button onClick={()=>void action(async()=>setCandidates(await desktop!.findOriginals(item.id)))}>匹配原始申请文件</button></div><div className="artifact-catalog">{materials.map(m=>m.ready&&m.relativePath?<button key={m.id} onClick={()=>void action(()=>desktop!.openMaterial(item.id,m.relativePath!))}><FileText/><span><b>{m.name}</b><small>{m.role} · 已保存到本案</small></span></button>:<button key={m.id} disabled={!onRefresh||refreshing} onClick={()=>void action(async()=>{if(onRefresh)await onRefresh();})}><FileText/><span><b>{m.name}</b><small>{m.role} · 待下载重试</small></span></button>)}</div>{!materials.length&&<Note>暂无材料。同步通知书或从原始申请文件库复制匹配文件后显示。</Note>}
     {candidates&&<Modal title="原始申请文件匹配" onClose={()=>setCandidates(null)}>{candidates.length?<div className="artifact-catalog">{candidates.map(c=><button key={c.id} onClick={()=>void action(async()=>{await desktop!.copyOriginal(item.id,c.id);setCandidates(null);})}><FileText/><span><b>{c.name}</b><small>复制到本案，保留文件库原件</small></span></button>)}</div>:<Note>未找到唯一案号或准确名称匹配。请检查设置中的原始申请文件库与文件命名。</Note>}</Modal>}
@@ -249,7 +253,7 @@ function CaseArtifacts({profileKey,caseId,processKey}:{profileKey:string;caseId:
     });
     return()=>{gen.current++;unsub();};
   },[profileKey,caseId,processKey]);
-  if(error)return <p className="inline-warning" role="alert">{error}</p>;
-  if(!view || view.processKey!==processKey)return <Note>正在读取成果列表…</Note>;
+  if(error)return <ErrorState message={error}/>;
+  if(!view || view.processKey!==processKey)return <LoadingState>正在读取成果列表…</LoadingState>;
   return <AgentArtifacts view={view} caseId={caseId}/>;
 }
