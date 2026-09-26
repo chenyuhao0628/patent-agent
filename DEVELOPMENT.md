@@ -112,7 +112,7 @@ type IpcContract<Input, Output> = {
 - 错误应保留稳定分类，显示文本可以本地化；
 - IPC 事件也必须校验发送方、请求标识和账号代际。
 
-当前 `desktop/main.ts` 已有统一注册函数，但仍需逐步把动态 `any` 参数改为泛型或显式契约注册。扩展操作、官方结论刷新、迁移和部分模型输入仍需补齐运行时 schema。
+当前 `desktop/main.ts` 已有统一注册函数，并已对高风险案件、Agent、Professional、设置和流转入口执行运行时解析。扩展操作、官方结论刷新、迁移和部分模型输入仍需补齐集中式 schema；现有实现不能描述为全部 IPC 已标准化。
 
 ### 4.3 模型和 Agent 接口
 
@@ -150,8 +150,9 @@ type IpcContract<Input, Output> = {
 type FeatureModule = {
   id: string;
   label: string;
+  icon: LucideIcon;
   capabilities: string[];
-  canOpen(caseItem: Case): boolean;
+  canOpen?: (caseItem: Case) => boolean;
   route: string;
   render: (context: FeatureContext) => ReactNode;
 };
@@ -167,7 +168,7 @@ type FeatureModule = {
 - 打开案件后的目标页签；
 - 是否产生文件、服务端写入或内部流转。
 
-这套接口目前是目标标准，尚未完全替换 `PageContent` 中的条件分支。
+当前 `src/app/features.ts` 已提供 `icon`、`capabilities`、可选 `canOpen` 和 `FeatureContext`；`src/app/navigation.ts` 已从注册表生成四项业务导航。`PageContent` 的页面分发和案件页签仍保留显式条件，作为下一步迁移边界。
 
 ### 5.3 UI 状态
 

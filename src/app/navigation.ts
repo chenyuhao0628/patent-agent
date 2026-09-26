@@ -1,4 +1,4 @@
-import { ArrowRightLeft, BadgeCheck, Clock3, FileSearch, Folder, ListTodo, MessageSquare, PenLine, Settings, type LucideIcon } from 'lucide-react';
+import { BadgeCheck, Clock3, Folder, ListTodo, Settings, type LucideIcon } from 'lucide-react';
 import type { CaseTab } from '../components/CaseSpace.tsx';
 import type { Module } from '../domain/library.ts';
 import { FEATURE_MODULES } from './features.ts';
@@ -6,15 +6,21 @@ import { FEATURE_MODULES } from './features.ts';
 export type AppRoute = [page?: string, itemId?: string, tab?: string, roundId?: string];
 export type NavigationItem = { id: string; label: string; icon: LucideIcon };
 
-export const NAV_ITEMS: NavigationItem[] = [
+const CORE_NAV_ITEMS: NavigationItem[] = [
   { id: 'library', label: '案件库', icon: Folder },
   { id: 'official', label: '等待官方', icon: Clock3 },
   { id: 'tasks', label: '工作任务', icon: ListTodo },
-  { id: 'reply', label: '答复', icon: MessageSquare },
-  { id: 'write', label: '撰写', icon: PenLine },
-  { id: 'review', label: '审查', icon: FileSearch },
-  { id: 'transfer', label: '内部流转', icon: ArrowRightLeft },
   { id: 'status', label: '案件状态', icon: BadgeCheck },
+];
+const FEATURE_NAV_ITEMS: NavigationItem[] = FEATURE_MODULES.map(feature => ({
+  id: feature.id,
+  label: feature.id === 'reply' ? '答复' : feature.id === 'write' ? '撰写' : feature.id === 'review' ? '审查' : '内部流转',
+  icon: feature.icon,
+}));
+export const NAV_ITEMS: NavigationItem[] = [
+  ...CORE_NAV_ITEMS.slice(0, 3),
+  ...FEATURE_NAV_ITEMS,
+  CORE_NAV_ITEMS[3],
 ];
 
 export const SETTINGS_NAVIGATION = { label: '设置', icon: Settings } as const;

@@ -3,6 +3,7 @@
 独立桌面应用。覆盖案件管理、答复、补正、五阶段撰写、可选的个人审查，以及贝思兰德内部流转。模型通过随包的 OpenCode 接入，不要求安装旧项目源码。
 
 需求见 [REQUIREMENTS.md](REQUIREMENTS.md)，当前实现和证据见 [EXEC_PLAN.md](EXEC_PLAN.md)。
+完整开发结构、接口和验收约束见 [DEVELOPMENT.md](DEVELOPMENT.md)。
 
 ## 安装
 
