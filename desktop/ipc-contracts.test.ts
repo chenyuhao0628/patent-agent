@@ -4,16 +4,21 @@ import {
   ipcAgentCommand,
   ipcCaseId,
   ipcBoolean,
+  ipcCreateCaseInput,
   ipcExtensionMethod,
+  ipcLoginInput,
   ipcMaterialId,
   ipcProcessId,
   ipcProfileKey,
   ipcProfessionalCommand,
   ipcPriorArtMethod,
   ipcRelativePath,
+  ipcSettings,
+  ipcTransferFilePreviewRef,
   ipcTransferReview,
   ipcTransferRole,
   ipcTransferSource,
+  ipcWorkspace,
 } from './ipc-contracts.ts';
 
 test('IPC contract guards accept scoped commands', () => {
@@ -24,6 +29,13 @@ test('IPC contract guards accept scoped commands', () => {
   assert.equal(ipcBoolean(true, '启用状态'), true);
   assert.equal(ipcExtensionMethod('saveSkill'), 'saveSkill');
   assert.equal(ipcPriorArtMethod('prepare'), 'prepare');
+  assert.deepEqual(ipcLoginInput({ origin: 'https://example.test', username: 'u', password: 'p', remember: false }), {
+    origin: 'https://example.test', username: 'u', password: 'p', remember: false,
+  });
+  assert.deepEqual(ipcCreateCaseInput({ title: '案件', number: 'CN-1', kind: 'write' }), { title: '案件', number: 'CN-1', kind: 'write' });
+  assert.deepEqual(ipcSettings({ provider: 'p', baseUrl: '', model: '' }), { provider: 'p', baseUrl: '', model: '' });
+  assert.deepEqual(ipcTransferFilePreviewRef({ role: 'reply', name: 'reply.docx' }), { role: 'reply', name: 'reply.docx' });
+  assert.deepEqual(ipcAgentCommand({ type: 'applicationParts', parts: { CLAIMS: '1. 一种装置。' } }), { type: 'applicationParts', parts: { CLAIMS: '1. 一种装置。' } });
   assert.equal(ipcRelativePath('04_内部说明/report.docx'), '04_内部说明/report.docx');
   assert.equal(ipcTransferRole('reply'), 'reply');
   assert.equal(ipcTransferSource('workbench'), 'workbench');
@@ -57,9 +69,18 @@ test('IPC contract guards reject malformed or unsupported commands', () => {
   assert.throws(() => ipcAgentCommand({ type: 'run' }), /Agent 动作无效/);
   assert.throws(() => ipcAgentCommand({ type: 'materials', selectedIds: 'not-array' }), /材料选择无效/);
   assert.throws(() => ipcProfessionalCommand({ type: 'unknown' }), /不支持的专业工作操作/);
-  assert.throws(() => ipcProfessionalCommand({ type: 'write', materialIds: [] }), /撰写要求无效/);
+  assert.throws(() => ipcProfessionalCommand({ type: 'write' }), /材料选择无效/);
   assert.throws(() => ipcBoolean('true', '启用状态'), /启用状态无效/);
   assert.throws(() => ipcExtensionMethod('unknown'), /不支持的扩展操作/);
   assert.throws(() => ipcPriorArtMethod('unknown'), /不支持的对比文件操作/);
+  assert.throws(() => ipcLoginInput({ origin: 'x', username: 'u', password: 'p', remember: 'no' }), /记住登录无效/);
+  assert.throws(() => ipcCreateCaseInput({ title: '案件', number: 'CN-1', kind: 'other' }), /当前业务无效/);
+  assert.throws(() => ipcSettings({ provider: 'p' }), /设置内容无效/);
+  assert.throws(() => ipcTransferFilePreviewRef({ name: 1 }), /文件预览请求无效/);
+  assert.throws(() => ipcWorkspace({ schema: 2, cases: [], settings: {} }), /案件记录格式不正确/);
+  assert.throws(() => ipcAgentCommand({ type: 'applicationParts', parts: [] }), /申请文件部分/);
+  assert.throws(() => ipcAgentCommand({ type: 'materials', selectedIds: [''] }), /材料选择无效/);
+  assert.throws(() => ipcAgentCommand({ type: 'run', action: 'invalid' }), /Agent 动作无效/);
+  assert.throws(() => ipcProfessionalCommand({ type: 'write', materialIds: ['ok'], message: 1 }), /撰写要求无效/);
   assert.throws(() => ipcTransferReview({ keepCodes: [] }), /核对内容不完整/);
 });
