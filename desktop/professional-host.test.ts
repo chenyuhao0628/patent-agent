@@ -127,3 +127,14 @@ test('review source writes are blocked for archived, closed and official-waiting
  c.archived=false;c.remoteClosure={finished:true,checkedAt:new Date().toISOString()};
  await assert.rejects(f.host.addFiles('local',f.id,[source]),/仅可查看/);
 });
+
+test('review history becomes readonly when the current business is external',async t=>{
+ const f=await fixture(t);f.service.findCase(f.id).localDraft='待审稿件';
+ await f.host.command('local',f.id,{type:'ready-manual'});
+ const source=(await f.host.listReviews('local'))[0].source;
+ f.service.findCase(f.id).current={kind:'external',processId:source.processKey};
+ const view=await f.host.listReviews('local');
+ assert.equal(view[0].archived,true);
+ assert.match(view[0].archiveReason??'',/不可继续审查/);
+ await assert.rejects(f.host.command('local',f.id,{type:'review',sourceId:source.id}),/归档|不属于/);
+});

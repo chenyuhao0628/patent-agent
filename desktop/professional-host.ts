@@ -63,6 +63,7 @@ export class ProfessionalHost {
     if(hasOfficialOutcome(c))return '已有官方结论';
     if(keyOf(c)!==source.processKey)return '已进入后续办理流程';
     if(currentHandling(c).officialWaiting)return '已递交，等待官方处理结果';
+    if(!['write','reply','correction','review'].includes(currentWork(c).kind))return '当前业务不可继续审查';
     if(!c.directory)return undefined;
     const folder=await this.service.casePath(c.id,'04_内部说明');
     let names:string[]=[];try{names=await fs.readdir(folder);}catch{return undefined;}
@@ -162,7 +163,7 @@ export class ProfessionalHost {
   }
   async addFiles(key:string,id:string,paths:string[]):Promise<ProfessionalCaseView>{return this.serial(async()=>{
     const c=this.guard(key,id),processKey=keyOf(c),root=this.service.workspace.settings.workRoot,generation=this.service.generation,record=this.record(await this.store(key),c);
-    if(c.archived||c.remoteClosure?.finished||hasOfficialOutcome(c)||currentHandling(c).officialWaiting||currentWork(c).kind==='waiting')throw new Error('当前案件仅可查看，不能新增独立审查稿件。');
+    if(c.archived||c.remoteClosure?.finished||hasOfficialOutcome(c)||currentHandling(c).officialWaiting||!['write','reply','correction','review'].includes(currentWork(c).kind))throw new Error('当前案件仅可查看，不能新增独立审查稿件。');
     if(this.active.has(id))throw new Error('请先停止本案任务再选择完成稿。');
     if(!paths.length||paths.length>12)throw new Error('每次可选择 1–12 份完成稿。');
     const files:WorkFile[]=[];
