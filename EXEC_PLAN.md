@@ -155,3 +155,13 @@
 - preload 对扩展、对比文件和模型联合返回值执行对象、数组和数值字段的边界校验；模型方法按方法名关联返回类型。
 - 新增作用域隔离和历史业务能力回归测试；`npm test`：556 项通过；`npx tsc --noEmit`：通过。
 - 本阶段仍未调用真实模型、贝思兰德写接口或真实案件材料，未进行 GUI 视觉和安装包验收。
+
+## 17. 2026-09-26 历史成果接口与保存顺序收敛
+
+- `CaseHistory` 增加远程历史读取：通过 `agentReviewSources` 取得已采用的答复/补正成果，通过 Professional 案件视图取得撰写和独立审查成果；远程结果按当前案件过滤，展示始终只读。
+- Feature Registry 不再把所有 `waiting` 案件无条件绑定答复；只依据答复/补正流程名称或真实历史轮次开放历史入口。归档案件保留历史查看，不能启动或编辑。
+- 浏览器预览不再用 `!desktop` 绕过 `editableCurrent`，等待、归档和官方完成状态均不可编辑。
+- `sameDesktopScope` 改为完整 `profileKey + scopeVersion` 精确匹配；桌面工作区保存通过 Promise 队列串行化，队列开始执行时再次检查当前作用域。
+- 新增 `agentReviewSources` 的 IPC 通道、主进程 handler、preload 转发和 Agent API 声明，继续保持通道级参数/返回类型关联。
+- 验证：`npm test` 556 项通过；`npx tsc --noEmit` 通过；`npm run build` 通过；`git diff --check` 通过。
+- 未验收：真实模型、真实案件材料、GUI 视觉、退出恢复现场、模板 Word 版式、macOS 覆盖安装、Windows 实机安装、签名/公证和任何真实贝思兰德写操作。

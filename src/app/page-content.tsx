@@ -14,6 +14,7 @@ import type { DesktopState } from '../desktop.ts';
 import type { Action, Case, Workspace } from '../domain/workflow.ts';
 import { currentRoute, internalTransferAvailable } from '../domain/lifecycle.ts';
 import { FEATURE_MODULE_BY_ID } from './features.ts';
+import type { DesktopScope } from './scope.ts';
 
 type PageContentProps = {
   page: string;
@@ -26,7 +27,7 @@ type PageContentProps = {
   nativeState?: DesktopState;
   refresh?: (state: DesktopState) => void;
   onOpenCase: (item: Case, tab?: CaseTab, roundId?: string) => void;
-  onUpdateCase: (id: string, patch: Partial<Case>, scope?: { profileKey?: string; scopeVersion?: number }) => Promise<void>;
+  onUpdateCase: (id: string, patch: Partial<Case>, scope?: DesktopScope) => Promise<void>;
   onDispatch: (caseId: string, roundId: string, action: Action) => void;
   onArchive: (ids: string[], archived: boolean) => void;
   onImport: () => void;

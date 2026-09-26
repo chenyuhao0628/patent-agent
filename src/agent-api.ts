@@ -4,6 +4,7 @@ import type {
   AgentProcessState,
 } from './domain/agent.ts';
 import type { AgentCommand } from './domain/agent-command.ts';
+import type { ReviewSource } from './professional-api.ts';
 export type { AgentCommand } from './domain/agent-command.ts';
 
 export const AGENT_API_CONTRACT_VERSION = 1 as const;
@@ -43,6 +44,7 @@ export type AgentAPI = {
   onPreparation?: (callback:(event:AgentPreparation)=>void)=>()=>void;
   listProgress?: (profileKey: string) => Promise<import('./domain/local-progress.ts').LocalProgress[]>;
   getCase(profileKey: string, caseId: string): Promise<AgentCaseView>;
+  reviewSources?: (profileKey: string) => Promise<ReviewSource[]>;
   command(profileKey: string, caseId: string, command: AgentCommand): Promise<AgentCaseView>;
   listTasks(profileKey: string): Promise<AgentTaskView[]>;
   onState(callback: (view: AgentCaseView) => void): () => void;

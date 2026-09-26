@@ -1,4 +1,5 @@
 import type { AgentCaseView, AgentTaskView, AgentPreparation } from '../agent-api.ts';
+import type { ReviewSource } from '../professional-api.ts';
 import type { ApplicationPreferences, ApplicationSettingsView } from '../application-api.ts';
 import type { LocalProgress } from '../domain/local-progress.ts';
 import type { ModelConfigPublic, ProviderSaveInput, UpstreamModel, ConnectionTestResult, DshProviderPreview } from '../domain/models.ts';
@@ -109,6 +110,7 @@ export type DesktopIpcChannels = {
   professionalRemoveReference: { args: [profileKey: string, caseId: string, materialId: string]; result: ProfessionalCaseView };
   professionalOpen: { args: [profileKey: string, caseId: string, relativePath: string]; result: void };
   agentGetCase: { args: [profileKey: string, caseId: string]; result: AgentCaseView };
+  agentReviewSources: { args: [profileKey: string]; result: ReviewSource[] };
   agentCommand: { args: [profileKey: string, caseId: string, command: AgentCommand]; result: AgentCaseView };
   agentProgress: { args: [profileKey: string]; result: LocalProgress[] };
   agentTasks: { args: [profileKey: string]; result: AgentTaskView[] };

@@ -48,7 +48,8 @@ test('feature visibility keeps historical read-only work reachable', () => {
   assert.equal(featureAvailable(FEATURE_MODULE_BY_ID.reply, context, waiting), false);
   assert.equal(featureVisible(FEATURE_MODULE_BY_ID.reply, context, waiting), true);
   assert.equal(featureVisible(FEATURE_MODULE_BY_ID.review, context, waiting), true);
-  assert.equal(featureVisible(FEATURE_MODULE_BY_ID.reply, context, fixture({ archived: true })), false);
+  assert.equal(featureVisible(FEATURE_MODULE_BY_ID.reply, context, fixture({ archived: true })), true);
+  assert.equal(featureAvailable(FEATURE_MODULE_BY_ID.reply, context, fixture({ archived: true })), false);
 });
 
 test('feature visibility keeps reply and writing history available without granting start permission', () => {

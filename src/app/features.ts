@@ -3,7 +3,7 @@ import type { Case } from '../domain/workflow.ts';
 import type { DesktopAPI } from '../contracts/desktop-api.ts';
 import type { LucideIcon } from 'lucide-react';
 import { ArrowRightLeft, FileSearch, MessageSquare, PenLine } from 'lucide-react';
-import { currentWork, editableCurrent, internalTransferAvailable } from '../domain/lifecycle.ts';
+import { currentWork, editableCurrent, internalTransferAvailable, processBusinessKind } from '../domain/lifecycle.ts';
 import { currentHandling } from '../domain/handling.ts';
 
 export type FeatureModule = {
@@ -22,7 +22,7 @@ function hasReplyHistory(caseItem: Case): boolean {
   const current = currentWork(caseItem).kind;
   return current === 'reply'
     || current === 'correction'
-    || current === 'waiting'
+    || current === 'waiting' && processBusinessKind(caseItem.remote?.processes.find(process => process.id === currentWork(caseItem).processId)?.name ?? '') === 'reply'
     || caseItem.rounds.some(round => /答复|审查意见|补正|复审/.test(round.name));
 }
 
@@ -44,7 +44,7 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
     icon: MessageSquare,
     capabilities: ['case.read', 'materials.read', 'agent.reply', 'artifact.finalize'],
     desktopOnly: true,
-    canView: caseItem => !caseItem.archived && hasReplyHistory(caseItem),
+    canView: hasReplyHistory,
     canStart: caseItem => activeCase(caseItem) && ['reply', 'correction'].includes(currentWork(caseItem).kind),
     canEdit: caseItem => editableCurrent(caseItem) && ['reply', 'correction'].includes(currentWork(caseItem).kind),
   },
@@ -55,7 +55,7 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
     icon: PenLine,
     capabilities: ['case.read', 'materials.read', 'professional.write', 'artifact.finalize'],
     desktopOnly: true,
-    canView: caseItem => !caseItem.archived && hasWritingHistory(caseItem),
+    canView: hasWritingHistory,
     canStart: caseItem => activeCase(caseItem) && currentWork(caseItem).kind === 'write',
     canEdit: caseItem => editableCurrent(caseItem) && currentWork(caseItem).kind === 'write',
   },
@@ -66,7 +66,7 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
     icon: FileSearch,
     capabilities: ['case.read', 'artifact.read', 'professional.review'],
     desktopOnly: true,
-    canView: caseItem => !caseItem.archived,
+    canView: () => true,
     canStart: caseItem => activeCase(caseItem) && ['write', 'reply', 'correction', 'review'].includes(currentWork(caseItem).kind),
     canEdit: caseItem => !caseItem.archived,
   },

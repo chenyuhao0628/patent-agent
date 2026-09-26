@@ -14,6 +14,7 @@ import { isCaseTab, navigate, readRoute } from './app/navigation.ts';
 import { AppShell } from './app/app-shell.tsx';
 import { PageContent } from './app/page-content.tsx';
 import { sameDesktopScope } from './app/scope.ts';
+import type { DesktopScope } from './app/scope.ts';
 import { completeExpiredJobs, patchCase, persistBrowserOnPageHide, persistBrowserWorkspace } from './app/workspace-store.ts';
 
 export function App({ nativeState, refresh }: { nativeState?: DesktopState; refresh?: (state: DesktopState) => void } = {}) {
@@ -25,6 +26,7 @@ export function App({ nativeState, refresh }: { nativeState?: DesktopState; refr
   const [importing, setImporting] = useState(false);
   const nativeStateRef = useRef(nativeState);
   const dataRef = useRef(data);
+  const saveQueueRef = useRef(Promise.resolve());
   useEffect(() => { nativeStateRef.current = nativeState; }, [nativeState]);
   useEffect(() => { dataRef.current = data; }, [data]);
   const page = route[0] || 'library';
@@ -72,28 +74,42 @@ export function App({ nativeState, refresh }: { nativeState?: DesktopState; refr
   const openCase = (caseItem: Case, nextTab: CaseTab = 'overview', roundId?: string) => {
     navigate(`/case/${caseItem.id}/${nextTab}${roundId ? `/${roundId}` : ''}`);
   };
-  const updateCase = async (id: string, patch: Partial<Case>, expectedScope?: { profileKey?: string; scopeVersion?: number }) => {
-    const currentNative = nativeStateRef.current;
-    if (desktop && !sameDesktopScope(currentNative, expectedScope)) {
+  const currentScope = (): DesktopScope | undefined => {
+    const state = nativeStateRef.current;
+    return state?.profileKey && state.scopeVersion !== undefined
+      ? { profileKey: state.profileKey, scopeVersion: state.scopeVersion }
+      : undefined;
+  };
+  const persistDesktop = (workspace: Workspace, expectedScope?: DesktopScope) => {
+    const task = saveQueueRef.current.then(async () => {
+      const currentNative = nativeStateRef.current;
+      if (desktop && (!expectedScope || !sameDesktopScope(currentScope(), expectedScope))) {
+        throw new Error('账号或案件作用域已变化，请重新打开当前页面。');
+      }
+      if (desktop && currentNative) await desktop.saveWorkspace(currentNative.profileKey, workspace);
+    });
+    saveQueueRef.current = task.catch(() => {});
+    return task;
+  };
+  const updateCase = async (id: string, patch: Partial<Case>, expectedScope?: DesktopScope) => {
+    if (desktop && (!expectedScope || !sameDesktopScope(currentScope(), expectedScope))) {
       throw new Error('账号或案件作用域已变化，请重新打开当前页面。');
     }
     const next = patchCase(dataRef.current, id, patch);
     dataRef.current = next;
     setData(next);
-    if (desktop && currentNative) {
-      try {
-        await desktop.saveWorkspace(currentNative.profileKey, next);
-      } catch (error) {
-        setStorageError((error as Error).message);
-        throw error;
-      }
+    try {
+      await persistDesktop(next, expectedScope);
+    } catch (error) {
+      setStorageError((error as Error).message);
+      throw error;
     }
   };
   const archiveCases = (ids: string[], archived: boolean) => {
     const next = { ...dataRef.current, cases: dataRef.current.cases.map(caseItem => ids.includes(caseItem.id) ? { ...caseItem, archived } : caseItem) };
     dataRef.current = next;
     setData(next);
-    if (desktop && nativeStateRef.current) void desktop.saveWorkspace(nativeStateRef.current.profileKey, next).catch(error => setStorageError(error.message));
+    void persistDesktop(next, currentScope()).catch(error => setStorageError(error.message));
   };
   const saveSettings = async (settings: Workspace['settings']) => {
     if (desktop && nativeState) {

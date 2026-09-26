@@ -1,6 +1,6 @@
 # 专利工作台完整开发文档
 
-> 文档版本：1.2
+> 文档版本：1.3
 > 更新日期：2026-09-26
 > 当前应用版本：0.14.0
 > 需求来源：`REQUIREMENTS.md`
@@ -116,6 +116,8 @@ type IpcContract<Input, Output> = {
 
 主进程参数解析器通过泛型元组直接返回通道所声明的参数类型，handler 不再把统一 `unknown[]` 重新断言为业务参数。preload 对扩展、对比文件和模型的联合响应执行最小结构校验后再交给渲染层；底层 Electron `invoke` 仍是跨进程序列化边界，不能由 TypeScript 单独证明远端返回内容正确，因此所有新增通道仍须补返回值校验测试。
 
+历史成果读取也使用显式 `agentReviewSources` 通道。主进程按账号返回已采用的答复/补正来源，preload 只做数组边界校验，渲染层不能从当前流程状态推断历史成果已经存在。
+
 ### 4.3 模型和 Agent 接口
 
 模型运行时必须只存在于主进程。Agent 任务启动时冻结：
@@ -171,9 +173,9 @@ type FeatureModule = {
 - 打开案件后的目标页签；
 - 是否产生文件、服务端写入或内部流转。
 
-当前 `src/app/features.ts` 已提供 `icon`、`capabilities`、`canView`、`canStart`、`canEdit` 和 `FeatureContext`；能力上下文从注入的 `DesktopAPI` 表面探测，不把声明能力直接当作运行能力。`src/app/navigation.ts` 从注册表生成四项业务导航；`CaseSpace` 使用同一注册表区分历史只读、可启动和可编辑入口，直接路由不能绕过案件边界。`PageContent` 的宿主页面分发仍保留显式条件，作为下一步迁移边界。案件页内的聚合数据已可通过 `src/domain/case-view.ts` 投影，投影会复制嵌套数据并保留来源记录，不替代兼容写入模型。
+当前 `src/app/features.ts` 已提供 `icon`、`capabilities`、`canView`、`canStart`、`canEdit` 和 `FeatureContext`；能力上下文从注入的 `DesktopAPI` 表面探测，不把声明能力直接当作运行能力。`src/app/navigation.ts` 从注册表生成四项业务导航；`CaseSpace` 使用同一注册表区分历史只读、可启动和可编辑入口，直接路由不能绕过案件边界。等待官方和已归档案件只在存在对应业务历史时显示只读入口，不能因此重新启动流程。`CaseHistory` 同时读取本地轮次/稿件版本、Agent 已采用答复成果和 Professional 已保存成果，按来源去重并以只读方式预览。`PageContent` 的宿主页面分发仍保留显式条件，作为下一步迁移边界。案件页内的聚合数据已可通过 `src/domain/case-view.ts` 投影，投影会复制嵌套数据并保留来源记录，不替代兼容写入模型。
 
-历史答复和历史撰写内容按案件记录保留查看能力，但不会因此获得新业务启动权限。案件更新、手工稿自动保存和案件管理保存均携带 `profileKey + scopeVersion` 作用域；账号切换、代际变化或 ABA 切换后的迟到回调会在应用层拒绝写入。
+历史答复和历史撰写内容按案件记录保留查看能力，但不会因此获得新业务启动权限。案件更新、手工稿自动保存和案件管理保存均携带完整的 `profileKey + scopeVersion` 作用域；缺失作用域不再作为通配，账号切换、代际变化或 ABA 切换后的迟到回调会在应用层拒绝写入。桌面工作区保存按顺序列化，避免旧快照覆盖后一次新快照。
 
 ### 5.3 UI 状态
 
@@ -279,6 +281,9 @@ type FeatureModule = {
 - [x] 把全局导航和案件业务页签接入注册式能力判断；
 - [x] 区分业务模块 `canView`、`canStart` 和 `canEdit`；
 - [x] 账户代际进入桌面状态，案件页和流程缓存按代际隔离；
+- [x] 历史业务统一读取本地与远程成果，并在归档/等待状态下保持只读访问；
+- [x] 浏览器预览不再绕过归档、等待和流程可编辑边界；
+- [x] 桌面工作区保存串行化，作用域缺失时拒绝写入；
 - [ ] 统一错误、空状态、只读和恢复组件；
 - [ ] 保留案件中心作为唯一业务入口。
 
@@ -319,3 +324,15 @@ type FeatureModule = {
 4. 为领域视图迁移补充历史数据、账号隔离和恢复测试。
 
 每完成一个子项，更新本文件和 `EXEC_PLAN.md`，并保留历史兼容行为。
+
+## 11. 本阶段证据
+
+2026-09-26 完成历史访问、严格桌面作用域和保存顺序收敛：
+
+- `CaseHistory` 现在读取本地历史、Agent 已采用答复/补正成果和 Professional 历史成果；所有远程结果按案件 ID 过滤，并以只读内容展示。
+- `Feature Registry` 不再把一般的 `waiting` 案件无条件视为答复；只有可识别为答复/补正的等待流程或真实历史轮次才显示答复历史入口。归档案件可查看历史，但 `canStart` / `canEdit` 仍拒绝。
+- 浏览器预览和桌面页面均遵守 `editableCurrent`，归档或等待状态不能通过 `!desktop` 绕过。
+- `sameDesktopScope` 要求 `profileKey` 和 `scopeVersion` 精确相等；`App` 的桌面保存队列按顺序执行，并在队列执行前重新核对代际。
+- 新增 `agentReviewSources` IPC 通道，保持 API、主进程、preload 和渲染层的契约闭合。
+- `npm test`：556 项通过；`npx tsc --noEmit`：通过；`npm run build`：通过；`git diff --check`：通过。
+- 未进行真实模型、真实案件、GUI 视觉、安装包、Windows 实机或贝思兰德写操作验收。

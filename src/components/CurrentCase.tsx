@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createDraftAutosave } from './draft-autosave.ts';
 import { FileText, FolderOpen, RefreshCw } from 'lucide-react';
 import type { Case, RemoteProcess } from '../domain/workflow.ts';
-import { currentWork, editableCurrent, historyRecords, officialStatusLabel, processSubmission } from '../domain/lifecycle.ts';
+import { currentWork, editableCurrent, historyRecords, officialStatusLabel, processSubmission, type HistoryRecord } from '../domain/lifecycle.ts';
 import { currentHandling, handlingHandlerText, INTERNAL_FLOW_END, isInternalEndNode, officialWaitProgressCaption, processRowHandling } from '../domain/handling.ts';
 import { deadlineFieldLabel, deadlineFieldValue, processDeadlineView } from '../domain/deadlines.ts';
 import { agentProcessKey, desktop, shouldAcceptAgentView } from '../desktop.ts';
@@ -13,6 +13,7 @@ import { hasOfficialOutcome, outcomeStatement, stamp as safeStamp } from '../dom
 import { Modal, Note } from './Primitives.tsx';
 import { FormattedFormulaText } from './FormattedFormulaText.tsx';
 import { AgentArtifacts, AgentWorkbench } from './AgentWorkbench.tsx';
+import type { DesktopScope } from '../app/scope.ts';
 import '../flow.css';
 
 const flowCache = new Map<string, FlowView>();
@@ -21,10 +22,57 @@ function flowCacheKey(profileKey: string | undefined, caseId: string, scopeVersi
 }
 export function setCaseFlowCache(profileKey: string | undefined, caseId: string, view: FlowView, scopeVersion?: number){ flowCache.set(flowCacheKey(profileKey, caseId, scopeVersion), view); }
 
-export function CaseHistory({item}:{item:Case}){
+function historyDate(value?: string): string {
+  if (!value) return '时间未提供';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('zh-CN');
+}
+
+function sourceHistoryRecord(source: { id: string; title: string; business: string; at: string; text: string; amendmentText?: string; correctionContents?: unknown; files?: Array<{ name: string }> }): HistoryRecord {
+  const files = source.files?.map(file => file.name).filter(Boolean).join('、');
+  return {
+    id: `source-${source.id}`,
+    title: source.title,
+    detail: `${source.business}成果 · ${historyDate(source.at)} · 只读`,
+    text: [source.title, source.text, source.amendmentText, source.correctionContents ? JSON.stringify(source.correctionContents) : '', files ? `关联文件：${files}` : ''].filter(Boolean).join('\n\n'),
+  };
+}
+
+export function CaseHistory({item,profileKey}:{item:Case;profileKey?:string}){
   const [preview,setPreview]=useState('');
-  const records=historyRecords(item);
-  return <section className="business-workspace"><h2>办理历史</h2><p className="section-copy">历史记录可查看，当前办理阶段保持不变。</p><div className="artifact-catalog">{records.map(record=><button key={record.id} onClick={()=>setPreview(record.text)}><FileText/><span><b>{record.title}</b><small>{record.detail}</small></span></button>)}</div>{!records.length&&<Note>暂无历史办理记录。</Note>}{preview&&<Modal title="历史内容 · 只读" onClose={()=>setPreview('')}><FormattedFormulaText text={preview}/></Modal>}</section>;
+  const [remoteRecords,setRemoteRecords]=useState<HistoryRecord[]>([]);
+  const [remoteLoading,setRemoteLoading]=useState(false);
+  useEffect(()=>{
+    let alive=true;
+    setRemoteRecords([]);
+    if(!desktop||!profileKey)return;
+    setRemoteLoading(true);
+    const loads:Promise<HistoryRecord[]>[]=[];
+    if(desktop.agent.reviewSources){
+      loads.push(desktop.agent.reviewSources(profileKey).then(sources=>sources.filter(source=>source.caseId===item.id).map(sourceHistoryRecord)).catch(()=>[]));
+    }
+    loads.push(desktop.professional.getCase(profileKey,item.id).then(view=>{
+      const records:HistoryRecord[]=[];
+      for(const entry of view.queue.filter(entry=>entry.source.caseId===item.id)){
+        records.push(sourceHistoryRecord(entry.source));
+        for(const report of entry.reports??[]) records.push({
+          id:`report-${report.id}`,
+          title:`${entry.source.title} · 独立复核`,
+          detail:`审查记录 · ${historyDate(report.at)} · 只读`,
+          text:report.text||'该次独立复核未保存正文。',
+        });
+      }
+      return records;
+    }).catch(()=>[]));
+    void Promise.all(loads).then(groups=>{
+      if(!alive)return;
+      const seen=new Set<string>();
+      setRemoteRecords(groups.flat().filter(record=>!seen.has(record.id)&&seen.add(record.id)));
+    }).finally(()=>{if(alive)setRemoteLoading(false);});
+    return()=>{alive=false;};
+  },[item.id,profileKey]);
+  const records=[...historyRecords(item),...remoteRecords];
+  return <section className="business-workspace"><h2>办理历史</h2><p className="section-copy">历史记录可查看，当前办理阶段保持不变。远程成果按案件和流程归并，不影响当前办理。</p><div className="artifact-catalog">{records.map(record=><button key={record.id} onClick={()=>setPreview(record.text)}><FileText/><span><b>{record.title}</b><small>{record.detail}</small></span></button>)}</div>{remoteLoading&&!records.length&&<Note>正在读取已保存的远程成果…</Note>}{!remoteLoading&&!records.length&&<Note>暂无历史办理记录。</Note>}{preview&&<Modal title="历史内容 · 只读" onClose={()=>setPreview('')}><FormattedFormulaText text={preview}/></Modal>}</section>;
 }
 function stepClass(n:FlowNode){
   if(n.type==='official'&&n.isCurrent)return 'flow-step is-current is-official';
@@ -111,7 +159,7 @@ export function RemoteFlow({item,profileKey,scopeVersion}:{item:Case;profileKey?
     </details>
     {flow&&<details className="flow-details"><summary>全案流程历史</summary>{flow.history.length?flow.history.map((h,i)=><div className="flow-history-row" key={i}><b>{h.name}</b><p>{[wallStamp(h.created),h.finished?`→ ${wallStamp(h.finished)}`:'· 未完结'].filter(Boolean).join(' ')}</p></div>):<Note>没有可展开的全案历史。</Note>}<p className="muted">查询时间：{safeStamp(flow.at)||'未记录'}</p></details>}</div></>}</section>;
 }
-export function CurrentCase({item,update,materialsOnly=false,discussionOnly=false,outputsOnly=false,conversationOnly=false,profileKey,scopeVersion,onRefresh,refreshing=false}:{item:Case;update:(p:Partial<Case>,scope?:{profileKey?:string;scopeVersion?:number})=>void|Promise<void>;materialsOnly?:boolean;discussionOnly?:boolean;outputsOnly?:boolean;conversationOnly?:boolean;profileKey?:string;scopeVersion?:number;onRefresh?:()=>Promise<void>;refreshing?:boolean}){
+export function CurrentCase({item,update,materialsOnly=false,discussionOnly=false,outputsOnly=false,conversationOnly=false,profileKey,scope,onRefresh,refreshing=false}:{item:Case;update:(p:Partial<Case>,scope?:DesktopScope)=>void|Promise<void>;materialsOnly?:boolean;discussionOnly?:boolean;outputsOnly?:boolean;conversationOnly?:boolean;profileKey?:string;scope?:DesktopScope;onRefresh?:()=>Promise<void>;refreshing?:boolean}){
   const [draft,setDraft]=useState(item.localDraft??''),[dirty,setDirty]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState(''),[candidates,setCandidates]=useState<{id:string;name:string}[]|null>(null);
   useEffect(()=>{if(!dirty)setDraft(item.localDraft??'');},[item.localDraft,dirty]);
   const [showDraft,setShowDraft]=useState(false);
@@ -134,7 +182,7 @@ export function CurrentCase({item,update,materialsOnly=false,discussionOnly=fals
         const seq=editSequence.current;
         setError('');
         try{
-          await updateRef.current({localDraft:text},{profileKey,scopeVersion});
+          await updateRef.current({localDraft:text},scope);
           if(mountedRef.current&&seq===editSequence.current&&!autosaveRef.current?.hasPending()&&draftRef.current===text){
             setDirty(false);
             setMessage('工作稿已自动保存。');
@@ -155,7 +203,7 @@ export function CurrentCase({item,update,materialsOnly=false,discussionOnly=fals
     autosaveRef.current?.cancel();
     editSequence.current++;
     const versions=version?[...(item.localVersions??[]),{id:crypto.randomUUID(),text:draft,at:new Date().toISOString(),processId:item.current?.processId}]:item.localVersions;
-    await action(async()=>{await update({localDraft:draft,localVersions:versions},{profileKey,scopeVersion});setDirty(false);setMessage(version?'新版本已保存到本案目录。':'工作稿已保存。');});
+    await action(async()=>{await update({localDraft:draft,localVersions:versions},scope);setDirty(false);setMessage(version?'新版本已保存到本案目录。':'工作稿已保存。');});
   }
   function edit(text:string){
     editSequence.current++;

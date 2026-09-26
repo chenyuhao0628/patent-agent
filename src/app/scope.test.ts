@@ -8,4 +8,6 @@ test('desktop scope rejects late writes after account or generation changes', ()
   assert.equal(sameDesktopScope({ profileKey: 'bob', scopeVersion: 8 }, alice), false);
   assert.equal(sameDesktopScope({ profileKey: 'alice', scopeVersion: 8 }, alice), false);
   assert.equal(sameDesktopScope({ profileKey: 'alice', scopeVersion: 7 }, undefined), true);
+  assert.equal(sameDesktopScope({ profileKey: 'alice', scopeVersion: 7 }, { profileKey: 'alice', scopeVersion: 7 }), true);
+  assert.equal(sameDesktopScope({ profileKey: 'alice', scopeVersion: 7 }, { profileKey: 'alice', scopeVersion: 8 }), false);
 });
