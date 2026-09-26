@@ -12,6 +12,7 @@ import { normalizeWorkspace, currentWork, editableCurrent } from '../src/domain/
 import { pauseRunning } from '../src/domain/workflow.ts';
 import type { Case, CurrentFlowInfo, RemoteProcess, Settings, Submission, Workspace } from '../src/domain/workflow.ts';
 import type { Account, DesktopState, FlowView, MigrationState, SyncState, StorageState } from '../src/desktop.ts';
+import type { DesktopScope } from '../src/contracts/desktop-state.ts';
 import {
   assertDestinationOnlyOwnStaging, assertSourceUnchanged, buildPreview, cancelledError,
   copyAccountNamespace, ioErrorMessage, namespaceHasEntries, publishAccountNamespace,
@@ -311,9 +312,9 @@ export class DesktopService {
     }catch(e){if(key!==this.key||generation!==this.generation)return this.state();this.storageState={running:false,message:'工作目录未读取完成：'+(e as Error).message};}
     this.changed();return this.state();
   }
-  async save(key:string,incoming:Workspace){
+  async save(key:string,incoming:Workspace,scope?:DesktopScope){
     this.assertKey(key);this.assertNotMigrating();if(incoming.schema!==1||!Array.isArray(incoming.cases))throw new Error('案件记录格式不正确。');
-    return this.enqueuePersist(()=>this.saveNow(key,incoming));
+    return this.enqueuePersist(()=>this.saveNow(key,incoming,scope));
   }
   async organizeFolders(key:string) {
     this.assertKey(key); this.assertNotMigrating();
@@ -350,8 +351,21 @@ export class DesktopService {
     this.changed();
     return result;
   }
-  private async saveNow(key:string,incoming:Workspace){
-    this.assertKey(key);this.assertNotMigrating();
+  private scopeProcessKey(c:Case):string {
+    const work=currentWork(c);
+    return (work.processId||work.roundId||`local-${work.kind}`).trim();
+  }
+  private assertWriteScope(key:string,scope?:DesktopScope){
+    this.assertKey(key);
+    if(!scope)return;
+    if(scope.profileKey!==key||scope.scopeVersion!==this.generation)throw new Error('账号或桌面作用域已变化，本次旧页面操作未保存。');
+    if(!scope.caseId)return;
+    const c=this.workspace.cases.find(item=>item.id===scope.caseId);
+    if(!c)throw new Error('案件已离开当前账号，本次旧页面操作未保存。');
+    if(scope.processKey!==undefined&&this.scopeProcessKey(c)!==scope.processKey)throw new Error('案件办理流程已变化，本次旧页面操作未保存。');
+  }
+  private async saveNow(key:string,incoming:Workspace,scope?:DesktopScope){
+    this.assertKey(key);this.assertNotMigrating();this.assertWriteScope(key,scope);
     // Renderer may edit local fields only, never remote identity, ownership or active workflow.
     const next=structuredClone(this.workspace),files=this.files();
     for(const c of next.cases){const edit=incoming.cases.find(x=>x.id===c.id);if(!edit)continue;
@@ -371,7 +385,7 @@ export class DesktopService {
       }
       if(c.localDraft!==undefined)c.directory=await files.saveDraft(c);
     }
-    this.assertKey(key);
+    this.assertWriteScope(key,scope);
     this.workspace={...this.workspace,cases:this.workspace.cases.map(c=>{const changed=next.cases.find(x=>x.id===c.id);if(!changed)return c;return {...c,archived:changed.archived,tags:changed.tags,...(c.source==='local'?{title:changed.title,deadline:changed.deadline,current:changed.current}:{}),...(c.current?.processId===changed.current?.processId?{localDraft:changed.localDraft,localVersions:changed.localVersions,directory:changed.directory,sharedDraftHash:changed.sharedDraftHash}:{})};})};
     await this.persist();
   }

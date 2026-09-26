@@ -30,6 +30,7 @@ import {
   ipcArgs,
   ipcDiagnosticReport,
   ipcDirectoryKind,
+  ipcDesktopScope,
   ipcDocumentToolsConfig,
   ipcExtensionMethod,
   ipcExtensionsArgs,
@@ -297,7 +298,7 @@ app.whenReady().then(async()=>{
     });
     return saved;
   },true,true);
-  handle('saveWorkspace',ipcArgs(ipcProfileKey,ipcWorkspace),(key,w)=>service.save(key,w),true,true);
+  handle('saveWorkspace',ipcArgs(ipcProfileKey,ipcWorkspace,ipcDesktopScope),(key,w,scope)=>service.save(key,w,scope),true,true);
   handle('createCase',ipcArgs(ipcCreateCaseInput),(input)=>service.createCase(input),true,true);
   handle('refreshShared',ipcArgs(ipcProfileKey),(key)=>service.refreshShared(key),true,true);
   handle('sync',ipcArgs(ipcSyncSource),(source)=>{if(service.isWorkMigrationBusy())return service.state();return service.sync({source:source==='focus'?'focus':'manual'});});

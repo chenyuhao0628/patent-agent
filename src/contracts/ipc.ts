@@ -16,6 +16,7 @@ import type {
 import type { Extension } from '../../desktop/extensions.ts';
 import type {
   DesktopState,
+  DesktopScope,
   DocumentToolStatus,
   FlowView,
   FolderOrganizationReport,
@@ -91,7 +92,7 @@ export type DesktopIpcChannels = {
   logout: { args: []; result: DesktopState };
   selectDirectory: { args: ['originalLibrary' | 'workRoot']; result: string | null };
   saveSettings: { args: [string, Settings]; result: DesktopState };
-  saveWorkspace: { args: [string, Workspace]; result: void };
+  saveWorkspace: { args: [string, Workspace, DesktopScope]; result: void };
   refreshShared: { args: [string]; result: DesktopState };
   sync: { args: [source?: 'manual' | 'focus']; result: DesktopState };
   createCase: { args: [{ title: string; number: string; kind: 'write' | 'review' }]; result: DesktopState };

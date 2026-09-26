@@ -6,7 +6,7 @@ import type { CaseTab } from './components/CaseSpace.tsx';
 import { ImportCases } from './components/ImportCases.tsx';
 import { Modal } from './components/Primitives.tsx';
 import { LocalCaseForm } from './components/LocalCaseForm.tsx';
-import { desktop } from './desktop.ts';
+import { agentProcessKey, desktop } from './desktop.ts';
 import type { DesktopState } from './desktop.ts';
 import { inOfficialWaiting, type Module } from './domain/library.ts';
 import { workModule } from './domain/lifecycle.ts';
@@ -74,25 +74,28 @@ export function App({ nativeState, refresh }: { nativeState?: DesktopState; refr
   const openCase = (caseItem: Case, nextTab: CaseTab = 'overview', roundId?: string) => {
     navigate(`/case/${caseItem.id}/${nextTab}${roundId ? `/${roundId}` : ''}`);
   };
-  const currentScope = (): DesktopScope | undefined => {
+  const currentScope = (caseId?: string): DesktopScope | undefined => {
     const state = nativeStateRef.current;
-    return state?.profileKey && state.scopeVersion !== undefined
-      ? { profileKey: state.profileKey, scopeVersion: state.scopeVersion }
+    if (!state?.profileKey || state.scopeVersion === undefined) return undefined;
+    if (!caseId) return { profileKey: state.profileKey, scopeVersion: state.scopeVersion };
+    const currentCase = state.workspace.cases.find(caseItem => caseItem.id === caseId);
+    return currentCase
+      ? { profileKey: state.profileKey, scopeVersion: state.scopeVersion, caseId, processKey: agentProcessKey(currentCase) }
       : undefined;
   };
   const persistDesktop = (workspace: Workspace, expectedScope?: DesktopScope) => {
     const task = saveQueueRef.current.then(async () => {
       const currentNative = nativeStateRef.current;
-      if (desktop && (!expectedScope || !sameDesktopScope(currentScope(), expectedScope))) {
+      if (desktop && (!expectedScope || !sameDesktopScope(currentScope(expectedScope.caseId), expectedScope))) {
         throw new Error('账号或案件作用域已变化，请重新打开当前页面。');
       }
-      if (desktop && currentNative) await desktop.saveWorkspace(currentNative.profileKey, workspace);
+      if (desktop && currentNative && expectedScope) await desktop.saveWorkspace(currentNative.profileKey, workspace, expectedScope);
     });
     saveQueueRef.current = task.catch(() => {});
     return task;
   };
   const updateCase = async (id: string, patch: Partial<Case>, expectedScope?: DesktopScope) => {
-    if (desktop && (!expectedScope || !sameDesktopScope(currentScope(), expectedScope))) {
+    if (desktop && (!expectedScope || !sameDesktopScope(currentScope(expectedScope.caseId), expectedScope))) {
       throw new Error('账号或案件作用域已变化，请重新打开当前页面。');
     }
     const next = patchCase(dataRef.current, id, patch);

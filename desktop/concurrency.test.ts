@@ -73,6 +73,20 @@ test('same-account save during paused flow query keeps local edits and new offic
   assert.equal(disk.cases[0].remote.processes[0].officialDeadline,'2026-01-15');
 });
 
+test('workspace save rechecks the captured case process in the main process',async t=>{
+  const {root,work,vault}=await tempService(t);
+  const s=new DesktopService(path.join(root,'data'),vault);
+  s.key='account-a';s.workspace.settings.workRoot=work;
+  await s.createCase({title:'作用域案件',number:'SCOPE-001',kind:'write'});
+  const c=s.workspace.cases[0];
+  const scope={profileKey:s.key,scopeVersion:s.generation,caseId:c.id,processKey:'local-write'};
+  const incoming=structuredClone(s.workspace);
+  incoming.cases[0].localDraft='旧页面稿件';
+  c.current={kind:'review'};
+  await assert.rejects(s.save(s.key,incoming,scope),/流程已变化/);
+  assert.equal(s.workspace.cases[0].localDraft,'');
+});
+
 test('account switch during flow filesystem write does not leak into the new account root',async t=>{
   const {root,work,vault}=await tempService(t);
   const workB=path.join(root,'work-b');await fs.mkdir(workB);

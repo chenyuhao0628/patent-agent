@@ -15,6 +15,7 @@ export type {
   Account,
   AuthState,
   DesktopState,
+  DesktopScope,
   DocumentToolStatus,
   FlowNode,
   FlowView,

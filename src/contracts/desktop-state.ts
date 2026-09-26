@@ -94,6 +94,14 @@ export type DesktopState = {
   dataDirectory: string;
 };
 
+/** Scope captured by a renderer write and rechecked by the main process. */
+export type DesktopScope = {
+  profileKey: string;
+  scopeVersion: number;
+  caseId?: string;
+  processKey?: string;
+};
+
 export type FlowNode = {
   name: string;
   user: string;

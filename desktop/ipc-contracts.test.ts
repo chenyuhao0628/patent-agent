@@ -7,6 +7,7 @@ import {
   ipcCaseId,
   ipcBoolean,
   ipcCreateCaseInput,
+  ipcDesktopScope,
   ipcExtensionMethod,
   ipcExtensionsArgs,
   ipcLoginInput,
@@ -49,6 +50,9 @@ test('IPC contract guards accept scoped commands', () => {
   assert.equal(ipcTransferRole('reply'), 'reply');
   assert.equal(ipcTransferSource('workbench'), 'workbench');
   assert.equal(ipcSyncSource(undefined), undefined);
+  assert.deepEqual(ipcDesktopScope({ profileKey: 'account-1', scopeVersion: 3, caseId: 'case-1', processKey: 'process-1' }), {
+    profileKey: 'account-1', scopeVersion: 3, caseId: 'case-1', processKey: 'process-1',
+  });
   assert.deepEqual(ipcNoArgs([]), []);
   assert.deepEqual(ipcArgs(ipcProfileKey, ipcCaseId)(['account-1', 'case-1']), ['account-1', 'case-1']);
   assert.deepEqual(ipcArgs(ipcProfileKey, ipcOptional(ipcCaseId))(['account-1']), ['account-1', undefined]);
@@ -200,4 +204,6 @@ test('IPC contract guards reject malformed or unsupported commands', () => {
   assert.throws(() => ipcPriorArtArgs(['save', 'account-1']), /参数数量无效/);
   assert.throws(() => ipcApplicationPreferences({ openAtLogin: 'yes' }), /应用设置格式无效/);
   assert.throws(() => ipcDocumentToolsConfig({ webEnabled: true }), /工具权限设置无效/);
+  assert.throws(() => ipcDesktopScope({ profileKey: 'account-1', scopeVersion: -1 }), /桌面作用域无效/);
+  assert.throws(() => ipcDesktopScope({ profileKey: 'account-1', scopeVersion: 1, caseId: '' }), /桌面作用域无效/);
 });

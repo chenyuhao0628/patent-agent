@@ -6,6 +6,7 @@ import type { TransferAPI } from '../transfer-api.ts';
 import type { Settings } from '../domain/workflow.ts';
 import type {
   DesktopState,
+  DesktopScope,
   DocumentToolStatus,
   FlowView,
   FolderOrganizationReport,
@@ -14,7 +15,7 @@ import type {
 export type { DesktopEventPayloads, DesktopIpcChannels, IpcArgs, IpcChannel, IpcResult } from './ipc.ts';
 
 export type DesktopCaseAPI = {
-  saveWorkspace(key: string, workspace: import('../domain/workflow.ts').Workspace): Promise<void>;
+  saveWorkspace(key: string, workspace: import('../domain/workflow.ts').Workspace, scope: DesktopScope): Promise<void>;
   saveSettings(key: string, settings: Settings): Promise<DesktopState>;
   refreshShared(key: string): Promise<DesktopState>;
   sync(source?: 'manual' | 'focus'): Promise<DesktopState>;

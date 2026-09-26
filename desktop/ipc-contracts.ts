@@ -6,6 +6,7 @@ import { PROFESSIONAL_DECISION_MAX, PROFESSIONAL_WRITE_MESSAGE_MAX } from '../sr
 import type { ProfessionalCommand } from '../src/professional-api.ts';
 import type { TransferFilePreviewRef, TransferReview } from '../src/transfer-api.ts';
 import type { Settings, Workspace } from '../src/domain/workflow.ts';
+import type { DesktopScope } from '../src/contracts/desktop-state.ts';
 import { assertCaseId, assertProfileKey, assertRecord, assertString } from '../src/contracts/version.ts';
 import { validateApplicationPreferences } from './application-settings.ts';
 
@@ -277,6 +278,25 @@ export function ipcWorkspace(value: unknown): Workspace {
   }
   if (record.cases.length > 100000) throw new Error('案件记录格式不正确。');
   return value as Workspace;
+}
+
+export function ipcDesktopScope(value: unknown): DesktopScope {
+  const record = assertRecord(value, '桌面作用域无效。');
+  const profileKey = ipcProfileKey(record.profileKey);
+  if (!Number.isSafeInteger(record.scopeVersion) || Number(record.scopeVersion) < 0) {
+    throw new Error('桌面作用域无效。');
+  }
+  for (const key of ['caseId', 'processKey'] as const) {
+    if (record[key] !== undefined && (typeof record[key] !== 'string' || !record[key].trim() || record[key].length > 512)) {
+      throw new Error('桌面作用域无效。');
+    }
+  }
+  return {
+    profileKey,
+    scopeVersion: record.scopeVersion as number,
+    caseId: record.caseId === undefined ? undefined : ipcCaseId(record.caseId),
+    processKey: record.processKey === undefined ? undefined : ipcProcessId(record.processKey),
+  };
 }
 
 export function ipcSettings(value: unknown): Settings {

@@ -35,7 +35,9 @@ export function CaseSpace({requestedRoundId,item,tab,navigate,updateCase,profile
   const canOpenFeature = (id: 'reply' | 'write' | 'review' | 'transfer') => featureAvailable(FEATURE_MODULES.find(feature => feature.id === id)!, featureCtx, item);
   const canViewFeature = (id: 'reply' | 'write' | 'review' | 'transfer') => featureVisible(FEATURE_MODULES.find(feature => feature.id === id)!, featureCtx, item);
   const canEditFeature = (id: 'reply' | 'write' | 'review' | 'transfer') => featureEditable(FEATURE_MODULES.find(feature => feature.id === id)!, featureCtx, item);
-  const scope = desktop && profileKey && scopeVersion !== undefined ? { profileKey, scopeVersion } : undefined;
+  const scope = desktop && profileKey && scopeVersion !== undefined
+    ? { profileKey, scopeVersion, caseId: item.id, processKey: agentProcessKey(item) }
+    : undefined;
   const editable = projected.stage.editable && (
     !desktop || (
       ((current.kind === 'reply' || current.kind === 'correction') ? canEditFeature('reply') : true)
