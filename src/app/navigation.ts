@@ -1,6 +1,7 @@
 import { ArrowRightLeft, BadgeCheck, Clock3, FileSearch, Folder, ListTodo, MessageSquare, PenLine, Settings, type LucideIcon } from 'lucide-react';
 import type { CaseTab } from '../components/CaseSpace.tsx';
 import type { Module } from '../domain/library.ts';
+import { FEATURE_MODULES } from './features.ts';
 
 export type AppRoute = [page?: string, itemId?: string, tab?: string, roundId?: string];
 export type NavigationItem = { id: string; label: string; icon: LucideIcon };
@@ -17,7 +18,9 @@ export const NAV_ITEMS: NavigationItem[] = [
 ];
 
 export const SETTINGS_NAVIGATION = { label: '设置', icon: Settings } as const;
-export const MODULE_LABELS: Record<Module, string> = { reply: '审查意见答复', write: '专利撰写', review: '内部审查', transfer: '内部流转' };
+export const MODULE_LABELS: Record<Module, string> = Object.fromEntries(
+  FEATURE_MODULES.map(feature => [feature.id, feature.label]),
+) as Record<Module, string>;
 export const PAGE_LABELS: Record<string, string> = { library: '案件库', official: '等待官方', tasks: '工作任务', status: '案件状态', settings: '设置' };
 
 export function navigate(path: string) { location.hash = path; }

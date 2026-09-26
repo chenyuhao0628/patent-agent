@@ -11,6 +11,17 @@ const AGENT_COMMANDS = new Set([
 ]);
 
 const PROFESSIONAL_COMMANDS = new Set(['write', 'confirm', 'restart', 'review', 'ready-manual', 'stop']);
+const EXTENSION_METHODS = new Set(['test', 'list', 'toggle', 'remove', 'saveMcp', 'saveSkill', 'importSkill']);
+const PRIOR_ART_METHODS = new Set(['status', 'save', 'clear', 'importLegacy', 'test', 'prepare']);
+
+function fieldString(record: Record<string, unknown>, key: string, label = key): string {
+  return assertString(record[key], label, 4096);
+}
+
+function fieldArray(record: Record<string, unknown>, key: string, label = key): unknown[] {
+  if (!Array.isArray(record[key])) throw new Error(`${label}无效。`);
+  return record[key];
+}
 
 export function ipcProfileKey(value: unknown): string {
   return assertProfileKey(value);
@@ -52,10 +63,55 @@ export function ipcTransferSource(value: unknown): 'workbench' | 'local' {
   return source;
 }
 
+export function ipcBoolean(value: unknown, label: string): boolean {
+  if (typeof value !== 'boolean') throw new Error(`${label}无效。`);
+  return value;
+}
+
+export function ipcExtensionMethod(value: unknown): string {
+  const method = assertString(value, '扩展操作', 32);
+  if (!EXTENSION_METHODS.has(method)) throw new Error('不支持的扩展操作。');
+  return method;
+}
+
+export function ipcPriorArtMethod(value: unknown): string {
+  const method = assertString(value, '对比文件操作', 32);
+  if (!PRIOR_ART_METHODS.has(method)) throw new Error('不支持的对比文件操作。');
+  return method;
+}
+
 export function ipcAgentCommand(value: unknown): AgentCommand {
   const record = assertRecord(value, 'Agent 请求无效。');
   const type = assertString(record.type, 'Agent 操作类型', 64);
   if (!AGENT_COMMANDS.has(type)) throw new Error('不支持的 Agent 操作。');
+  if (type === 'queue') {
+    fieldString(record, 'discussionId', '讨论标识');
+    const operation = fieldString(record, 'operation', '队列操作');
+    if (!['add', 'edit', 'remove', 'send'].includes(operation)) throw new Error('队列操作无效。');
+  } else if (type === 'conversation') {
+    fieldString(record, 'discussionId', '讨论标识');
+    const operation = fieldString(record, 'operation', '对话操作');
+    if (!['continue', 'retry', 'edit', 'regenerate'].includes(operation)) throw new Error('对话操作无效。');
+  } else if (type === 'clearConversation' || type === 'branch' || type === 'manageDiscussion') {
+    fieldString(record, 'discussionId', '讨论标识');
+  } else if (type === 'classify') {
+    assertRecord(record.classification, '分类内容无效。');
+  } else if (type === 'materials') {
+    fieldArray(record, 'selectedIds', '材料选择');
+  } else if (type === 'run') {
+    fieldString(record, 'action', 'Agent 动作');
+  } else if (type === 'strategy') {
+    fieldString(record, 'strategyId', '策略标识');
+  } else if (type === 'restoreDraft' || type === 'adopt') {
+    fieldString(record, 'versionId', '版本标识');
+  } else if (type === 'issues') {
+    fieldString(record, 'reviewId', '复核标识');
+    fieldArray(record, 'issueIds', '问题标识');
+  } else if (type === 'applicationParts' || type === 'correctionContents') {
+    fieldArray(record, type === 'applicationParts' ? 'parts' : 'items', '产物内容');
+  } else if (type === 'setStage') {
+    fieldString(record, 'stage', '办理阶段');
+  }
   return value as AgentCommand;
 }
 
@@ -63,6 +119,16 @@ export function ipcProfessionalCommand(value: unknown): ProfessionalCommand {
   const record = assertRecord(value, '撰写或审查请求无效。');
   const type = assertString(record.type, '专业工作操作类型', 64);
   if (!PROFESSIONAL_COMMANDS.has(type)) throw new Error('不支持的专业工作操作。');
+  if (type === 'write') {
+    fieldString(record, 'message', '撰写要求');
+    fieldArray(record, 'materialIds', '材料选择');
+  } else if (type === 'confirm') {
+    fieldString(record, 'jobId', '任务标识');
+  } else if (type === 'restart') {
+    if (!Number.isInteger(record.phase) || Number(record.phase) < 0 || Number(record.phase) > 4) throw new Error('撰写阶段无效。');
+  } else if (type === 'review') {
+    fieldString(record, 'sourceId', '稿件标识');
+  }
   return value as ProfessionalCommand;
 }
 

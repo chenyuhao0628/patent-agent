@@ -81,6 +81,15 @@
 - 领域层不再从 `desktop/prior-art.ts`、`agent-api.ts` 或 `professional-api.ts` 读取业务类型和策略常量。
 - `npm test`：541 项通过；`npx tsc --noEmit`：通过；`npm run build`：通过；`git diff --check`：通过。
 
+## 9. 2026-09-26 开始完整开发
+
+- 新增 `DEVELOPMENT.md`，统一记录产品边界、进程结构、API/IPC 契约、UI 模块接口、数据安全、开发流程和阶段验收标准。
+- IPC 注册器改为泛型参数列表，类型检查不再接受统一入口的 `any` 参数。
+- Agent 和 Professional 命令增加字段级输入校验；官方结论刷新、工作目录迁移、设置保存和部分案件入口复用账号/案件校验。
+- 新增 `src/app/features.ts`，为答复、撰写、独立审查和内部流转建立基础 Feature Registry，集中声明标签、路由和能力。
+- 本轮未调用真实模型、贝思兰德写接口或真实案件材料，未进行视觉验证。
+- `npm test`：541 项通过；`npx tsc --noEmit`：通过；`npm run build`：通过；`git diff --check`：通过。
+
 ## 8. 2026-09-26 IPC 边界继续收敛
 
 - 为案件级 IPC 增加流程标识、材料标识、相对文件路径、流转文件用途和材料来源的运行时校验。
