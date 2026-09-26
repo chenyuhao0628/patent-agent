@@ -284,13 +284,18 @@ export function datedFolder(label:string,id:string,at=new Date().toISOString()):
 export async function readJSON<T>(file:string,fallback:T):Promise<T> {
   try{return JSON.parse(await fs.readFile(file,'utf8'));}catch(e){if((e as NodeJS.ErrnoException).code==='ENOENT')return fallback;throw new Error('本地记录无法读取，原文件已保留。');}
 }
-export async function atomicWrite(file:string,data:string|Buffer) {
+export async function atomicWrite(file:string,data:string|Buffer,guard:()=>void=()=>{}) {
+  guard();
   await fs.mkdir(path.dirname(file),{recursive:true,mode:0o700});
   const temp=file+'.'+randomUUID()+'.tmp';
-  try{await fs.writeFile(temp,data,{mode:0o600,flag:'wx'});await fs.rename(temp,file);}finally{await fs.rm(temp,{force:true});}
+  try{
+    await fs.writeFile(temp,data,{mode:0o600,flag:'wx'});
+    guard();
+    await fs.rename(temp,file);
+  }finally{await fs.rm(temp,{force:true});}
 }
-export async function atomicJSON(file:string,data:unknown) {
-  await atomicWrite(file,JSON.stringify(data,null,2));
+export async function atomicJSON(file:string,data:unknown,guard:()=>void=()=>{}) {
+  await atomicWrite(file,JSON.stringify(data,null,2),guard);
 }
 // Keep allocation bounded even if a selected file grows or is replaced after lstat.
 export async function readBoundedFile(file:string,maxBytes:number,signal?:AbortSignal):Promise<Buffer>{
@@ -363,7 +368,7 @@ export class CaseFiles {
     }
     // Shared business index only. Conversations, jobs, model configuration and credentials stay local.
     this.guard();
-    if(publish)await atomicJSON(manifestPath,{schema:2,id:c.id,profile:this.profile,number:c.number,title:c.title,type:c.type,deadline:c.deadline,applicationNumber:c.applicationNumber,companyName:c.companyName,caseRemark:c.caseRemark,caseInfoAt:c.caseInfoAt,remoteClosure:c.remoteClosure,officialOutcome:c.officialOutcome,remoteCaseId:c.remote?.caseId,current:c.current,source:c.source,remote:c.remote,materials:(c.materials??[]).map(sharedMaterial),rounds:c.rounds.map(r=>({id:r.id,name:r.name,priorArt:r.priorArt,materials:r.materials.map(sharedMaterial)}))});
+    if(publish)await atomicJSON(manifestPath,{schema:2,id:c.id,profile:this.profile,number:c.number,title:c.title,type:c.type,deadline:c.deadline,applicationNumber:c.applicationNumber,companyName:c.companyName,caseRemark:c.caseRemark,caseInfoAt:c.caseInfoAt,remoteClosure:c.remoteClosure,officialOutcome:c.officialOutcome,remoteCaseId:c.remote?.caseId,current:c.current,source:c.source,remote:c.remote,materials:(c.materials??[]).map(sharedMaterial),rounds:c.rounds.map(r=>({id:r.id,name:r.name,priorArt:r.priorArt,materials:r.materials.map(sharedMaterial)}))},this.guard);
     return relative;
   }
   async writeMaterial(c:Case,folder:string,fileNo:string,name:string,content:Buffer) {
@@ -387,7 +392,7 @@ export class CaseFiles {
     if(previous&&digest(previous)!==c.sharedDraftHash)throw new Error('工作目录中的稿件已在其他位置更新。请先刷新读取工作目录，再编辑保存；本次未覆盖该稿件。');
     const payload={caseId:c.id,processId:c.current?.processId,text,versions:c.localVersions??[]};
     this.guard();
-    await atomicJSON(file,payload);c.sharedDraftHash=digest(JSON.stringify(payload,null,2));
+    await atomicJSON(file,payload,this.guard);c.sharedDraftHash=digest(JSON.stringify(payload,null,2));
     for(const v of c.localVersions??[]){
       const target=await managedPath(root,`02_工作稿/${processFolder(c,v.processId??'local')}/${datedFolder('手工稿版本',v.id,v.at)}.txt`,true);
       try{await fs.writeFile(target,v.text,{flag:'wx',mode:0o600});}catch(e){if((e as NodeJS.ErrnoException).code!=='EEXIST')throw e;if(await fs.readFile(target,'utf8')!==v.text)throw new Error('已有稿件版本不能覆盖。');}

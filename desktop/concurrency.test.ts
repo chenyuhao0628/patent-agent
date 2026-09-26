@@ -104,6 +104,34 @@ test('case-scoped workspace save cannot carry edits from another case',async t=>
   assert.deepEqual(await fs.readdir(path.join(work,second.directory!,'02_工作稿')),[]);
 });
 
+test('case-scoped save guard rejects a stage change while the draft file is being published',async t=>{
+  const {root,work,vault}=await tempService(t);
+  const s=new DesktopService(path.join(root,'data'),vault);
+  s.key='account-a';s.workspace.settings.workRoot=work;
+  await s.createCase({title:'发布竞态',number:'SCOPE-003',kind:'write'});
+  const c=s.workspace.cases[0];
+  const scope={profileKey:s.key,scopeVersion:s.generation,caseId:c.id,processKey:'local-write'};
+  const incoming=structuredClone(s.workspace);
+  incoming.cases[0].localDraft='不应在阶段切换后落盘';
+  const original=CaseFiles.prototype.saveDraft;
+  let entered!:()=>void,release!:()=>void;
+  const begun=new Promise<void>(resolve=>{entered=resolve});
+  const held=new Promise<void>(resolve=>{release=resolve});
+  CaseFiles.prototype.saveDraft=async function(...args:Parameters<typeof original>){
+    entered();
+    await held;
+    return original.apply(this,args);
+  };
+  t.after(()=>{CaseFiles.prototype.saveDraft=original});
+  const pending=s.save(s.key,incoming,scope);
+  await begun;
+  c.current={kind:'review'};
+  release();
+  await assert.rejects(pending,/流程已变化/);
+  assert.equal(s.workspace.cases[0].localDraft,'');
+  await assert.rejects(fs.stat(path.join(work,c.directory!,'02_工作稿',digest('local-write').slice(0,10),'工作稿.json')), /ENOENT/);
+});
+
 test('account switch during flow filesystem write does not leak into the new account root',async t=>{
   const {root,work,vault}=await tempService(t);
   const workB=path.join(root,'work-b');await fs.mkdir(workB);

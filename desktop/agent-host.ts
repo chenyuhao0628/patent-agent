@@ -1491,15 +1491,16 @@ export class AgentHost implements AgentAPI {
     if (target.localDraft && target.localDraft !== version.text) {
       const keepId = randomUUID();
       target.localVersions = [...(target.localVersions ?? []), { id: keepId, text: target.localDraft, at: new Date().toISOString(), processId: currentWork(c).processId }];
-      await this.desktop.save(profileKey, workspace);
+      const scope = { profileKey, scopeVersion: this.desktop.generation, caseId: c.id, processKey: state.scope.processKey };
+      await this.desktop.save(profileKey, workspace, scope);
       const again = structuredClone(this.desktop.workspace) as Workspace;
       const row = again.cases.find(item => item.id === c.id)!;
       row.localDraft = version.text;
-      await this.desktop.save(profileKey, again);
+      await this.desktop.save(profileKey, again, scope);
       next = { ...next, expectedSharedDraftHash: this.desktop.findCase(c.id).sharedDraftHash };
     } else {
       target.localDraft = version.text;
-      await this.desktop.save(profileKey, workspace);
+      await this.desktop.save(profileKey, workspace, { profileKey, scopeVersion: this.desktop.generation, caseId: c.id, processKey: state.scope.processKey });
       next = { ...next, expectedSharedDraftHash: this.desktop.findCase(c.id).sharedDraftHash };
     }
     const store = this.stores.get(profileKey);

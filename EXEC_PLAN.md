@@ -227,6 +227,15 @@
 - 验证：`npm test` 566 项通过；`npx tsc --noEmit` 通过；`npm run build` 通过；`git diff --check` 通过。
 - 未验收：真实模型、真实案件材料、GUI 视觉、退出恢复、模板 Word 版式、macOS 覆盖安装、Windows 实机安装、服务端写入和官方递交。
 
+## 27. 2026-09-26 保存发布竞态与专业权限一致性
+
+- `CaseFiles` 的原子写入支持在临时文件写入前和发布前执行作用域 guard；案件清单和工作稿 manifest 不再只在调用方检查一次。
+- `DesktopService.save` 为案件级保存注入账号、代际、案件和当前流程校验，阶段在文件发布期间变化时不发布旧工作稿或旧案件索引。
+- Agent 采用稿、保留用户稿和替换当前稿的内部保存均携带完整案件作用域，不再退回账号级整工作区快照保存。
+- 专业撰写与独立审查界面使用 `professionalWritingEditable` / `professionalWorkEditable`，按钮禁用条件与主进程写入策略一致。
+- 新增保存发布竞态回归；目标并发与专业工作测试 47 项通过，`npx tsc --noEmit` 和 `git diff --check` 通过。
+- 本阶段未进行真实模型、真实案件材料、GUI 视觉、安装包或贝思兰德写操作验收。
+
 ## 25. 2026-09-26 独立审查可写边界统一
 
 - 新增 `professionalWorkEditable` 和 `professionalWritingEditable` 领域策略，Feature Registry、Professional Host 和案件状态共同使用当前业务与 `editableCurrent` 判定。

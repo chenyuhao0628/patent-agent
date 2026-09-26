@@ -220,7 +220,7 @@ export class DesktopService {
   clearWorkMigrationQueued(){this.migrationQueued=false;}
   abortWorkMigration(){this.migrationAbort?.abort();}
   setMigration(patch:Partial<MigrationState>){this.migrationState={...this.migrationState,...patch};this.changed();}
-  files(){return new CaseFiles(this.workspace.settings,this.key);}
+  files(guard?:()=>void){return new CaseFiles(this.workspace.settings,this.key,true,guard);}
   async persist(){await atomicJSON(this.profileFile(),structuredClone(this.workspace));}
   async login(input:{origin:string;username:string;password:string;remember:boolean}){
     this.assertNotMigrating();
@@ -368,7 +368,8 @@ export class DesktopService {
   private async saveNow(key:string,incoming:Workspace,scope?:DesktopScope){
     this.assertKey(key);this.assertNotMigrating();this.assertWriteScope(key,scope);
     // Renderer may edit local fields only, never remote identity, ownership or active workflow.
-    const next=structuredClone(this.workspace),files=this.files();
+    const guard=()=>{this.assertNotMigrating();this.assertWriteScope(key,scope);};
+    const next=structuredClone(this.workspace),files=this.files(guard);
     const targetIds=scope?.caseId?[scope.caseId]:incoming.cases.map(c=>c.id);
     for(const id of targetIds){
       const c=next.cases.find(item=>item.id===id),edit=incoming.cases.find(x=>x.id===id);
@@ -395,7 +396,7 @@ export class DesktopService {
       const changed=next.cases.find(x=>x.id===c.id);if(!changed)return c;
       return {...c,archived:changed.archived,tags:changed.tags,...(c.source==='local'?{title:changed.title,deadline:changed.deadline,current:changed.current}:{}),...(c.current?.processId===changed.current?.processId?{localDraft:changed.localDraft,localVersions:changed.localVersions,directory:changed.directory,sharedDraftHash:changed.sharedDraftHash}:{})};
     })};
-    await this.persist();
+    await atomicJSON(this.profileFile(),structuredClone(this.workspace),guard);
   }
   async createCase(input:{title:string;number:string;kind:'write'|'review'}) {
     this.assertNotMigrating();

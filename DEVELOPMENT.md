@@ -359,6 +359,15 @@ type FeatureModule = {
 - 自动化证据：目标测试 16 项通过；`npx tsc --noEmit` 通过；`git diff --check` 通过；
 - 真实模型、真实案件材料、GUI 视觉、退出恢复、模板 Word 版式、macOS 覆盖安装、Windows 实机安装、签名/公证、服务端写入和官方递交仍未验收。
 
+## 14. 2026-09-26 保存发布竞态与专业权限一致性
+
+- `desktop/files.ts` 的 `atomicWrite` / `atomicJSON` 支持调用方注入 guard，并在临时文件发布前再次检查。案件 manifest 和工作稿保存使用同一 guard。
+- `DesktopService.save` 的案件级作用域现在贯穿案件字段更新、工作稿文件写入和 workspace 索引发布；账号、桌面代际或当前流程改变时，旧页面操作会在发布前失败。
+- `AgentHost` 采用生成稿时以 `profileKey + scopeVersion + caseId + processKey` 保存用户稿和生成稿，不再使用无作用域的整工作区保存。
+- `ProfessionalWork` 的撰写、独立审查、外部完成稿和人工稿入口使用领域权限策略计算按钮状态；主进程仍是最终授权边界。
+- 自动化证据：目标并发与专业工作测试 47 项通过，`npx tsc --noEmit` 通过，`git diff --check` 通过。
+- 本阶段未进行真实模型、真实案件材料、GUI 视觉、退出恢复、模板 Word 版式、macOS 覆盖安装、Windows 实机安装、服务端写入或官方递交验收。
+
 2026-09-26 完成模型 IPC 方法元组闭合：
 
 - 模型 IPC 按方法声明参数元组，`saveProvider`、模型列表、默认模型、DSH 导入/预览、连通性测试和远端模型读取不再共用 `unknown[]` 公开参数。
