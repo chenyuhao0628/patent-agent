@@ -26,7 +26,7 @@ type PageContentProps = {
   nativeState?: DesktopState;
   refresh?: (state: DesktopState) => void;
   onOpenCase: (item: Case, tab?: CaseTab, roundId?: string) => void;
-  onUpdateCase: (id: string, patch: Partial<Case>) => Promise<void>;
+  onUpdateCase: (id: string, patch: Partial<Case>, scope?: { profileKey?: string; scopeVersion?: number }) => Promise<void>;
   onDispatch: (caseId: string, roundId: string, action: Action) => void;
   onArchive: (ids: string[], archived: boolean) => void;
   onImport: () => void;
@@ -59,7 +59,7 @@ export function PageContent({
       profileKey={nativeState?.profileKey}
       scopeVersion={nativeState?.scopeVersion}
       navigate={nextTab => onOpenCase(item, nextTab)}
-      updateCase={patch => onUpdateCase(item.id, patch)}
+      updateCase={(patch, scope) => onUpdateCase(item.id, patch, scope)}
     />;
   }
 

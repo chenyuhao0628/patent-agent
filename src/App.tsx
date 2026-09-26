@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { updateRound } from './domain/workflow.ts';
 import type { Case, Workspace } from './domain/workflow.ts';
 import { loadWorkspace } from './domain/persistence.ts';
@@ -13,6 +13,7 @@ import { workModule } from './domain/lifecycle.ts';
 import { isCaseTab, navigate, readRoute } from './app/navigation.ts';
 import { AppShell } from './app/app-shell.tsx';
 import { PageContent } from './app/page-content.tsx';
+import { sameDesktopScope } from './app/scope.ts';
 import { completeExpiredJobs, patchCase, persistBrowserOnPageHide, persistBrowserWorkspace } from './app/workspace-store.ts';
 
 export function App({ nativeState, refresh }: { nativeState?: DesktopState; refresh?: (state: DesktopState) => void } = {}) {
@@ -22,6 +23,10 @@ export function App({ nativeState, refresh }: { nativeState?: DesktopState; refr
   const [route, setRoute] = useState(readRoute);
   const [syncError, setSyncError] = useState('');
   const [importing, setImporting] = useState(false);
+  const nativeStateRef = useRef(nativeState);
+  const dataRef = useRef(data);
+  useEffect(() => { nativeStateRef.current = nativeState; }, [nativeState]);
+  useEffect(() => { dataRef.current = data; }, [data]);
   const page = route[0] || 'library';
   const item = page === 'case' ? data.cases.find(caseItem => caseItem.id === route[1]) : undefined;
   const tab: CaseTab = desktop && route[2] === 'reply' ? 'discussion' : isCaseTab(route[2]) ? route[2] : 'overview';
@@ -67,12 +72,17 @@ export function App({ nativeState, refresh }: { nativeState?: DesktopState; refr
   const openCase = (caseItem: Case, nextTab: CaseTab = 'overview', roundId?: string) => {
     navigate(`/case/${caseItem.id}/${nextTab}${roundId ? `/${roundId}` : ''}`);
   };
-  const updateCase = async (id: string, patch: Partial<Case>) => {
-    const next = patchCase(data, id, patch);
+  const updateCase = async (id: string, patch: Partial<Case>, expectedScope?: { profileKey?: string; scopeVersion?: number }) => {
+    const currentNative = nativeStateRef.current;
+    if (desktop && !sameDesktopScope(currentNative, expectedScope)) {
+      throw new Error('账号或案件作用域已变化，请重新打开当前页面。');
+    }
+    const next = patchCase(dataRef.current, id, patch);
+    dataRef.current = next;
     setData(next);
-    if (desktop && nativeState) {
+    if (desktop && currentNative) {
       try {
-        await desktop.saveWorkspace(nativeState.profileKey, next);
+        await desktop.saveWorkspace(currentNative.profileKey, next);
       } catch (error) {
         setStorageError((error as Error).message);
         throw error;
@@ -80,9 +90,10 @@ export function App({ nativeState, refresh }: { nativeState?: DesktopState; refr
     }
   };
   const archiveCases = (ids: string[], archived: boolean) => {
-    const next = { ...data, cases: data.cases.map(caseItem => ids.includes(caseItem.id) ? { ...caseItem, archived } : caseItem) };
+    const next = { ...dataRef.current, cases: dataRef.current.cases.map(caseItem => ids.includes(caseItem.id) ? { ...caseItem, archived } : caseItem) };
+    dataRef.current = next;
     setData(next);
-    if (desktop && nativeState) void desktop.saveWorkspace(nativeState.profileKey, next).catch(error => setStorageError(error.message));
+    if (desktop && nativeStateRef.current) void desktop.saveWorkspace(nativeStateRef.current.profileKey, next).catch(error => setStorageError(error.message));
   };
   const saveSettings = async (settings: Workspace['settings']) => {
     if (desktop && nativeState) {

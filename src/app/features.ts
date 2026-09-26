@@ -18,6 +18,20 @@ export type FeatureModule = {
   canEdit?: (caseItem: Case) => boolean;
 };
 
+function hasReplyHistory(caseItem: Case): boolean {
+  const current = currentWork(caseItem).kind;
+  return current === 'reply'
+    || current === 'correction'
+    || current === 'waiting'
+    || caseItem.rounds.some(round => /答复|审查意见|补正|复审/.test(round.name));
+}
+
+function hasWritingHistory(caseItem: Case): boolean {
+  return currentWork(caseItem).kind === 'write'
+    || !!caseItem.design?.writing.disclosure
+    || caseItem.rounds.some(round => round.name.includes('撰写'));
+}
+
 function activeCase(caseItem: Case): boolean {
   return !caseItem.archived && !currentHandling(caseItem).officialWaiting && currentWork(caseItem).kind !== 'needs-confirmation';
 }
@@ -30,7 +44,7 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
     icon: MessageSquare,
     capabilities: ['case.read', 'materials.read', 'agent.reply', 'artifact.finalize'],
     desktopOnly: true,
-    canView: caseItem => !caseItem.archived && ['reply', 'correction', 'waiting'].includes(currentWork(caseItem).kind),
+    canView: caseItem => !caseItem.archived && hasReplyHistory(caseItem),
     canStart: caseItem => activeCase(caseItem) && ['reply', 'correction'].includes(currentWork(caseItem).kind),
     canEdit: caseItem => editableCurrent(caseItem) && ['reply', 'correction'].includes(currentWork(caseItem).kind),
   },
@@ -41,7 +55,7 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
     icon: PenLine,
     capabilities: ['case.read', 'materials.read', 'professional.write', 'artifact.finalize'],
     desktopOnly: true,
-    canView: caseItem => !caseItem.archived && ['write', 'waiting'].includes(currentWork(caseItem).kind),
+    canView: caseItem => !caseItem.archived && hasWritingHistory(caseItem),
     canStart: caseItem => activeCase(caseItem) && currentWork(caseItem).kind === 'write',
     canEdit: caseItem => editableCurrent(caseItem) && currentWork(caseItem).kind === 'write',
   },

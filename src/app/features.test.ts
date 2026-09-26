@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { FEATURE_MODULE_BY_ID, FEATURE_MODULES, featureAvailable, featureContext, featureContextForDesktop, featureVisible } from './features.ts';
 import type { Case } from '../domain/workflow.ts';
+import { initialDesign } from '../domain/designFlows.ts';
 
 function fixture(overrides: Partial<Case> = {}): Case {
   return {
@@ -48,6 +49,35 @@ test('feature visibility keeps historical read-only work reachable', () => {
   assert.equal(featureVisible(FEATURE_MODULE_BY_ID.reply, context, waiting), true);
   assert.equal(featureVisible(FEATURE_MODULE_BY_ID.review, context, waiting), true);
   assert.equal(featureVisible(FEATURE_MODULE_BY_ID.reply, context, fixture({ archived: true })), false);
+});
+
+test('feature visibility keeps reply and writing history available without granting start permission', () => {
+  const context = featureContext(true);
+  const replyHistory = fixture({
+    current: { kind: 'write' },
+    rounds: [{
+      id: 'old-reply',
+      name: '第一次审查意见答复',
+      stage: 'final',
+      confirmed: true,
+      materials: [],
+      strategy: null,
+      draft: '历史答复',
+      versions: [],
+      discussions: [],
+      review: null,
+      job: null,
+      final: null,
+      finalHistory: [],
+    }],
+  });
+  assert.equal(featureVisible(FEATURE_MODULE_BY_ID.reply, context, replyHistory), true);
+  assert.equal(featureAvailable(FEATURE_MODULE_BY_ID.reply, context, replyHistory), false);
+  const writingHistory = initialDesign();
+  writingHistory.writing.disclosure = '历史交底';
+  const replyWithWritingHistory = fixture({ current: { kind: 'reply', processId: 'p-1' }, design: writingHistory });
+  assert.equal(featureVisible(FEATURE_MODULE_BY_ID.write, context, replyWithWritingHistory), true);
+  assert.equal(featureAvailable(FEATURE_MODULE_BY_ID.write, context, replyWithWritingHistory), false);
 });
 
 test('desktop-only features remain unavailable outside the desktop host', () => {

@@ -20,6 +20,8 @@ const EXTENSION_METHODS = new Set(['test', 'list', 'toggle', 'remove', 'saveMcp'
 const PRIOR_ART_METHODS = new Set(['status', 'save', 'clear', 'importLegacy', 'test', 'prepare']);
 const DIRECTORY_KINDS = ['originalLibrary', 'workRoot'] as const;
 const SYNC_SOURCES = ['manual', 'focus'] as const;
+type ExtensionMethod = 'test' | 'list' | 'toggle' | 'remove' | 'saveMcp' | 'saveSkill' | 'importSkill';
+type PriorArtMethod = 'status' | 'save' | 'clear' | 'importLegacy' | 'test' | 'prepare';
 
 function fieldString(record: Record<string, unknown>, key: string, label = key): string {
   return assertString(record[key], label, 4096);
@@ -80,11 +82,15 @@ function oneOf<T extends string>(value: unknown, values: readonly T[], label: st
   return candidate as T;
 }
 
-type IpcValueParser = ((value: unknown) => unknown) & { optional?: boolean };
-export type IpcArgumentParser = (args: readonly unknown[]) => unknown[];
+type IpcValueParser<T = unknown> = ((value: unknown) => T) & { optional?: boolean };
+export type IpcArgumentParser<Args extends readonly unknown[] = readonly unknown[]> = (args: readonly unknown[]) => Args;
 
-export function ipcArgs(...parsers: IpcValueParser[]): IpcArgumentParser {
-  return args => {
+type ParsedArgs<Parsers extends readonly IpcValueParser[]> = {
+  -readonly [Key in keyof Parsers]: Parsers[Key] extends IpcValueParser<infer Value> ? Value : never;
+};
+
+export function ipcArgs<const Parsers extends readonly IpcValueParser[]>(...parsers: Parsers): IpcArgumentParser<ParsedArgs<Parsers>> {
+  return (args: readonly unknown[]) => {
     if (args.length > parsers.length) throw new Error('IPC 参数数量无效。');
     return parsers.map((parser, index) => {
       if (index >= args.length) {
@@ -92,17 +98,17 @@ export function ipcArgs(...parsers: IpcValueParser[]): IpcArgumentParser {
         throw new Error('IPC 参数数量无效。');
       }
       return parser(args[index]);
-    });
+    }) as ParsedArgs<Parsers>;
   };
 }
 
-export function ipcNoArgs(args: readonly unknown[]): unknown[] {
+export function ipcNoArgs(args: readonly unknown[]): [] {
   if (args.length !== 0) throw new Error('IPC 不接受参数。');
   return [];
 }
 
-export function ipcOptional(parser: (value: unknown) => unknown): IpcValueParser {
-  const optional: IpcValueParser = value => value === undefined ? undefined : parser(value);
+export function ipcOptional<T>(parser: (value: unknown) => T): IpcValueParser<T | undefined> {
+  const optional: IpcValueParser<T | undefined> = value => value === undefined ? undefined : parser(value);
   optional.optional = true;
   return optional;
 }
@@ -147,7 +153,7 @@ export function ipcDocumentToolsConfig(value: unknown): { webEnabled: boolean; a
   };
 }
 
-export function ipcExtensionsArgs(args: readonly unknown[]): unknown[] {
+export function ipcExtensionsArgs(args: readonly unknown[]): import('../src/contracts/ipc.ts').ExtensionIpcArgs {
   if (args.length < 2 || args.length > 5) throw new Error('扩展请求参数数量无效。');
   const method = ipcExtensionMethod(args[0]);
   const key = ipcProfileKey(args[1]);
@@ -171,11 +177,11 @@ export function ipcExtensionsArgs(args: readonly unknown[]): unknown[] {
   throw new Error('不支持的扩展操作。');
 }
 
-export function ipcPriorArtArgs(args: readonly unknown[]): unknown[] {
+export function ipcPriorArtArgs(args: readonly unknown[]): import('../src/contracts/ipc.ts').PriorArtIpcArgs {
   if (args.length < 2 || args.length > 4) throw new Error('对比文件请求参数数量无效。');
   const method = ipcPriorArtMethod(args[0]);
   const key = ipcProfileKey(args[1]);
-  if (['status', 'clear', 'importLegacy', 'test'].includes(method)) {
+  if (method === 'status' || method === 'clear' || method === 'importLegacy' || method === 'test') {
     if (args.length !== 2) throw new Error('对比文件请求参数数量无效。');
     return [method, key];
   }
@@ -186,7 +192,7 @@ export function ipcPriorArtArgs(args: readonly unknown[]): unknown[] {
   if (args.length < 3 || args.length > 4) throw new Error('对比文件请求参数数量无效。');
   const caseId = ipcCaseId(args[2]);
   if (args[3] !== undefined && typeof args[3] !== 'string') throw new Error('对比文件说明无效。');
-  return [method, key, caseId, args[3]];
+  return ['prepare', key, caseId, args[3]];
 }
 
 export function ipcProfileKey(value: unknown): string {
@@ -234,16 +240,16 @@ export function ipcBoolean(value: unknown, label: string): boolean {
   return value;
 }
 
-export function ipcExtensionMethod(value: unknown): string {
+export function ipcExtensionMethod(value: unknown): ExtensionMethod {
   const method = assertString(value, '扩展操作', 32);
   if (!EXTENSION_METHODS.has(method)) throw new Error('不支持的扩展操作。');
-  return method;
+  return method as ExtensionMethod;
 }
 
-export function ipcPriorArtMethod(value: unknown): string {
+export function ipcPriorArtMethod(value: unknown): PriorArtMethod {
   const method = assertString(value, '对比文件操作', 32);
   if (!PRIOR_ART_METHODS.has(method)) throw new Error('不支持的对比文件操作。');
-  return method;
+  return method as PriorArtMethod;
 }
 
 export function ipcLoginInput(value: unknown): { origin: string; username: string; password: string; remember: boolean } {

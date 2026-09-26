@@ -3,9 +3,11 @@ import type { AgentPreparation } from '../src/agent-api.ts';
 import type { DesktopAPI } from '../src/contracts/desktop-api.ts';
 import type { NameDiscrepancyRequest, TransferFilePreviewRef, TransferReview, TransferSource } from '../src/transfer-api.ts';
 import type { ProfessionalCommand } from '../src/professional-api.ts';
-import type { ProviderSaveInput, UpstreamModel } from '../src/domain/models.ts';
+import type { ConnectionTestResult, DshProviderPreview, ModelConfigPublic, ProviderSaveInput, UpstreamModel } from '../src/domain/models.ts';
 import type { ApplicationPreferences } from '../src/application-api.ts';
+import type { Extension } from './extensions.ts';
 import type { DesktopEventPayloads, IpcArgs, IpcChannel, IpcResult, ModelIpcMethod } from '../src/contracts/ipc.ts';
+import type { DesktopState } from '../src/contracts/desktop-state.ts';
 import { DESKTOP_CONTRACT_VERSION, deserializeContractError } from '../src/contracts/version.ts';
 
 const call = async <Name extends IpcChannel>(name: Name, ...args: IpcArgs<Name>): Promise<IpcResult<Name>> => {
@@ -16,11 +18,53 @@ const call = async <Name extends IpcChannel>(name: Name, ...args: IpcArgs<Name>)
   }
 };
 
-const callAs = async <Name extends IpcChannel, T = IpcResult<Name>>(name: Name, ...args: IpcArgs<Name>): Promise<T> =>
-  call(name, ...args) as Promise<T>;
+function objectResult<T>(value: unknown, label: string): T {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`${label}响应无效。`);
+  return value as T;
+}
 
-const modelCall = <T>(method: ModelIpcMethod, profileKey: string, args: unknown[], requestId?: string) =>
-  callAs<'model', T>('model', method, profileKey, args, requestId);
+function arrayResult<T>(value: unknown, label: string): T[] {
+  if (!Array.isArray(value)) throw new Error(`${label}响应无效。`);
+  return value as T[];
+}
+
+function extensionList(value: IpcResult<'extensions'>): Extension[] {
+  return arrayResult<Extension>(value, '扩展');
+}
+
+function extensionTools(value: IpcResult<'extensions'>): { tools: number } {
+  const result = objectResult<{ tools?: unknown }>(value, '扩展');
+  if (!Number.isSafeInteger(result.tools) || Number(result.tools) < 0) throw new Error('扩展响应无效。');
+  return { tools: result.tools as number };
+}
+
+function priorArtConfig(value: IpcResult<'priorArt'>): { configured: boolean } {
+  const result = objectResult<{ configured?: unknown }>(value, '对比文件');
+  if (typeof result.configured !== 'boolean') throw new Error('对比文件响应无效。');
+  return { configured: result.configured };
+}
+
+function priorArtState(value: IpcResult<'priorArt'>): DesktopState {
+  return objectResult<DesktopState>(value, '对比文件');
+}
+
+type ModelResultFor<Method extends ModelIpcMethod> =
+  Method extends 'testConnection' ? ConnectionTestResult :
+  Method extends 'listRemoteModels' ? UpstreamModel[] :
+  Method extends 'previewDshProviders' ? DshProviderPreview[] :
+  ModelConfigPublic;
+
+const modelCall = async <Method extends ModelIpcMethod>(
+  method: Method,
+  profileKey: string,
+  args: unknown[],
+  requestId?: string,
+): Promise<ModelResultFor<Method>> => {
+  const value = await call('model', method, profileKey, args, requestId);
+  if (method === 'listRemoteModels') return arrayResult<UpstreamModel>(value, '远端模型') as ModelResultFor<Method>;
+  if (method === 'previewDshProviders') return arrayResult<DshProviderPreview>(value, 'DSH 供应商') as ModelResultFor<Method>;
+  return objectResult<ModelConfigPublic | ConnectionTestResult>(value, '模型') as ModelResultFor<Method>;
+};
 
 const onState = <Name extends keyof DesktopEventPayloads>(
   channel: Name,
@@ -36,21 +80,21 @@ const api: DesktopAPI = {
   diagnosticExport: () => call('diagnosticExport'),
   diagnosticReport: input => call('diagnosticReport', input),
   extensions: {
-    test: (profileKey, id) => callAs<'extensions', { tools: number }>('extensions', 'test', profileKey, id),
-    list: profileKey => callAs('extensions', 'list', profileKey),
-    toggle: (profileKey, id, value) => callAs('extensions', 'toggle', profileKey, id, value),
-    remove: (profileKey, id) => callAs('extensions', 'remove', profileKey, id),
-    saveMcp: (profileKey, raw, id) => callAs('extensions', 'saveMcp', profileKey, raw, id),
-    saveSkill: (profileKey, name, text, id) => callAs('extensions', 'saveSkill', profileKey, name, text, id),
-    importSkill: profileKey => callAs('extensions', 'importSkill', profileKey),
+    test: async (profileKey, id) => extensionTools(await call('extensions', 'test', profileKey, id)),
+    list: async profileKey => extensionList(await call('extensions', 'list', profileKey)),
+    toggle: async (profileKey, id, value) => extensionList(await call('extensions', 'toggle', profileKey, id, value)),
+    remove: async (profileKey, id) => extensionList(await call('extensions', 'remove', profileKey, id)),
+    saveMcp: async (profileKey, raw, id) => extensionList(await call('extensions', 'saveMcp', profileKey, raw, id)),
+    saveSkill: async (profileKey, name, text, id) => extensionList(await call('extensions', 'saveSkill', profileKey, name, text, id)),
+    importSkill: async profileKey => extensionList(await call('extensions', 'importSkill', profileKey)),
   },
   priorArt: {
-    status: profileKey => callAs('priorArt', 'status', profileKey),
-    save: (profileKey, value) => callAs('priorArt', 'save', profileKey, value),
-    clear: profileKey => callAs('priorArt', 'clear', profileKey),
-    importLegacy: profileKey => callAs('priorArt', 'importLegacy', profileKey),
-    test: profileKey => callAs('priorArt', 'test', profileKey),
-    prepare: (profileKey, caseId, value) => callAs('priorArt', 'prepare', profileKey, caseId, value),
+    status: async profileKey => priorArtConfig(await call('priorArt', 'status', profileKey)),
+    save: async (profileKey, value) => priorArtConfig(await call('priorArt', 'save', profileKey, value)),
+    clear: async profileKey => priorArtConfig(await call('priorArt', 'clear', profileKey)),
+    importLegacy: async profileKey => priorArtConfig(await call('priorArt', 'importLegacy', profileKey)),
+    test: async profileKey => priorArtConfig(await call('priorArt', 'test', profileKey)),
+    prepare: async (profileKey, caseId, value) => priorArtState(await call('priorArt', 'prepare', profileKey, caseId, value)),
   },
   verifyLogin: () => call('verifyLogin'),
   bootstrap: () => call('bootstrap'),

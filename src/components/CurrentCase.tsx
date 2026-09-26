@@ -111,7 +111,7 @@ export function RemoteFlow({item,profileKey,scopeVersion}:{item:Case;profileKey?
     </details>
     {flow&&<details className="flow-details"><summary>全案流程历史</summary>{flow.history.length?flow.history.map((h,i)=><div className="flow-history-row" key={i}><b>{h.name}</b><p>{[wallStamp(h.created),h.finished?`→ ${wallStamp(h.finished)}`:'· 未完结'].filter(Boolean).join(' ')}</p></div>):<Note>没有可展开的全案历史。</Note>}<p className="muted">查询时间：{safeStamp(flow.at)||'未记录'}</p></details>}</div></>}</section>;
 }
-export function CurrentCase({item,update,materialsOnly=false,discussionOnly=false,outputsOnly=false,conversationOnly=false,profileKey,onRefresh,refreshing=false}:{item:Case;update:(p:Partial<Case>)=>void|Promise<void>;materialsOnly?:boolean;discussionOnly?:boolean;outputsOnly?:boolean;conversationOnly?:boolean;profileKey?:string;onRefresh?:()=>Promise<void>;refreshing?:boolean}){
+export function CurrentCase({item,update,materialsOnly=false,discussionOnly=false,outputsOnly=false,conversationOnly=false,profileKey,scopeVersion,onRefresh,refreshing=false}:{item:Case;update:(p:Partial<Case>,scope?:{profileKey?:string;scopeVersion?:number})=>void|Promise<void>;materialsOnly?:boolean;discussionOnly?:boolean;outputsOnly?:boolean;conversationOnly?:boolean;profileKey?:string;scopeVersion?:number;onRefresh?:()=>Promise<void>;refreshing?:boolean}){
   const [draft,setDraft]=useState(item.localDraft??''),[dirty,setDirty]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState(''),[candidates,setCandidates]=useState<{id:string;name:string}[]|null>(null);
   useEffect(()=>{if(!dirty)setDraft(item.localDraft??'');},[item.localDraft,dirty]);
   const [showDraft,setShowDraft]=useState(false);
@@ -134,7 +134,7 @@ export function CurrentCase({item,update,materialsOnly=false,discussionOnly=fals
         const seq=editSequence.current;
         setError('');
         try{
-          await updateRef.current({localDraft:text});
+          await updateRef.current({localDraft:text},{profileKey,scopeVersion});
           if(mountedRef.current&&seq===editSequence.current&&!autosaveRef.current?.hasPending()&&draftRef.current===text){
             setDirty(false);
             setMessage('工作稿已自动保存。');
@@ -155,7 +155,7 @@ export function CurrentCase({item,update,materialsOnly=false,discussionOnly=fals
     autosaveRef.current?.cancel();
     editSequence.current++;
     const versions=version?[...(item.localVersions??[]),{id:crypto.randomUUID(),text:draft,at:new Date().toISOString(),processId:item.current?.processId}]:item.localVersions;
-    await action(async()=>{await update({localDraft:draft,localVersions:versions});setDirty(false);setMessage(version?'新版本已保存到本案目录。':'工作稿已保存。');});
+    await action(async()=>{await update({localDraft:draft,localVersions:versions},{profileKey,scopeVersion});setDirty(false);setMessage(version?'新版本已保存到本案目录。':'工作稿已保存。');});
   }
   function edit(text:string){
     editSequence.current++;

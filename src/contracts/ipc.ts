@@ -68,7 +68,7 @@ export type ModelIpcResult =
 
 export type DesktopIpcChannels = {
   diagnosticExport: { args: []; result: { canceled: boolean; path?: string; count?: number; droppedWrites?: number } };
-  diagnosticReport: { args: [{ type: string; line?: number; column?: number }]; result: void };
+  diagnosticReport: { args: [{ type?: string; line?: number; column?: number }]; result: void };
   applicationGet: { args: []; result: ApplicationSettingsView };
   applicationSave: { args: [ApplicationPreferences]; result: ApplicationSettingsView };
   applicationMinimize: { args: []; result: void };

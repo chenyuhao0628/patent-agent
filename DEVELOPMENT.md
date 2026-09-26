@@ -1,6 +1,6 @@
 # 专利工作台完整开发文档
 
-> 文档版本：1.1
+> 文档版本：1.2
 > 更新日期：2026-09-26
 > 当前应用版本：0.14.0
 > 需求来源：`REQUIREMENTS.md`
@@ -114,6 +114,8 @@ type IpcContract<Input, Output> = {
 
 当前 `desktop/main.ts` 的请求通道均经过显式参数解析；模型通道使用独立请求解析器，尾部可选参数允许真实省略。`src/contracts/ipc.ts` 集中声明通道、参数元组、返回值和单向事件载荷，preload 的桥接调用按该表编译，主进程 handler 的参数和返回值按 `IpcArgs<Name>` / `IpcResult<Name>` 关联。扩展、对比文件和模型等动态方法使用显式方法联合和结果联合，不以 `unknown` 作为公开契约；运行时解析器只在主进程注册器的单一边界进行窄化。确认回传事件校验窗口、主 frame、请求标识、布尔值和账号代际。
 
+主进程参数解析器通过泛型元组直接返回通道所声明的参数类型，handler 不再把统一 `unknown[]` 重新断言为业务参数。preload 对扩展、对比文件和模型的联合响应执行最小结构校验后再交给渲染层；底层 Electron `invoke` 仍是跨进程序列化边界，不能由 TypeScript 单独证明远端返回内容正确，因此所有新增通道仍须补返回值校验测试。
+
 ### 4.3 模型和 Agent 接口
 
 模型运行时必须只存在于主进程。Agent 任务启动时冻结：
@@ -170,6 +172,8 @@ type FeatureModule = {
 - 是否产生文件、服务端写入或内部流转。
 
 当前 `src/app/features.ts` 已提供 `icon`、`capabilities`、`canView`、`canStart`、`canEdit` 和 `FeatureContext`；能力上下文从注入的 `DesktopAPI` 表面探测，不把声明能力直接当作运行能力。`src/app/navigation.ts` 从注册表生成四项业务导航；`CaseSpace` 使用同一注册表区分历史只读、可启动和可编辑入口，直接路由不能绕过案件边界。`PageContent` 的宿主页面分发仍保留显式条件，作为下一步迁移边界。案件页内的聚合数据已可通过 `src/domain/case-view.ts` 投影，投影会复制嵌套数据并保留来源记录，不替代兼容写入模型。
+
+历史答复和历史撰写内容按案件记录保留查看能力，但不会因此获得新业务启动权限。案件更新、手工稿自动保存和案件管理保存均携带 `profileKey + scopeVersion` 作用域；账号切换、代际变化或 ABA 切换后的迟到回调会在应用层拒绝写入。
 
 ### 5.3 UI 状态
 

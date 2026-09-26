@@ -20,19 +20,26 @@ import { MaterialsView } from './MaterialsView.tsx';
 import { Modal, Note } from './Primitives.tsx';
 import { CaseHistory, CurrentCase, RemoteFlow, setCaseFlowCache } from './CurrentCase.tsx';
 import { agentProcessKey, desktop } from '../desktop.ts';
-import { FEATURE_MODULES, featureAvailable, featureContextForDesktop, featureVisible } from '../app/features.ts';
+import { FEATURE_MODULES, featureAvailable, featureContextForDesktop, featureEditable, featureVisible } from '../app/features.ts';
 import { projectCaseView } from '../domain/case-view.ts';
 
 export const caseTabs={overview:'概览',materials:'材料',discussion:'本案对话',reply:'答复',write:'撰写',review:'审查',history:'办理历史',outputs:'成果',flow:'贝思兰德流程',submit:'提交'};
 export type CaseTab=keyof typeof caseTabs;
-export function CaseSpace({requestedRoundId,item,tab,navigate,updateCase,profileKey,scopeVersion}:{requestedRoundId?:string;item:Case;tab:CaseTab;navigate:(t:CaseTab)=>void;updateCase:(patch:Partial<Case>)=>void|Promise<void>;profileKey?:string;scopeVersion?:number}){
+export function CaseSpace({requestedRoundId,item,tab,navigate,updateCase,profileKey,scopeVersion}:{requestedRoundId?:string;item:Case;tab:CaseTab;navigate:(t:CaseTab)=>void;updateCase:(patch:Partial<Case>,scope?:{profileKey?:string;scopeVersion?:number})=>void|Promise<void>;profileKey?:string;scopeVersion?:number}){
   const projected = projectCaseView(item);
-  const current=projected.stage.current,r=activeRound(item),design=item.design??initialDesign(),editable=projected.stage.editable,handling=currentHandling(item);
+  const current=projected.stage.current,r=activeRound(item),design=item.design??initialDesign(),handling=currentHandling(item);
   const primary:CaseTab=current.kind==='correction'?'reply':['write','reply','review'].includes(current.kind)?current.kind as CaseTab:'overview';
   const childReview=current.kind==='write'&&design.review?.source==='writing';
   const featureCtx = featureContextForDesktop(desktop ?? undefined);
   const canOpenFeature = (id: 'reply' | 'write' | 'review' | 'transfer') => featureAvailable(FEATURE_MODULES.find(feature => feature.id === id)!, featureCtx, item);
   const canViewFeature = (id: 'reply' | 'write' | 'review' | 'transfer') => featureVisible(FEATURE_MODULES.find(feature => feature.id === id)!, featureCtx, item);
+  const canEditFeature = (id: 'reply' | 'write' | 'review' | 'transfer') => featureEditable(FEATURE_MODULES.find(feature => feature.id === id)!, featureCtx, item);
+  const scope = { profileKey, scopeVersion };
+  const editable = !desktop || (
+    projected.stage.editable
+    && ((current.kind === 'reply' || current.kind === 'correction') ? canEditFeature('reply') : true)
+    && (current.kind === 'write' ? canEditFeature('write') : true)
+  );
   const allowed = tab === primary || tab === 'review' && (childReview || canOpenFeature('review'));
   const featureTabs: CaseTab[] = [
     ...(desktop && canViewFeature('reply') ? ['discussion' as CaseTab] : []),
@@ -123,7 +130,7 @@ export function CaseSpace({requestedRoundId,item,tab,navigate,updateCase,profile
     : !canTransfer
     ? '当前阶段不能内部转交。'
     : `核对本次材料、表单和下一办理人（默认：${DEFAULT_INTERNAL_TRANSFER_RECIPIENT}），保存后转交内部流程。本程序仅办理内部流转，不直接递交官方。`;
-  const updateDesign=(next:typeof design)=>{if(editable&&allowed)void updateCase({design:next});};
+  const updateDesign=(next:typeof design)=>{if(editable&&allowed)void updateCase({design:next},scope);};
   const recentFiles=artifactsFor(item,design).slice(-3).reverse();
   return <div className={`case-space ${tab==='discussion'||tab==='reply'?'conversation-space':''} ${['reply','write','review','discussion'].includes(tab)?'focused-space':''}`}>
     {flowRefreshError && <p role="alert">{flowRefreshError}</p>}{openError && <p role="alert">本机打开记录未保存：{openError}</p>}{processPickError && <p role="alert">{processPickError}</p>}{processHint && <p role="status">{processHint}</p>}
@@ -133,8 +140,8 @@ export function CaseSpace({requestedRoundId,item,tab,navigate,updateCase,profile
       {current.kind==='needs-confirmation'&&<div className="inline-warning"><h3>请确认当前办理阶段</h3><p>同一案件只能办理一个当前阶段。请选择本次要办理的流程；其余保留查看。</p><div className="button-row">{internallyActive.length?internallyActive.map(p=><button key={p.id} disabled={selectingProcess} onClick={()=>void chooseProcess(p,true)}>{processChoiceLabel(p)}</button>):!desktop?<>{item.rounds.slice(0,1).map(round=><button key={round.id} onClick={()=>void updateCase({current:{kind:round.name.includes('补正')?'correction':'reply',roundId:round.id}})}>以{round.name}为当前</button>)}{design.writing.disclosure&&<button onClick={()=>void updateCase({current:{kind:'write'}})}>以撰写为当前</button>}</>:<p>暂无未结束的内部流程，请刷新本案。</p>}</div></div>}
       {current.kind!=='needs-confirmation'&&otherActive.length>0&&<div className="inline-warning"><h3>本案还有其他未结束流程</h3><p>同一案件只能办理一个当前阶段，其余保留查看。</p><div className="button-row">{otherActive.map(p=><button key={p.id} disabled={selectingProcess} onClick={()=>void chooseProcess(p)}>切换到{p.name}</button>)}</div></div>}
       <h2 className="business-heading">案件记录</h2><div className="business-links"><button onClick={()=>navigate('history')}><FileText/><span><b>办理历史与稿件版本</b><small>查看以往撰写、通知和答复记录</small></span><ChevronRight size={18}/></button><button onClick={()=>navigate('flow')}><Clock3/><span><b>贝思兰德流程</b><small>查看节点、办理人和流转情况</small></span><ChevronRight size={18}/></button></div></div><aside className="case-aside"><h2>案件信息</h2><dl><div><dt>公司名称</dt><dd>{item.companyName || '未提供'}</dd></div><div><dt>当前业务</dt><dd>{handling.processName}</dd></div><div><dt>当前办理节点</dt><dd>{handling.node}</dd></div><div><dt>流程状态</dt><dd>{flow.process} · {flow.node}{flow.handler?` · ${flow.handler}`:''}{flow.unverified&&!flow.handler?' · 待核验':''}{flow.submission?<small>官方递交：{flow.submission}</small>:null}</dd></div><div><dt>案件状态</dt><dd><span className={`outcome-badge is-${outcomeView(item)}`} title={outcomeDetail(item)}>{outcomeLabel(item)}</span>{item.officialOutcome?.noticeName?<small>{item.officialOutcome.noticeName}{item.officialOutcome.postDate?` · ${item.officialOutcome.postDate}`:''}</small>:null}{!outcomeApplies(item)?<small>本机案件不参与官方结论判读</small>:null}</dd></div><div><dt>{deadlineFieldLabel(item)}</dt><dd>{deadlineFieldValue(item)}</dd></div><div><dt>文件归属</dt><dd>本案独立目录</dd></div></dl><CaseMetadata item={item} profileKey={profileKey}/><h2>本案成果</h2>{desktop?<button className="recent-file" onClick={()=>navigate('outputs')}><FileText/><span>查看生成文件与定稿<small>按版本查看正文、修改文本和复核记录</small></span><ChevronRight size={16}/></button>:recentFiles.length?recentFiles.map(file=><button className="recent-file" key={file.id} onClick={()=>setPreview(`${file.title}\n${file.text}`)}><FileText/><span>{file.title}<small>{file.detail}</small></span></button>):<Note>确认的定稿成果将在这里显示。</Note>}</aside></div>}
-    {tab==='materials'&&(desktop?<CurrentCase item={item} update={updateCase} materialsOnly profileKey={profileKey} onRefresh={refreshWholeCase} refreshing={refreshing}/>:r?<MaterialsView key={r.id} item={{...item,rounds:[r]}} round={r} selectRound={()=>{}} change={next=>{if(editable)void updateCase({rounds:item.rounds.map(x=>x.id===r.id?next:x)});}}/>:<Note>当前阶段尚无通知书材料，可在办理历史中查看旧轮次。</Note>)}
-    {(tab==='discussion'||tab==='reply')&&desktop&&profileKey&&canViewFeature('reply')&&<CurrentCase key={`${item.id}-discussion-${agentProcessKey(item)}`} item={item} update={updateCase} profileKey={profileKey} conversationOnly/>}
+    {tab==='materials'&&(desktop?<CurrentCase item={item} update={updateCase} materialsOnly profileKey={profileKey} scopeVersion={scopeVersion} onRefresh={refreshWholeCase} refreshing={refreshing}/>:r?<MaterialsView key={r.id} item={{...item,rounds:[r]}} round={r} selectRound={()=>{}} change={next=>{if(editable)void updateCase({rounds:item.rounds.map(x=>x.id===r.id?next:x)},scope);}}/>:<Note>当前阶段尚无通知书材料，可在办理历史中查看旧轮次。</Note>)}
+    {(tab==='discussion'||tab==='reply')&&desktop&&profileKey&&canViewFeature('reply')&&<CurrentCase key={`${item.id}-discussion-${agentProcessKey(item)}`} item={item} update={updateCase} profileKey={profileKey} scopeVersion={scopeVersion} conversationOnly/>}
     {desktop&&profileKey&&tab==='write'&&canViewFeature('write')&&<ProfessionalWork key={`${item.id}-${agentProcessKey(item)}-${tab}`} profileKey={profileKey} item={item} mode="writing" sourceId={requestedRoundId} navigate={navigate}/>}
     {desktop&&profileKey&&tab==='review'&&canViewFeature('review')&&<ProfessionalWork key={`${item.id}-${agentProcessKey(item)}-${tab}`} profileKey={profileKey} item={item} mode="review" sourceId={requestedRoundId} navigate={navigate}/>}
     {desktop&&profileKey&&['discussion','reply','write','review'].includes(tab)&&
@@ -150,8 +157,8 @@ export function CaseSpace({requestedRoundId,item,tab,navigate,updateCase,profile
     {tab==='history'&&<CaseHistory item={item}/>}
     {tab==='flow'&&<RemoteFlow item={item} profileKey={profileKey} scopeVersion={scopeVersion}/>}
     {tab==='submit'&&(desktop&&profileKey?<section className="business-workspace"><h2>提交</h2>{officialConclusion&&<p className="submission-complete">官方结论：{officialConclusion}。本案已有授权或驳回结论，当前不能内部转交。</p>}{!officialConclusion&&handling.officialWaiting&&<p className="submission-complete">已递交，等待官方处理结果，无需重复提交。历史文件可在成果和办理历史中查看。</p>}{!officialConclusion&&!handling.officialWaiting&&!canTransfer&&<p className="submission-complete">当前阶段不能内部转交。</p>}<p className="section-copy">{submitCopy}</p>{canTransfer&&<InternalTransfer profileKey={profileKey} item={item} refreshSeq={refreshSeq} navigate={navigate}/>}</section>:<Note>请在桌面程序中使用贝思兰德内部提交。</Note>)}
-    {tab==='outputs'&&(desktop&&profileKey?<CurrentCase item={item} update={updateCase} profileKey={profileKey} outputsOnly/>:<TransferWorkbench item={item} design={design} update={next=>{if(current.kind!=='needs-confirmation')void updateCase({design:next});}} openWriting={()=>navigate(primary)} openReply={()=>navigate(primary)}/>)}
-    {showInfo&&<Modal title="案件管理" onClose={()=>setShowInfo(false)}><CaseForm item={item} save={patch=>{void updateCase(patch);setShowInfo(false);}}/></Modal>}
+    {tab==='outputs'&&(desktop&&profileKey?<CurrentCase item={item} update={updateCase} profileKey={profileKey} scopeVersion={scopeVersion} outputsOnly/>:<TransferWorkbench item={item} design={design} update={next=>{if(current.kind!=='needs-confirmation')void updateCase({design:next},scope);}} openWriting={()=>navigate(primary)} openReply={()=>navigate(primary)}/>)}
+    {showInfo&&<Modal title="案件管理" onClose={()=>setShowInfo(false)}><CaseForm item={item} save={patch=>{void updateCase(patch,scope);setShowInfo(false);}}/></Modal>}
     {preview&&<Modal title="成果预览" onClose={()=>setPreview(null)}><FormattedFormulaText text={preview}/></Modal>}
     {switchTarget&&<Modal title="切换当前阶段" onClose={()=>{if(!selectingProcess)setSwitchTarget(null);}}><p>同一案件只能办理一个当前阶段，其余保留查看。</p><p>{processChoiceLabel(switchTarget)}</p><div className="button-row"><button type="button" disabled={selectingProcess} onClick={()=>setSwitchTarget(null)}>取消</button><button type="button" className="primary" disabled={selectingProcess} onClick={()=>void chooseProcess(switchTarget,true)}>确认切换</button></div></Modal>}
   </div>;
