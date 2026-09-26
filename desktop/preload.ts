@@ -1,75 +1,150 @@
 import { contextBridge, ipcRenderer } from 'electron';
-const call=async(name:string,...args:unknown[])=>{
-  try{return await ipcRenderer.invoke('desktop:'+name,...args);}
-  catch(e){throw new Error((e instanceof Error?e.message:String(e)).replace(/^Error invoking remote method 'desktop:[^']+': (?:Error: )?/,''));}
+import type { AgentPreparation } from '../src/agent-api.ts';
+import type { DesktopAPI } from '../src/contracts/desktop-api.ts';
+import type { NameDiscrepancyRequest, TransferFilePreviewRef, TransferReview, TransferSource } from '../src/transfer-api.ts';
+import type { ProfessionalCommand } from '../src/professional-api.ts';
+import type { ProviderSaveInput, UpstreamModel } from '../src/domain/models.ts';
+import type { ApplicationPreferences } from '../src/application-api.ts';
+import { DESKTOP_CONTRACT_VERSION } from '../src/contracts/version.ts';
+
+const call = async <T>(name: string, ...args: unknown[]): Promise<T> => {
+  try {
+    return await ipcRenderer.invoke(`desktop:${name}`, ...args) as T;
+  } catch (error) {
+    throw new Error((error instanceof Error ? error.message : String(error))
+      .replace(/^Error invoking remote method 'desktop:[^']+': (?:Error: )?/, ''));
+  }
 };
-const modelCall=(method:string,key:string,args:unknown[],requestId?:string)=>call('model',method,key,args,requestId);
-contextBridge.exposeInMainWorld('patentDesktop',{
-  contractVersion:1,
-  diagnosticExport:()=>call('diagnosticExport'),diagnosticReport:(input:unknown)=>call('diagnosticReport',input),
-  extensions:{test:(k:string,id:string)=>call('extensions','test',k,id),list:(k:string)=>call('extensions','list',k),toggle:(k:string,id:string,v:boolean)=>call('extensions','toggle',k,id,v),remove:(k:string,id:string)=>call('extensions','remove',k,id),saveMcp:(k:string,raw:string,id?:string)=>call('extensions','saveMcp',k,raw,id),saveSkill:(k:string,n:string,t:string,id?:string)=>call('extensions','saveSkill',k,n,t,id),importSkill:(k:string)=>call('extensions','importSkill',k)},
-  priorArt:{status:(k:string)=>call('priorArt','status',k),save:(k:string,v:string)=>call('priorArt','save',k,v),clear:(k:string)=>call('priorArt','clear',k),importLegacy:(k:string)=>call('priorArt','importLegacy',k),test:(k:string)=>call('priorArt','test',k),prepare:(k:string,id:string,v:string)=>call('priorArt','prepare',k,id,v)},
-  verifyLogin:()=>call('verifyLogin'),bootstrap:()=>call('bootstrap'),login:(input:unknown)=>call('login',input),logout:()=>call('logout'),
-  selectDirectory:(kind:string)=>call('selectDirectory',kind),saveSettings:(key:string,s:unknown)=>call('saveSettings',key,s),saveWorkspace:(key:string,w:unknown)=>call('saveWorkspace',key,w),
-  refreshShared:(key:string)=>call('refreshShared',key),sync:(source?:'manual'|'focus')=>call('sync',source),createCase:(input:unknown)=>call('createCase',input),flow:(id:string)=>call('flow',id),
-  caseInfo:(key:string,id:string)=>call('caseInfo',key,id),
-  refreshCaseOutcomes:(key:string)=>call('refreshCaseOutcomes',key),
-  refreshCaseOutcome:(key:string,id:string)=>call('refreshCaseOutcome',key,id),
-  selectCurrentProcess:(key:string,id:string,processId:string)=>call('selectCurrentProcess',key,id,processId),
-  openCaseDirectory:(id:string)=>call('openCaseDirectory',id),openMaterial:(id:string,rel:string)=>call('openMaterial',id,rel),findOriginals:(id:string)=>call('findOriginals',id),copyOriginal:(id:string,source:string)=>call('copyOriginal',id,source),
-  previewWorkMigration:(key:string,destination:string)=>call('previewWorkMigration',key,destination),
-  startWorkMigration:(key:string,previewId:string)=>call('startWorkMigration',key,previewId),
-  cancelWorkMigration:()=>call('cancelWorkMigration'),
-  organizeWorkFolders:(key:string)=>call('organizeWorkFolders',key),
-  selectDshDirectory:()=>call('selectDshDirectory'),
-  models:{
-    list:(key:string)=>modelCall('list',key,[]),
-    saveProvider:(key:string,input:unknown)=>modelCall('saveProvider',key,[input]),
-    deleteProvider:(key:string,id:string)=>modelCall('deleteProvider',key,[id]),
-    setDefault:(key:string,providerId:string,modelId:string)=>modelCall('setDefault',key,[providerId,modelId]),
-    testConnection:(key:string,id:string,opts?:{modelEntryId?:string;requestId?:string})=>modelCall('testConnection',key,[id,opts],opts?.requestId),
-    listRemoteModels:(key:string,id:string,opts?:{modelEntryId?:string;requestId?:string})=>modelCall('listRemoteModels',key,[id,opts],opts?.requestId),
-    addDiscoveredModels:(key:string,id:string,models:unknown)=>modelCall('addDiscoveredModels',key,[id,models]),
-    previewDshProviders:(dir:string)=>call('model','previewDshProviders','',[dir]),
-    importDshProvider:(key:string,dir:string,providerKey:string)=>call('model','importDshProvider',key,[dir,providerKey]),
-    cancelRequest:(requestId:string)=>call('modelCancel',requestId),
-    selectDshDirectory:()=>call('selectDshDirectory'),
+
+const modelCall = <T>(method: string, profileKey: string, args: unknown[], requestId?: string) =>
+  call<T>('model', method, profileKey, args, requestId);
+
+const onState = <T>(channel: string, callback: (value: T) => void): (() => void) => {
+  const listener = (_event: Electron.IpcRendererEvent, value: T) => callback(value);
+  ipcRenderer.on(channel, listener);
+  return () => ipcRenderer.removeListener(channel, listener);
+};
+
+const api: DesktopAPI = {
+  contractVersion: DESKTOP_CONTRACT_VERSION,
+  diagnosticExport: () => call('diagnosticExport'),
+  diagnosticReport: input => call('diagnosticReport', input),
+  extensions: {
+    test: (profileKey, id) => call('extensions', 'test', profileKey, id),
+    list: profileKey => call('extensions', 'list', profileKey),
+    toggle: (profileKey, id, value) => call('extensions', 'toggle', profileKey, id, value),
+    remove: (profileKey, id) => call('extensions', 'remove', profileKey, id),
+    saveMcp: (profileKey, raw, id) => call('extensions', 'saveMcp', profileKey, raw, id),
+    saveSkill: (profileKey, name, text, id) => call('extensions', 'saveSkill', profileKey, name, text, id),
+    importSkill: profileKey => call('extensions', 'importSkill', profileKey),
   },
-  agent:{
-    onPreparation:(callback:(value:unknown)=>void)=>{
-      const listener=(_e:unknown,value:unknown)=>callback(value);
-      ipcRenderer.on('desktop:agentPreparation',listener);
-      return()=>ipcRenderer.removeListener('desktop:agentPreparation',listener);
+  priorArt: {
+    status: profileKey => call('priorArt', 'status', profileKey),
+    save: (profileKey, value) => call('priorArt', 'save', profileKey, value),
+    clear: profileKey => call('priorArt', 'clear', profileKey),
+    importLegacy: profileKey => call('priorArt', 'importLegacy', profileKey),
+    test: profileKey => call('priorArt', 'test', profileKey),
+    prepare: (profileKey, caseId, value) => call('priorArt', 'prepare', profileKey, caseId, value),
+  },
+  verifyLogin: () => call('verifyLogin'),
+  bootstrap: () => call('bootstrap'),
+  login: input => call('login', input),
+  logout: () => call('logout'),
+  selectDirectory: kind => call('selectDirectory', kind),
+  saveSettings: (profileKey, settings) => call('saveSettings', profileKey, settings),
+  saveWorkspace: (profileKey, workspace) => call('saveWorkspace', profileKey, workspace),
+  refreshShared: profileKey => call('refreshShared', profileKey),
+  sync: source => call('sync', source),
+  createCase: input => call('createCase', input),
+  flow: caseId => call('flow', caseId),
+  caseInfo: (profileKey, caseId) => call('caseInfo', profileKey, caseId),
+  refreshCaseOutcomes: profileKey => call('refreshCaseOutcomes', profileKey),
+  refreshCaseOutcome: (profileKey, caseId) => call('refreshCaseOutcome', profileKey, caseId),
+  selectCurrentProcess: (profileKey, caseId, processId) => call('selectCurrentProcess', profileKey, caseId, processId),
+  openCaseDirectory: caseId => call('openCaseDirectory', caseId),
+  openMaterial: (caseId, relativePath) => call('openMaterial', caseId, relativePath),
+  findOriginals: caseId => call('findOriginals', caseId),
+  copyOriginal: (caseId, sourceId) => call('copyOriginal', caseId, sourceId),
+  previewWorkMigration: (profileKey, destination) => call('previewWorkMigration', profileKey, destination),
+  startWorkMigration: (profileKey, previewId) => call('startWorkMigration', profileKey, previewId),
+  cancelWorkMigration: () => call('cancelWorkMigration'),
+  organizeWorkFolders: profileKey => call('organizeWorkFolders', profileKey),
+  selectDshDirectory: () => call('selectDshDirectory'),
+  models: {
+    list: profileKey => modelCall('list', profileKey, []),
+    saveProvider: (profileKey, input: ProviderSaveInput) => modelCall('saveProvider', profileKey, [input]),
+    deleteProvider: (profileKey, providerId) => modelCall('deleteProvider', profileKey, [providerId]),
+    setDefault: (profileKey, providerId, modelEntryId) => modelCall('setDefault', profileKey, [providerId, modelEntryId]),
+    testConnection: (profileKey, providerId, options) =>
+      modelCall('testConnection', profileKey, [providerId, options], options?.requestId),
+    listRemoteModels: (profileKey, providerId, options) =>
+      modelCall('listRemoteModels', profileKey, [providerId, options], options?.requestId),
+    addDiscoveredModels: (profileKey, providerId, models: UpstreamModel[]) =>
+      modelCall('addDiscoveredModels', profileKey, [providerId, models]),
+    previewDshProviders: dshDirectory => call('model', 'previewDshProviders', '', [dshDirectory]),
+    importDshProvider: (profileKey, dshDirectory, providerKey) =>
+      call('model', 'importDshProvider', profileKey, [dshDirectory, providerKey]),
+    cancelRequest: requestId => call('modelCancel', requestId),
+    selectDshDirectory: () => call('selectDshDirectory'),
+  },
+  agent: {
+    onPreparation: (callback: (event: AgentPreparation) => void) => onState('desktop:agentPreparation', callback),
+    listProgress: profileKey => call('agentProgress', profileKey),
+    getCase: (profileKey, caseId) => call('agentGetCase', profileKey, caseId),
+    command: (profileKey, caseId, command) => call('agentCommand', profileKey, caseId, command),
+    listTasks: profileKey => call('agentTasks', profileKey),
+    onState: callback => onState('desktop:agentState', callback),
+  },
+  transfer: {
+    inspect: (profileKey, caseId) => call('transferInspect', profileKey, caseId),
+    prepare: (profileKey, caseId, sourceMode: TransferSource | undefined) =>
+      call('transferPrepare', profileKey, caseId, sourceMode),
+    pickFile: (profileKey, caseId, role) => call('transferPickFile', profileKey, caseId, role),
+    removeFile: (profileKey, caseId, role) => call('transferRemoveFile', profileKey, caseId, role),
+    clearRemote: (profileKey, caseId) => call('transferClearRemote', profileKey, caseId),
+    previewFile: (profileKey, caseId, fileRef: TransferFilePreviewRef) =>
+      call('transferPreviewFile', profileKey, caseId, fileRef),
+    startHand: (profileKey, caseId) => call('transferStartHand', profileKey, caseId),
+    saveLocalReview: (profileKey, caseId, review: TransferReview) =>
+      call('transferSaveLocalReview', profileKey, caseId, review),
+    save: (profileKey, caseId, review: TransferReview) => call('transferSave', profileKey, caseId, review),
+    submit: (profileKey, caseId, review?: TransferReview) => call('transferSubmit', profileKey, caseId, review),
+    refresh: (profileKey, caseId) => call('transferRefresh', profileKey, caseId),
+    reprepare: (profileKey, caseId) => call('transferReprepare', profileKey, caseId),
+    revoke: (profileKey, caseId) => call('transferRevoke', profileKey, caseId),
+    onConfirmNameRequest: (callback: (request: NameDiscrepancyRequest) => void) =>
+      onState('desktop:transferConfirmNameRequest', callback),
+    respondConfirmName: (requestId, confirmed) => {
+      ipcRenderer.send('desktop:transferConfirmNameResponse', requestId, confirmed);
     },
-    listProgress:(key:string)=>call('agentProgress',key),
-    getCase:(key:string,id:string)=>call('agentGetCase',key,id),
-    command:(key:string,id:string,cmd:unknown)=>call('agentCommand',key,id,cmd),
-    listTasks:(key:string)=>call('agentTasks',key),
-    onState:(callback:(view:unknown)=>void)=>{
-      const listener=(_e:unknown,view:unknown)=>callback(view);
-      ipcRenderer.on('desktop:agentState',listener);
-      return()=>ipcRenderer.removeListener('desktop:agentState',listener);
-    },
   },
-  transfer:{
-    inspect:(key:string,id:string)=>call('transferInspect',key,id),
-    prepare:(key:string,id:string,sourceMode?:string)=>call('transferPrepare',key,id,sourceMode),
-    pickFile:(key:string,id:string,role:string)=>call('transferPickFile',key,id,role),
-    removeFile:(key:string,id:string,role:string)=>call('transferRemoveFile',key,id,role),
-    clearRemote:(key:string,id:string)=>call('transferClearRemote',key,id),
-    previewFile:(key:string,id:string,fileRef:unknown)=>call('transferPreviewFile',key,id,fileRef),
-    startHand:(key:string,id:string)=>call('transferStartHand',key,id),
-    saveLocalReview:(key:string,id:string,review:unknown)=>call('transferSaveLocalReview',key,id,review),
-    save:(key:string,id:string,review:unknown)=>call('transferSave',key,id,review),
-    submit:(key:string,id:string,review?:unknown)=>call('transferSubmit',key,id,review),
-    refresh:(key:string,id:string)=>call('transferRefresh',key,id),
-    reprepare:(key:string,id:string)=>call('transferReprepare',key,id),
-    revoke:(key:string,id:string)=>call('transferRevoke',key,id),
-    onConfirmNameRequest:(callback:(req:any)=>void)=>{const listener=(_e:unknown,req:any)=>callback(req);ipcRenderer.on('desktop:transferConfirmNameRequest',listener);return()=>ipcRenderer.removeListener('desktop:transferConfirmNameRequest',listener);},
-    respondConfirmName:(reqId:string,confirmed:boolean)=>{ipcRenderer.send('desktop:transferConfirmNameResponse',reqId,confirmed);},
+  professional: {
+    pickReferences: (profileKey, caseId) => call('professionalPickReferences', profileKey, caseId),
+    removeReference: (profileKey, caseId, materialId) => call('professionalRemoveReference', profileKey, caseId, materialId),
+    getCase: (profileKey, caseId) => call('professionalGet', profileKey, caseId),
+    listReviews: profileKey => call('professionalReviews', profileKey),
+    command: (profileKey, caseId, command: ProfessionalCommand) =>
+      call('professionalCommand', profileKey, caseId, command),
+    pickFiles: (profileKey, caseId) => call('professionalPick', profileKey, caseId),
+    openFile: (profileKey, caseId, relativePath) => call('professionalOpen', profileKey, caseId, relativePath),
+    onState: callback => onState('desktop:professionalState', callback),
   },
-  professional:{pickReferences:(key:string,id:string)=>call('professionalPickReferences',key,id),removeReference:(key:string,id:string,mid:string)=>call('professionalRemoveReference',key,id,mid),getCase:(key:string,id:string)=>call('professionalGet',key,id),listReviews:(key:string)=>call('professionalReviews',key),command:(key:string,id:string,cmd:unknown)=>call('professionalCommand',key,id,cmd),pickFiles:(key:string,id:string)=>call('professionalPick',key,id),openFile:(key:string,id:string,rel:string)=>call('professionalOpen',key,id,rel),onState:(callback:(key:string)=>void)=>{const listener=(_e:unknown,key:string)=>callback(key);ipcRenderer.on('desktop:professionalState',listener);return()=>ipcRenderer.removeListener('desktop:professionalState',listener);}},
-  application:{get:()=>call('applicationGet'),save:(settings:unknown)=>call('applicationSave',settings),minimize:()=>call('applicationMinimize'),quit:()=>call('applicationQuit')},
-  documentTools:{detect:()=>call('documentToolsDetect'),status:()=>call('documentToolsStatus'),selectConverter:()=>call('documentToolsSelect'),installConverter:()=>call('documentToolsInstall'),configure:(value:{webEnabled:boolean;autoInstall:boolean;commandsEnabled:boolean;downloadsEnabled:boolean})=>call('documentToolsConfigure',value),openDirectory:()=>call('documentToolsOpen'),removeConverter:()=>call('documentToolsRemove')},
-  onState:(callback:(state:unknown)=>void)=>{const listener=(_e:unknown,state:unknown)=>callback(state);ipcRenderer.on('desktop:state',listener);return()=>ipcRenderer.removeListener('desktop:state',listener);},
-});
+  application: {
+    get: () => call('applicationGet'),
+    save: (preferences: ApplicationPreferences) => call('applicationSave', preferences),
+    minimize: () => call('applicationMinimize'),
+    quit: () => call('applicationQuit'),
+  },
+  documentTools: {
+    detect: () => call('documentToolsDetect'),
+    status: () => call('documentToolsStatus'),
+    selectConverter: () => call('documentToolsSelect'),
+    installConverter: () => call('documentToolsInstall'),
+    configure: value => call('documentToolsConfigure', value),
+    openDirectory: () => call('documentToolsOpen'),
+    removeConverter: () => call('documentToolsRemove'),
+  },
+  onState: callback => onState('desktop:state', callback),
+};
+
+contextBridge.exposeInMainWorld('patentDesktop', api);

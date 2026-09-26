@@ -6,6 +6,7 @@ import type { ProfessionalCommand } from '../src/professional-api.ts';
 import type { TransferFilePreviewRef, TransferReview } from '../src/transfer-api.ts';
 import type { Settings, Workspace } from '../src/domain/workflow.ts';
 import { assertCaseId, assertProfileKey, assertRecord, assertString } from '../src/contracts/version.ts';
+import { validateApplicationPreferences } from './application-settings.ts';
 
 const AGENT_COMMANDS = new Set([
   'queue', 'conversation', 'opened', 'clearConversation', 'branch', 'classify',
@@ -17,6 +18,8 @@ const AGENT_COMMANDS = new Set([
 const PROFESSIONAL_COMMANDS = new Set(['write', 'confirm', 'restart', 'review', 'ready-manual', 'stop']);
 const EXTENSION_METHODS = new Set(['test', 'list', 'toggle', 'remove', 'saveMcp', 'saveSkill', 'importSkill']);
 const PRIOR_ART_METHODS = new Set(['status', 'save', 'clear', 'importLegacy', 'test', 'prepare']);
+const DIRECTORY_KINDS = ['originalLibrary', 'workRoot'] as const;
+const SYNC_SOURCES = ['manual', 'focus'] as const;
 
 function fieldString(record: Record<string, unknown>, key: string, label = key): string {
   return assertString(record[key], label, 4096);
@@ -49,6 +52,106 @@ function oneOf<T extends string>(value: unknown, values: readonly T[], label: st
   const candidate = assertString(value, label, 128);
   if (!values.includes(candidate as T)) throw new Error(`${label}无效。`);
   return candidate as T;
+}
+
+export type IpcArgumentParser = (args: readonly unknown[]) => unknown[];
+
+export function ipcArgs(...parsers: Array<(value: unknown) => unknown>): IpcArgumentParser {
+  return args => {
+    if (args.length !== parsers.length) throw new Error('IPC 参数数量无效。');
+    return parsers.map((parser, index) => parser(args[index]));
+  };
+}
+
+export function ipcNoArgs(args: readonly unknown[]): unknown[] {
+  if (args.length !== 0) throw new Error('IPC 不接受参数。');
+  return [];
+}
+
+export function ipcOptional(parser: (value: unknown) => unknown): (value: unknown) => unknown {
+  return value => value === undefined ? undefined : parser(value);
+}
+
+export function ipcDirectoryKind(value: unknown): 'originalLibrary' | 'workRoot' {
+  return oneOf(value, DIRECTORY_KINDS, '目录类型');
+}
+
+export function ipcSyncSource(value: unknown): 'manual' | 'focus' | undefined {
+  return value === undefined ? undefined : oneOf(value, SYNC_SOURCES, '同步来源');
+}
+
+export function ipcText(label: string, maxLength = 4096): (value: unknown) => string {
+  return value => assertString(value, label, maxLength);
+}
+
+export function ipcDiagnosticReport(value: unknown): { type?: string; line?: number; column?: number } {
+  const record = assertRecord(value, '诊断内容无效。');
+  if (record.type !== undefined && typeof record.type !== 'string') throw new Error('诊断内容无效。');
+  for (const key of ['line', 'column'] as const) {
+    if (record[key] !== undefined && (!Number.isInteger(record[key]) || Number(record[key]) < 0 || Number(record[key]) > 1000000)) {
+      throw new Error('诊断内容无效。');
+    }
+  }
+  return { type: typeof record.type === 'string' ? record.type.slice(0, 64) : undefined, line: record.line as number | undefined, column: record.column as number | undefined };
+}
+
+export function ipcApplicationPreferences(value: unknown) {
+  return validateApplicationPreferences(value);
+}
+
+export function ipcDocumentToolsConfig(value: unknown): { webEnabled: boolean; autoInstall: boolean; commandsEnabled: boolean; downloadsEnabled: boolean } {
+  const record = assertRecord(value, '工具权限设置无效。');
+  for (const key of ['webEnabled', 'autoInstall', 'commandsEnabled', 'downloadsEnabled'] as const) {
+    if (typeof record[key] !== 'boolean') throw new Error('工具权限设置无效。');
+  }
+  return {
+    webEnabled: record.webEnabled as boolean,
+    autoInstall: record.autoInstall as boolean,
+    commandsEnabled: record.commandsEnabled as boolean,
+    downloadsEnabled: record.downloadsEnabled as boolean,
+  };
+}
+
+export function ipcExtensionsArgs(args: readonly unknown[]): unknown[] {
+  if (args.length < 2 || args.length > 5) throw new Error('扩展请求参数数量无效。');
+  const method = ipcExtensionMethod(args[0]);
+  const key = ipcProfileKey(args[1]);
+  if (method === 'list' || method === 'importSkill') {
+    if (args.length !== 2) throw new Error('扩展请求参数数量无效。');
+    return [method, key];
+  }
+  if (method === 'test' || method === 'toggle' || method === 'remove') {
+    if (args.length !== (method === 'toggle' ? 4 : 3)) throw new Error('扩展请求参数数量无效。');
+    const id = ipcMaterialId(args[2]);
+    return method === 'toggle' ? [method, key, id, ipcBoolean(args[3], '扩展启用状态')] : [method, key, id];
+  }
+  if (method === 'saveMcp') {
+    if (args.length < 3 || args.length > 4) throw new Error('扩展请求参数数量无效。');
+    return [method, key, requiredText({ value: args[2] }, 'value', 'MCP 配置', 200000), args[3] === undefined ? undefined : ipcMaterialId(args[3])];
+  }
+  if (method === 'saveSkill') {
+    if (args.length < 4 || args.length > 5) throw new Error('扩展请求参数数量无效。');
+    return [method, key, requiredText({ value: args[2] }, 'value', '技能名称', 256), requiredText({ value: args[3] }, 'value', '技能内容', 300000), args[4] === undefined ? undefined : ipcMaterialId(args[4])];
+  }
+  throw new Error('不支持的扩展操作。');
+}
+
+export function ipcPriorArtArgs(args: readonly unknown[]): unknown[] {
+  if (args.length < 2 || args.length > 4) throw new Error('对比文件请求参数数量无效。');
+  const method = ipcPriorArtMethod(args[0]);
+  const key = ipcProfileKey(args[1]);
+  if (['status', 'clear', 'importLegacy', 'test'].includes(method)) {
+    if (args.length !== 2) throw new Error('对比文件请求参数数量无效。');
+    return [method, key];
+  }
+  if (method === 'save') {
+    if (args.length !== 3) throw new Error('对比文件请求参数数量无效。');
+    return [method, key, requiredText({ value: args[2] }, 'value', '对比文件凭证', 10000)];
+  }
+  if (args.length < 3 || args.length > 4) throw new Error('对比文件请求参数数量无效。');
+  const caseId = ipcCaseId(args[2]);
+  if (args[3] !== undefined && typeof args[3] !== 'string') throw new Error('对比文件说明无效。');
+  return [method, key, caseId, args[3]];
 }
 
 export function ipcProfileKey(value: unknown): string {

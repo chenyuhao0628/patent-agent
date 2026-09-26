@@ -12,7 +12,7 @@ import { app, BrowserWindow, dialog, ipcMain, safeStorage, shell, Menu, Tray, na
 import path from 'node:path';
 import { DesktopService } from './service.ts';
 import { ModelService } from './model-service.ts';
-import { handleModelIpc, ModelRequestRegistry } from './model-ipc.ts';
+import { handleModelIpc, ModelRequestRegistry, parseModelIpcRequest } from './model-ipc.ts';
 import { AgentHost } from './agent-host.ts';
 import { TransferHost } from './transfer-host.ts';
 import { configureDocumentConverter, findDocumentConverter } from './document-converter.ts';
@@ -23,18 +23,29 @@ import { OpenCodeRunner } from './agent-runner.ts';
 import { bundledOpenCodePath, createHostRun, replyRulesRoot } from './agent-integration.ts';
 import {
   ipcAgentCommand,
+  ipcApplicationPreferences,
   ipcBoolean,
   ipcCaseId,
   ipcCreateCaseInput,
+  ipcArgs,
+  ipcDiagnosticReport,
+  ipcDirectoryKind,
+  ipcDocumentToolsConfig,
   ipcExtensionMethod,
+  ipcExtensionsArgs,
+  ipcOptional,
   ipcLoginInput,
   ipcMaterialId,
   ipcProcessId,
   ipcPriorArtMethod,
+  ipcPriorArtArgs,
   ipcProfessionalCommand,
   ipcProfileKey,
   ipcRelativePath,
   ipcSettings,
+  ipcNoArgs,
+  ipcSyncSource,
+  ipcText,
   ipcTransferRole,
   ipcTransferFilePreviewRef,
   ipcTransferReview,
@@ -176,36 +187,37 @@ app.whenReady().then(async()=>{
     if(window&&!window.isDestroyed())window.webContents.send('desktop:agentState',view);
   });
   agentHost.preparationChanged=view=>{if(!quitting&&view.profileKey===service.key&&window&&!window.isDestroyed())window.webContents.send('desktop:agentPreparation',view);};
-  function handle<Args extends unknown[]>(name:string,fn:(...args:Args)=>unknown,queued=false,rejectIfMigrating=false){ipcMain.handle('desktop:'+name,async(event,...args)=>{
+  function handle(name:string,parser:(args:readonly unknown[])=>unknown[],fn:(...args:unknown[])=>unknown,queued=false,rejectIfMigrating=false){ipcMain.handle('desktop:'+name,async(event,...args)=>{
     if(event.sender!==window?.webContents||event.senderFrame!==window.webContents.mainFrame)throw new Error('不接受非应用窗口请求。');
     const started=Date.now();
     if(name!=='diagnosticReport')diagnostic('ipc','started',{operation:name});
     try{
       if(quitting)throw new Error('应用正在退出。');
       if(rejectIfMigrating)service.assertMigrationNotAccepted();
-      return await (queued?serial(async()=>fn(...args as Args)):fn(...args as Args));
+      const parsed=parser(args);
+      return await (queued?serial(async()=>fn(...parsed)):fn(...parsed));
     }catch(e){diagnostic('ipc','failed',{operation:name,...diagnosticError(e)});if(e instanceof Error)throw e;throw new Error('操作未完成。');}finally{if(name!=='diagnosticReport')diagnostic('ipc','finished',{operation:name,durationMs:Date.now()-started});}
   });}
-  handle('diagnosticExport',exportDiagnostics);
+  handle('diagnosticExport',ipcNoArgs,exportDiagnostics);
   let rendererReports=0,rendererWindow=0;
-  handle('diagnosticReport',(input:unknown)=>{
+  handle('diagnosticReport',ipcArgs(ipcDiagnosticReport),(input:unknown)=>{
     if(Date.now()-rendererWindow>60000){rendererWindow=Date.now();rendererReports=0;}
     if(++rendererReports>60)return;
     const v=input as {type?:string;line?:number;column?:number};
     if(v&&['error','unhandledrejection','react_error'].includes(v.type||''))diagnostic('renderer','error',{type:v.type,line:v.line,column:v.column});
   });
   const chosen=new Set<string>();
-  handle('applicationGet',()=>applicationSettings.view());
-  handle('applicationSave',async(input:unknown)=>{const view=await applicationSettings.save(input);configureTray();return view;},true);
-  handle('applicationMinimize',()=>window?.minimize());
-  handle('applicationQuit',()=>{app.quit();});
-  handle('caseInfo',(key:unknown,id:unknown)=>service.caseInfo(ipcProfileKey(key),ipcCaseId(id)));
-  handle('refreshCaseOutcomes',(key:unknown)=>service.refreshCaseOutcomes(ipcProfileKey(key)),true,true);
-  handle('refreshCaseOutcome',(key:unknown,id:unknown)=>service.refreshCaseOutcome(ipcProfileKey(key),ipcCaseId(id)),true,true);
-  handle('selectCurrentProcess',(key:unknown,id:unknown,processId:unknown)=>service.selectCurrentProcess(ipcProfileKey(key),ipcCaseId(id),ipcProcessId(processId)),true,true);
-  handle('bootstrap',()=>service.state());
-  handle('verifyLogin',async()=>{const s=await service.verifyLogin(true);if(s.account?.status==='authenticated'&&s.workspace.settings.workRoot&&!service.isWorkMigrationBusy())void service.sync({source:'login'}).catch(()=>{});return s;});
-  handle('extensions',async(methodValue:unknown,keyValue:unknown,...args:unknown[])=>{
+  handle('applicationGet',ipcNoArgs,()=>applicationSettings.view());
+  handle('applicationSave',ipcArgs(ipcApplicationPreferences),async(input:unknown)=>{const view=await applicationSettings.save(input);configureTray();return view;},true);
+  handle('applicationMinimize',ipcNoArgs,()=>window?.minimize());
+  handle('applicationQuit',ipcNoArgs,()=>{app.quit();});
+  handle('caseInfo',ipcArgs(ipcProfileKey,ipcCaseId),(key:unknown,id:unknown)=>service.caseInfo(key as string,id as string));
+  handle('refreshCaseOutcomes',ipcArgs(ipcProfileKey),(key:unknown)=>service.refreshCaseOutcomes(key as string),true,true);
+  handle('refreshCaseOutcome',ipcArgs(ipcProfileKey,ipcCaseId),(key:unknown,id:unknown)=>service.refreshCaseOutcome(key as string,id as string),true,true);
+  handle('selectCurrentProcess',ipcArgs(ipcProfileKey,ipcCaseId,ipcProcessId),(key:unknown,id:unknown,processId:unknown)=>service.selectCurrentProcess(key as string,id as string,processId as string),true,true);
+  handle('bootstrap',ipcNoArgs,()=>service.state());
+  handle('verifyLogin',ipcNoArgs,async()=>{const s=await service.verifyLogin(true);if(s.account?.status==='authenticated'&&s.workspace.settings.workRoot&&!service.isWorkMigrationBusy())void service.sync({source:'login'}).catch(()=>{});return s;});
+  handle('extensions',ipcExtensionsArgs,async(methodValue:unknown,keyValue:unknown,...args:unknown[])=>{
     const method=ipcExtensionMethod(methodValue),key=ipcProfileKey(keyValue);
     service.assertKey(key);
     if(method==='list')return extensions.list(key);
@@ -221,7 +233,7 @@ app.whenReady().then(async()=>{
     throw new Error('不支持的扩展操作。');
   },true,true);
 
-  handle('priorArt',async(methodValue:unknown,keyValue:unknown,id?:unknown,content?:unknown)=>{
+  handle('priorArt',ipcPriorArtArgs,async(methodValue:unknown,keyValue:unknown,id?:unknown,content?:unknown)=>{
     const method=ipcPriorArtMethod(methodValue),key=ipcProfileKey(keyValue);
     service.assertKey(key);
     if(method==='status')return patsnap.status(key);
@@ -239,40 +251,38 @@ app.whenReady().then(async()=>{
     throw new Error('不支持的对比文件操作。');
   },true,true);
 
-  handle('login',async(input:unknown)=>{const s=await service.login(ipcLoginInput(input));if(s.workspace.settings.workRoot&&!service.isWorkMigrationBusy())void service.sync({source:'login'}).catch(()=>{});return s;},true,true);
-  handle('logout',()=>service.logout(),true,true);
-  handle('selectDirectory',async(kind:string)=>{
-    if(!['originalLibrary','workRoot'].includes(kind))throw new Error('目录类型无效。');
-    const r=await dialog.showOpenDialog(window!,{title:kind==='originalLibrary'?'选择原始申请文件库':'选择总工作文件夹',properties:kind==='workRoot'?['openDirectory','createDirectory']:['openDirectory']});
+  handle('login',ipcArgs(ipcLoginInput),async(input:unknown)=>{const s=await service.login(ipcLoginInput(input));if(s.workspace.settings.workRoot&&!service.isWorkMigrationBusy())void service.sync({source:'login'}).catch(()=>{});return s;},true,true);
+  handle('logout',ipcNoArgs,()=>service.logout(),true,true);
+  handle('selectDirectory',ipcArgs(ipcDirectoryKind),async(kind:unknown)=>{
+    const directoryKind=kind as 'originalLibrary'|'workRoot';
+    const r=await dialog.showOpenDialog(window!,{title:directoryKind==='originalLibrary'?'选择原始申请文件库':'选择总工作文件夹',properties:directoryKind==='workRoot'?['openDirectory','createDirectory']:['openDirectory']});
     const selected=r.canceled?null:r.filePaths[0];if(selected)chosen.add(selected);return selected;
   },false,true);
-  handle('previewWorkMigration',async(key:unknown,destination:unknown)=>{
-    const profileKey=ipcProfileKey(key);
-    if(typeof destination!=='string'||!destination.trim())throw new Error('目录参数无效。');
-    if(!chosen.has(destination))throw new Error('请使用系统文件夹选择器设置目录。');
+  handle('previewWorkMigration',ipcArgs(ipcProfileKey,ipcText('目录参数',4096)),async(key:unknown,destination:unknown)=>{
+    const profileKey=key as string,destinationPath=destination as string;
+    if(!chosen.has(destinationPath))throw new Error('请使用系统文件夹选择器设置目录。');
     agentHost.assertIdleForMigration();professionalHost.assertIdleForMigration();
-    return service.previewWorkMigration(profileKey,destination);
+    return service.previewWorkMigration(profileKey,destinationPath);
   },true,true);
-  handle('startWorkMigration',async(key:unknown,previewId:unknown)=>{
-    const profileKey=ipcProfileKey(key);
-    if(typeof previewId!=='string'||!previewId.trim())throw new Error('迁移预览标识无效。');
-    service.assertMigrationPreviewAllowed(previewId,chosen);
+  handle('startWorkMigration',ipcArgs(ipcProfileKey,ipcText('迁移预览标识',256)),async(key:unknown,previewId:unknown)=>{
+    const profileKey=key as string,preview=previewId as string;
+    service.assertMigrationPreviewAllowed(preview,chosen);
     agentHost.assertIdleForMigration();professionalHost.assertIdleForMigration();
     service.markWorkMigrationQueued();
-    try{return await serial(()=>service.startWorkMigration(profileKey,previewId));}
+    try{return await serial(()=>service.startWorkMigration(profileKey,preview));}
     finally{service.clearWorkMigrationQueued();}
   });
-  handle('cancelWorkMigration',()=>service.cancelWorkMigration());
-  handle('organizeWorkFolders',async(key:unknown)=>{
-    const profileKey=ipcProfileKey(key);
+  handle('cancelWorkMigration',ipcNoArgs,()=>service.cancelWorkMigration());
+  handle('organizeWorkFolders',ipcArgs(ipcProfileKey),async(key:unknown)=>{
+    const profileKey=key as string;
     agentHost.assertIdleForMigration();professionalHost.assertIdleForMigration();
     service.markWorkMigrationQueued();
     try{return await serial(()=>service.organizeFolders(profileKey));}
     finally{service.clearWorkMigrationQueued();}
   },false,true);
-  handle('saveSettings',async(key:unknown,settingsValue:unknown)=>{
-    const profileKey=ipcProfileKey(key);
-    const settings=ipcSettings(settingsValue);
+  handle('saveSettings',ipcArgs(ipcProfileKey,ipcSettings),async(key:unknown,settingsValue:unknown)=>{
+    const profileKey=key as string;
+    const settings=settingsValue as ReturnType<typeof ipcSettings>;
     for(const k of ['originalLibrary','workRoot'] as const)if(settings[k]&&settings[k]!==service.workspace.settings[k]&&!chosen.has(settings[k]))throw new Error('请使用系统文件夹选择器设置目录。');
     if(settings.workRoot&&settings.workRoot!==service.workspace.settings.workRoot){agentHost.assertIdleForMigration();professionalHost.assertIdleForMigration();}
     const saved=await service.settings(profileKey,settings);
@@ -287,47 +297,47 @@ app.whenReady().then(async()=>{
     });
     return saved;
   },true,true);
-  handle('saveWorkspace',(key:unknown,w:unknown)=>service.save(ipcProfileKey(key),ipcWorkspace(w)),true,true);
-  handle('createCase',(input:unknown)=>service.createCase(ipcCreateCaseInput(input)),true,true);
-  handle('refreshShared',key=>service.refreshShared(ipcProfileKey(key)),true,true);
-  handle('sync',(source:unknown)=>{if(service.isWorkMigrationBusy())return service.state();if(source!==undefined&&source!=='manual'&&source!=='focus')throw new Error('同步来源无效。');return service.sync({source:source==='focus'?'focus':'manual'});});
-  handle('flow',(id:unknown)=>service.flow(ipcCaseId(id),fn=>serial(fn)),false,true);
-  handle('findOriginals',(id:unknown)=>service.findOriginals(ipcCaseId(id)),false,true);
-  handle('copyOriginal',(id:unknown,source:unknown)=>service.copyOriginal(ipcCaseId(id),ipcMaterialId(source)),true,true);
-  handle('openCaseDirectory',async(id:unknown)=>{const caseId=ipcCaseId(id);await service.files().writeFileGuide(service.findCase(caseId));const error=await shell.openPath(await service.casePath(caseId));if(error)throw new Error('系统未能打开案件目录。');},false,true);
-  handle('openMaterial',async(id:unknown,rel:unknown)=>{
-    const caseId=ipcCaseId(id),relativePath=ipcRelativePath(rel),key=service.key,c=service.findCase(caseId);
+  handle('saveWorkspace',ipcArgs(ipcProfileKey,ipcWorkspace),(key:unknown,w:unknown)=>service.save(key as string,w as ReturnType<typeof ipcWorkspace>),true,true);
+  handle('createCase',ipcArgs(ipcCreateCaseInput),(input:unknown)=>service.createCase(input as ReturnType<typeof ipcCreateCaseInput>),true,true);
+  handle('refreshShared',ipcArgs(ipcProfileKey),(key:unknown)=>service.refreshShared(key as string),true,true);
+  handle('sync',ipcArgs(ipcSyncSource),(source:unknown)=>{if(service.isWorkMigrationBusy())return service.state();return service.sync({source:source==='focus'?'focus':'manual'});});
+  handle('flow',ipcArgs(ipcCaseId),(id:unknown)=>service.flow(id as string,fn=>serial(fn)),false,true);
+  handle('findOriginals',ipcArgs(ipcCaseId),(id:unknown)=>service.findOriginals(id as string),false,true);
+  handle('copyOriginal',ipcArgs(ipcCaseId,ipcMaterialId),(id:unknown,source:unknown)=>service.copyOriginal(id as string,source as string),true,true);
+  handle('openCaseDirectory',ipcArgs(ipcCaseId),async(id:unknown)=>{const caseId=id as string;await service.files().writeFileGuide(service.findCase(caseId));const error=await shell.openPath(await service.casePath(caseId));if(error)throw new Error('系统未能打开案件目录。');},false,true);
+  handle('openMaterial',ipcArgs(ipcCaseId,ipcRelativePath),async(id:unknown,rel:unknown)=>{
+    const caseId=id as string,relativePath=rel as string,key=service.key,c=service.findCase(caseId);
     const material=[...(c.materials??[]),...c.rounds.flatMap(r=>r.materials)].some(m=>m.relativePath===relativePath&&m.ready);
     if(!material){const view=await agentHost.getCase(key,caseId);if(!view.artifacts.some(a=>a.relativePath===relativePath))throw new Error('文件不属于当前案件。');}
     service.assertKey(key);
     const error=await shell.openPath(await service.casePath(caseId,relativePath));if(error)throw new Error('系统未能打开该文件。');
   },false,true);
-  handle('selectDshDirectory',async()=>{
+  handle('selectDshDirectory',ipcNoArgs,async()=>{
     const r=await dialog.showOpenDialog(window!,{title:'选择 DSH 目录',defaultPath:path.join(app.getPath('home'),'.dsh'),properties:['openDirectory','showHiddenFiles']});
     const selected=r.canceled?null:r.filePaths[0];
     if(selected)chosenDsh.add(path.resolve(selected));
     return selected;
   },false,true);
-  handle('professionalGet',(key:unknown,id:unknown)=>professionalHost.getCase(ipcProfileKey(key),ipcCaseId(id)));
-  handle('professionalReviews',(key:unknown)=>professionalHost.listReviews(ipcProfileKey(key)));
-  handle('professionalCommand',(key:unknown,id:unknown,cmd:unknown)=>professionalHost.command(ipcProfileKey(key),ipcCaseId(id),ipcProfessionalCommand(cmd)));
-  handle('professionalPick',async(key:unknown,id:unknown)=>{
-    const profileKey=ipcProfileKey(key),caseId=ipcCaseId(id);
+  handle('professionalGet',ipcArgs(ipcProfileKey,ipcCaseId),(key:unknown,id:unknown)=>professionalHost.getCase(key as string,id as string));
+  handle('professionalReviews',ipcArgs(ipcProfileKey),(key:unknown)=>professionalHost.listReviews(key as string));
+  handle('professionalCommand',ipcArgs(ipcProfileKey,ipcCaseId,ipcProfessionalCommand),(key:unknown,id:unknown,cmd:unknown)=>professionalHost.command(key as string,id as string,cmd as ReturnType<typeof ipcProfessionalCommand>));
+  handle('professionalPick',ipcArgs(ipcProfileKey,ipcCaseId),async(key:unknown,id:unknown)=>{
+    const profileKey=key as string,caseId=id as string;
     service.assertKey(profileKey);const processKey=service.findCase(caseId).current?.processId,generation=service.generation;
     const picked=await dialog.showOpenDialog(window!,{title:'选择本案完成稿（原件保留）',properties:['openFile','multiSelections'],filters:[{name:'稿件与图像',extensions:['docx','doc','pdf','txt','md','png','jpg','jpeg']}]});
     if(generation!==service.generation||service.findCase(caseId).current?.processId!==processKey)throw new Error('账号或案件流程已变化，请重新选择。');
     return picked.canceled?professionalHost.getCase(profileKey,caseId):professionalHost.addFiles(profileKey,caseId,picked.filePaths);
   },false,true);
-  handle('professionalPickReferences',async(key:unknown,id:unknown)=>{
-    const profileKey=ipcProfileKey(key),caseId=ipcCaseId(id);
+  handle('professionalPickReferences',ipcArgs(ipcProfileKey,ipcCaseId),async(key:unknown,id:unknown)=>{
+    const profileKey=key as string,caseId=id as string;
     service.assertKey(profileKey);const c=service.findCase(caseId),before=JSON.stringify(c.current),generation=service.generation;
     const picked=await dialog.showOpenDialog(window!,{title:'添加本案撰写参考材料（原件保留）',properties:['openFile','multiSelections'],filters:[{name:'文档与图像',extensions:['docx','doc','pdf','txt','md','png','jpg','jpeg']}]});
     service.assertKey(profileKey);if(generation!==service.generation||JSON.stringify(service.findCase(caseId).current)!==before)throw new Error('账号或案件流程已变化，请重新选择。');
     return picked.canceled?professionalHost.getCase(profileKey,caseId):professionalHost.addReferences(profileKey,caseId,picked.filePaths);
   },true,true);
-  handle('professionalRemoveReference',(key:unknown,id:unknown,mid:unknown)=>professionalHost.removeReference(ipcProfileKey(key),ipcCaseId(id),ipcMaterialId(mid)),true,true);
-  handle('professionalOpen',async(key:unknown,id:unknown,rel:unknown)=>{
-    const profileKey=ipcProfileKey(key),caseId=ipcCaseId(id),relativePath=ipcRelativePath(rel),generation=service.generation;
+  handle('professionalRemoveReference',ipcArgs(ipcProfileKey,ipcCaseId,ipcMaterialId),(key:unknown,id:unknown,mid:unknown)=>professionalHost.removeReference(key as string,id as string,mid as string),true,true);
+  handle('professionalOpen',ipcArgs(ipcProfileKey,ipcCaseId,ipcRelativePath),async(key:unknown,id:unknown,rel:unknown)=>{
+    const profileKey=key as string,caseId=id as string,relativePath=rel as string,generation=service.generation;
     return professionalHost.fileAllowed(profileKey,caseId,relativePath).then(async allowed=>{
       if(!allowed)throw new Error('文件不属于本案成果。');
       const target=await service.casePath(caseId,relativePath);
@@ -336,46 +346,46 @@ app.whenReady().then(async()=>{
       const error=await shell.openPath(target);if(error)throw new Error('文件未能打开。');
     });
   });
-  handle('agentGetCase',(profileKey:unknown,caseId:unknown)=>agentHost.getCase(ipcProfileKey(profileKey),ipcCaseId(caseId)));
-  handle('agentCommand',(profileKey:unknown,caseId:unknown,command:unknown)=>agentHost.command(ipcProfileKey(profileKey),ipcCaseId(caseId),ipcAgentCommand(command)));
-  handle('agentProgress',(profileKey:unknown)=>agentHost.listProgress(ipcProfileKey(profileKey)));
-  handle('agentTasks',async(profileKey:unknown)=>[...await agentHost.listTasks(ipcProfileKey(profileKey)),...await professionalHost.listTasks(ipcProfileKey(profileKey))]);
+  handle('agentGetCase',ipcArgs(ipcProfileKey,ipcCaseId),(profileKey:unknown,caseId:unknown)=>agentHost.getCase(profileKey as string,caseId as string));
+  handle('agentCommand',ipcArgs(ipcProfileKey,ipcCaseId,ipcAgentCommand),(profileKey:unknown,caseId:unknown,command:unknown)=>agentHost.command(profileKey as string,caseId as string,command as ReturnType<typeof ipcAgentCommand>));
+  handle('agentProgress',ipcArgs(ipcProfileKey),(profileKey:unknown)=>agentHost.listProgress(profileKey as string));
+  handle('agentTasks',ipcArgs(ipcProfileKey),async(profileKey:unknown)=>[...await agentHost.listTasks(profileKey as string),...await professionalHost.listTasks(profileKey as string)]);
   let detectedTools=await detectLocalTools();
   const documentStatus=async()=>({permissions:localToolPermissions(),detectedTools,converter:await findDocumentConverter()??null,vision:true,managed:managedToolsStatus(),webEnabled:converterConfig.webEnabled!==false,autoInstall:converterConfig.autoInstall!==false});
-  handle('documentToolsStatus',documentStatus);
-  handle('documentToolsDetect',async()=>{detectedTools=await detectLocalTools();return documentStatus();});
-  handle('documentToolsSelect',async()=>{
+  handle('documentToolsStatus',ipcNoArgs,documentStatus);
+  handle('documentToolsDetect',ipcNoArgs,async()=>{detectedTools=await detectLocalTools();return documentStatus();});
+  handle('documentToolsSelect',ipcNoArgs,async()=>{
     agentHost.assertIdleForMigration();professionalHost.assertIdleForMigration();
     const r=await dialog.showOpenDialog(window!,{title:'选择 LibreOffice 应用或 soffice 可执行文件',properties:['openFile'],filters:process.platform==='darwin'?[{name:'LibreOffice',extensions:['app','*']}]:[{name:'LibreOffice',extensions:['exe']}]});
     if(!r.canceled){let executable=r.filePaths[0];if(executable.endsWith('.app'))executable=path.join(executable,'Contents','MacOS','soffice');if(!['soffice','soffice.exe','libreoffice'].includes(path.basename(executable).toLowerCase()))throw new Error('请选择 LibreOffice 的 soffice 可执行文件。');converterConfig={...converterConfig,executable};configureConverter();if(!await findDocumentConverter())throw new Error('所选组件不可用。');await atomicJSON(converterFile,converterConfig);}
     return documentStatus();
   },true,true);
-  handle('documentToolsInstall',async()=>{await ensureDocumentTool(undefined,true);return documentStatus();});
-  handle('documentToolsRemove',async()=>{agentHost.assertIdleForMigration();professionalHost.assertIdleForMigration();await removeDocumentTool();return documentStatus();},true,true);
-  handle('documentToolsConfigure',async(value:{webEnabled:boolean;autoInstall:boolean;commandsEnabled:boolean;downloadsEnabled:boolean})=>{
+  handle('documentToolsInstall',ipcNoArgs,async()=>{await ensureDocumentTool(undefined,true);return documentStatus();});
+  handle('documentToolsRemove',ipcNoArgs,async()=>{agentHost.assertIdleForMigration();professionalHost.assertIdleForMigration();await removeDocumentTool();return documentStatus();},true,true);
+  handle('documentToolsConfigure',ipcArgs(ipcDocumentToolsConfig),async(value:unknown)=>{
     agentHost.assertIdleForMigration();professionalHost.assertIdleForMigration();
-    if(typeof value?.webEnabled!=='boolean'||typeof value?.autoInstall!=='boolean'||typeof value?.commandsEnabled!=='boolean'||typeof value?.downloadsEnabled!=='boolean')throw new Error('工具权限设置无效。');
-    const next={...converterConfig,webEnabled:value.webEnabled,autoInstall:value.autoInstall,commandsEnabled:value.commandsEnabled,downloadsEnabled:value.downloadsEnabled};await atomicJSON(converterFile,next);converterConfig=next;configureConverter();return documentStatus();
+    const config=value as ReturnType<typeof ipcDocumentToolsConfig>;
+    const next={...converterConfig,webEnabled:config.webEnabled,autoInstall:config.autoInstall,commandsEnabled:config.commandsEnabled,downloadsEnabled:config.downloadsEnabled};await atomicJSON(converterFile,next);converterConfig=next;configureConverter();return documentStatus();
   },true,true);
-  handle('documentToolsOpen',async()=>{await import('node:fs/promises').then(fs=>fs.mkdir(path.join(service.root,'tools'),{recursive:true}));await shell.openPath(path.join(service.root,'tools'));});
-  handle('transferInspect',(key:unknown,id:unknown)=>transferHost.inspect(ipcProfileKey(key),ipcCaseId(id)),true,true);
-  handle('transferPrepare',(key:unknown,id:unknown,sourceMode)=>transferHost.prepare(ipcProfileKey(key),ipcCaseId(id),false,sourceMode===undefined?undefined:ipcTransferSource(sourceMode)),true,true);
-  handle('transferPickFile',async(key,id,role)=>{
-    const profileKey=ipcProfileKey(key),caseId=ipcCaseId(id),fileRole=ipcTransferRole(role);
+  handle('documentToolsOpen',ipcNoArgs,async()=>{await import('node:fs/promises').then(fs=>fs.mkdir(path.join(service.root,'tools'),{recursive:true}));await shell.openPath(path.join(service.root,'tools'));});
+  handle('transferInspect',ipcArgs(ipcProfileKey,ipcCaseId),(key:unknown,id:unknown)=>transferHost.inspect(key as string,id as string),true,true);
+  handle('transferPrepare',ipcArgs(ipcProfileKey,ipcCaseId,ipcOptional(ipcTransferSource)),(key:unknown,id:unknown,sourceMode:unknown)=>transferHost.prepare(key as string,id as string,false,sourceMode as 'workbench'|'local'|undefined),true,true);
+  handle('transferPickFile',ipcArgs(ipcProfileKey,ipcCaseId,ipcTransferRole),async(key:unknown,id:unknown,role:unknown)=>{
+    const profileKey=key as string,caseId=id as string,fileRole=role as 'baseline'|'application'|'reply';
     const selected=await dialog.showOpenDialog(window!,{title:fileRole==='baseline'?'选择本次修改所基于的完整申请文件':fileRole==='reply'?'选择本次定稿意见陈述书':'选择完整修改后的申请文件',filters:[{name:'Word 文档',extensions:['docx']}],properties:['openFile']});
     if(selected.canceled)return transferHost.refresh(profileKey,caseId);
     return transferHost.addFile(profileKey,caseId,fileRole,selected.filePaths[0]);
   },true,true);
-  handle('transferStartHand',(key:unknown,id:unknown)=>transferHost.startHand(ipcProfileKey(key),ipcCaseId(id)),true,true);
-  handle('transferSaveLocalReview',(key:unknown,id:unknown,review:unknown)=>transferHost.saveLocalReview(ipcProfileKey(key),ipcCaseId(id),ipcTransferReview(review)),true,true);
-  handle('transferSave',(key:unknown,id:unknown,review:unknown)=>transferHost.save(ipcProfileKey(key),ipcCaseId(id),ipcTransferReview(review)),true,true);
-  handle('transferSubmit',async(key:unknown,id:unknown,review:unknown)=>{const profileKey=ipcProfileKey(key),caseId=ipcCaseId(id);const v=await transferHost.submit(profileKey,caseId,review===undefined?undefined:ipcTransferReview(review));if(v.phase==='submitted')professionalHost.noteSubmitted(profileKey,v.caseId);else professionalHost.changed(profileKey);return v;},true,true);
-  handle('transferRefresh',async(key:unknown,id:unknown)=>{const profileKey=ipcProfileKey(key),caseId=ipcCaseId(id);const v=await transferHost.refresh(profileKey,caseId);if(v.phase==='submitted')professionalHost.noteSubmitted(profileKey,v.caseId);else professionalHost.changed(profileKey);return v;},true,true);
-  handle('transferReprepare',(key:unknown,id:unknown)=>transferHost.reprepare(ipcProfileKey(key),ipcCaseId(id)),true,true);
-  handle('transferRevoke',(key:unknown,id:unknown)=>transferHost.revoke(ipcProfileKey(key),ipcCaseId(id)),true,true);
-  handle('transferRemoveFile',(key:unknown,id:unknown,role)=>transferHost.removeFile(ipcProfileKey(key),ipcCaseId(id),ipcTransferRole(role)),true,true);
-  handle('transferClearRemote',(key:unknown,id:unknown)=>transferHost.clearRemote(ipcProfileKey(key),ipcCaseId(id)),true,true);
-  handle('transferPreviewFile',(key:unknown,id:unknown,fileRef:unknown)=>transferHost.previewFile(ipcProfileKey(key),ipcCaseId(id),ipcTransferFilePreviewRef(fileRef)),true,true);
+  handle('transferStartHand',ipcArgs(ipcProfileKey,ipcCaseId),(key:unknown,id:unknown)=>transferHost.startHand(key as string,id as string),true,true);
+  handle('transferSaveLocalReview',ipcArgs(ipcProfileKey,ipcCaseId,ipcTransferReview),(key:unknown,id:unknown,review:unknown)=>transferHost.saveLocalReview(key as string,id as string,review as ReturnType<typeof ipcTransferReview>),true,true);
+  handle('transferSave',ipcArgs(ipcProfileKey,ipcCaseId,ipcTransferReview),(key:unknown,id:unknown,review:unknown)=>transferHost.save(key as string,id as string,review as ReturnType<typeof ipcTransferReview>),true,true);
+  handle('transferSubmit',ipcArgs(ipcProfileKey,ipcCaseId,ipcOptional(ipcTransferReview)),async(key:unknown,id:unknown,review:unknown)=>{const profileKey=key as string,caseId=id as string;const v=await transferHost.submit(profileKey,caseId,review as ReturnType<typeof ipcTransferReview>|undefined);if(v.phase==='submitted')professionalHost.noteSubmitted(profileKey,v.caseId);else professionalHost.changed(profileKey);return v;},true,true);
+  handle('transferRefresh',ipcArgs(ipcProfileKey,ipcCaseId),async(key:unknown,id:unknown)=>{const profileKey=key as string,caseId=id as string;const v=await transferHost.refresh(profileKey,caseId);if(v.phase==='submitted')professionalHost.noteSubmitted(profileKey,v.caseId);else professionalHost.changed(profileKey);return v;},true,true);
+  handle('transferReprepare',ipcArgs(ipcProfileKey,ipcCaseId),(key:unknown,id:unknown)=>transferHost.reprepare(key as string,id as string),true,true);
+  handle('transferRevoke',ipcArgs(ipcProfileKey,ipcCaseId),(key:unknown,id:unknown)=>transferHost.revoke(key as string,id as string),true,true);
+  handle('transferRemoveFile',ipcArgs(ipcProfileKey,ipcCaseId,ipcTransferRole),(key:unknown,id:unknown,role:unknown)=>transferHost.removeFile(key as string,id as string,role as 'baseline'|'application'|'reply'),true,true);
+  handle('transferClearRemote',ipcArgs(ipcProfileKey,ipcCaseId),(key:unknown,id:unknown)=>transferHost.clearRemote(key as string,id as string),true,true);
+  handle('transferPreviewFile',ipcArgs(ipcProfileKey,ipcCaseId,ipcTransferFilePreviewRef),(key:unknown,id:unknown,fileRef:unknown)=>transferHost.previewFile(key as string,id as string,fileRef as ReturnType<typeof ipcTransferFilePreviewRef>),true,true);
   ipcMain.handle('desktop:model',async(event,method,profileKey,args,requestId)=>{
     if(event.sender!==window?.webContents||event.senderFrame!==window.webContents.mainFrame)throw new Error('不接受非应用窗口请求。');
     const name='model';
@@ -383,6 +393,7 @@ app.whenReady().then(async()=>{
     diagnostic('ipc','started',{operation:name});
     try{
       if(quitting)throw new Error('应用正在退出。');
+      const request=parseModelIpcRequest(method,profileKey,args,requestId);
       return await handleModelIpc({
         modelService,serial,
         isMainFrame:(sender,frame)=>sender===window?.webContents&&frame===window.webContents.mainFrame,
@@ -390,7 +401,7 @@ app.whenReady().then(async()=>{
         getProfileKey:()=>service.key,
         getGeneration:()=>service.generation,
         chosenDsh,
-      },modelRequests,event.sender,event.senderFrame,String(method),String(profileKey??''),Array.isArray(args)?args:[],typeof requestId==='string'?requestId:undefined);
+      },modelRequests,event.sender,event.senderFrame,request.method,request.profileKey,request.args,request.requestId);
     }catch(e){diagnostic('ipc','failed',{operation:name,...diagnosticError(e)});throw new Error((e as Error).message||'操作未完成。');}finally{diagnostic('ipc','finished',{operation:name,durationMs:Date.now()-started});}
   });
   ipcMain.handle('desktop:modelCancel',async(event,requestId)=>{

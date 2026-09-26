@@ -2,11 +2,19 @@ import path from 'node:path';
 import type { WebContents } from 'electron';
 import type { ModelService } from './model-service.ts';
 import type { ProviderSaveInput, UpstreamModel } from '../src/domain/models.ts';
+import { assertProfileKey, assertRecord, assertString } from '../src/contracts/version.ts';
+import { MODEL_PROTOCOLS } from '../src/domain/models.ts';
 
 export const MODEL_WRITE_METHODS = ['saveProvider', 'deleteProvider', 'setDefault', 'addDiscoveredModels', 'importDshProvider'] as const;
 export const MODEL_READ_METHODS = ['list', 'testConnection', 'listRemoteModels', 'previewDshProviders'] as const;
 export const MODEL_IPC_METHODS = [...MODEL_WRITE_METHODS, ...MODEL_READ_METHODS] as const;
 export type ModelIpcMethod = (typeof MODEL_IPC_METHODS)[number];
+export type ParsedModelIpcRequest = {
+  method: ModelIpcMethod;
+  profileKey: string;
+  args: unknown[];
+  requestId?: string;
+};
 
 const WRITE = new Set<string>(MODEL_WRITE_METHODS);
 const ALLOWED = new Set<string>(MODEL_IPC_METHODS);
@@ -17,6 +25,129 @@ export function isModelIpcMethod(value: string): value is ModelIpcMethod {
 
 export function isModelWriteMethod(value: string): boolean {
   return WRITE.has(value);
+}
+
+function optionalString(record: Record<string, unknown>, key: string, label: string, maxLength = 4096): void {
+  if (record[key] !== undefined && (typeof record[key] !== 'string' || (record[key] as string).length > maxLength)) {
+    throw new Error(`${label}无效。`);
+  }
+}
+
+function optionalBoolean(record: Record<string, unknown>, key: string, label: string): void {
+  if (record[key] !== undefined && typeof record[key] !== 'boolean') throw new Error(`${label}无效。`);
+}
+
+function optionalPositiveInteger(record: Record<string, unknown>, key: string, label: string): void {
+  if (record[key] !== undefined && (!Number.isSafeInteger(record[key]) || Number(record[key]) < 1)) {
+    throw new Error(`${label}无效。`);
+  }
+}
+
+function validateModelSaveInput(value: unknown): ProviderSaveInput {
+  const record = assertRecord(value, '模型供应商设置无效。');
+  assertString(record.name, '供应商名称', 256);
+  assertString(record.baseURL, 'API 地址', 2048);
+  optionalString(record, 'id', '供应商标识', 256);
+  optionalString(record, 'key', '模型密钥', 100000);
+  optionalBoolean(record, 'clearKey', '清除密钥');
+  if (record.protocol !== undefined && !MODEL_PROTOCOLS.includes(record.protocol as typeof MODEL_PROTOCOLS[number])) {
+    throw new Error('模型协议无效。');
+  }
+  if (record.models !== undefined) {
+    if (!Array.isArray(record.models) || record.models.length > 200) throw new Error('模型列表无效。');
+    for (const value of record.models) {
+      const model = assertRecord(value, '模型项无效。');
+      assertString(model.modelId, '模型标识', 512);
+      assertString(model.displayName, '模型名称', 512);
+      optionalString(model, 'id', '模型项标识', 256);
+      if (model.protocol !== undefined && !MODEL_PROTOCOLS.includes(model.protocol as typeof MODEL_PROTOCOLS[number])) throw new Error('模型协议无效。');
+      for (const key of ['contextWindow', 'maxOutput', 'reasoningBudgetTokens'] as const) optionalPositiveInteger(model, key, key);
+      for (const key of ['reasoningAdaptive', 'reasoningIncludeThoughts', 'reasoningOverridden'] as const) optionalBoolean(model, key, key);
+      optionalString(model, 'reasoningLevelId', '思考级别', 256);
+      optionalString(model, 'reasoningOutputEffort', '输出思考级别', 256);
+      if (model.geminiMode !== undefined && model.geminiMode !== 'level' && model.geminiMode !== 'budget') throw new Error('Gemini 思考模式无效。');
+      if (model.reasoningLevels !== undefined && (!Array.isArray(model.reasoningLevels) || model.reasoningLevels.length > 100)) throw new Error('思考级别列表无效。');
+    }
+  }
+  return value as ProviderSaveInput;
+}
+
+function validateUpstreamModels(value: unknown): UpstreamModel[] {
+  if (!Array.isArray(value) || value.length > 500) throw new Error('远端模型列表无效。');
+  for (const item of value) {
+    const model = assertRecord(item, '远端模型项无效。');
+    assertString(model.id, '远端模型标识', 512);
+    optionalString(model, 'name', '远端模型名称', 512);
+    if (model.protocol !== undefined && !MODEL_PROTOCOLS.includes(model.protocol as typeof MODEL_PROTOCOLS[number])) throw new Error('模型协议无效。');
+    optionalPositiveInteger(model, 'contextWindow', '上下文窗口');
+    optionalPositiveInteger(model, 'maxOutput', '最大输出');
+    if (model.reasoning !== undefined) assertRecord(model.reasoning, '远端思考能力无效。');
+  }
+  return value as UpstreamModel[];
+}
+
+function validateModelOptions(value: unknown): Record<string, unknown> | undefined {
+  if (value === undefined) return undefined;
+  const record = assertRecord(value, '模型请求选项无效。');
+  optionalString(record, 'modelEntryId', '模型项标识', 256);
+  optionalString(record, 'requestId', '请求标识', 256);
+  return record;
+}
+
+export function parseModelIpcRequest(
+  methodValue: unknown,
+  profileKeyValue: unknown,
+  argsValue: unknown,
+  requestIdValue?: unknown,
+): ParsedModelIpcRequest {
+  const method = assertString(methodValue, '模型接口', 64);
+  if (!isModelIpcMethod(method)) throw new Error('不支持的模型接口。');
+  const profileKey = method === 'previewDshProviders'
+    ? (profileKeyValue === '' ? '' : assertProfileKey(profileKeyValue))
+    : assertProfileKey(profileKeyValue);
+  if (!Array.isArray(argsValue)) throw new Error('模型接口参数无效。');
+  const args = [...argsValue];
+  const exact = (count: number) => { if (args.length !== count) throw new Error('模型接口参数数量无效。'); };
+  switch (method) {
+    case 'list':
+      exact(0);
+      break;
+    case 'saveProvider':
+      exact(1);
+      validateModelSaveInput(args[0]);
+      break;
+    case 'deleteProvider':
+      exact(1);
+      assertString(args[0], '供应商标识', 256);
+      break;
+    case 'setDefault':
+      exact(2);
+      assertString(args[0], '供应商标识', 256);
+      assertString(args[1], '模型项标识', 256);
+      break;
+    case 'addDiscoveredModels':
+      exact(2);
+      assertString(args[0], '供应商标识', 256);
+      validateUpstreamModels(args[1]);
+      break;
+    case 'importDshProvider':
+      exact(2);
+      assertString(args[0], 'DSH 目录', 4096);
+      assertString(args[1], 'DSH 供应商标识', 256);
+      break;
+    case 'previewDshProviders':
+      exact(1);
+      assertString(args[0], 'DSH 目录', 4096);
+      break;
+    case 'testConnection':
+    case 'listRemoteModels':
+      if (args.length !== 1 && args.length !== 2) throw new Error('模型接口参数数量无效。');
+      assertString(args[0], '供应商标识', 256);
+      validateModelOptions(args[1]);
+      break;
+  }
+  const requestId = requestIdValue === undefined ? undefined : assertString(requestIdValue, '请求标识', 256);
+  return { method, profileKey, args, requestId };
 }
 
 type LiveRequest = { senderId: number; profileKey: string; generation: number; controller: AbortController; registrationId: string };

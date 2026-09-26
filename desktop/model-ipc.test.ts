@@ -8,7 +8,7 @@ import type { WebContents } from 'electron';
 import { ModelService } from './model-service.ts';
 import {
   assertChosenDirectory, dispatchModelMethod, handleModelIpc, isModelIpcMethod, isModelWriteMethod,
-  MODEL_WRITE_METHODS, ModelRequestRegistry,
+  MODEL_WRITE_METHODS, ModelRequestRegistry, parseModelIpcRequest,
 } from './model-ipc.ts';
 import {
   BUILTIN_OPENCODE_GO_MODEL_ENTRY_ID,
@@ -39,6 +39,24 @@ test('IPC method whitelist excludes runtime credentials and marks writes', () =>
   assert.equal(isModelWriteMethod('saveProvider'), true);
   assert.equal(isModelWriteMethod('list'), false);
   assert.ok(MODEL_WRITE_METHODS.includes('importDshProvider'));
+});
+
+test('model IPC parser validates method, scoped arguments and request identity', () => {
+  assert.deepEqual(parseModelIpcRequest('list', 'alice', [], undefined), {
+    method: 'list', profileKey: 'alice', args: [], requestId: undefined,
+  });
+  assert.deepEqual(parseModelIpcRequest('previewDshProviders', '', ['/tmp/dsh']), {
+    method: 'previewDshProviders', profileKey: '', args: ['/tmp/dsh'], requestId: undefined,
+  });
+  assert.deepEqual(parseModelIpcRequest('deleteProvider', 'alice', ['provider-1'], 'req-1'), {
+    method: 'deleteProvider', profileKey: 'alice', args: ['provider-1'], requestId: 'req-1',
+  });
+  assert.throws(() => parseModelIpcRequest('list', 'alice', ['extra']), /参数数量无效/);
+  assert.throws(() => parseModelIpcRequest('saveProvider', 'alice', [{ name: 'x', baseURL: 'https://example.test', key: 1 }]), /模型密钥无效/);
+  assert.throws(() => parseModelIpcRequest('addDiscoveredModels', 'alice', ['p', [{ id: 1 }]]), /远端模型标识无效/);
+  assert.throws(() => parseModelIpcRequest('previewDshProviders', 'alice', ['/tmp/dsh'], ''), /请求标识无效/);
+  assert.throws(() => parseModelIpcRequest('unknown', 'alice', []), /不支持的模型接口/);
+  assert.throws(() => parseModelIpcRequest('list', '', []), /账号标识无效/);
 });
 
 test('request registry binds sender and rejects duplicate ids', () => {

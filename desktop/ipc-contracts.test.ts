@@ -2,22 +2,29 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   ipcAgentCommand,
+  ipcApplicationPreferences,
+  ipcArgs,
   ipcCaseId,
   ipcBoolean,
   ipcCreateCaseInput,
   ipcExtensionMethod,
+  ipcExtensionsArgs,
   ipcLoginInput,
   ipcMaterialId,
   ipcProcessId,
   ipcProfileKey,
   ipcProfessionalCommand,
   ipcPriorArtMethod,
+  ipcPriorArtArgs,
   ipcRelativePath,
   ipcSettings,
+  ipcNoArgs,
   ipcTransferFilePreviewRef,
   ipcTransferReview,
   ipcTransferRole,
   ipcTransferSource,
+  ipcSyncSource,
+  ipcDocumentToolsConfig,
   ipcWorkspace,
 } from './ipc-contracts.ts';
 
@@ -39,6 +46,17 @@ test('IPC contract guards accept scoped commands', () => {
   assert.equal(ipcRelativePath('04_内部说明/report.docx'), '04_内部说明/report.docx');
   assert.equal(ipcTransferRole('reply'), 'reply');
   assert.equal(ipcTransferSource('workbench'), 'workbench');
+  assert.equal(ipcSyncSource(undefined), undefined);
+  assert.deepEqual(ipcNoArgs([]), []);
+  assert.deepEqual(ipcArgs(ipcProfileKey, ipcCaseId)(['account-1', 'case-1']), ['account-1', 'case-1']);
+  assert.deepEqual(ipcExtensionsArgs(['saveMcp', 'account-1', '{}']), ['saveMcp', 'account-1', '{}', undefined]);
+  assert.deepEqual(ipcPriorArtArgs(['save', 'account-1', 'token']), ['save', 'account-1', 'token']);
+  assert.deepEqual(ipcApplicationPreferences({ openAtLogin: false, startHidden: false, closeBehavior: 'quit', minimizeToTray: true }), {
+    openAtLogin: false, startHidden: false, closeBehavior: 'quit', minimizeToTray: true,
+  });
+  assert.deepEqual(ipcDocumentToolsConfig({ webEnabled: true, autoInstall: false, commandsEnabled: false, downloadsEnabled: true }), {
+    webEnabled: true, autoInstall: false, commandsEnabled: false, downloadsEnabled: true,
+  });
   assert.deepEqual(ipcAgentCommand({ type: 'opened' }), { type: 'opened' });
   assert.deepEqual(ipcAgentCommand({ type: 'run', action: 'discuss' }), { type: 'run', action: 'discuss' });
   assert.deepEqual(ipcProfessionalCommand({ type: 'write', message: '开始', materialIds: [] }), { type: 'write', message: '开始', materialIds: [] });
@@ -83,4 +101,10 @@ test('IPC contract guards reject malformed or unsupported commands', () => {
   assert.throws(() => ipcAgentCommand({ type: 'run', action: 'invalid' }), /Agent 动作无效/);
   assert.throws(() => ipcProfessionalCommand({ type: 'write', materialIds: ['ok'], message: 1 }), /撰写要求无效/);
   assert.throws(() => ipcTransferReview({ keepCodes: [] }), /核对内容不完整/);
+  assert.throws(() => ipcNoArgs(['unexpected']), /不接受参数/);
+  assert.throws(() => ipcArgs(ipcProfileKey)(['account-1', 'extra']), /参数数量无效/);
+  assert.throws(() => ipcExtensionsArgs(['list', 'account-1', 'extra']), /参数数量无效/);
+  assert.throws(() => ipcPriorArtArgs(['save', 'account-1']), /参数数量无效/);
+  assert.throws(() => ipcApplicationPreferences({ openAtLogin: 'yes' }), /应用设置格式无效/);
+  assert.throws(() => ipcDocumentToolsConfig({ webEnabled: true }), /工具权限设置无效/);
 });
