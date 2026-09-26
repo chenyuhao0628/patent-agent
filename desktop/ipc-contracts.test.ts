@@ -51,6 +51,7 @@ test('IPC contract guards accept scoped commands', () => {
   assert.deepEqual(ipcNoArgs([]), []);
   assert.deepEqual(ipcArgs(ipcProfileKey, ipcCaseId)(['account-1', 'case-1']), ['account-1', 'case-1']);
   assert.deepEqual(ipcArgs(ipcProfileKey, ipcOptional(ipcCaseId))(['account-1']), ['account-1', undefined]);
+  assert.deepEqual(ipcArgs(ipcOptional(ipcCaseId), ipcProfileKey)([undefined, 'account-1']), [undefined, 'account-1']);
   assert.deepEqual(ipcExtensionsArgs(['saveMcp', 'account-1', '{}']), ['saveMcp', 'account-1', '{}', undefined]);
   assert.deepEqual(ipcPriorArtArgs(['save', 'account-1', 'token']), ['save', 'account-1', 'token']);
   assert.deepEqual(ipcApplicationPreferences({ openAtLogin: false, startHidden: false, closeBehavior: 'quit', minimizeToTray: true }), {
@@ -65,7 +66,7 @@ test('IPC contract guards accept scoped commands', () => {
   assert.deepEqual(ipcAgentCommand({ type: 'conversation', discussionId: 'd-1', operation: 'retry', runId: 'run-1' }), { type: 'conversation', discussionId: 'd-1', operation: 'retry', runId: 'run-1' });
   assert.deepEqual(ipcAgentCommand({ type: 'classify', classification: { patentType: '发明' } }), { type: 'classify', classification: { patentType: '发明' } });
   assert.deepEqual(ipcProfessionalCommand({ type: 'write', message: '开始', materialIds: [] }), { type: 'write', message: '开始', materialIds: [] });
-  assert.deepEqual(ipcProfessionalCommand({ type: 'write', materialIds: [] }), { type: 'write', materialIds: [] });
+  assert.deepEqual(ipcProfessionalCommand({ type: 'write', message: '', materialIds: [] }), { type: 'write', message: '', materialIds: [] });
   assert.deepEqual(ipcProfessionalCommand({ type: 'confirm', jobId: 'job-1', decision: '' }), { type: 'confirm', jobId: 'job-1', decision: '' });
   assert.deepEqual(ipcProfessionalCommand({ type: 'stop' }), { type: 'stop' });
   assert.deepEqual(ipcTransferReview({
@@ -103,6 +104,31 @@ test('IPC contract guards accept scoped commands', () => {
     userId: 'user-1',
     remark: '',
   });
+  assert.doesNotThrow(() => ipcTransferReview({
+    keepCodes: [],
+    form: {
+      noticeDate: '',
+      noticeName: '',
+      noticeNo: '',
+      correctionReason: 1,
+      addEntrust: false,
+      corrections: [{
+        ChangeId: 'draft-row-1',
+        Sort: 0,
+        FileName: '权利要求书',
+        PositionInFile: '',
+        CorrectionBefore: '',
+        CorrectionAfter: '',
+      }],
+      otherProof: false,
+      experimentData: false,
+      abstractFigure: '',
+      declarations: {},
+    },
+    stepId: '',
+    userId: '',
+    remark: '',
+  }));
 });
 
 test('IPC contract guards reject malformed or unsupported commands', () => {
@@ -122,7 +148,9 @@ test('IPC contract guards reject malformed or unsupported commands', () => {
   assert.throws(() => ipcAgentCommand({ type: 'conversation', discussionId: 'd-1', operation: 'edit', messageId: 'm-1' }), /对话内容无效/);
   assert.throws(() => ipcAgentCommand({ type: 'conversation', discussionId: 'd-1', operation: 'retry' }), /任务标识无效/);
   assert.throws(() => ipcProfessionalCommand({ type: 'unknown' }), /不支持的专业工作操作/);
-  assert.throws(() => ipcProfessionalCommand({ type: 'write' }), /材料选择无效/);
+  assert.throws(() => ipcProfessionalCommand({ type: 'write' }), /撰写要求无效/);
+  assert.throws(() => ipcProfessionalCommand({ type: 'write', materialIds: [] }), /撰写要求无效/);
+  assert.throws(() => ipcProfessionalCommand({ type: 'confirm', jobId: 'job-1' }), /确认意见无效/);
   assert.throws(() => ipcBoolean('true', '启用状态'), /启用状态无效/);
   assert.throws(() => ipcExtensionMethod('unknown'), /不支持的扩展操作/);
   assert.throws(() => ipcPriorArtMethod('unknown'), /不支持的对比文件操作/);
@@ -144,8 +172,27 @@ test('IPC contract guards reject malformed or unsupported commands', () => {
     userId: 'user-1',
     remark: '',
   }), /声明内容无效/);
+  assert.throws(() => ipcTransferReview({
+    keepCodes: [],
+    form: {
+      noticeDate: '',
+      noticeName: '',
+      noticeNo: '',
+      correctionReason: 1,
+      addEntrust: false,
+      corrections: [{ ChangeId: '', Sort: 0, FileName: '', PositionInFile: '', CorrectionBefore: '', CorrectionAfter: '' }],
+      otherProof: false,
+      experimentData: false,
+      abstractFigure: '',
+      declarations: {},
+    },
+    stepId: '',
+    userId: '',
+    remark: '',
+  }), /补正条目标识无效/);
   assert.throws(() => ipcNoArgs(['unexpected']), /不接受参数/);
   assert.throws(() => ipcArgs(ipcProfileKey)(['account-1', 'extra']), /参数数量无效/);
+  assert.throws(() => ipcArgs(ipcOptional(ipcCaseId), ipcProfileKey)([]), /参数数量无效/);
   assert.throws(() => ipcExtensionsArgs(['list', 'account-1', 'extra']), /参数数量无效/);
   assert.throws(() => ipcPriorArtArgs(['save', 'account-1']), /参数数量无效/);
   assert.throws(() => ipcApplicationPreferences({ openAtLogin: 'yes' }), /应用设置格式无效/);

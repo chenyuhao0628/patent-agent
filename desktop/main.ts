@@ -53,7 +53,7 @@ import {
   ipcWorkspace,
 } from './ipc-contracts.ts';
 import { serializeContractError } from '../src/contracts/version.ts';
-import type { IpcChannel } from '../src/contracts/ipc.ts';
+import type { IpcChannel, IpcResult } from '../src/contracts/ipc.ts';
 
 app.setName('专利工作台');
 if(process.env.PATENT_AGENT_DATA_DIR)app.setPath('userData',path.resolve(process.env.PATENT_AGENT_DATA_DIR));
@@ -194,7 +194,7 @@ app.whenReady().then(async()=>{
     if(window&&!window.isDestroyed())window.webContents.send('desktop:agentState',view);
   });
   agentHost.preparationChanged=view=>{if(!quitting&&view.profileKey===service.key&&window&&!window.isDestroyed())window.webContents.send('desktop:agentPreparation',view);};
-  function handle<Name extends IpcChannel>(name:Name,parser:(args:readonly unknown[])=>unknown[],fn:(...args:unknown[])=>unknown,queued=false,rejectIfMigrating=false){ipcMain.handle('desktop:'+name,async(event,...args)=>{
+  function handle<Name extends IpcChannel>(name:Name,parser:(args:readonly unknown[])=>unknown[],fn:(...args:import('../src/contracts/ipc.ts').IpcArgs<Name>)=>IpcResult<Name>|Promise<IpcResult<Name>>,queued=false,rejectIfMigrating=false){ipcMain.handle('desktop:'+name,async(event,...args)=>{
     if(event.sender!==window?.webContents||event.senderFrame!==window.webContents.mainFrame)throw new Error('不接受非应用窗口请求。');
     const started=Date.now();
     if(name!=='diagnosticReport')diagnostic('ipc','started',{operation:name});
@@ -202,7 +202,8 @@ app.whenReady().then(async()=>{
       if(quitting)throw new Error('应用正在退出。');
       if(rejectIfMigrating)service.assertMigrationNotAccepted();
       const parsed=parser(args);
-      return await (queued?serial(async()=>fn(...parsed)):fn(...parsed));
+      const typedParsed=parsed as import('../src/contracts/ipc.ts').IpcArgs<Name>;
+      return await (queued?serial(async()=>fn(...typedParsed)):fn(...typedParsed));
     }catch(e){diagnostic('ipc','failed',{operation:name,...diagnosticError(e)});throw serializeContractError(e);}finally{if(name!=='diagnosticReport')diagnostic('ipc','finished',{operation:name,durationMs:Date.now()-started});}
   });}
   handle('diagnosticExport',ipcNoArgs,exportDiagnostics);

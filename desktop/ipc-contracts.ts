@@ -61,8 +61,9 @@ function ipcTransferForm(value: unknown): Record<string, unknown> {
   if (!Array.isArray(form.corrections) || form.corrections.length > 100) throw new Error('补正条目无效。');
   for (const row of form.corrections) {
     const item = assertRecord(row, '补正条目无效。');
+    if (typeof item.ChangeId !== 'string' || !item.ChangeId.trim() || item.ChangeId.length > 256) throw new Error('补正条目标识无效。');
     for (const key of ['ChangeId', 'FileName', 'PositionInFile', 'CorrectionBefore', 'CorrectionAfter'] as const) {
-      if (typeof item[key] !== 'string' || !item[key] || (item[key] as string).length > 100000) throw new Error('补正条目无效。');
+      if (typeof item[key] !== 'string' || (item[key] as string).length > 100000) throw new Error('补正条目无效。');
     }
     if (!Number.isSafeInteger(item.Sort) || Number(item.Sort) < 0) throw new Error('补正条目序号无效。');
   }
@@ -84,9 +85,14 @@ export type IpcArgumentParser = (args: readonly unknown[]) => unknown[];
 
 export function ipcArgs(...parsers: IpcValueParser[]): IpcArgumentParser {
   return args => {
-    const required = parsers.filter(parser => !parser.optional).length;
-    if (args.length < required || args.length > parsers.length) throw new Error('IPC 参数数量无效。');
-    return parsers.map((parser, index) => index >= args.length ? undefined : parser(args[index]));
+    if (args.length > parsers.length) throw new Error('IPC 参数数量无效。');
+    return parsers.map((parser, index) => {
+      if (index >= args.length) {
+        if (parser.optional) return undefined;
+        throw new Error('IPC 参数数量无效。');
+      }
+      return parser(args[index]);
+    });
   };
 }
 
@@ -382,13 +388,11 @@ export function ipcProfessionalCommand(value: unknown): ProfessionalCommand {
   const type = assertString(record.type, '专业工作操作类型', 64);
   if (!PROFESSIONAL_COMMANDS.has(type)) throw new Error('不支持的专业工作操作。');
   if (type === 'write') {
-    if (record.message !== undefined && typeof record.message !== 'string') throw new Error('撰写要求无效。');
-    if (typeof record.message === 'string' && record.message.length > 100000) throw new Error('撰写要求无效。');
+    if (typeof record.message !== 'string' || record.message.length > 100000) throw new Error('撰写要求无效。');
     stringArray(record, 'materialIds', '材料选择');
   } else if (type === 'confirm') {
     fieldString(record, 'jobId', '任务标识');
-    if (record.decision !== undefined && typeof record.decision !== 'string') throw new Error('确认意见无效。');
-    if (typeof record.decision === 'string' && record.decision.length > 100000) throw new Error('确认意见无效。');
+    if (typeof record.decision !== 'string' || record.decision.length > 100000) throw new Error('确认意见无效。');
   } else if (type === 'restart') {
     if (!Number.isInteger(record.phase) || Number(record.phase) < 0 || Number(record.phase) > 4) throw new Error('撰写阶段无效。');
   } else if (type === 'review') {
@@ -422,8 +426,8 @@ export function ipcTransferReview(value: unknown): TransferReview {
   const record = assertRecord(value, '内部流转核对内容无效。');
   if (!Array.isArray(record.keepCodes) || record.keepCodes.length > 5
     || record.keepCodes.some(code => typeof code !== 'string' || !code.trim() || code.length > 32)
-    || typeof record.stepId !== 'string' || !record.stepId.trim() || record.stepId.length > 256
-    || typeof record.userId !== 'string' || !record.userId.trim() || record.userId.length > 256
+    || typeof record.stepId !== 'string' || record.stepId.length > 256
+    || typeof record.userId !== 'string' || record.userId.length > 256
     || typeof record.remark !== 'string' || record.remark.length > 100000) {
     throw new Error('内部流转核对内容不完整。');
   }

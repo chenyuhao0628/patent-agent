@@ -52,11 +52,12 @@ export function PageContent({
 }: PageContentProps) {
   if (item) {
     return <CaseSpace
-      key={`${item.id}-${requestedRoundId ?? ''}`}
+      key={`${nativeState?.profileKey ?? 'preview'}-${nativeState?.scopeVersion ?? 0}-${item.id}-${requestedRoundId ?? ''}`}
       requestedRoundId={requestedRoundId}
       item={item}
       tab={tab}
       profileKey={nativeState?.profileKey}
+      scopeVersion={nativeState?.scopeVersion}
       navigate={nextTab => onOpenCase(item, nextTab)}
       updateCase={patch => onUpdateCase(item.id, patch)}
     />;

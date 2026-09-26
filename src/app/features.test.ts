@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { FEATURE_MODULE_BY_ID, FEATURE_MODULES, featureAvailable, featureContext } from './features.ts';
+import { FEATURE_MODULE_BY_ID, FEATURE_MODULES, featureAvailable, featureContext, featureContextForDesktop, featureVisible } from './features.ts';
 import type { Case } from '../domain/workflow.ts';
 
 function fixture(overrides: Partial<Case> = {}): Case {
@@ -41,6 +41,25 @@ test('feature availability follows current case boundaries', () => {
   assert.equal(featureAvailable(reply, context, fixture({ archived: true })), false);
 });
 
+test('feature visibility keeps historical read-only work reachable', () => {
+  const context = featureContext(true);
+  const waiting = fixture({ current: { kind: 'waiting', processId: 'p-1' } });
+  assert.equal(featureAvailable(FEATURE_MODULE_BY_ID.reply, context, waiting), false);
+  assert.equal(featureVisible(FEATURE_MODULE_BY_ID.reply, context, waiting), true);
+  assert.equal(featureVisible(FEATURE_MODULE_BY_ID.review, context, waiting), true);
+  assert.equal(featureVisible(FEATURE_MODULE_BY_ID.reply, context, fixture({ archived: true })), false);
+});
+
 test('desktop-only features remain unavailable outside the desktop host', () => {
   assert.equal(featureAvailable(FEATURE_MODULE_BY_ID.reply, featureContext(false), fixture()), false);
+});
+
+test('capability context is derived from the injected desktop surface', () => {
+  const context = featureContextForDesktop({
+    agent: { getCase: async () => { throw new Error('fixture'); }, command: async () => { throw new Error('fixture'); }, listTasks: async () => [], onState: () => () => {} },
+    professional: { getCase: async () => { throw new Error('fixture'); }, command: async () => { throw new Error('fixture'); }, listReviews: async () => [], pickReferences: async () => { throw new Error('fixture'); }, removeReference: async () => { throw new Error('fixture'); }, pickFiles: async () => { throw new Error('fixture'); }, openFile: async () => {}, onState: () => () => {} },
+    transfer: { prepare: async () => { throw new Error('fixture'); }, save: async () => { throw new Error('fixture'); }, inspect: async () => null, pickFile: async () => { throw new Error('fixture'); }, removeFile: async () => { throw new Error('fixture'); }, clearRemote: async () => { throw new Error('fixture'); }, previewFile: async () => { throw new Error('fixture'); }, startHand: async () => { throw new Error('fixture'); }, saveLocalReview: async () => { throw new Error('fixture'); }, submit: async () => { throw new Error('fixture'); }, refresh: async () => { throw new Error('fixture'); }, reprepare: async () => { throw new Error('fixture'); }, revoke: async () => { throw new Error('fixture'); } },
+  } as never);
+  assert.equal(context.capabilities.has('agent.reply'), true);
+  assert.equal(context.capabilities.has('transfer.save'), true);
 });

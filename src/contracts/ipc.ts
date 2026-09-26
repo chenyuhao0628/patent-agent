@@ -23,6 +23,49 @@ import type {
 import type { Settings, Workspace } from '../domain/workflow.ts';
 import type { AgentCommand } from '../domain/agent-command.ts';
 
+export type ExtensionIpcArgs =
+  | [method: 'test', profileKey: string, id: string]
+  | [method: 'list', profileKey: string]
+  | [method: 'toggle', profileKey: string, id: string, value: boolean]
+  | [method: 'remove', profileKey: string, id: string]
+  | [method: 'saveMcp', profileKey: string, raw: string, id?: string]
+  | [method: 'saveSkill', profileKey: string, name: string, text: string, id?: string]
+  | [method: 'importSkill', profileKey: string];
+
+export type ExtensionIpcResult = Extension[] | { tools: number };
+
+export type PriorArtIpcArgs =
+  | [method: 'status' | 'clear' | 'importLegacy' | 'test', profileKey: string]
+  | [method: 'save', profileKey: string, value: string]
+  | [method: 'prepare', profileKey: string, caseId: string, note?: string];
+
+export type PriorArtIpcResult = { configured: boolean; provider: string; baseURL: string } | DesktopState;
+
+export type ModelIpcMethod =
+  | 'saveProvider'
+  | 'deleteProvider'
+  | 'setDefault'
+  | 'addDiscoveredModels'
+  | 'importDshProvider'
+  | 'list'
+  | 'testConnection'
+  | 'listRemoteModels'
+  | 'previewDshProviders';
+
+export type ModelIpcArgs = [
+  method: ModelIpcMethod,
+  profileKey: string,
+  args: unknown[],
+  requestId?: string,
+];
+
+export type ModelIpcResult =
+  | ModelConfigPublic
+  | ConnectionTestResult
+  | UpstreamModel[]
+  | DshProviderPreview[]
+  | void;
+
 export type DesktopIpcChannels = {
   diagnosticExport: { args: []; result: { canceled: boolean; path?: string; count?: number; droppedWrites?: number } };
   diagnosticReport: { args: [{ type: string; line?: number; column?: number }]; result: void };
@@ -30,8 +73,8 @@ export type DesktopIpcChannels = {
   applicationSave: { args: [ApplicationPreferences]; result: ApplicationSettingsView };
   applicationMinimize: { args: []; result: void };
   applicationQuit: { args: []; result: void };
-  extensions: { args: [method: string, profileKey: string, ...args: unknown[]]; result: Extension[] };
-  priorArt: { args: [method: string, profileKey: string, ...args: unknown[]]; result: { configured: boolean } | DesktopState };
+  extensions: { args: ExtensionIpcArgs; result: ExtensionIpcResult };
+  priorArt: { args: PriorArtIpcArgs; result: PriorArtIpcResult };
   verifyLogin: { args: []; result: DesktopState };
   bootstrap: { args: []; result: DesktopState };
   login: { args: [{ origin: string; username: string; password: string; remember: boolean }]; result: DesktopState };
@@ -56,7 +99,7 @@ export type DesktopIpcChannels = {
   cancelWorkMigration: { args: []; result: DesktopState };
   organizeWorkFolders: { args: [profileKey: string]; result: FolderOrganizationReport };
   selectDshDirectory: { args: []; result: string | null };
-  model: { args: [method: string, profileKey: string, args: unknown[], requestId?: string]; result: unknown };
+  model: { args: ModelIpcArgs; result: ModelIpcResult };
   modelCancel: { args: [requestId: string]; result: void };
   professionalGet: { args: [profileKey: string, caseId: string]; result: ProfessionalCaseView };
   professionalReviews: { args: [profileKey: string]; result: ReviewQueueItem[] };

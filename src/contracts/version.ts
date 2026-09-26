@@ -24,6 +24,7 @@ export function serializeContractError(error: unknown): Error {
   }
   const serialized = new Error(`${CONTRACT_ERROR_PREFIX}${error.code}:${error.message}`);
   serialized.name = 'ContractError';
+  Object.defineProperty(serialized, 'code', { value: error.code, enumerable: true, configurable: true });
   return serialized;
 }
 

@@ -16,10 +16,10 @@ import { AgentArtifacts, AgentWorkbench } from './AgentWorkbench.tsx';
 import '../flow.css';
 
 const flowCache = new Map<string, FlowView>();
-function flowCacheKey(profileKey: string | undefined, caseId: string): string {
-  return `${profileKey ?? 'preview'}:${caseId}`;
+function flowCacheKey(profileKey: string | undefined, caseId: string, scopeVersion?: number): string {
+  return `${profileKey ?? 'preview'}:${scopeVersion ?? 0}:${caseId}`;
 }
-export function setCaseFlowCache(profileKey: string | undefined, caseId: string, view: FlowView){ flowCache.set(flowCacheKey(profileKey, caseId), view); }
+export function setCaseFlowCache(profileKey: string | undefined, caseId: string, view: FlowView, scopeVersion?: number){ flowCache.set(flowCacheKey(profileKey, caseId, scopeVersion), view); }
 
 export function CaseHistory({item}:{item:Case}){
   const [preview,setPreview]=useState('');
@@ -58,8 +58,8 @@ function processTag(p:RemoteProcess,currentId:string|undefined){
   const row=processRowHandling(p,currentId);
   return row.tag?<span className="tag">{row.tag}</span>:null;
 }
-export function RemoteFlow({item,profileKey}:{item:Case;profileKey?:string}){
-  const cacheKey = flowCacheKey(profileKey, item.id);
+export function RemoteFlow({item,profileKey,scopeVersion}:{item:Case;profileKey?:string;scopeVersion?:number}){
+  const cacheKey = flowCacheKey(profileKey, item.id, scopeVersion);
   const [cachedFlow,setFlow]=useState<FlowView|null>(()=>flowCache.get(cacheKey)??null),[busy,setBusy]=useState(false),[error,setError]=useState('');
   const refresh=async()=>{
     setBusy(true);setError('');

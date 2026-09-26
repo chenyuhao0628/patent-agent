@@ -1,6 +1,6 @@
 # 专利工作台完整开发文档
 
-> 文档版本：1.0
+> 文档版本：1.1
 > 更新日期：2026-09-26
 > 当前应用版本：0.14.0
 > 需求来源：`REQUIREMENTS.md`
@@ -112,7 +112,7 @@ type IpcContract<Input, Output> = {
 - 错误应保留稳定分类，显示文本可以本地化；
 - IPC 事件也必须校验发送方、请求标识和账号代际。
 
-当前 `desktop/main.ts` 的请求通道均经过显式参数解析；模型通道使用独立请求解析器，尾部可选参数允许真实省略。`src/contracts/ipc.ts` 集中声明通道、参数元组、返回值和单向事件载荷，preload 的桥接调用按该表编译。主进程是授权边界，注册器的通道名也受该表约束，但主进程回调目前仍保留 `unknown` 适配层，尚未做到端到端的请求/响应关联。确认回传事件校验窗口、主 frame、请求标识、布尔值和账号代次。
+当前 `desktop/main.ts` 的请求通道均经过显式参数解析；模型通道使用独立请求解析器，尾部可选参数允许真实省略。`src/contracts/ipc.ts` 集中声明通道、参数元组、返回值和单向事件载荷，preload 的桥接调用按该表编译，主进程 handler 的参数和返回值按 `IpcArgs<Name>` / `IpcResult<Name>` 关联。扩展、对比文件和模型等动态方法使用显式方法联合和结果联合，不以 `unknown` 作为公开契约；运行时解析器只在主进程注册器的单一边界进行窄化。确认回传事件校验窗口、主 frame、请求标识、布尔值和账号代际。
 
 ### 4.3 模型和 Agent 接口
 
@@ -151,10 +151,11 @@ type FeatureModule = {
   id: string;
   label: string;
   icon: LucideIcon;
-  capabilities: string[];
-  canOpen?: (caseItem: Case) => boolean;
+  capabilities: readonly string[];
+  canView?: (caseItem: Case) => boolean;
+  canStart?: (caseItem: Case) => boolean;
+  canEdit?: (caseItem: Case) => boolean;
   route: string;
-  render: (context: FeatureContext) => ReactNode;
 };
 ```
 
@@ -168,7 +169,7 @@ type FeatureModule = {
 - 打开案件后的目标页签；
 - 是否产生文件、服务端写入或内部流转。
 
-当前 `src/app/features.ts` 已提供 `icon`、`capabilities`、`canOpen` 和 `FeatureContext`；`src/app/navigation.ts` 从注册表生成四项业务导航；`CaseSpace` 使用同一注册表判断答复、撰写、审查和内部流转是否可打开。`PageContent` 的宿主页面分发仍保留显式条件，作为下一步迁移边界。案件页内的聚合数据已可通过 `src/domain/case-view.ts` 投影，投影会复制嵌套数据并保留来源记录，不替代兼容写入模型。
+当前 `src/app/features.ts` 已提供 `icon`、`capabilities`、`canView`、`canStart`、`canEdit` 和 `FeatureContext`；能力上下文从注入的 `DesktopAPI` 表面探测，不把声明能力直接当作运行能力。`src/app/navigation.ts` 从注册表生成四项业务导航；`CaseSpace` 使用同一注册表区分历史只读、可启动和可编辑入口，直接路由不能绕过案件边界。`PageContent` 的宿主页面分发仍保留显式条件，作为下一步迁移边界。案件页内的聚合数据已可通过 `src/domain/case-view.ts` 投影，投影会复制嵌套数据并保留来源记录，不替代兼容写入模型。
 
 ### 5.3 UI 状态
 
@@ -253,7 +254,11 @@ type FeatureModule = {
 - [x] 命令联合类型逐字段校验；
 - [x] 统一错误码和错误序列化；
 - [x] 集中维护 preload 接口、通道参数元组和事件载荷类型；
-- [ ] 建立通道名称、请求类型、响应类型的编译期关联；
+- [x] 建立通道名称、请求类型、响应类型的编译期关联；
+- [x] 为扩展、对比文件和模型动态方法建立显式方法/结果联合；
+- [x] 修复可选参数后的必填参数漏校验；
+- [x] 区分结构化草稿校验和最终业务校验；
+- [x] 允许合法空文本、空接收人和供应商默认空推理参数；
 
 ### 阶段 B：案件领域拆分
 
@@ -268,6 +273,8 @@ type FeatureModule = {
 - [x] 建立答复、撰写、审查、内部流转的基础 Feature Registry；
 - [x] 建立页面能力上下文和案件可打开条件；
 - [x] 把全局导航和案件业务页签接入注册式能力判断；
+- [x] 区分业务模块 `canView`、`canStart` 和 `canEdit`；
+- [x] 账户代际进入桌面状态，案件页和流程缓存按代际隔离；
 - [ ] 统一错误、空状态、只读和恢复组件；
 - [ ] 保留案件中心作为唯一业务入口。
 

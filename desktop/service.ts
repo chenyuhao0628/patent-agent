@@ -211,7 +211,7 @@ export class DesktopService {
     return this.state();
   }
   version='开发预览';
-  state():DesktopState {return structuredClone({profileKey:this.key,account:this.account,auth:this.auth,workspace:this.workspace,sync:this.syncState,storage:this.storageState,migration:this.migrationState,version:this.version,dataDirectory:path.join(this.root,'profiles',this.key)});}
+  state():DesktopState {return structuredClone({profileKey:this.key,scopeVersion:this.generation,account:this.account,auth:this.auth,workspace:this.workspace,sync:this.syncState,storage:this.storageState,migration:this.migrationState,version:this.version,dataDirectory:path.join(this.root,'profiles',this.key)});}
   assertNotMigrating(){if(this.migrationLock)throw new Error('正在迁移当前账号工作目录，无法进行该操作。');}
   isWorkMigrationBusy(){return this.migrationLock||this.migrationQueued;}
   assertMigrationNotAccepted(){if(this.isWorkMigrationBusy())throw new Error('正在迁移当前账号工作目录，无法进行该操作。');}

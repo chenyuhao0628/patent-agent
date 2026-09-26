@@ -4,11 +4,12 @@ import type { ModelService } from './model-service.ts';
 import type { ProviderSaveInput, UpstreamModel } from '../src/domain/models.ts';
 import { assertProfileKey, assertRecord, assertString } from '../src/contracts/version.ts';
 import { MODEL_PROTOCOLS } from '../src/domain/models.ts';
+import type { ModelIpcMethod as SharedModelIpcMethod, ModelIpcResult } from '../src/contracts/ipc.ts';
 
 export const MODEL_WRITE_METHODS = ['saveProvider', 'deleteProvider', 'setDefault', 'addDiscoveredModels', 'importDshProvider'] as const;
 export const MODEL_READ_METHODS = ['list', 'testConnection', 'listRemoteModels', 'previewDshProviders'] as const;
 export const MODEL_IPC_METHODS = [...MODEL_WRITE_METHODS, ...MODEL_READ_METHODS] as const;
-export type ModelIpcMethod = (typeof MODEL_IPC_METHODS)[number];
+export type ModelIpcMethod = SharedModelIpcMethod;
 export type ParsedModelIpcRequest = {
   method: ModelIpcMethod;
   profileKey: string;
@@ -75,9 +76,9 @@ function validateModelSaveInput(value: unknown): ProviderSaveInput {
           const level = assertRecord(levelValue, '思考级别无效。');
           assertString(level.id, '思考级别标识', 256);
           assertString(level.label, '思考级别名称', 256);
-          assertString(level.protocolValue, '思考级别参数', 256);
+          if (typeof level.protocolValue !== 'string' || level.protocolValue.length > 256) throw new Error('思考级别参数无效。');
           assertString(level.source, '思考级别来源', 64);
-          assertString(level.hint, '思考级别说明', 2000);
+          optionalString(level, 'hint', '思考级别说明', 2000);
         }
       }
     }
@@ -214,7 +215,7 @@ export async function dispatchModelMethod(
   profileKey: string,
   args: unknown[],
   signal?: AbortSignal,
-): Promise<unknown> {
+): Promise<ModelIpcResult> {
   switch (method) {
     case 'list':
       return service.list(profileKey);
@@ -272,7 +273,7 @@ export async function handleModelIpc(
   profileKey: string,
   args: unknown[],
   requestId?: string,
-): Promise<unknown> {
+): Promise<ModelIpcResult> {
   if (!host.isMainFrame(sender, frame)) throw new Error('不接受非应用窗口请求。');
   if (typeof profileKey !== 'string') throw new Error('账号标识无效。');
   if (!isModelIpcMethod(method)) throw new Error('不支持的模型接口。');

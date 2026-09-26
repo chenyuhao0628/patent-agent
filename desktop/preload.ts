@@ -5,7 +5,7 @@ import type { NameDiscrepancyRequest, TransferFilePreviewRef, TransferReview, Tr
 import type { ProfessionalCommand } from '../src/professional-api.ts';
 import type { ProviderSaveInput, UpstreamModel } from '../src/domain/models.ts';
 import type { ApplicationPreferences } from '../src/application-api.ts';
-import type { DesktopEventPayloads, IpcArgs, IpcChannel, IpcResult } from '../src/contracts/ipc.ts';
+import type { DesktopEventPayloads, IpcArgs, IpcChannel, IpcResult, ModelIpcMethod } from '../src/contracts/ipc.ts';
 import { DESKTOP_CONTRACT_VERSION, deserializeContractError } from '../src/contracts/version.ts';
 
 const call = async <Name extends IpcChannel>(name: Name, ...args: IpcArgs<Name>): Promise<IpcResult<Name>> => {
@@ -19,7 +19,7 @@ const call = async <Name extends IpcChannel>(name: Name, ...args: IpcArgs<Name>)
 const callAs = async <Name extends IpcChannel, T = IpcResult<Name>>(name: Name, ...args: IpcArgs<Name>): Promise<T> =>
   call(name, ...args) as Promise<T>;
 
-const modelCall = <T>(method: string, profileKey: string, args: unknown[], requestId?: string) =>
+const modelCall = <T>(method: ModelIpcMethod, profileKey: string, args: unknown[], requestId?: string) =>
   callAs<'model', T>('model', method, profileKey, args, requestId);
 
 const onState = <Name extends keyof DesktopEventPayloads>(
@@ -37,12 +37,12 @@ const api: DesktopAPI = {
   diagnosticReport: input => call('diagnosticReport', input),
   extensions: {
     test: (profileKey, id) => callAs<'extensions', { tools: number }>('extensions', 'test', profileKey, id),
-    list: profileKey => call('extensions', 'list', profileKey),
-    toggle: (profileKey, id, value) => call('extensions', 'toggle', profileKey, id, value),
-    remove: (profileKey, id) => call('extensions', 'remove', profileKey, id),
-    saveMcp: (profileKey, raw, id) => call('extensions', 'saveMcp', profileKey, raw, id),
-    saveSkill: (profileKey, name, text, id) => call('extensions', 'saveSkill', profileKey, name, text, id),
-    importSkill: profileKey => call('extensions', 'importSkill', profileKey),
+    list: profileKey => callAs('extensions', 'list', profileKey),
+    toggle: (profileKey, id, value) => callAs('extensions', 'toggle', profileKey, id, value),
+    remove: (profileKey, id) => callAs('extensions', 'remove', profileKey, id),
+    saveMcp: (profileKey, raw, id) => callAs('extensions', 'saveMcp', profileKey, raw, id),
+    saveSkill: (profileKey, name, text, id) => callAs('extensions', 'saveSkill', profileKey, name, text, id),
+    importSkill: profileKey => callAs('extensions', 'importSkill', profileKey),
   },
   priorArt: {
     status: profileKey => callAs('priorArt', 'status', profileKey),

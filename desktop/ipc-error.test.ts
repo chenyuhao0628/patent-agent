@@ -5,6 +5,7 @@ import { ContractError, deserializeContractError, serializeContractError } from 
 test('contract error code survives Electron error serialization shape', () => {
   const serialized = serializeContractError(new ContractError('INVALID_PROFILE', '账号标识格式无效。'));
   assert.equal(serialized.name, 'ContractError');
+  assert.equal((serialized as Error & { code?: string }).code, 'INVALID_PROFILE');
   const restored = deserializeContractError(new Error(`Error invoking remote method 'desktop:login': Error: ${serialized.message}`));
   assert(restored instanceof ContractError);
   assert.equal((restored as ContractError).code, 'INVALID_PROFILE');

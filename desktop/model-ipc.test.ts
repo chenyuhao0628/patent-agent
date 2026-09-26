@@ -72,6 +72,20 @@ test('model IPC parser validates method, scoped arguments and request identity',
       }],
     }],
   }]));
+  assert.doesNotThrow(() => parseModelIpcRequest('saveProvider', 'alice', [{
+    name: 'vendor-default',
+    baseURL: 'https://example.test',
+    models: [{
+      modelId: 'm',
+      displayName: 'M',
+      reasoningLevels: [{
+        id: 'vendor-default',
+        label: '供应商默认',
+        protocolValue: '',
+        source: 'unverified',
+      }],
+    }],
+  }]));
   assert.throws(() => parseModelIpcRequest('list', 'alice', ['extra']), /参数数量无效/);
   assert.throws(() => parseModelIpcRequest('saveProvider', 'alice', [{ name: 'x', baseURL: 'https://example.test', key: 1 }]), /模型密钥无效/);
   assert.throws(() => parseModelIpcRequest('addDiscoveredModels', 'alice', ['p', [{ id: 1 }]]), /远端模型标识无效/);

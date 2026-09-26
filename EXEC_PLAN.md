@@ -132,3 +132,17 @@
 - `desktop/preload.ts` 的桥接调用按通道表编译；`desktop/main.ts` 的注册器通道名按同一表约束。
 - Agent 队列/对话命令补齐条件字段、用途枚举和非空要求；设置收件人对象、Windows 驱动器相对路径和 NUL 路径增加边界拒绝。
 - 本阶段未调用真实模型、贝思兰德写接口或真实案件材料，未进行 GUI 视觉和安装包验收。
+
+## 14. 2026-09-26 IPC handler 返回类型关联
+
+- 主进程 IPC 注册器的 handler 参数和返回值分别关联 `IpcArgs<Name>` / `IpcResult<Name>`；运行时解析器只保留在注册器边界内。
+- 扩展、对比文件和模型通道使用显式方法联合及结果联合；preload 的业务 API 继续向渲染层暴露精确的命名返回类型。
+- 合法空撰写要求、空确认意见、未选接收人、未完成补正草稿和供应商默认空推理参数均通过结构校验，最终保存/转交仍由 host 业务校验拦截。
+- `ContractError` 在 Electron Error 形态下保留稳定 `code`，同时继续兼容消息前缀反序列化。
+
+## 15. 2026-09-26 UI 能力与账户代际隔离
+
+- Feature Registry 从单一 `canOpen` 改为 `canView`、`canStart`、`canEdit` 三层接口；等待官方和历史案件保留只读业务入口，不能直接启动新业务。
+- 能力上下文从注入的 `DesktopAPI` 表面计算；案件内直接路由在渲染层再次经过同一注册表判断。
+- `DesktopState.scopeVersion` 暴露主进程账号/目录代际，案件页组件 key 和流程缓存同时绑定账号与代际，避免迟到结果或旧缓存污染新视图。
+- `npm test`：554 项通过；`npx tsc --noEmit`：通过；`npm run build`：通过；`git diff --check`：通过。
