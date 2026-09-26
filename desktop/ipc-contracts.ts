@@ -291,6 +291,9 @@ export function ipcDesktopScope(value: unknown): DesktopScope {
       throw new Error('桌面作用域无效。');
     }
   }
+  if ((record.caseId === undefined) !== (record.processKey === undefined)) {
+    throw new Error('桌面作用域无效。');
+  }
   return {
     profileKey,
     scopeVersion: record.scopeVersion as number,

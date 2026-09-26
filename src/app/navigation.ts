@@ -1,7 +1,7 @@
 import { BadgeCheck, Clock3, Folder, ListTodo, Settings, type LucideIcon } from 'lucide-react';
 import type { CaseTab } from '../components/CaseSpace.tsx';
 import type { Module } from '../domain/library.ts';
-import { FEATURE_MODULES } from './features.ts';
+import { FEATURE_MODULES, featureVisible, type FeatureContext } from './features.ts';
 
 export type AppRoute = [page?: string, itemId?: string, tab?: string, roundId?: string];
 export type NavigationItem = { id: string; label: string; icon: LucideIcon };
@@ -12,16 +12,15 @@ const CORE_NAV_ITEMS: NavigationItem[] = [
   { id: 'tasks', label: '工作任务', icon: ListTodo },
   { id: 'status', label: '案件状态', icon: BadgeCheck },
 ];
-const FEATURE_NAV_ITEMS: NavigationItem[] = FEATURE_MODULES.map(feature => ({
-  id: feature.id,
-  label: feature.label,
-  icon: feature.icon,
-}));
-export const NAV_ITEMS: NavigationItem[] = [
-  ...CORE_NAV_ITEMS.slice(0, 3),
-  ...FEATURE_NAV_ITEMS,
-  CORE_NAV_ITEMS[3],
-];
+export function navigationItems(context: FeatureContext): NavigationItem[] {
+  return [
+    ...CORE_NAV_ITEMS.slice(0, 3),
+    ...FEATURE_MODULES
+      .filter(feature => featureVisible(feature, context))
+      .map(feature => ({ id: feature.id, label: feature.label, icon: feature.icon })),
+    CORE_NAV_ITEMS[3],
+  ];
+}
 
 export const SETTINGS_NAVIGATION = { label: '设置', icon: Settings } as const;
 export const MODULE_LABELS: Record<Module, string> = Object.fromEntries(

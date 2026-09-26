@@ -3,9 +3,11 @@ import { ChevronRight, UserRound } from 'lucide-react';
 import appIcon from '../../resources/branding/icon.png';
 import type { Case, Workspace } from '../domain/workflow.ts';
 import type { DesktopState } from '../desktop.ts';
+import { desktop } from '../desktop.ts';
 import { caseTabs, type CaseTab } from '../components/CaseSpace.tsx';
 import { inOfficialWaiting, type Module } from '../domain/library.ts';
-import { MODULE_LABELS, NAV_ITEMS, PAGE_LABELS, SETTINGS_NAVIGATION } from './navigation.ts';
+import { MODULE_LABELS, PAGE_LABELS, SETTINGS_NAVIGATION, navigationItems } from './navigation.ts';
+import { featureContextForDesktop } from './features.ts';
 
 type AppShellProps = {
   page: string;
@@ -44,6 +46,7 @@ export function AppShell({
   const backHref = item && inOfficialWaiting(item) ? '#/official' : '#/library';
   const backLabel = item && inOfficialWaiting(item) ? '等待官方' : '案件库';
   const pageLabel = PAGE_LABELS[page] ?? (module ? MODULE_LABELS[module] : '案件库');
+  const navItems = navigationItems(featureContextForDesktop(nativeState ? desktop : undefined));
 
   return <div className="app-shell">
     <aside className="global-sidebar">
@@ -53,8 +56,8 @@ export function AppShell({
       </a>
       <div className="nav-group-label">工作空间</div>
       <nav aria-label="全局工作空间">
-        {NAV_ITEMS.map((navItem, index) => <div key={navItem.id}>
-          {index === 3 && <div className="nav-group-label business-label">业务工作</div>}
+        {navItems.map(navItem => <div key={navItem.id}>
+          {navItem.id === 'reply' && <div className="nav-group-label business-label">业务工作</div>}
           <a className={activeNav === navItem.id ? 'active' : ''} href={`#/${navItem.id}`} title={navItem.label}>
             <navItem.icon/>
             <span>{navItem.label}</span>

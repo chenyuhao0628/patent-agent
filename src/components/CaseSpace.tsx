@@ -20,7 +20,7 @@ import { MaterialsView } from './MaterialsView.tsx';
 import { Modal, Note } from './Primitives.tsx';
 import { CaseHistory, CurrentCase, RemoteFlow, setCaseFlowCache } from './CurrentCase.tsx';
 import { agentProcessKey, desktop } from '../desktop.ts';
-import { FEATURE_MODULES, featureAvailable, featureContextForDesktop, featureEditable, featureVisible } from '../app/features.ts';
+import { FEATURE_MODULES, featureAccess, featureContextForDesktop } from '../app/features.ts';
 import { projectCaseView } from '../domain/case-view.ts';
 import type { DesktopScope } from '../app/scope.ts';
 
@@ -32,9 +32,11 @@ export function CaseSpace({requestedRoundId,item,tab,navigate,updateCase,profile
   const primary:CaseTab=current.kind==='correction'?'reply':['write','reply','review'].includes(current.kind)?current.kind as CaseTab:'overview';
   const childReview=current.kind==='write'&&design.review?.source==='writing';
   const featureCtx = featureContextForDesktop(desktop ?? undefined);
-  const canOpenFeature = (id: 'reply' | 'write' | 'review' | 'transfer') => featureAvailable(FEATURE_MODULES.find(feature => feature.id === id)!, featureCtx, item);
-  const canViewFeature = (id: 'reply' | 'write' | 'review' | 'transfer') => featureVisible(FEATURE_MODULES.find(feature => feature.id === id)!, featureCtx, item);
-  const canEditFeature = (id: 'reply' | 'write' | 'review' | 'transfer') => featureEditable(FEATURE_MODULES.find(feature => feature.id === id)!, featureCtx, item);
+  const featureAccessFor = (id: 'reply' | 'write' | 'review' | 'transfer') =>
+    featureAccess(FEATURE_MODULES.find(feature => feature.id === id)!, featureCtx, item);
+  const canOpenFeature = (id: 'reply' | 'write' | 'review' | 'transfer') => featureAccessFor(id).startable;
+  const canViewFeature = (id: 'reply' | 'write' | 'review' | 'transfer') => featureAccessFor(id).visible;
+  const canEditFeature = (id: 'reply' | 'write' | 'review' | 'transfer') => featureAccessFor(id).editable;
   const scope = desktop && profileKey && scopeVersion !== undefined
     ? { profileKey, scopeVersion, caseId: item.id, processKey: agentProcessKey(item) }
     : undefined;

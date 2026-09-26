@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { FEATURE_MODULE_BY_ID, FEATURE_MODULES, featureAvailable, featureContext, featureContextForDesktop, featureEditable, featureVisible } from './features.ts';
+import { FEATURE_MODULE_BY_ID, FEATURE_MODULES, featureAccess, featureAvailable, featureContext, featureContextForDesktop, featureEditable, featureVisible } from './features.ts';
 import type { Case } from '../domain/workflow.ts';
 import { initialDesign } from '../domain/designFlows.ts';
 
@@ -95,4 +95,20 @@ test('capability context is derived from the injected desktop surface', () => {
   } as never);
   assert.equal(context.capabilities.has('agent.reply'), true);
   assert.equal(context.capabilities.has('transfer.save'), true);
+});
+
+test('feature access exposes one consistent visibility, start and edit decision', () => {
+  const feature = FEATURE_MODULE_BY_ID.review;
+  const context = featureContext(true);
+  const waiting = fixture({ current: { kind: 'waiting', processId: 'p-1' } });
+  assert.deepEqual(featureAccess(feature, context, waiting), {
+    visible: true,
+    startable: false,
+    editable: false,
+  });
+  assert.deepEqual(featureAccess(feature, context, fixture({ current: { kind: 'review' } })), {
+    visible: true,
+    startable: true,
+    editable: true,
+  });
 });

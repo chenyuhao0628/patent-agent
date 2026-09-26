@@ -206,4 +206,6 @@ test('IPC contract guards reject malformed or unsupported commands', () => {
   assert.throws(() => ipcDocumentToolsConfig({ webEnabled: true }), /工具权限设置无效/);
   assert.throws(() => ipcDesktopScope({ profileKey: 'account-1', scopeVersion: -1 }), /桌面作用域无效/);
   assert.throws(() => ipcDesktopScope({ profileKey: 'account-1', scopeVersion: 1, caseId: '' }), /桌面作用域无效/);
+  assert.throws(() => ipcDesktopScope({ profileKey: 'account-1', scopeVersion: 1, caseId: 'case-1' }), /桌面作用域无效/);
+  assert.throws(() => ipcDesktopScope({ profileKey: 'account-1', scopeVersion: 1, processKey: 'process-1' }), /桌面作用域无效/);
 });

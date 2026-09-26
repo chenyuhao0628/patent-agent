@@ -359,6 +359,7 @@ export class DesktopService {
     this.assertKey(key);
     if(!scope)return;
     if(scope.profileKey!==key||scope.scopeVersion!==this.generation)throw new Error('账号或桌面作用域已变化，本次旧页面操作未保存。');
+    if((scope.caseId===undefined)!==(scope.processKey===undefined))throw new Error('桌面作用域无效。');
     if(!scope.caseId)return;
     const c=this.workspace.cases.find(item=>item.id===scope.caseId);
     if(!c)throw new Error('案件已离开当前账号，本次旧页面操作未保存。');

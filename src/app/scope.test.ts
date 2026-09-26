@@ -19,3 +19,11 @@ test('case scope rejects a late write after the current process changes', () => 
   assert.equal(sameDesktopScope({ ...expected, caseId: 'case-2' }, expected), false);
   assert.equal(sameDesktopScope({ profileKey: 'alice', scopeVersion: 7 }, expected), false);
 });
+
+test('scope comparison rejects partial case scopes instead of treating missing fields as wildcards', () => {
+  const account = { profileKey: 'alice', scopeVersion: 7 };
+  const caseScope = { ...account, caseId: 'case-1', processKey: 'process-a' };
+  assert.equal(sameDesktopScope({ ...account, caseId: 'case-1' }, caseScope), false);
+  assert.equal(sameDesktopScope({ ...account, processKey: 'process-a' }, caseScope), false);
+  assert.equal(sameDesktopScope(caseScope, account), false);
+});

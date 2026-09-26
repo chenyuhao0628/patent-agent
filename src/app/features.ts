@@ -98,6 +98,12 @@ export type FeatureContext = {
   capabilities: ReadonlySet<string>;
 };
 
+export type FeatureAccess = {
+  visible: boolean;
+  startable: boolean;
+  editable: boolean;
+};
+
 export const FEATURE_CAPABILITIES: ReadonlySet<string> = new Set(
   FEATURE_MODULES.flatMap(feature => feature.capabilities),
 );
@@ -130,19 +136,27 @@ export function featureContextForDesktop(api: DesktopAPI | undefined): FeatureCo
   return featureContext(true, capabilities);
 }
 
+function capabilityAvailable(feature: FeatureModule, context: FeatureContext): boolean {
+  return (!feature.desktopOnly || context.desktop)
+    && feature.capabilities.every(capability => context.capabilities.has(capability));
+}
+
+export function featureAccess(feature: FeatureModule, context: FeatureContext, caseItem?: Case): FeatureAccess {
+  const platformAvailable = capabilityAvailable(feature, context);
+  const visible = platformAvailable && (!caseItem || !feature.canView || feature.canView(caseItem));
+  const startable = visible && (!caseItem || !feature.canStart || feature.canStart(caseItem));
+  const editable = startable && (!caseItem || !feature.canEdit || feature.canEdit(caseItem));
+  return { visible, startable, editable };
+}
+
 export function featureAvailable(feature: FeatureModule, context: FeatureContext, caseItem?: Case): boolean {
-  if (feature.desktopOnly && !context.desktop) return false;
-  if (feature.capabilities.some(capability => !context.capabilities.has(capability))) return false;
-  return !caseItem || !feature.canStart || feature.canStart(caseItem);
+  return featureAccess(feature, context, caseItem).startable;
 }
 
 export function featureVisible(feature: FeatureModule, context: FeatureContext, caseItem?: Case): boolean {
-  if (feature.desktopOnly && !context.desktop) return false;
-  if (feature.capabilities.some(capability => !context.capabilities.has(capability))) return false;
-  return !caseItem || !feature.canView || feature.canView(caseItem);
+  return featureAccess(feature, context, caseItem).visible;
 }
 
 export function featureEditable(feature: FeatureModule, context: FeatureContext, caseItem?: Case): boolean {
-  if (!featureVisible(feature, context, caseItem)) return false;
-  return !caseItem || !feature.canEdit || feature.canEdit(caseItem);
+  return featureAccess(feature, context, caseItem).editable;
 }

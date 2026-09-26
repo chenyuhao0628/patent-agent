@@ -1,6 +1,6 @@
 # 专利工作台完整开发文档
 
-> 文档版本：1.6
+> 文档版本：1.7
 > 更新日期：2026-09-26
 > 当前应用版本：0.14.0
 > 需求来源：`REQUIREMENTS.md`
@@ -116,7 +116,7 @@ type IpcContract<Input, Output> = {
 
 主进程参数解析器通过泛型元组直接返回通道所声明的参数类型，handler 不再把统一 `unknown[]` 重新断言为业务参数。preload 对扩展、对比文件和模型的联合响应执行最小结构校验后再交给渲染层；底层 Electron `invoke` 仍是跨进程序列化边界，不能由 TypeScript 单独证明远端返回内容正确，因此所有新增通道仍须补返回值校验测试。
 
-工作区保存还必须携带 `DesktopScope`。主进程在排队执行保存时复核账号标识、桌面代际、案件标识和当前流程键；渲染层的作用域检查用于提前反馈，不能替代主进程授权。直接调用领域服务的旧内部测试可以省略作用域，但 Electron IPC 的公开保存通道不允许省略。
+工作区保存还必须携带 `DesktopScope`。主进程在排队执行保存时复核账号标识、桌面代际、案件标识和当前流程键；案件级作用域必须同时提供 `caseId` 和 `processKey`，不允许把缺失字段当作通配。渲染层的作用域检查用于提前反馈，不能替代主进程授权。直接调用领域服务的旧内部测试可以省略作用域，但 Electron IPC 的公开保存通道不允许省略。
 
 历史成果读取也使用显式 `agentReviewSources` 通道。主进程按账号返回已采用的答复/补正来源，preload 只做数组边界校验，渲染层不能从当前流程状态推断历史成果已经存在。
 
@@ -175,7 +175,7 @@ type FeatureModule = {
 - 打开案件后的目标页签；
 - 是否产生文件、服务端写入或内部流转。
 
-当前 `src/app/features.ts` 已提供 `icon`、`capabilities`、`canView`、`canStart`、`canEdit` 和 `FeatureContext`；能力上下文从注入的 `DesktopAPI` 表面探测，不把声明能力直接当作运行能力。`src/app/navigation.ts` 从注册表生成四项业务导航；`CaseSpace` 使用同一注册表区分历史只读、可启动和可编辑入口，直接路由不能绕过案件边界。等待官方和已归档案件只在存在对应业务历史时显示只读入口，不能因此重新启动流程。`CaseHistory` 同时读取本地轮次/稿件版本、Agent 已采用答复成果和 Professional 已保存成果，按来源去重并以只读方式预览。`PageContent` 的宿主页面分发仍保留显式条件，作为下一步迁移边界。案件页内的聚合数据已可通过 `src/domain/case-view.ts` 投影，投影会复制嵌套数据并保留来源记录，不替代兼容写入模型。
+当前 `src/app/features.ts` 已提供 `icon`、`capabilities`、`canView`、`canStart`、`canEdit`、`FeatureContext` 和统一的 `FeatureAccess`；能力上下文从注入的 `DesktopAPI` 表面探测，不把声明能力直接当作运行能力。`src/app/navigation.ts` 的 `navigationItems()` 是业务导航唯一生成入口，按实际能力隐藏不可用的桌面业务；`CaseSpace` 使用同一注册表和同一访问结果区分历史只读、可启动和可编辑入口，直接路由不能绕过案件边界。等待官方和已归档案件只在存在对应业务历史时显示只读入口，不能因此重新启动流程。`CaseHistory` 同时读取本地轮次/稿件版本、Agent 已采用答复成果和 Professional 已保存成果，按来源去重并以只读方式预览。`PageContent` 的宿主页面分发仍保留显式条件，作为下一步迁移边界。案件页内的聚合数据已可通过 `src/domain/case-view.ts` 投影，投影会复制嵌套数据并保留来源记录，不替代兼容写入模型。
 
 历史答复和历史撰写内容按案件记录保留查看能力，但不会因此获得新业务启动权限。案件更新、手工稿自动保存和案件管理保存均携带完整的 `profileKey + scopeVersion` 作用域；缺失作用域不再作为通配，账号切换、代际变化或 ABA 切换后的迟到回调会在应用层拒绝写入。桌面工作区保存按顺序列化，避免旧快照覆盖后一次新快照。
 
@@ -382,3 +382,11 @@ type FeatureModule = {
 - 新增 `agentReviewSources` IPC 通道，保持 API、主进程、preload 和渲染层的契约闭合。
 - `npm test`：556 项通过；`npx tsc --noEmit`：通过；`npm run build`：通过；`git diff --check`：通过。
 - 未进行真实模型、真实案件、GUI 视觉、安装包、Windows 实机或贝思兰德写操作验收。
+
+2026-09-26 完成注册表访问结果和作用域形状收敛：
+
+- Feature Registry 提供统一 `FeatureAccess` 结果，导航、案件页签和案件页业务入口都从同一组 `visible`、`startable`、`editable` 判断派生，避免三套条件逐渐漂移。
+- 浏览器预览隐藏桌面专属业务导航；桌面导航按注入的 `DesktopAPI` 能力表生成，不再保留第二套静态业务导航清单。
+- `DesktopScope` 的案件级结构要求 `caseId` 与 `processKey` 成对出现；渲染层比较、IPC 解析和主进程保存入口均拒绝部分作用域，不能使用缺失字段绕过流程核对。
+- 自动化证据：`npm test` 564 项通过；`npx tsc --noEmit` 通过；`npm run build` 通过；`git diff --check` 通过。
+- 本阶段未进行真实模型、真实案件材料、GUI 视觉、退出恢复、模板 Word 版式、macOS 覆盖安装、Windows 实机安装、服务端写入或官方递交验收。
