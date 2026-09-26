@@ -2,12 +2,26 @@
 
 独立桌面应用。覆盖案件管理、答复、补正、五阶段撰写、可选的个人审查，以及贝思兰德内部流转。模型通过随包的 OpenCode 接入，不要求安装旧项目源码。
 
-需求见 [REQUIREMENTS.md](REQUIREMENTS.md)，当前实现和证据见 [EXEC_PLAN.md](EXEC_PLAN.md)。
-完整开发结构、接口和验收约束见 [DEVELOPMENT.md](DEVELOPMENT.md)。
+## 当前状态
+
+开发文档第 8 节 B/C 已完成开发、自测和合成数据浏览器验证，涵盖领域拆分、兼容迁移、账号与案件隔离、案件中心及精确只读历史。
+
+**本轮 Codex 代码复审与修复已完成，642 项自动化测试及构建通过；阶段 D 仍未验收。** 这是本任务内复审，不是独立子代理验收。源码继续使用 `0.14.0` 开发基线；本轮改动尚未打包，不包含在下面的旧安装制品中。
+
+## 文档导航
+
+| 文档 | 职责 |
+| --- | --- |
+| [REQUIREMENTS.md](REQUIREMENTS.md) | 已确认需求与产品决策 |
+| [DEVELOPMENT.md](DEVELOPMENT.md) | 技术结构、接口、安全边界及第 8 节阶段清单 |
+| [EXEC_PLAN.md](EXEC_PLAN.md) | 当前结果、复审状态、验证证据与下一步 |
+| [AGENTS.md](AGENTS.md) | 仓库开发、协作与交付规则 |
+
+[CORRECTION_PLAN.md](CORRECTION_PLAN.md)、[project_analysis.md](project_analysis.md) 和 `design/` 中的旧方案按各自日期作为背景参考，不替代当前需求或阶段清单。
 
 ## 安装
 
-以 `release/release-manifest.json` 中的 `0.14.0` 为准：
+现有安装制品以 `release/release-manifest.json` 中于 2026-09-24 构建的 `0.14.0` 为准：
 
 - macOS Apple Silicon：`.pkg` 或 `.app`
 - Windows x64：NSIS `.exe`
@@ -40,7 +54,7 @@
 
 停止或退出后保留已输出内容。继续使用当前上下文，重试在新分支执行。切换分支不回滚案件文件。
 
-撰写从技术交底开始，按五个阶段确认。参考材料从本机复制到 `01_通知与材料/撰写参考/`，支持 DOCX、DOC、PDF、TXT、Markdown、PNG、JPEG，每次 1–12 份，每份不超过 20MB。只有本次勾选的材料进入任务。移出列表不删除磁盘副本。
+撰写从技术交底开始，按五个阶段确认。参考材料从本机复制到 `01_通知与材料/撰写参考/`，支持 DOCX、DOC、PDF、TXT、Markdown、PNG、JPEG，每次 1–12 份，每份不超过 20MB。只有本次勾选的材料进入任务；离开页面后再次进入须重新选择。移出列表不删除磁盘副本。
 
 审查使用独立上下文和指定稿件版本，可选，不阻塞定稿和提交。
 

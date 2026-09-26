@@ -132,6 +132,171 @@ test('case-scoped save guard rejects a stage change while the draft file is bein
   await assert.rejects(fs.stat(path.join(work,c.directory!,'02_工作稿',digest('local-write').slice(0,10),'工作稿.json')), /ENOENT/);
 });
 
+test('case revision rejects an A-B-A late save even when the process key returns',async t=>{
+  const {root,work,vault}=await tempService(t);
+  const s=new DesktopService(path.join(root,'data'),vault);
+  s.key='account-a';s.workspace.settings.workRoot=work;
+  await s.createCase({title:'阶段代际',number:'SCOPE-004',kind:'write'});
+  const c=s.workspace.cases[0];
+  c.source='baseland';
+  c.remote={caseId:'remote-scope',syncedAt:'',processes:[
+    proc({id:'p-write',name:'提出申请',status:0}),
+    proc({id:'p-review',name:'审查意见答复',status:0}),
+  ]};
+  c.current={kind:'write',processId:'p-write',remoteStatus:0};
+  await s.persist();
+  const scope={profileKey:s.key,scopeVersion:s.generation,caseId:c.id,processKey:'p-write',caseRevision:s.caseRevisionOf(c.id)};
+  await s.selectCurrentProcess(s.key,c.id,'p-review');
+  await s.selectCurrentProcess(s.key,c.id,'p-write');
+  const incoming=structuredClone(s.workspace);
+  incoming.cases[0].localDraft='不能覆盖当前代际';
+  await assert.rejects(s.save(s.key,incoming,scope),/阶段已重新切换/);
+  assert.equal(s.workspace.cases[0].localDraft,'');
+});
+
+test('workspace save publishes the committed revision and continuous archive saves accept its acknowledgement',async t=>{
+  const {root,work,vault}=await tempService(t),s=new DesktopService(path.join(root,'data'),vault);
+  s.workspace.settings.workRoot=work;
+  await s.createCase({title:'Archive acknowledgement',number:'ACK',kind:'write'});
+  const c=s.workspace.cases[0],events:ReturnType<DesktopService['state']>[]=[];
+  s.changed=()=>events.push(s.state());
+  const original=s.captureScope(s.key,c.id);
+  const edit=structuredClone(s.workspace);edit.cases[0].archived=true;
+  const saved=await s.save(s.key,edit,original);
+  assert.equal(events.length,1);
+  assert.equal(saved.caseRevisions[c.id],original.caseRevision!+1);
+  assert.ok(saved.snapshotVersion>events[0].snapshotVersion);
+  assert.deepEqual({...events[0],snapshotVersion:saved.snapshotVersion},saved);
+  const restore=structuredClone(saved.workspace);restore.cases[0].archived=false;
+  await assert.rejects(s.save(s.key,restore,original),/重新切换/);
+  await s.save(s.key,restore,{...original,caseRevision:saved.caseRevisions[c.id]});
+  assert.equal(s.findCase(c.id).archived,false);
+  assert.equal(events.length,2);
+  const current=s.captureScope(s.key,c.id);
+  await s.saveManuscript(current,'first',s.findCase(c.id).sharedDraftHash??'');
+  await s.saveManuscript(current,'second',s.findCase(c.id).sharedDraftHash!);
+  assert.equal(s.findCase(c.id).localDraft,'second');
+  assert.ok(s.findCase(c.id).localVersions?.some(v=>v.text==='first'));
+  assert.equal(s.caseRevisionOf(c.id),current.caseRevision);
+});
+
+test('flow permission changes invalidate scopes but refreshed labels and timestamps do not',async t=>{
+  const {root,work,vault}=await tempService(t),s=new DesktopService(path.join(root,'data'),vault);
+  s.workspace.settings.workRoot=work;
+  await s.createCase({title:'Permission scope',number:'PERM',kind:'write'});
+  const c=s.workspace.cases[0];
+  c.source='baseland';c.current={kind:'write',processId:'p1',remoteStatus:200};
+  c.remote={caseId:'remote',syncedAt:'old',processes:[proc({id:'p1',name:'提出申请',status:200,canEdit:true})]};
+  s.account={username:'a',displayName:'A',organization:'T',origin,userId:'u',status:'authenticated',remembered:false};
+  let allowed=true;
+  s.client={flow:async()=>({at:new Date().toISOString(),currentProcessId:'p1',
+    processes:{...structuredClone(s.findCase(c.id).remote!),processes:[proc({id:'p1',name:'提出申请',status:200,canEdit:allowed,node:'Updated label'})]},nodes:[],history:[]})} as never;
+  const scope=s.captureScope(s.key,c.id);
+  await s.flow(c.id);s.assertScope(scope);
+  allowed=false;await s.flow(c.id);
+  assert.throws(()=>s.assertScope(scope),/重新切换/);
+  allowed=true;await s.flow(c.id);
+  assert.equal(s.caseRevisionOf(c.id),scope.caseRevision!+2);
+});
+
+test('explicit outcome refresh invalidates a scope only when the business conclusion changes',async t=>{
+  const {root,work,vault}=await tempService(t),s=new DesktopService(path.join(root,'data'),vault);
+  s.workspace.settings.workRoot=work;
+  await s.createCase({title:'Outcome scope',number:'OUTCOME',kind:'write'});
+  const c=s.workspace.cases[0];
+  c.source='baseland';c.current={kind:'write',processId:'p1',remoteStatus:0};
+  c.remote={caseId:'remote',syncedAt:'',processes:[proc({id:'p1',name:'提出申请',status:0})]};
+  s.account={username:'a',displayName:'A',organization:'T',origin,userId:'u',status:'authenticated',remembered:false};
+  let outcome:'none'|'granted'='none';
+  s.client={officialOutcome:async()=>({state:outcome,checkedAt:new Date().toISOString()})} as never;
+  const scope=s.captureScope(s.key,c.id);
+  await s.refreshCaseOutcome(s.key,c.id);s.assertScope(scope);
+  outcome='granted';await s.refreshCaseOutcome(s.key,c.id);
+  assert.throws(()=>s.assertScope(scope),/重新切换/);
+  const concluded=s.captureScope(s.key,c.id);
+  await s.refreshCaseOutcomes(s.key);s.assertScope(concluded);
+});
+
+test('whole-case refresh completes after its own stage and outcome changes and joins duplicate requests',async t=>{
+  const {root,work,vault}=await tempService(t),s=new DesktopService(path.join(root,'data'),vault);
+  s.workspace.settings.workRoot=work;
+  await s.createCase({title:'Whole refresh',number:'REFRESH',kind:'write'});
+  const c=s.workspace.cases[0];
+  c.source='baseland';c.current={kind:'write',processId:'p1',remoteStatus:0};
+  c.remote={caseId:'remote',syncedAt:'',processes:[
+    proc({id:'p1',name:'提出申请',status:0}),proc({id:'p2',name:'审查意见答复',status:0}),
+  ]};
+  s.account={username:'a',displayName:'A',organization:'T',origin,userId:'u',status:'authenticated',remembered:false};
+  const calls:string[]=[];
+  s.sync=async options=>{
+    assert.equal(options?.full,true);calls.push('sync');
+    await s.selectCurrentProcess(s.key,c.id,'p2');
+    return s.state();
+  };
+  s.client={
+    flow:async(item:Case)=>{
+      calls.push('flow');assert.equal(item.current?.processId,'p2');
+      return {at:'refreshed',currentProcessId:'p2',processes:structuredClone(item.remote),nodes:[],history:[]};
+    },
+    officialOutcome:async()=>{calls.push('outcome');return {state:'granted',checkedAt:'refreshed'};},
+    caseInfo:async(item:Case)=>{
+      calls.push('info');assert.equal(item.current?.processId,'p2');
+      return {at:'refreshed',processId:'p2',caseRemark:'Latest remark',closure:{finished:false,checkedAt:'refreshed'}};
+    },
+  } as never;
+  const first=s.refreshCase(s.key,c.id);
+  assert.equal(s.refreshCase(s.key,c.id),first);
+  const result=await first;
+  assert.deepEqual(calls,['sync','flow','outcome','info']);
+  assert.equal(result.state.workspace.cases[0].caseRemark,'Latest remark');
+  assert.equal(result.state.workspace.cases[0].officialOutcome?.state,'granted');
+  assert.equal(result.flow.currentProcessId,'p2');
+});
+
+test('whole-case refresh stops between steps after account, directory or case ownership changes',async t=>{
+  const {root,work,vault}=await tempService(t);
+  for(const change of ['account','root','case']){
+    const s=new DesktopService(path.join(root,change),vault);
+    s.workspace.settings.workRoot=work;
+    await s.createCase({title:'Refresh boundary',number:change,kind:'write'});
+    const c=s.workspace.cases[0];
+    c.source='baseland';c.remote={caseId:'remote',syncedAt:'',processes:[]};
+    let release!:()=>void;
+    const held=new Promise<void>(resolve=>{release=resolve;});
+    s.sync=async()=>{await held;return s.state();};
+    let queried=false;
+    s.flow=async()=>{queried=true;throw new Error('Unexpected flow request');};
+    const pending=s.refreshCase(s.key,c.id);
+    const rejected=assert.rejects(pending,/作用域已变化|目录已变化|案件关联已变化/);
+    if(change==='account')s.generation+=2;
+    else if(change==='root')s.workspace.settings.workRoot+='-changed';
+    else c.remote.caseId='other-case';
+    release();await rejected;
+    assert.equal(queried,false);
+    assert.doesNotMatch(s.storageState.message,/本案刷新未完成/);
+  }
+});
+
+test('in-flight flow read rejects process ABA even when the original process and account return',async t=>{
+  const {root,work,vault}=await tempService(t),s=new DesktopService(path.join(root,'data'),vault);
+  s.workspace.settings.workRoot=work;
+  await s.createCase({title:'合成流程 ABA',number:'FLOW-ABA',kind:'write'});
+  const c=s.workspace.cases[0];
+  c.source='baseland';c.current={kind:'write',processId:'p1',remoteStatus:0};
+  c.remote={caseId:'remote',syncedAt:'',processes:[proc({id:'p1',name:'提出申请',status:0}),proc({id:'p2',name:'审查意见答复',status:0})]};
+  s.account={username:'a',displayName:'A',organization:'T',origin,userId:'u',status:'authenticated',remembered:false};
+  let release!:()=>void;
+  const held=new Promise<void>(resolve=>{release=resolve;});
+  s.client={flow:async()=>{await held;return {at:'stale',currentProcessId:'p1',processes:structuredClone(c.remote),nodes:[],history:[]};}} as never;
+  const pending=s.flow(c.id),rejected=assert.rejects(pending,/重新查询/);
+  await s.selectCurrentProcess('local',c.id,'p2');
+  await s.selectCurrentProcess('local',c.id,'p1');
+  const before=await fs.readFile(s.profileFile());
+  release();await rejected;
+  assert.deepEqual(await fs.readFile(s.profileFile()),before);
+  assert.notEqual(s.findCase(c.id).remote?.syncedAt,'stale');
+});
+
 test('account switch during flow filesystem write does not leak into the new account root',async t=>{
   const {root,work,vault}=await tempService(t);
   const workB=path.join(root,'work-b');await fs.mkdir(workB);

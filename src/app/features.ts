@@ -3,9 +3,9 @@ import type { Case } from '../domain/workflow.ts';
 import type { DesktopAPI } from '../contracts/desktop-api.ts';
 import type { LucideIcon } from 'lucide-react';
 import { ArrowRightLeft, FileSearch, MessageSquare, PenLine } from 'lucide-react';
-import { currentWork, editableCurrent, internalTransferAvailable, processBusinessKind } from '../domain/lifecycle.ts';
-import { currentHandling } from '../domain/handling.ts';
-import { professionalWorkEditable, professionalWritingEditable } from '../domain/professional-policy.ts';
+import { processBusinessKind } from '../domain/lifecycle.ts';
+import { projectCaseView, type CaseWorkspaceView } from '../domain/case-view.ts';
+import { professionalWorkEditableForView, professionalWritingEditableForView } from '../domain/professional-policy.ts';
 
 export type FeatureModule = {
   id: Module;
@@ -14,27 +14,30 @@ export type FeatureModule = {
   icon: LucideIcon;
   capabilities: readonly string[];
   desktopOnly?: boolean;
-  canView?: (caseItem: Case) => boolean;
-  canStart?: (caseItem: Case) => boolean;
-  canEdit?: (caseItem: Case) => boolean;
+  canView?: (caseView: CaseWorkspaceView) => boolean;
+  canStart?: (caseView: CaseWorkspaceView) => boolean;
+  canEdit?: (caseView: CaseWorkspaceView) => boolean;
 };
 
-function hasReplyHistory(caseItem: Case): boolean {
-  const current = currentWork(caseItem).kind;
+function hasReplyHistory(caseView: CaseWorkspaceView): boolean {
+  const current = caseView.stage.kind;
+  const processName = caseView.transfer.currentProcess?.name ?? caseView.stage.current.label ?? '';
   return current === 'reply'
     || current === 'correction'
-    || current === 'waiting' && processBusinessKind(caseItem.remote?.processes.find(process => process.id === currentWork(caseItem).processId)?.name ?? '') === 'reply'
-    || caseItem.rounds.some(round => /答复|审查意见|补正|复审/.test(round.name));
+    || current === 'waiting' && ['reply', 'correction'].includes(processBusinessKind(processName) ?? '')
+    || caseView.manuscripts.replyRounds.some(round => /答复|审查意见|补正|复审/.test(round.name));
 }
 
-function hasWritingHistory(caseItem: Case): boolean {
-  return currentWork(caseItem).kind === 'write'
-    || !!caseItem.design?.writing.disclosure
-    || caseItem.rounds.some(round => round.name.includes('撰写'));
+function hasWritingHistory(caseView: CaseWorkspaceView): boolean {
+  return caseView.stage.kind === 'write'
+    || !!caseView.manuscripts.design.writing.disclosure
+    || caseView.manuscripts.replyRounds.some(round => round.name.includes('撰写'));
 }
 
-function activeCase(caseItem: Case): boolean {
-  return !caseItem.archived && !currentHandling(caseItem).officialWaiting && currentWork(caseItem).kind !== 'needs-confirmation';
+function activeCase(caseView: CaseWorkspaceView): boolean {
+  return !caseView.identity.archived
+    && !caseView.stage.handling.officialWaiting
+    && caseView.stage.kind !== 'needs-confirmation';
 }
 
 export const FEATURE_MODULES: readonly FeatureModule[] = [
@@ -46,8 +49,8 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
     capabilities: ['case.read', 'materials.read', 'agent.reply', 'artifact.finalize'],
     desktopOnly: true,
     canView: hasReplyHistory,
-    canStart: caseItem => activeCase(caseItem) && ['reply', 'correction'].includes(currentWork(caseItem).kind),
-    canEdit: caseItem => editableCurrent(caseItem) && ['reply', 'correction'].includes(currentWork(caseItem).kind),
+    canStart: caseView => activeCase(caseView) && ['reply', 'correction'].includes(caseView.stage.kind),
+    canEdit: caseView => caseView.stage.editable && ['reply', 'correction'].includes(caseView.stage.kind),
   },
   {
     id: 'write',
@@ -57,8 +60,8 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
     capabilities: ['case.read', 'materials.read', 'professional.write', 'artifact.finalize'],
     desktopOnly: true,
     canView: hasWritingHistory,
-    canStart: caseItem => activeCase(caseItem) && currentWork(caseItem).kind === 'write',
-    canEdit: professionalWritingEditable,
+    canStart: caseView => activeCase(caseView) && caseView.stage.kind === 'write',
+    canEdit: professionalWritingEditableForView,
   },
   {
     id: 'review',
@@ -68,8 +71,8 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
     capabilities: ['case.read', 'artifact.read', 'professional.review'],
     desktopOnly: true,
     canView: () => true,
-    canStart: professionalWorkEditable,
-    canEdit: professionalWorkEditable,
+    canStart: professionalWorkEditableForView,
+    canEdit: professionalWorkEditableForView,
   },
   {
     id: 'transfer',
@@ -78,9 +81,9 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
     icon: ArrowRightLeft,
     capabilities: ['case.read', 'artifact.read', 'transfer.prepare', 'transfer.save'],
     desktopOnly: true,
-    canView: caseItem => internalTransferAvailable(caseItem) && !currentHandling(caseItem).officialWaiting,
-    canStart: caseItem => internalTransferAvailable(caseItem) && !currentHandling(caseItem).officialWaiting,
-    canEdit: caseItem => internalTransferAvailable(caseItem) && !currentHandling(caseItem).officialWaiting,
+    canView: caseView => caseView.stage.transferAvailable && !caseView.stage.handling.officialWaiting,
+    canStart: caseView => caseView.stage.transferAvailable && !caseView.stage.handling.officialWaiting,
+    canEdit: caseView => caseView.stage.transferAvailable && !caseView.stage.handling.officialWaiting,
   },
 ];
 
@@ -140,22 +143,32 @@ function capabilityAvailable(feature: FeatureModule, context: FeatureContext): b
     && feature.capabilities.every(capability => context.capabilities.has(capability));
 }
 
-export function featureAccess(feature: FeatureModule, context: FeatureContext, caseItem?: Case): FeatureAccess {
+function toCaseView(caseItem: Case | CaseWorkspaceView): CaseWorkspaceView {
+  return 'identity' in caseItem && 'stage' in caseItem && 'materials' in caseItem
+    ? caseItem
+    : projectCaseView(caseItem);
+}
+
+export function featureAccessForView(feature: FeatureModule, context: FeatureContext, caseView?: CaseWorkspaceView): FeatureAccess {
   const platformAvailable = capabilityAvailable(feature, context);
-  const visible = platformAvailable && (!caseItem || !feature.canView || feature.canView(caseItem));
-  const startable = visible && (!caseItem || !feature.canStart || feature.canStart(caseItem));
-  const editable = startable && (!caseItem || !feature.canEdit || feature.canEdit(caseItem));
+  const visible = platformAvailable && (!caseView || !feature.canView || feature.canView(caseView));
+  const startable = visible && (!caseView || !feature.canStart || feature.canStart(caseView));
+  const editable = startable && (!caseView || !feature.canEdit || feature.canEdit(caseView));
   return { visible, startable, editable };
 }
 
-export function featureAvailable(feature: FeatureModule, context: FeatureContext, caseItem?: Case): boolean {
+export function featureAccess(feature: FeatureModule, context: FeatureContext, caseItem?: Case | CaseWorkspaceView): FeatureAccess {
+  return featureAccessForView(feature, context, caseItem ? toCaseView(caseItem) : undefined);
+}
+
+export function featureAvailable(feature: FeatureModule, context: FeatureContext, caseItem?: Case | CaseWorkspaceView): boolean {
   return featureAccess(feature, context, caseItem).startable;
 }
 
-export function featureVisible(feature: FeatureModule, context: FeatureContext, caseItem?: Case): boolean {
+export function featureVisible(feature: FeatureModule, context: FeatureContext, caseItem?: Case | CaseWorkspaceView): boolean {
   return featureAccess(feature, context, caseItem).visible;
 }
 
-export function featureEditable(feature: FeatureModule, context: FeatureContext, caseItem?: Case): boolean {
+export function featureEditable(feature: FeatureModule, context: FeatureContext, caseItem?: Case | CaseWorkspaceView): boolean {
   return featureAccess(feature, context, caseItem).editable;
 }

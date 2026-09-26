@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowUpRight, Square } from 'lucide-react';
+import { ArrowUpRight } from 'lucide-react';
 import type { CaseTab } from './CaseSpace.tsx';
+import type { CaseNavigationTarget } from '../app/navigation.ts';
 import { desktop } from '../desktop.ts';
 import type { AgentTaskView } from '../desktop.ts';
 import { Empty, ErrorState, LoadingState } from './Primitives.tsx';
@@ -22,7 +23,7 @@ export function AgentTasks({
   open,
 }: {
   profileKey: string;
-  open: (caseId: string, tab: CaseTab) => void;
+  open: (caseId: string, tab: CaseTab, target?:CaseNavigationTarget) => void;
 }) {
   const gen = useRef(0);
   const [tasks, setTasks] = useState<AgentTaskView[] | null>(null);
@@ -56,19 +57,6 @@ export function AgentTasks({
     return () => { gen.current++; unsub();professionalUnsub(); };
   }, [api, profileKey]);
 
-  const stop = async (task: AgentTaskView) => {
-    if (!api || task.state !== 'running') return;
-    const token = gen.current;
-    try {
-      if(task.professionalKind)await desktop!.professional.command(profileKey,task.caseId,{type:'stop'});
-      else await api.command(profileKey, task.caseId, { type: 'stop', runId: task.runId });
-      await load(token);
-    } catch (err) {
-      if (token !== gen.current) return;
-      setError((err as Error).message);
-    }
-  };
-
   if (!api) return <div className="page-pad"><h1>工作任务</h1><p>当前程序尚未连接任务列表。请使用桌面程序查看进行中的任务。</p></div>;
   if (error && !tasks) return <div className="page-pad"><h1>工作任务</h1><ErrorState message={error}/></div>;
   if (!tasks) return <div className="page-pad"><h1>工作任务</h1><LoadingState>正在读取工作任务…</LoadingState></div>;
@@ -83,9 +71,8 @@ export function AgentTasks({
         <small>{new Date(task.startedAt).toLocaleString('zh-CN')}{task.endedAt ? ` → ${new Date(task.endedAt).toLocaleString('zh-CN')}` : ''}{task.error ? ` · ${task.error}` : ''}</small>
       </div>
       <div className="agent-task-actions">
-        {task.state === 'running' && <button type="button" onClick={() => void stop(task)}><Square size={14}/>停止</button>}
-        <button type="button" onClick={() => open(task.caseId, task.professionalKind==='writing'?'write':task.professionalKind==='review'?'review':'discussion')}>打开讨论<ArrowUpRight size={15}/></button>
-        <button type="button" onClick={() => open(task.caseId, task.professionalKind==='writing'?'write':task.professionalKind==='review'?'review':'reply')}>打开所属案件<ArrowUpRight size={15}/></button>
+        <button type="button" onClick={() => open(task.caseId, task.professionalKind==='writing'?'write':task.professionalKind==='review'?'review':'discussion',{processId:task.processKey,runId:task.runId,...(!task.professionalKind?{discussionId:task.discussionId}:{})})}>查看此任务<ArrowUpRight size={15}/></button>
+        <button type="button" onClick={() => open(task.caseId, 'overview')}>打开案件概览<ArrowUpRight size={15}/></button>
       </div>
     </div>)}</div> : <Empty title="当前没有 Agent 任务">开始答复或发送讨论后，进行中的任务会显示在这里。</Empty>}
   </div>;

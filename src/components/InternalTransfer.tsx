@@ -1,15 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, Edit3, Eye, FileText, RefreshCw, Save, Upload } from 'lucide-react';
 import { desktop } from '../desktop.ts';
-import type { Case } from '../domain/workflow.ts';
-import { currentWork, internalTransferAvailable } from '../domain/lifecycle.ts';
-import { currentHandling } from '../domain/handling.ts';
 import { DEFAULT_INTERNAL_TRANSFER_RECIPIENT } from '../domain/workflow-nodes.ts';
+import type { CaseTransferModuleView } from '../domain/case-view.ts';
 import { FIVE_PARTS } from '../transfer-api.ts';
 import type { TransferView, TransferReview, TransferFileRole, TransferForm, NameDiscrepancyRequest } from '../transfer-api.ts';
 import { Modal, Note } from './Primitives.tsx';
 import { transferRouteDefinition } from '../app/transfer-routes.ts';
 import { FormattedFormulaText } from './FormattedFormulaText.tsx';
+import type { CaseTab } from './CaseSpace.tsx';
 
 const declarations:Record<string,string>={IsApplySameDay:'同日申请',IsPublicAdvance:'请求提前公开',IsExhibition:'展览会公开声明',IsPublished:'学术或技术会议公开声明',IsPublicForCommonProfit:'公共利益目的公开声明',IsDisclosure:'他人未经同意泄露声明',IsGiveUpOn51Section:'放弃主动修改',IsRequestDelayReview1YearForUtility:'实用新型延迟审查一年'};
 const correctionLabels={FileName:'文件名称',PositionInFile:'具体位置',CorrectionBefore:'补正前',CorrectionAfter:'补正后'} as const;
@@ -34,18 +33,22 @@ function CorrectionEntriesEditor({corrections,correctionReason,locked,onChange}:
 
 const transferCache = new Map<string, { view?: TransferView; review?: TransferReview; tab: number }>();
 
-export function InternalTransfer({profileKey,item,refreshSeq,navigate}:{profileKey:string;item:Case;refreshSeq?:number;navigate?:(tab:any)=>void}){
-  const processId=currentWork(item).processId;
-  const cacheKey=`${profileKey}/${item.id}/${processId}`;
+export function InternalTransfer({profileKey,profileView,refreshSeq,scopeVersion,caseRevision,navigate}:{profileKey:string;profileView:CaseTransferModuleView;refreshSeq?:number;scopeVersion?:number;caseRevision?:number;navigate?:(tab:CaseTab)=>void}){
+  const caseId=profileView.identity.id;
+  const processId=profileView.stage.current.processId;
+  const processKey=(processId||profileView.stage.current.roundId||`local-${profileView.stage.kind}`).trim();
+  const cacheKey=`${profileKey}/${scopeVersion??0}/${caseRevision??0}/${caseId}/${processKey}`;
   const [view,setView]=useState<TransferView|undefined>(()=>transferCache.get(cacheKey)?.view);
   const [review,setReview]=useState<TransferReview|undefined>(()=>{const c=transferCache.get(cacheKey)?.review;return c?structuredClone(c):undefined;});
   const [busy,setBusy]=useState(false),[error,setError]=useState('');
   const [tab,setTab]=useState<number>(()=>transferCache.get(cacheKey)?.tab??0);
   const [confirm,setConfirm]=useState<'save'|'submit'|'start'|'revoke'|'clearRemote'>();
   const [inspecting,setInspecting]=useState<boolean>(()=>!transferCache.has(cacheKey));
+  const [inspectionFailed,setInspectionFailed]=useState(false),[inspectAttempt,setInspectAttempt]=useState(0);
   const [previewDoc, setPreviewDoc]=useState<{title:string;text:string}|null>(null);
   const [nameConfirmReq, setNameConfirmReq]=useState<NameDiscrepancyRequest|null>(null);
   const scope=useRef('');scope.current=cacheKey;
+  useEffect(()=>{scope.current=cacheKey;return()=>{scope.current='';};},[cacheKey]);
   useEffect(()=>{
     if(!desktop?.transfer?.onConfirmNameRequest)return;
     return desktop.transfer.onConfirmNameRequest(req=>setNameConfirmReq(req));
@@ -63,16 +66,17 @@ export function InternalTransfer({profileKey,item,refreshSeq,navigate}:{profileK
       const cached=transferCache.get(cacheKey);
       if(cached?.view?.id&&desktop?.transfer?.refresh){
         void desktop.transfer.refresh(profileKey,cached.view.id).then(v=>{
-          if(scope.current===cacheKey){
+          if(scope.current===cacheKey&&v.profileKey===profileKey&&v.caseId===caseId&&v.processId===processId){
             transferCache.set(cacheKey,{view:v,review:transferCache.get(cacheKey)?.review,tab:tab});
             setView(v);
           }
-        }).catch(()=>{});
+        }).catch(e=>{if(scope.current===cacheKey)setError(e.message);});
       }
     }
   },[refreshSeq,cacheKey,profileKey]);
 
   useEffect(()=>{
+    setInspectionFailed(false);setPreviewDoc(null);setNameConfirmReq(null);
     const cached=transferCache.get(cacheKey);
     if(cached){
       setView(cached.view);
@@ -91,9 +95,9 @@ export function InternalTransfer({profileKey,item,refreshSeq,navigate}:{profileK
       setConfirm(undefined);
       if(desktop?.transfer?.inspect){
         setInspecting(true);
-        void desktop.transfer.inspect(profileKey,item.id).then(found=>{
+        void desktop.transfer.inspect(profileKey,caseId).then(found=>{
           if(scope.current===cacheKey){
-            if(found&&found.profileKey===profileKey&&found.caseId===item.id&&found.processId===processId){
+            if(found&&found.profileKey===profileKey&&found.caseId===caseId&&found.processId===processId){
               setView(found);
               setReview(structuredClone(found.review));
               const initialTab=(found.phase==='saved'||found.phase==='submitted')?2:0;
@@ -103,8 +107,8 @@ export function InternalTransfer({profileKey,item,refreshSeq,navigate}:{profileK
               setView(undefined);
             }
           }
-        }).catch(()=>{
-          if(scope.current===cacheKey)setView(undefined);
+        }).catch(e=>{
+          if(scope.current===cacheKey){setView(undefined);setInspectionFailed(true);setError(e.message);}
         }).finally(()=>{
           if(scope.current===cacheKey)setInspecting(false);
         });
@@ -112,10 +116,10 @@ export function InternalTransfer({profileKey,item,refreshSeq,navigate}:{profileK
         setInspecting(false);
       }
     }
-  },[cacheKey]);
+  },[cacheKey,inspectAttempt]);
 
   useEffect(()=>{
-    if(view) transferCache.set(cacheKey,{view:review?{...view,review}:view,review,tab});
+    if(view&&view.profileKey===profileKey&&view.caseId===caseId&&view.processId===processId) transferCache.set(cacheKey,{view:review?{...view,review}:view,review,tab});
   },[cacheKey,view,review,tab]);
 
   useEffect(()=>{
@@ -163,11 +167,11 @@ export function InternalTransfer({profileKey,item,refreshSeq,navigate}:{profileK
   useEffect(()=>()=>{
     const {view:v,review:r,profileKey:key}=latest.current;
     if(v?.phase==='draft'&&r&&desktop?.transfer?.saveLocalReview&&reviewChanged(v.review,r)){
-      void desktop.transfer.saveLocalReview(key,v.id,r);
+      void desktop.transfer.saveLocalReview(key,v.id,r).catch(()=>{/* The in-memory draft stays in the scope-keyed cache for recovery. */});
     }
   },[]);
 
-  const available=internalTransferAvailable(item)&&!currentHandling(item).officialWaiting;
+  const available=profileView.transfer.available&&!profileView.stage.officialWaiting;
   if(!available)return null;
   const persistLocalReview=async(currentView=view,currentReview=review)=>{
     if(!currentView||currentView.phase!=='draft'||!currentReview||!desktop?.transfer.saveLocalReview)return currentView;
@@ -175,11 +179,13 @@ export function InternalTransfer({profileKey,item,refreshSeq,navigate}:{profileK
     return desktop.transfer.saveLocalReview(profileKey,currentView.id,currentReview);
   };
   const act=async(fn:()=>Promise<TransferView>,flush=true)=>{
+    if(inspecting||inspectionFailed&&!view)return;
     const startedScope=scope.current;setBusy(true);setError('');
     try{
       if(flush)await persistLocalReview();
+      if(scope.current!==startedScope)return;
       const next=await fn();
-      if(scope.current===startedScope&&next.profileKey===profileKey&&next.caseId===item.id&&next.processId===processId){
+      if(scope.current===startedScope&&next.profileKey===profileKey&&next.caseId===caseId&&next.processId===processId){
         setView(next);setReview(structuredClone(next.review));
         if((next.phase==='saved'||next.phase==='submitted')&&tab===0)setTab(2);
       }
@@ -187,12 +193,14 @@ export function InternalTransfer({profileKey,item,refreshSeq,navigate}:{profileK
     finally{if(scope.current===startedScope)setBusy(false);}
   };
   const goTab=async(n:number)=>{
+    const startedScope=scope.current;
     if(view?.phase==='draft'&&review&&reviewChanged(view.review,review)&&desktop?.transfer.saveLocalReview){
       setBusy(true);setError('');
       try{
         const next=await desktop.transfer.saveLocalReview(profileKey,view.id,review);
         if(scope.current===cacheKey){setView(next);setReview(structuredClone(next.review));}
-      }catch(e){setError((e as Error).message);setBusy(false);return;}
+      }catch(e){if(scope.current===startedScope){setError((e as Error).message);setBusy(false);}return;}
+      if(scope.current!==startedScope)return;
       setBusy(false);
     }
     setTab(n);
@@ -210,9 +218,11 @@ export function InternalTransfer({profileKey,item,refreshSeq,navigate}:{profileK
 
   const handlePreviewDoc=async(fileRef:{role?:TransferFileRole;partCode?:string;fileNo?:string;name?:string})=>{
     if(!desktop?.transfer?.previewFile||!view)return;
+    const startedScope=scope.current;
     setBusy(true);
     try{
       const res=await desktop.transfer.previewFile(profileKey,view.id,fileRef);
+      if(scope.current!==startedScope)return;
       if(res){
         let text=res.content||'';
         if(res.parts&&res.parts.length>0){
@@ -221,11 +231,12 @@ export function InternalTransfer({profileKey,item,refreshSeq,navigate}:{profileK
         setPreviewDoc({title:res.name||'正文与公式预览',text:text||'（该材料无文本正文）'});
       }
     }catch(err){
-      setError('预览失败：'+(err as Error).message);
+      if(scope.current===startedScope)setError('预览失败：'+(err as Error).message);
     }finally{
-      setBusy(false);
+      if(scope.current===startedScope)setBusy(false);
     }
   };
+  if(inspectionFailed&&!view)return <section className="internal-transfer"><p role="alert">{error||'未能读取原流转方案，尚未创建新方案。'}</p><button onClick={()=>setInspectAttempt(n=>n+1)}>重新读取流转方案</button></section>;
   return <section className="internal-transfer"><div className="section-heading"><div><h3>{view?.sourceMode==='local'?'本地文件提交':'提交到下一内部流程'}</h3><p className="section-copy">整理本次材料、核对业务表单，再转交下一办理人。</p></div>
     {inspecting ? (
       <div className="transfer-inspecting"><RefreshCw size={14} className="spin"/><span>正在检查递交方案…</span></div>
@@ -238,7 +249,7 @@ export function InternalTransfer({profileKey,item,refreshSeq,navigate}:{profileK
               onClick={() => {
                 const targetMode = view.sourceMode === 'local' ? 'workbench' : 'local';
                 transferCache.delete(cacheKey);
-                void act(() => desktop!.transfer.prepare(profileKey, item.id, targetMode));
+                void act(() => desktop!.transfer.prepare(profileKey, caseId, targetMode));
               }}
             >
               {view.sourceMode === 'local' ? '切换为工作台方案' : '🔄 切换为本地文件人工提交'}
@@ -246,8 +257,8 @@ export function InternalTransfer({profileKey,item,refreshSeq,navigate}:{profileK
           )
         ) : (
           <>
-            <button className="primary" disabled={busy} onClick={()=>void act(()=>desktop!.transfer.prepare(profileKey,item.id,'workbench'))}>使用工作台稿件<ArrowRight size={15}/></button>
-            <button disabled={busy} onClick={()=>void act(()=>desktop!.transfer.prepare(profileKey,item.id,'local'))}>本地文件人工提交</button>
+            <button className="primary" disabled={busy} onClick={()=>void act(()=>desktop!.transfer.prepare(profileKey,caseId,'workbench'))}>使用工作台稿件<ArrowRight size={15}/></button>
+            <button disabled={busy} onClick={()=>void act(()=>desktop!.transfer.prepare(profileKey,caseId,'local'))}>本地文件人工提交</button>
           </>
         )}
       </div>
@@ -255,7 +266,7 @@ export function InternalTransfer({profileKey,item,refreshSeq,navigate}:{profileK
   </div>
     {!inspecting&&!view&&<p className="note"><strong>推荐方案</strong>：使用工作台已完成起草与定稿的成果直接生成提交文件。如果你已在外部完成撰写、答复或补正，也可选择“本地文件人工提交”直接导入本地 DOCX 文件。</p>}
     {view&&!inspecting&&<div className={`transfer-status-summary is-${view.phase}`} role="status"><div className="transfer-status-main"><span>本次提交状态</span><strong>{phaseLabel[view.phase]}</strong><p>{phaseDescription[view.phase]}</p></div><dl><div><dt>本地文件</dt><dd>{view.files.length} 份</dd></div><div><dt>远端材料</dt><dd>{view.existingFileNames.length} 份</dd></div><div><dt>下一办理人</dt><dd>{user?.name||'未选择'}</dd></div></dl></div>}
-    {error&&<div className="inline-warning" role="alert"><p>{error}</p><div className="button-row" style={{marginTop:'8px'}}>{view?.phase==='uncertain'?(view.submissionAttempted?<button className="primary" disabled={busy} onClick={()=>void act(()=>desktop!.transfer.refresh(profileKey,view.id))}>刷新核对转交结果</button>:<button className="primary" disabled={busy} onClick={()=>void act(()=>desktop!.transfer.revoke(profileKey,view.id))}>返回草稿重新整理（保留本次文件与表单）</button>):<button className="primary" disabled={busy} onClick={()=>{transferCache.delete(cacheKey);void act(()=>desktop!.transfer.prepare(profileKey,item.id,'local'));}}>进入本地文件人工提交（跳过工作台）</button>}</div></div>}
+    {error&&<div className="inline-warning" role="alert"><p>{error}</p><div className="button-row" style={{marginTop:'8px'}}>{view?.phase==='uncertain'?(view.submissionAttempted?<button className="primary" disabled={busy} onClick={()=>void act(()=>desktop!.transfer.refresh(profileKey,view.id))}>刷新核对转交结果</button>:<button className="primary" disabled={busy} onClick={()=>void act(()=>desktop!.transfer.revoke(profileKey,view.id))}>返回草稿重新整理（保留本次文件与表单）</button>):<button className="primary" disabled={busy} onClick={()=>{transferCache.delete(cacheKey);void act(()=>desktop!.transfer.prepare(profileKey,caseId,'local'));}}>进入本地文件人工提交（跳过工作台）</button>}</div></div>}
     {view&&review&&<>
       {view.phase==='draft'&&<div className="button-row"><button disabled={busy} onClick={()=>{transferCache.delete(cacheKey);setView(undefined);setReview(undefined);setTab(0);}}>更换文件来源</button>{view.sourceMode==='workbench'&&<button disabled={busy} onClick={()=>void act(()=>desktop!.transfer.reprepare(profileKey,view.id))}>重新获取工作台稿件</button>}</div>}
       {view.phase==='draft'&&<p className="note">{view.sourceMode==='local'?'本地文件人工方案：仅使用你选择的本次文件。补正内容在「本次材料」填写并保存到本地草稿。若需随时更换文件，可点击下方【选择文件】。':'工作台稿件方案：自动获取可用稿件并生成提交副本，请确认版本和文件；也可随时点击【选择文件】手动替换。补正内容在「本次材料」核对并保存。'}</p>}
@@ -295,63 +306,7 @@ export function InternalTransfer({profileKey,item,refreshSeq,navigate}:{profileK
           {view.existingFileNames.length>0&&<div className="note"><strong>远端材料已就绪</strong>：贝思兰德当前已存在上述 {view.existingFileNames.length} 个文件。下方本地文件仅在需要修改或补充时选择。</div>}
           <div className="transfer-files">{roles.map(role=>{
             const file=view.files.find(f=>f.role===role);
-            const handlePreview=async()=>{
-              if(desktop?.transfer?.previewFile){
-                try{
-                  const res=await desktop.transfer.previewFile(profileKey,view.id,{role});
-                  if(res&&(res.content||(res.parts&&res.parts.length>0))){
-                    let text=res.content||'';
-                    if(res.parts&&res.parts.length>0){
-                      text=res.parts.map(p=>`### ${p.name}\n\n${p.content}`).join('\n\n');
-                    }
-                    setPreviewDoc({title:res.name||roleName[role],text});
-                    return;
-                  }
-                }catch{}
-              }
-              if(role==='application'){
-                const partsText=view.parts
-                  .filter(p=>view.route==='application'||review.keepCodes.includes(p.code)||(p.after||p.before))
-                  .map(p=>`### ${p.name}\n${p.after||p.before||'（未识别正文）'}`)
-                  .join('\n\n');
-                if(partsText){
-                  setPreviewDoc({title:roleName[role],text:partsText});
-                  return;
-                }
-              }
-              if(desktop?.agent?.getCase){
-                try{
-                  const agentCase=await desktop.agent.getCase(profileKey,item.id);
-                  const matchingArt = agentCase.artifacts.find(a => 
-                    (role === 'reply' && a.kind === 'final-word') ||
-                    (role === 'application' && (a.kind === 'final-application-CLAIMS' || a.kind === 'final-amendment'))
-                  );
-                  if (matchingArt?.text) {
-                    setPreviewDoc({ title: `${roleName[role]}${matchingArt.externallyModified ? '（外部已修改）' : ''}`, text: matchingArt.text });
-                    return;
-                  }
-                  const draft=agentCase.process.drafts.find(d=>d.id===view.sourceDraft?.id)
-                    ?? agentCase.process.drafts.find(d=>d.adoptStatus==='adopted')
-                    ?? agentCase.process.drafts.at(-1);
-                  if(role==='reply'&&draft?.text){
-                    setPreviewDoc({title:'意见陈述书正文与公式预览',text:draft.text});
-                    return;
-                  }
-                  if(role==='application'&&draft?.applicationParts){
-                    const partsText=Object.entries(draft.applicationParts)
-                      .map(([part,content])=>`### ${part==='CLAIMS'?'权利要求书':part==='DESCRIPTION'?'说明书':part}\n${content}`)
-                      .join('\n\n');
-                    if(partsText){
-                      setPreviewDoc({title:'修改后申请文件正文与公式预览',text:partsText});
-                      return;
-                    }
-                  }
-                }catch{}
-              }
-              if(file&&desktop?.openMaterial){
-                void desktop.openMaterial(item.id,file.relativePath);
-              }
-            };
+            const handlePreview=()=>handlePreviewDoc({role});
             return <div key={role} style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',padding:'12px',border:'1px solid var(--line)',borderRadius:'8px',background:'#fff'}}>
               <div style={{display:'flex',alignItems:'center',gap:'10px',minWidth:0,flex:1}}>
                 <FileText size={20}/>

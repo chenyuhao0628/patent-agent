@@ -50,23 +50,20 @@ test('case projection separates identity, current stage, materials and active pr
   const view = projectCaseView(fixture({
     materials: [{ id: 'm-case', name: '原始申请.docx', role: '原始申请', location: '', excerpt: '', ready: true }],
   }));
-  assert.deepEqual(view.identity, {
-    id: 'case-1',
-    title: '一种装置',
-    number: 'CN-1',
-    type: '发明',
-    companyName: undefined,
-    tags: ['优先'],
-    source: 'baseland',
-    archived: false,
-  });
+  assert.equal(view.identity.id, 'case-1');
+  assert.equal(view.identity.title, '一种装置');
+  assert.equal(view.identity.number, 'CN-1');
+  assert.equal(view.identity.source, 'baseland');
+  assert.deepEqual(view.identity.tags, ['优先']);
+  assert.equal(view.identity.deadlineView.label, '办理期限');
   assert.equal(view.stage.kind, 'reply');
   assert.equal(view.stage.module, 'reply');
   assert.equal(view.stage.editable, true);
   assert.equal(view.stage.transferAvailable, true);
-  assert.deepEqual(view.materials.map(material => material.id), ['m-case', 'm-round']);
-  assert.equal(view.activeProcesses.length, 1);
-  assert.equal(view.remoteCaseId, 'remote-1');
+  assert.deepEqual(view.materials.all.map(material => material.id), ['m-case', 'm-round']);
+  assert.equal(view.transfer.activeProcesses.length, 1);
+  assert.equal(view.transfer.remoteCaseId, 'remote-1');
+  assert.equal(view.transfer.remoteSyncedAt, '2026-09-26T00:00:00Z');
 });
 
 test('projection uses the unified official waiting decision', () => {
@@ -116,18 +113,61 @@ test('projection keeps same material id distinct across round identities', () =>
       ],
     }],
   });
-  assert.equal(view.materials.length, 3);
+  assert.equal(view.materials.all.length, 3);
 });
 
 test('projection does not share mutable nested data with the case', () => {
   const source = fixture();
   const view = projectCaseView(source);
   (view.identity.tags as string[]).push('只读视图测试');
-  (view.materials[0] as { name: string }).name = '修改后的投影视图';
-  (view.activeProcesses[0] as { currentFlow?: { name: string; user: string } }).currentFlow = { name: '投影视图节点', user: '测试' };
-  (view.stage.activeRound!.materials[0] as { name: string }).name = '修改后的轮次材料';
+  (view.materials.all[0] as { name: string }).name = '修改后的投影视图';
+  (view.transfer.activeProcesses[0] as { currentFlow?: { name: string; user: string } }).currentFlow = { name: '投影视图节点', user: '测试' };
+  assert.equal('materials' in view.stage.activeRound!, false);
   assert.deepEqual(source.tags, ['优先']);
   assert.equal(source.materials, undefined);
   assert.equal(source.rounds[0]!.materials[0]!.name, '通知书.pdf');
   assert.equal(source.remote!.processes[0]!.currentFlow, undefined);
+});
+
+test('legacy cases without current/design still project a stable module view', () => {
+  const view = projectCaseView(fixture({
+    current: undefined,
+    design: undefined,
+    remote: undefined,
+    source: 'local',
+    localDraft: '  人工稿保留前后空白  ',
+    localVersions: [{ id: 'v-1', text: '旧版本', at: '2026-09-25T00:00:00Z' }],
+  }));
+  assert.equal(view.stage.kind, 'reply');
+  assert.equal(view.stage.activeRound?.id, 'round-1');
+  assert.equal(view.manuscripts.localDraft, '  人工稿保留前后空白  ');
+  assert.deepEqual(view.manuscripts.localVersions.map(version => version.id), ['v-1']);
+  assert.equal(view.officialOutcome.applies, false);
+  assert.equal(view.transfer.remoteSyncedAt, undefined);
+});
+import { caseRecordFromCase } from './case-record.ts';
+import { professionalViewFromWorkspace, projectProfessionalView, projectReplyView, projectTransferView } from './case-view.ts';
+
+test('professional selections resolve duplicate material IDs to the current round in both projections',()=>{
+  const c=fixture();
+  c.materials=[{...c.rounds[0].materials[0],relativePath:'common/old.pdf'}];
+  c.rounds[0].materials[0].relativePath='round/current.pdf';
+  for(const view of [projectProfessionalView(c),professionalViewFromWorkspace(projectCaseView(c))]){
+    assert.equal(view.materials.current.length,1);
+    assert.equal(view.materials.current[0].relativePath,'round/current.pdf');
+    assert.equal(view.materials.current[0].roundId,'round-1');
+  }
+});
+
+test('business projections do not read unrelated manuscript or transfer form payloads',()=>{
+  const record=caseRecordFromCase({id:'minimal',title:'Synthetic',number:'S1',type:'invention',deadline:'',archived:false,tags:[],rounds:[],current:{kind:'write'},localDraft:'local'});
+  Object.defineProperty(record.manuscripts,'design',{get(){throw new Error('unrelated design');}});
+  Object.defineProperty(record.transfer,'form',{get(){throw new Error('unrelated form');}});
+  const professional=projectProfessionalView(record),reply=projectReplyView(record),transfer=projectTransferView(record);
+  assert.deepEqual(Object.keys(professional.manuscripts),['localDraft']);
+  assert.deepEqual(Object.keys(professional.materials),['current']);
+  assert.equal('design' in reply.manuscripts,false);
+  assert.equal('manuscripts' in transfer,false);
+  professional.identity.tags.push('not persisted');
+  assert.deepEqual(record.identity.tags,[]);
 });

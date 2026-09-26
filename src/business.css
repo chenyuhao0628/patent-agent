@@ -35,3 +35,14 @@
 @media(min-width:851px){.review-focus>.business-title,.writing-focus>.business-title{min-height:44px;margin:0 0 18px;width:150px}.review-focus>.business-title p,.writing-focus>.business-title p,.review-focus>.business-title>.preview-label,.writing-focus>.business-title>.preview-label{display:none}.review-focus>.process-tabs,.writing-focus>.process-tabs{position:absolute;top:0;left:165px;right:0;margin:0;height:44px;justify-content:flex-end;border:0;gap:21px}.review-focus>.process-tabs button,.writing-focus>.process-tabs button{padding-top:7px;padding-bottom:7px}.review-focus .review-paper{min-height:450px}.review-focus .issue-inspector{padding:18px}.review-focus .issue-list>button{padding:10px 8px}.review-focus .issue-detail h4{margin:13px 0 8px}.review-focus .issue-category{margin:13px 0}.review-focus .inspector-actions{margin-top:18px}}
 @media(min-width:851px) and (max-width:1100px){.writing-focus>.process-tabs{gap:10px;left:125px}.writing-focus>.process-tabs button>span{display:none}}
 @media(min-width:851px){.review-focus .review-desk{height:calc(100dvh - 310px);min-height:410px}.review-focus .review-paper{min-height:0;overflow:auto;overscroll-behavior:contain}.review-focus .issue-inspector{min-height:0;padding:15px 17px}.review-focus .issue-detail{flex:1;overflow:auto;min-height:0;padding-right:4px;overscroll-behavior:contain}.review-focus .issue-list{flex-shrink:0;padding-bottom:8px}.review-focus .issue-list>button{padding:8px}.review-focus .issue-inspector>.inspector-actions{flex-shrink:0;margin:12px 0 0}.review-focus .inspector-footer{margin-top:0;padding-top:8px}.review-focus .inspector-footer>.note{margin-top:3px}.review-focus .issue-category{margin-top:10px}.review-focus .inspector-heading{margin-bottom:9px}}
+.history-record-row{display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--line);min-width:0}
+.history-record-row>button:first-child{display:flex;flex:1;min-width:0;justify-content:flex-start;text-align:left;gap:16px;padding:18px 8px;border:0;border-radius:0}
+.history-record-row>button>span{min-width:0;overflow-wrap:anywhere}
+.history-record-row>.small-button{flex-shrink:0}
+.history-record-detail{padding:20px 0;border-bottom:1px solid var(--line);min-width:0;overflow-wrap:anywhere}
+.history-record-detail h3{font-size:16px;letter-spacing:0}
+.history-record-detail>.muted{margin:8px 0 16px}
+.history-file-list{display:flex;flex-wrap:wrap;gap:8px;padding:8px 0 16px;min-width:0}
+.history-file-list>button{justify-content:flex-start;gap:8px;max-width:100%;min-width:0;text-align:left;font-size:12px}
+.history-file-list>button>span{min-width:0;overflow-wrap:anywhere}
+.history-file-list svg{flex-shrink:0}

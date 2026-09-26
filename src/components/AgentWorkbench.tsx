@@ -8,15 +8,12 @@ import { PriorArtPanel } from './PriorArt.tsx';
 import { FormattedFormulaText } from './FormattedFormulaText.tsx';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { FileText, FolderOpen, PanelRight, Square } from 'lucide-react';
-import type { Case } from '../domain/workflow.ts';
 import type { AgentJob, AgentMessage, AgentStage, Discussion, MaterialEntry, ToolEvent } from '../domain/agent.ts';
 import { activeJob, artifactPreviewText, currentDraft, currentReview, selectedMaterials, selectedStrategy, unhandledIssues } from '../domain/agent.ts';
-import { currentWork } from '../domain/lifecycle.ts';
 import { desktop } from '../desktop.ts';
 import type { AgentCaseView, AgentCommand } from '../desktop.ts';
 import {
   agentActionBlocker,
-  agentProcessKey,
   canSelectCaseMaterials,
   classificationFields,
   discussionJobAlert,
@@ -33,6 +30,7 @@ import {
   toolEventLabel,
   type ServerFormFingerprint,
 } from '../desktop.ts';
+import type { CaseReplyView } from '../domain/case-view.ts';
 import { Modal, Note } from './Primitives.tsx';
 import '../agent-workbench.css';
 
@@ -66,16 +64,22 @@ function timeline(discussion: Discussion | undefined, partial?: string, pending?
 
 export function AgentWorkbench({
   profileKey,
-  item,
+  caseView,
   formal,
+  initialDiscussionId,
+  scopeVersion,
+  caseRevision,
 }: {
   profileKey: string;
-  item: Case;
+  caseView: CaseReplyView;
   formal: boolean;
+  initialDiscussionId?: string;
+  scopeVersion?:number;
+  caseRevision?:number;
 }) {
-  const caseId = item.id;
-  const processKey = agentProcessKey(item);
-  const kind = currentWork(item).kind;
+  const caseId = caseView.identity.id;
+  const processKey = (caseView.stage.current.processId || caseView.stage.current.roundId || `local-${caseView.stage.kind}`).trim();
+  const kind = caseView.stage.kind;
   const gen = useRef(0);
   const formSync = useRef<ServerFormFingerprint | undefined>(undefined);
   const frame = useRef<HTMLDivElement>(null);
@@ -84,7 +88,7 @@ export function AgentWorkbench({
   const [view, setView] = useState<AgentCaseView | null>(null);
   const [error, setError] = useState('');
   const [clearConfirm, setClearConfirm] = useState(false);
-  const [discussionId, setDiscussionId] = useState<string>();
+  const [discussionId, setDiscussionId] = useState<string | undefined>(initialDiscussionId);
   const [showArchived,setShowArchived]=useState(false);
   const [input, setInput] = useState('');
   const [discussionListOpen,setDiscussionListOpen]=useState(()=>window.innerWidth>=1250);
@@ -112,7 +116,7 @@ export function AgentWorkbench({
   const [draftDirty, setDraftDirty] = useState(false);
   const [finalizeDirtyHint, setFinalizeDirtyHint] = useState('');
   const api = desktop?.agent;
-  const expected = { profileKey, caseId, processKey };
+  const expected = { profileKey, caseId, processKey,scopeVersion,caseRevision };
 
   const apply = (next: AgentCaseView, token: number) => {
     if (token !== gen.current) return;
@@ -134,6 +138,7 @@ export function AgentWorkbench({
     setView(next);
     setDiscussionId(current => {
       if (current && next.process.discussions.some(item => item.id === current)) return current;
+      if (initialDiscussionId) return initialDiscussionId;
       return next.process.mainDiscussionId || next.process.discussions[0]?.id;
     });
   };
@@ -146,7 +151,7 @@ export function AgentWorkbench({
     setPending('');
     setPendingDiscussionId(undefined);
     setInput('');
-    setDiscussionId(undefined);
+    setDiscussionId(initialDiscussionId);
     setPreviewId(undefined);
     setEditing(undefined);
     setCommandBusy(false);
@@ -170,11 +175,12 @@ export function AgentWorkbench({
       apply(next, token);
     });
     const unsubPreparation=api.onPreparation?.(event=>{
-      if(token!==gen.current||event.profileKey!==profileKey||event.caseId!==caseId||event.processKey!==processKey)return;
+      if(token!==gen.current||event.profileKey!==profileKey||event.caseId!==caseId||event.processKey!==processKey
+        ||scopeVersion!==undefined&&event.scopeVersion!==scopeVersion||caseRevision!==undefined&&event.caseRevision!==caseRevision)return;
       setPreparation(({queued:'等待本机任务队列',preparing:'正在核对本案任务',materials:'正在准备本次材料',permission:'正在核验本案办理权限',dispatch:'正在启动后台',done:''})[event.step]);
     });
     return () => { gen.current++; unsub();unsubPreparation?.(); };
-  }, [api, profileKey, caseId, processKey]);
+  }, [api, profileKey, caseId, processKey, initialDiscussionId,scopeVersion,caseRevision]);
 
   useEffect(() => {
     if (followOutput.current) scroller.current?.scrollTo({ top: scroller.current.scrollHeight });
@@ -199,6 +205,7 @@ export function AgentWorkbench({
     setCommandError(null);
     try {
       const next = await api.command(profileKey, caseId, command);
+      if(token!==gen.current||!shouldAcceptAgentView(next,expected))return false;
       apply(next, token);
       if (command.type === 'conversation') setEditing(undefined);
       if(command.type==='queue')setQueueEditing(undefined);
@@ -251,13 +258,14 @@ export function AgentWorkbench({
   if (!api) return <Note>当前程序尚未连接本案对话。对话、分析和起草需要在桌面程序中使用。</Note>;
   if (!view && error) return <p className="inline-warning" role="alert">{error}</p>;
   if (!view || view.processKey !== processKey) return <div className="agent-empty">正在读取本案对话…</div>;
+  if(initialDiscussionId&&!view.process.discussions.some(d=>d.id===initialDiscussionId))return <p role="alert" className="inline-warning">找不到指定讨论；未切换到其他讨论。</p>;
 
   const process = view.process;
-  const discussion = process.discussions.find(item => item.id === discussionId) ?? process.discussions.find(item => item.id === process.mainDiscussionId);
+  const discussion = discussionId ? process.discussions.find(item => item.id === discussionId) : process.discussions.find(item => item.id === process.mainDiscussionId);
   const busy = view.busy || commandBusy;
   const current = stageIndex(view);
   const shownStage = selectedStage ?? current;
-  const showProgress=formal||!!process.analysis||process.drafts.length>0||['reply','correction'].includes(currentWork(item).kind);
+  const showProgress=formal||!!process.analysis||process.drafts.length>0||['reply','correction'].includes(kind);
 
   const openStage = (index: number) => { setSelectedStage(index); setStageOpen(true); };
   const stepBackStage = async (targetIndex: number) => {
@@ -320,7 +328,7 @@ export function AgentWorkbench({
   return <div ref={frame} className={`agent-workbench${stageOpen ? ' is-stage-open' : ''}`}>
     <header className="agent-workbench-head">
       <div>
-        <h3>{formal ? (currentWork(item).kind==='correction'||process.classification.noticeCategory==='补正通知书'?'本案对话 · 补正办理':'本案对话 · 答复办理') : '本案对话'}</h3>
+        <h3>{formal ? (kind==='correction'||process.classification.noticeCategory==='补正通知书'?'本案对话 · 补正办理':'本案对话 · 答复办理') : '本案对话'}</h3>
         <p className="agent-current-stage">{showProgress?`当前阶段：${STAGES[current]}`:"材料讨论"}</p>
         {!formal && !showProgress && <p>{writeIncomplete ? '完整撰写申请文件尚未完成，当前只开放围绕本案材料的讨论。' : reviewIncomplete ? '独立导入审查尚未完成，当前只开放围绕本案材料的讨论。' : '本页用于材料讨论，正式办理请进入本案对应业务。'}</p>}
       </div>
@@ -400,7 +408,7 @@ export function AgentWorkbench({
         {showProgress && <nav className="agent-stage-tabs" aria-label="查看办理步骤">{STAGES.map((label, index) => <button type="button" key={label} aria-pressed={index === shownStage} onClick={() => setSelectedStage(index)}>{index + 1} · {label}</button>)}</nav>}
         {visibleCommandError && <p className="agent-error" role="alert">{visibleCommandError}</p>}
         {(!showProgress || shownStage === 0) && <>
-        <PriorArtPanel item={item} profileKey={profileKey} onUpdated={()=>void api!.getCase(profileKey,caseId).then(v=>apply(v,gen.current))}/>
+        <PriorArtPanel caseView={caseView} profileKey={profileKey} onUpdated={()=>{const token=gen.current;void api!.getCase(profileKey,caseId).then(v=>apply(v,token)).catch(e=>{if(token===gen.current)setError(e.message);});}}/>
 
         <div className="agent-card">
           <h4>已选材料</h4>
@@ -427,8 +435,9 @@ export function AgentWorkbench({
           <h4>原始申请文件</h4>
           <p className="muted">按案号或准确名称从原始申请文件库匹配；复制到本案后出现在上方材料列表，由你勾选后进入分析，文件库原件保留。</p>
           <button type="button" disabled={busy} onClick={() => void (async () => {
-            try { setOriginals(await desktop!.findOriginals(caseId)); }
-            catch (err) { setCommandError({ text: sanitizeAgentError((err as Error).message) }); }
+            const token=gen.current;
+            try { const found=await desktop!.findOriginals(caseId);if(token===gen.current)setOriginals(found); }
+            catch (err) { if(token===gen.current)setCommandError({ text: sanitizeAgentError((err as Error).message) }); }
           })()}>匹配原始申请文件</button>
         </div>
         </>}
@@ -523,8 +532,9 @@ export function AgentWorkbench({
               draft={adopted}
               busy={busy || !formal}
               onSave={async items => {
+                const token=gen.current;
                 const next = await api!.command(profileKey, caseId, { type: 'correctionContents', items });
-                apply(next, gen.current);
+                apply(next, token);
               }}
             />
           )}
@@ -533,8 +543,9 @@ export function AgentWorkbench({
               draft={adopted}
               busy={busy || !formal}
               onSave={async parts => {
+                const token=gen.current;
                 const next = await api!.command(profileKey, caseId, { type: 'applicationParts', parts });
-                apply(next, gen.current);
+                apply(next, token);
               }}
             />
           )}
@@ -546,8 +557,9 @@ export function AgentWorkbench({
               externalArtifacts={view.artifacts.filter(a => a.externallyModified && a.text)}
               onDirtyChange={dirty => { setDraftDirty(dirty); if (!dirty) setFinalizeDirtyHint(''); }}
               onSave={async payload => {
+                const token=gen.current;
                 const next = await api!.command(profileKey, caseId, { type: 'updateDraft', ...payload });
-                apply(next, gen.current);
+                apply(next, token);
               }}
             />
           )}
@@ -595,8 +607,7 @@ export function AgentWorkbench({
               disabled={busy}
               onClick={async () => {
                 try {
-                  await run({ type: 'unfinalize' });
-                  setUnfinalizeModal(false);
+                  if(await run({ type: 'unfinalize' }))setUnfinalizeModal(false);
                 } catch (err) {
                   setCommandError({ text: sanitizeAgentError((err as Error).message) });
                 }
@@ -609,11 +620,13 @@ export function AgentWorkbench({
       )}
       {originals && <Modal title="原始申请文件匹配" onClose={() => setOriginals(null)}>
         {originals.length ? <div className="artifact-catalog">{originals.map(candidate => <button key={candidate.id} onClick={() => void (async () => {
+          const token=gen.current;
           try {
             await desktop!.copyOriginal(caseId, candidate.id);
+            if(token!==gen.current)return;
             setOriginals(null);
-            apply(await api!.getCase(profileKey, caseId), gen.current);
-          } catch (err) { setCommandError({ text: sanitizeAgentError((err as Error).message) }); }
+            apply(await api!.getCase(profileKey, caseId), token);
+          } catch (err) { if(token===gen.current)setCommandError({ text: sanitizeAgentError((err as Error).message) }); }
         })()}><FileText/><span><b>{candidate.name}</b><small>复制到本案，保留文件库原件</small></span></button>)}</div> : <Note>未找到唯一案号或准确名称匹配。请检查设置中的原始申请文件库与文件命名。</Note>}
       </Modal>}
     </div>

@@ -4,6 +4,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import JSZip from 'jszip';
 import { DOMParser } from '@xmldom/xmldom';
 import type { Case, Material, Settings } from '../src/domain/workflow.ts';
+import { sharedCaseManifestFromCase } from '../src/domain/case-record.ts';
 
 export const digest=(s:string|Buffer)=>createHash('sha256').update(s).digest('hex');
 export const portable=(s:string)=>s.replaceAll('\\','/');
@@ -297,6 +298,19 @@ export async function atomicWrite(file:string,data:string|Buffer,guard:()=>void=
 export async function atomicJSON(file:string,data:unknown,guard:()=>void=()=>{}) {
   await atomicWrite(file,JSON.stringify(data,null,2),guard);
 }
+
+/** Publish a complete new version without replacing any existing artifact. */
+export async function atomicCreate(file:string,data:string|Buffer,guard:()=>void=()=>{}) {
+  guard();
+  const temporary=file+'.'+randomUUID()+'.tmp';
+  try{
+    await fs.writeFile(temporary,data,{flag:'wx',mode:0o600});
+    guard();
+    await fs.link(temporary,file);
+  }finally{
+    await fs.rm(temporary,{force:true});
+  }
+}
 // Keep allocation bounded even if a selected file grows or is replaced after lstat.
 export async function readBoundedFile(file:string,maxBytes:number,signal?:AbortSignal):Promise<Buffer>{
   const check=()=>{if(signal?.aborted)throw Object.assign(new Error('读取已取消。'),{name:'AbortError',code:'ABORT_ERR'});};
@@ -368,7 +382,7 @@ export class CaseFiles {
     }
     // Shared business index only. Conversations, jobs, model configuration and credentials stay local.
     this.guard();
-    if(publish)await atomicJSON(manifestPath,{schema:2,id:c.id,profile:this.profile,number:c.number,title:c.title,type:c.type,deadline:c.deadline,applicationNumber:c.applicationNumber,companyName:c.companyName,caseRemark:c.caseRemark,caseInfoAt:c.caseInfoAt,remoteClosure:c.remoteClosure,officialOutcome:c.officialOutcome,remoteCaseId:c.remote?.caseId,current:c.current,source:c.source,remote:c.remote,materials:(c.materials??[]).map(sharedMaterial),rounds:c.rounds.map(r=>({id:r.id,name:r.name,priorArt:r.priorArt,materials:r.materials.map(sharedMaterial)}))},this.guard);
+    if(publish)await atomicJSON(manifestPath,sharedCaseManifestFromCase(c,this.profile),this.guard);
     return relative;
   }
   async writeMaterial(c:Case,folder:string,fileNo:string,name:string,content:Buffer) {
@@ -394,8 +408,10 @@ export class CaseFiles {
     this.guard();
     await atomicJSON(file,payload,this.guard);c.sharedDraftHash=digest(JSON.stringify(payload,null,2));
     for(const v of c.localVersions??[]){
+      this.guard();
       const target=await managedPath(root,`02_工作稿/${processFolder(c,v.processId??'local')}/${datedFolder('手工稿版本',v.id,v.at)}.txt`,true);
       try{await fs.writeFile(target,v.text,{flag:'wx',mode:0o600});}catch(e){if((e as NodeJS.ErrnoException).code!=='EEXIST')throw e;if(await fs.readFile(target,'utf8')!==v.text)throw new Error('已有稿件版本不能覆盖。');}
+      this.guard();
     }
     await this.ensureCase(c);
     return directory;

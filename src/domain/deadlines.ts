@@ -149,7 +149,7 @@ export function mergeRemoteProcess(previous: RemoteProcess | undefined, incoming
   return merged;
 }
 
-export function currentRemoteProcess(c: Case): RemoteProcess | undefined {
+export function currentRemoteProcess(c: Pick<Case, 'current' | 'remote'>): RemoteProcess | undefined {
   const processId = c.current?.processId;
   if (!processId) return undefined;
   return (c.remote?.processes ?? []).find(process => process.id === processId);
@@ -185,7 +185,7 @@ export function processDeadlineView(process: ProcessDeadlineInput | undefined): 
   return { raw: null, ordinal: null, source: 'missing', label: DEADLINE_HEADER, display: DEADLINE_LABELS.missing };
 }
 
-export function deadlineView(c: Case): DeadlineView {
+export function deadlineView(c: Pick<Case, 'source' | 'current' | 'remote' | 'deadline'>): DeadlineView {
   if (c.source === 'baseland') return processDeadlineView(currentRemoteProcess(c));
   const ordinal = parseCalendarDay(c.deadline);
   if (ordinal === null) {

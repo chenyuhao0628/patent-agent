@@ -105,6 +105,7 @@ const api: DesktopAPI = {
   saveWorkspace: (profileKey, workspace, scope) => call('saveWorkspace', profileKey, workspace, scope),
   refreshShared: profileKey => call('refreshShared', profileKey),
   sync: source => call('sync', source),
+  refreshCase: (profileKey, caseId) => call('refreshCase', profileKey, caseId),
   createCase: input => call('createCase', input),
   flow: caseId => call('flow', caseId),
   caseInfo: (profileKey, caseId) => call('caseInfo', profileKey, caseId),
@@ -141,12 +142,17 @@ const api: DesktopAPI = {
     onPreparation: (callback: (event: AgentPreparation) => void) => onState('desktop:agentPreparation', callback),
     listProgress: profileKey => call('agentProgress', profileKey),
     getCase: (profileKey, caseId) => call('agentGetCase', profileKey, caseId),
+    history: async (profileKey, caseId) => arrayResult(await call('agentHistory', profileKey, caseId), '答复历史'),
     reviewSources: async (profileKey, caseId) => arrayResult(await call('agentReviewSources', profileKey, caseId), '答复历史'),
     command: (profileKey, caseId, command) => call('agentCommand', profileKey, caseId, command),
     listTasks: profileKey => call('agentTasks', profileKey),
     onState: callback => onState('desktop:agentState', callback),
   },
   transfer: {
+    history: (profileKey, caseId) => call('transferHistory', profileKey, caseId).then(value => {
+      if (!Array.isArray(value)) throw new Error('内部流转历史响应无效。');
+      return value;
+    }),
     inspect: (profileKey, caseId) => call('transferInspect', profileKey, caseId),
     prepare: (profileKey, caseId, sourceMode: TransferSource | undefined) =>
       call('transferPrepare', profileKey, caseId, sourceMode),
@@ -173,6 +179,7 @@ const api: DesktopAPI = {
     pickReferences: (profileKey, caseId) => call('professionalPickReferences', profileKey, caseId),
     removeReference: (profileKey, caseId, materialId) => call('professionalRemoveReference', profileKey, caseId, materialId),
     getCase: (profileKey, caseId) => call('professionalGet', profileKey, caseId),
+    history: (profileKey, caseId) => call('professionalHistory', profileKey, caseId),
     listReviews: profileKey => call('professionalReviews', profileKey),
     command: (profileKey, caseId, command: ProfessionalCommand) =>
       call('professionalCommand', profileKey, caseId, command),

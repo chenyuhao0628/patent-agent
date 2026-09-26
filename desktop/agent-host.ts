@@ -4,7 +4,7 @@ import { workflowMessageCommand, discussionJobs, forkConversation, preserveInter
 import {validateCorrectionContents} from '../src/domain/correction.ts';
 import {APPLICATION_PART_LABELS,validateApplicationParts} from '../src/domain/application-parts.ts';
 import { loadStandardSkill, SKILL_ADAPTER } from './standard-skills.ts';
-import { classificationSuggestion } from './agent-classification.ts';
+import { classificationSuggestionForView } from './agent-classification.ts';
 import { exportReplyDocx,exportApplicationParts,exportNoteDocx } from './document-export.ts';
 import type { ClassificationSuggestion } from './agent-classification.ts';
 import { readFrozenMaterial, MAX_MATERIAL_BYTES } from './agent-document-reader.ts';
@@ -43,10 +43,9 @@ import {
   updateClassification,
   WORD_NOT_CONNECTED,
 } from '../src/domain/agent.ts';
-import { activeRound, currentWork, editableCurrent } from '../src/domain/lifecycle.ts';
-import type { Case, Workspace } from '../src/domain/workflow.ts';
+import type { CaseReplyView } from '../src/domain/case-view.ts';
 import type { ModelConfigPublic } from '../src/domain/models.ts';
-import { atomicJSON, datedFolder, digest, managedPath, portable, processFolder, readJSON, readBoundedFile, safeName } from './files.ts';
+import { atomicCreate, atomicJSON, datedFolder, digest, managedPath, portable, processFolder, readJSON, readBoundedFile, safeName } from './files.ts';
 import { parseAgentArtifact } from './agent-artifact.ts';
 import { buildAgentPrompt } from './agent-rules.ts';
 import type { DesktopService } from './service.ts';
@@ -136,6 +135,10 @@ type FrozenModel = NonNullable<AgentCaseView['model']>;
 type RequestTicket = {
   profileKey: string;
   generation: number;
+  caseId?: string;
+  processKey?: string;
+  caseRevision?: number;
+  workRoot: string;
 };
 
 type LiveRun = {
@@ -143,6 +146,7 @@ type LiveRun = {
   generation: number;
   caseId: string;
   processKey: string;
+  caseRevision: number;
   runId: string;
   workRoot: string;
   materialHashes: Record<string, string>;
@@ -171,8 +175,8 @@ function emptyStore(): AgentStore {
   return { schema: STORE_SCHEMA, processes: [], lastObservedHash: {}, lastObservedText: {}, partialText: {} };
 }
 
-function processKeyOf(c: Case): string {
-  const work = currentWork(c);
+function processKeyOf(c: CaseReplyView): string {
+  const work = c.stage.current;
   return (work.processId || work.roundId || `local-${work.kind}`).trim();
 }
 
@@ -284,8 +288,21 @@ export class AgentHost implements AgentAPI {
   }
 
   async getCase(profileKey: string, caseId: string): Promise<AgentCaseView> {
-    const ticket = this.capture(profileKey);
+    const ticket = this.capture(profileKey, caseId);
     return this.enqueue(() => this.getCaseAlreadyLocked(ticket, caseId));
+  }
+
+  async history(profileKey: string, caseId: string): Promise<AgentProcessState[]> {
+    const ticket = this.capture(profileKey);
+    return this.enqueue(async () => {
+      this.assertTicket(ticket);
+      const store = await this.loadStore(profileKey);
+      this.assertTicket(ticket);
+      this.desktop.replyCase(caseId);
+      return store.processes
+        .filter(state => state.scope.caseId === caseId)
+        .map(state => structuredClone(state));
+    });
   }
 
   async reviewSources(profileKey:string, caseId?:string):Promise<import('../src/professional-api.ts').ReviewSource[]> {
@@ -295,15 +312,15 @@ export class AgentHost implements AgentAPI {
       return store.processes.flatMap(state=>{
         if(caseId&&state.scope.caseId!==caseId)return [];
         if(!isReplyClassified(state.classification))return [];
-        const c=this.desktop.workspace.cases.find(c=>c.id===state.scope.caseId);
+        const c=this.desktop.replyCases().find(c=>c.identity.id===state.scope.caseId);
         if(!c)return [];
         return state.drafts.filter(draft=>draft.adoptStatus==='adopted'&&(draft.source!=='user'||draft.applicationParts!==undefined||state.reviews.some(r=>r.draftVersionId===draft.id))).map(draft=>({
-          id:`agent-${digest(state.scope.processKey+'-'+draft.id)}`,caseId:c.id,processKey:state.scope.processKey,
+          id:`agent-${digest(state.scope.processKey+'-'+draft.id)}`,caseId:c.identity.id,processKey:state.scope.processKey,
           title:`${state.classification.noticeCategory==='补正通知书'?'补正':'答复'} · 已采用稿件`,
           business:state.classification.noticeCategory==='补正通知书'?'补正' as const:'答复' as const,
           at:draft.at,text:draft.text,amendmentText:draft.amendmentText,applicationParts:draft.applicationParts,correctionContents:draft.correctionContents,amendmentBasis:draft.amendmentBasis,
           reports:state.reviews.filter(r=>r.draftVersionId===draft.id).map(r=>({
-            id:'reply-review-'+r.id,caseId:c.id,processKey:state.scope.processKey,kind:'review' as const,sourceId:`agent-${digest(state.scope.processKey+'-'+draft.id)}`,
+            id:'reply-review-'+r.id,caseId:c.identity.id,processKey:state.scope.processKey,kind:'review' as const,sourceId:`agent-${digest(state.scope.processKey+'-'+draft.id)}`,
             state:'completed' as const,at:r.at,endedAt:r.at,text:[r.summary,...r.issues.map((i,n)=>`${n+1}. ${i.finding}\n依据：${i.basis}\n建议：${i.suggestion}\n处理：${i.handled?'已记录处理':'未记录处理'}`)].join('\n\n'),
             skillName:'答复独立复核',skillHash:'',tools:state.discussions.flatMap(d=>d.toolEvents).filter(t=>t.runId===r.runId).map(t=>({name:t.toolKind||t.filename,status:t.status})),
           })),
@@ -320,7 +337,7 @@ export class AgentHost implements AgentAPI {
       this.assertTicket(ticket);
       const store = await this.loadStore(profileKey);
       this.assertTicket(ticket);
-      return store.processes.filter(p => { try { return processKeyOf(this.desktop.findCase(p.scope.caseId)) === p.scope.processKey; } catch { return false; } }).map(localProgress);
+      return store.processes.filter(p => { try { return processKeyOf(this.desktop.replyCase(p.scope.caseId)) === p.scope.processKey; } catch { return false; } }).map(localProgress);
     });
   }
 
@@ -332,34 +349,34 @@ export class AgentHost implements AgentAPI {
   preparationChanged?:(event:AgentPreparation)=>void;
   private preparation(ticket:RequestTicket,caseId:string,step:AgentPreparation['step']){
     if(ticket.profileKey!==this.desktop.key||ticket.generation!==this.desktop.generation)return;
-    const c=this.desktop.workspace.cases.find(c=>c.id===caseId);if(!c)return;
-    this.preparationChanged?.({profileKey:ticket.profileKey,caseId,processKey:processKeyOf(c),step});
+    const c=this.desktop.replyCases().find(c=>c.identity.id===caseId);if(!c)return;
+    try{this.assertTicket(ticket);}catch{return;}
+    this.preparationChanged?.({profileKey:ticket.profileKey,scopeVersion:ticket.generation,caseId,caseRevision:this.desktop.caseRevisionOf(caseId),processKey:processKeyOf(c),step});
   }
   async command(profileKey: string, caseId: string, command: AgentCommand): Promise<AgentCaseView> {
-    const ticket=this.capture(profileKey);
+    const ticket=this.capture(profileKey, caseId);
     const at=Date.now(),requestId=randomUUID();
     return withDiagnostics({requestId,caseId,operation:command.type},async()=>{
       diagnostic('host','command_received');
       this.preparation(ticket,caseId,'queued');
-      try{return await diagnosticStage('host','command',{},()=>this.commandInternal(profileKey,caseId,command,at));}
+      try{return await diagnosticStage('host','command',{},()=>this.commandInternal(ticket,caseId,command,at));}
       finally{this.preparation(ticket,caseId,'done');}
     });
   }
-  private async commandInternal(profileKey: string, caseId: string, command: AgentCommand,queuedAt:number): Promise<AgentCaseView> {
-    const ticket = this.capture(profileKey);
+  private async commandInternal(ticket: RequestTicket, caseId: string, command: AgentCommand, queuedAt:number): Promise<AgentCaseView> {
     if (command.type === 'conversation' && (command.operation === 'edit' || command.operation === 'regenerate')) {
       const stopped = await this.enqueue(async () => {
         diagnostic('host','command_dequeued',{durationMs:Date.now()-queuedAt});
         this.preparation(ticket,caseId,'preparing');
         this.assertTicket(ticket);
         const store = await this.loadStore(ticket.profileKey);
-        const state = await this.ensureProcess(store, this.desktop.findCase(caseId));
+        const state = await this.ensureProcess(store, this.desktop.replyCase(caseId),ticket);
         const discussion = state.discussions.find(d => d.id === command.discussionId && !d.archived);
         const message = discussion?.messages.find(m => m.id === command.messageId);
         if (!message || (command.operation === 'edit' && (message.role !== 'user' || !command.text?.trim())) || (command.operation === 'regenerate' && message.role !== 'assistant')) throw new Error('消息不存在或不能重新发送。');
-        const live = this.live.get(caseId);
+        const live = this.live.get(this.liveKey(ticket.profileKey,caseId));
         if (live) this.abortLive(live);
-        return { runId: live?.runId, wait: live?.handle?.wait, processKey: processKeyOf(this.desktop.findCase(caseId)) };
+        return { runId: live?.runId, wait: live?.handle?.wait, processKey: processKeyOf(this.desktop.replyCase(caseId)) };
       });
       if (stopped.wait) {
         let timer: ReturnType<typeof setTimeout> | undefined;
@@ -368,8 +385,8 @@ export class AgentHost implements AgentAPI {
       }
       return this.enqueue(async () => {
         this.assertTicket(ticket);
-        if (processKeyOf(this.desktop.findCase(caseId)) !== stopped.processKey) throw new Error(STALE_SCOPE);
-        const live = this.live.get(caseId);
+        if (processKeyOf(this.desktop.replyCase(caseId)) !== stopped.processKey) throw new Error(STALE_SCOPE);
+        const live = this.live.get(this.liveKey(ticket.profileKey,caseId));
         if (live && live.runId !== stopped.runId) throw new Error('当前活动任务已变更，请重新核对后发送。');
         if (live) await this.settleAlreadyLocked(live);
         return this.commandAlreadyLocked(ticket, caseId, command);
@@ -382,10 +399,20 @@ export class AgentHost implements AgentAPI {
     });
   }
 
-  private capture(profileKey: string): RequestTicket {
+  private capture(profileKey: string, caseId?: string): RequestTicket {
     this.assertOpen();
     this.assertProfile(profileKey);
-    return { profileKey, generation: this.desktop.generation };
+    this.desktop.assertMigrationNotAccepted();
+    if (!caseId) return { profileKey, generation: this.desktop.generation, workRoot: this.desktop.workspace.settings.workRoot ?? '' };
+    const c=this.desktop.replyCase(caseId);
+    return {
+      profileKey,
+      generation: this.desktop.generation,
+      caseId,
+      processKey: processKeyOf(c),
+      caseRevision: this.desktop.caseRevisionOf(caseId),
+      workRoot: this.desktop.workspace.settings.workRoot ?? '',
+    };
   }
 
   private enqueue<T>(fn: () => Promise<T>): Promise<T> {
@@ -406,17 +433,39 @@ export class AgentHost implements AgentAPI {
     if (profileKey !== this.desktop.key) throw new Error(ACCOUNT_SWITCHED);
   }
 
+  private liveKey(profileKey:string,caseId:string){return JSON.stringify([profileKey,caseId]);}
+  private liveTicket(live:LiveRun):RequestTicket {
+    return {profileKey:live.profileKey,generation:live.generation,caseId:live.caseId,processKey:live.processKey,caseRevision:live.caseRevision,workRoot:live.workRoot};
+  }
+  private async emitLive(live:LiveRun,c:CaseReplyView,state:AgentProcessState,store:AgentStore){
+    if(!this.liveScopeStillValid(live))return;
+    const view=await this.toView(live.profileKey,c,state,store);
+    if(this.liveScopeStillValid(live))this.emit(view);
+  }
+
   private assertTicket(ticket: RequestTicket): void {
     this.assertProfile(ticket.profileKey);
+    this.desktop.assertMigrationNotAccepted();
     if (this.desktop.generation !== ticket.generation) throw new Error(ACCOUNT_SWITCHED);
+    if ((this.desktop.workspace.settings.workRoot ?? '') !== ticket.workRoot) throw new Error(STALE_SCOPE);
+    if (ticket.caseId) {
+      let c: CaseReplyView;
+      try { c=this.desktop.replyCase(ticket.caseId); }
+      catch { throw new Error(STALE_SCOPE); }
+      if (ticket.processKey!==undefined&&processKeyOf(c)!==ticket.processKey) throw new Error(STALE_SCOPE);
+      if (ticket.caseRevision!==undefined&&this.desktop.caseRevisionOf(ticket.caseId)!==ticket.caseRevision) throw new Error(STALE_SCOPE);
+    }
   }
 
   private assertView(view: AgentCaseView, ticket: RequestTicket): void {
+    this.assertTicket(ticket);
     if (view.profileKey !== ticket.profileKey || view.profileKey !== this.desktop.key) throw new Error(ACCOUNT_SWITCHED);
+    if (ticket.caseId && (view.caseId!==ticket.caseId || view.processKey!==ticket.processKey)) throw new Error(STALE_SCOPE);
   }
 
   private emit(view: AgentCaseView): void {
-    if (view.profileKey !== this.desktop.key) return;
+    if (view.profileKey !== this.desktop.key || view.scopeVersion !== this.desktop.generation
+      || view.caseRevision !== this.desktop.caseRevisionOf(view.caseId)) return;
     for (const listener of this.listeners) listener(view);
   }
 
@@ -427,17 +476,19 @@ export class AgentHost implements AgentAPI {
     if (!live.abort.signal.aborted) live.abort.abort();
   }
 
-  private findLiveCase(live: LiveRun): Case | undefined {
+  private findLiveCase(live: LiveRun): CaseReplyView | undefined {
     if (this.desktop.key !== live.profileKey) return;
-    try { return this.desktop.findCase(live.caseId); }
+    try { return this.desktop.replyCase(live.caseId); }
     catch { return; }
   }
 
-  private liveScopeStillValid(live: LiveRun, known: Case | undefined | 'lookup' = 'lookup'): boolean {
+  private liveScopeStillValid(live: LiveRun, known: CaseReplyView | undefined | 'lookup' = 'lookup'): boolean {
     if (live.profileKey !== this.desktop.key || live.generation !== this.desktop.generation) return false;
     if ((this.desktop.workspace.settings.workRoot || '') !== live.workRoot) return false;
     const current = known === 'lookup' ? this.findLiveCase(live) : known;
-    return !!current && processKeyOf(current) === live.processKey;
+    return !!current
+      && processKeyOf(current) === live.processKey
+      && this.desktop.caseRevisionOf(live.caseId) === live.caseRevision;
   }
 
   private storePath(profileKey: string): string {
@@ -445,6 +496,7 @@ export class AgentHost implements AgentAPI {
   }
 
   private async loadStore(profileKey: string): Promise<AgentStore> {
+    if (this.corrupt.has(profileKey)) throw new Error('Agent 状态文件不可用，原记录已保留。');
     const cached = this.stores.get(profileKey);
     if (cached) return cached;
     const file = this.storePath(profileKey);
@@ -464,7 +516,7 @@ export class AgentHost implements AgentAPI {
         partialText: data.partialText ?? {},
       };
       store.processes = store.processes.map(process => {
-        if (!this.live.has(process.scope.caseId) && process.activeRunId) {
+        if (!this.live.has(this.liveKey(profileKey,process.scope.caseId)) && process.activeRunId) {
           const stopped = markStoppedOnReopen(process, process.scope);
           if (stopped.ok) { const job = stopped.state.jobs.find(j => j.runId === process.activeRunId); if (job) { job.partialText ??= store.partialText[storeKey(process.scope.caseId, process.scope.processKey)]; preserveInterruptedOutput(stopped.state, job.runId); } return stopped.state; }
           return process;
@@ -481,15 +533,13 @@ export class AgentHost implements AgentAPI {
         return empty;
       }
       this.corrupt.add(profileKey);
-      const empty = emptyStore();
-      this.stores.set(profileKey, empty);
-      return empty;
+      throw new Error('Agent 状态文件不可用，原记录已保留。');
     }
   }
 
-  private async persistStore(profileKey: string, store: AgentStore): Promise<void> {
-    if (this.corrupt.has(profileKey)) return;
-    await atomicJSON(this.storePath(profileKey), store);
+  private async persistStore(profileKey: string, store: AgentStore, ticket?:RequestTicket): Promise<void> {
+    if (this.corrupt.has(profileKey)) throw new Error('Agent 状态文件不可用，原记录已保留。');
+    await atomicJSON(this.storePath(profileKey), store, ticket?()=>this.assertTicket(ticket):undefined);
   }
 
   private findProcess(store: AgentStore, caseId: string, processKey: string): AgentProcessState | undefined {
@@ -515,8 +565,7 @@ export class AgentHost implements AgentAPI {
     };
   }
 
-  private async caseMaterials(c: Case): Promise<MaterialEntry[]> {
-    const round = activeRound(c);
+  private async caseMaterials(c: CaseReplyView): Promise<MaterialEntry[]> {
     const merged: MaterialEntry[] = [];
     const push = (item: { id: string; name: string; role: string; relativePath?: string; ready: boolean }) => {
       if (merged.some(existing => existing.id === item.id)) return;
@@ -530,15 +579,16 @@ export class AgentHost implements AgentAPI {
         hash: undefined,
       });
     };
-    for (const item of round?.materials ?? []) push(item);
-    for (const item of c.materials ?? []) push(item);
+    // A round-specific copy takes precedence over a legacy common copy.
+    for (const item of c.materials.current) if (item.roundId) push(item);
+    for (const item of c.materials.current) if (!item.roundId) push(item);
     for (const item of merged) {
       if (!item.relativePath || !item.ready || isUnsafePath(item.relativePath)) {
         if (isUnsafePath(item.relativePath)) item.ready = false;
         continue;
       }
       try {
-        const abs = await this.desktop.casePath(c.id, item.relativePath);
+        const abs = await this.desktop.casePath(c.identity.id, item.relativePath);
         await assertNoSymlinkAncestors(path.dirname(abs), abs);
         const stat = await fs.lstat(abs);
         if (stat.isSymbolicLink()) {
@@ -580,16 +630,16 @@ export class AgentHost implements AgentAPI {
     }
   }
 
-  private defaultClassification(c: Case) {
-    const kind = currentWork(c).kind;
+  private defaultClassification(c: CaseReplyView) {
+    const kind = c.stage.current.kind;
     if (kind === 'reply' || kind === 'correction') return { status: 'unclassified' as const };
     return { status: 'unknown' as const };
   }
 
-  private syncManualDraft(store: AgentStore, state: AgentProcessState, c: Case): AgentProcessState {
-    const key = storeKey(c.id, state.scope.processKey);
-    const text = c.localDraft ?? '';
-    const hash = c.sharedDraftHash;
+  private syncManualDraft(store: AgentStore, state: AgentProcessState, c: CaseReplyView): AgentProcessState {
+    const key = storeKey(c.identity.id, state.scope.processKey);
+    const text = c.manuscripts.localDraft ?? '';
+    const hash = c.manuscripts.sharedDraftHash;
     if (!shouldRecordUserDraft(state, text, hash, store.lastObservedHash[key])) {
       if (hash) store.lastObservedHash[key] = hash;
       store.lastObservedText[key] = text;
@@ -600,7 +650,7 @@ export class AgentHost implements AgentAPI {
     if (state.finalized) {
       return state;
     }
-    const result = recordUserDraft(state, { caseId: c.id, processKey: state.scope.processKey, text });
+    const result = recordUserDraft(state, { caseId: c.identity.id, processKey: state.scope.processKey, text });
     if (!result.ok) {
       return state;
     }
@@ -610,29 +660,31 @@ export class AgentHost implements AgentAPI {
     return next;
   }
 
-  private async ensureProcess(store: AgentStore, c: Case): Promise<AgentProcessState> {
+  private async ensureProcess(store: AgentStore, c: CaseReplyView, ticket:RequestTicket): Promise<AgentProcessState> {
+    this.assertTicket(ticket);
     const processKey = processKeyOf(c);
-    const access = editableCurrent(c) ? 'editable' : 'readonly';
+    const access = c.stage.editable ? 'editable' : 'readonly';
     const incoming = await this.caseMaterials(c);
-    let state = this.findProcess(store, c.id, processKey);
+    this.assertTicket(ticket);
+    let state = this.findProcess(store, c.identity.id, processKey);
     if (!state) {
       state = unwrap(createAgentProcess({
-        caseId: c.id,
+        caseId: c.identity.id,
         processKey,
         classification: this.defaultClassification(c),
         materials: incoming,
         access,
-        expectedSharedDraftHash: c.sharedDraftHash,
+        expectedSharedDraftHash: c.manuscripts.sharedDraftHash,
       }));
     } else {
-      state = { ...state, access, expectedSharedDraftHash: c.sharedDraftHash };
+      state = { ...state, access, expectedSharedDraftHash: c.manuscripts.sharedDraftHash };
       const synced = syncProcessMaterials(state, incoming.map(item => {
         const previous = state!.materials.find(existing => existing.id === item.id);
         return { ...item, selected: previous?.selected ?? item.selected };
       }), access === 'editable' && !state.finalized ? 'formal' : 'discussion');
       state = unwrap(synced);
     }
-    if (!this.live.has(c.id) && state.activeRunId) {
+    if (!this.live.has(this.liveKey(this.desktop.key,c.identity.id)) && state.activeRunId) {
       const stopped = markStoppedOnReopen(state, state.scope);
       if (stopped.ok) state = stopped.state;
     }
@@ -641,10 +693,10 @@ export class AgentHost implements AgentAPI {
     return state;
   }
 
-  private async artifactsOf(profileKey: string, c: Case, processKey: string): Promise<AgentCaseView['artifacts']> {
-    if (!c.directory) return [];
+  private async artifactsOf(profileKey: string, c: CaseReplyView, processKey: string): Promise<AgentCaseView['artifacts']> {
+    if (!c.identity.hasDirectory) return [];
     let root: string;
-    try { root = await this.desktop.casePath(c.id); }
+    try { root = await this.desktop.casePath(c.identity.id); }
     catch { return []; }
     const folder = path.join(root, '04_内部说明');
     let names: string[] = [];
@@ -659,7 +711,7 @@ export class AgentHost implements AgentAPI {
         if (stat.isSymbolicLink()) continue;
         await assertNoSymlinkAncestors(root, abs);
         const index = JSON.parse(await fs.readFile(abs, 'utf8')) as SharedRunIndex;
-        if (index.schema !== 1 || index.caseId !== c.id || index.profileKey !== profileKey || index.processKey !== processKey) continue;
+        if (index.schema !== 1 || index.caseId !== c.identity.id || index.profileKey !== profileKey || index.processKey !== processKey) continue;
         for (const file of index.files ?? []) {
           if (isUnsafePath(file.relativePath)) continue;
           const target = await managedPath(root, file.relativePath);
@@ -694,11 +746,11 @@ export class AgentHost implements AgentAPI {
     return artifacts;
   }
 
-  private async suggestClassification(profileKey: string, c: Case, state: AgentProcessState): Promise<ClassificationSuggestion> {
-    const round = c.rounds.find(r => r.id === c.current?.roundId || r.id === `proc-${c.current?.processId}`);
+  private async suggestClassification(profileKey: string, c: CaseReplyView, state: AgentProcessState): Promise<ClassificationSuggestion> {
+    const round = c.manuscripts.replyRounds.find(r => r.id === c.stage.current?.roundId || r.id === `proc-${c.stage.current?.processId}`);
     const ids = new Set(round?.materials.map(m => m.id) ?? []);
     const notices = state.materials.filter(m => ids.has(m.id) && /通知|审查意见|补正/.test(m.name + m.role));
-    const signature = JSON.stringify([profileKey, state.scope, c.type, c.remote?.processes, notices.map(m => [m.id, m.hash])]);
+    const signature = JSON.stringify([profileKey, state.scope, c.identity.type, c.processes, notices.map(m => [m.id, m.hash])]);
     const cached = this.classificationCache.get(signature);
     if (cached) return cached;
     const sources = notices.map(m => ({ name: `通知文件 ${m.name}`, text: m.name, read: false }));
@@ -706,7 +758,7 @@ export class AgentHost implements AgentAPI {
     for (const material of notices.slice(0, 2)) {
       if (!material.ready || !material.relativePath || !material.hash) continue;
       try {
-        const absoluteSnapshotPath = await this.desktop.casePath(c.id, material.relativePath);
+        const absoluteSnapshotPath = await this.desktop.casePath(c.identity.id, material.relativePath);
         await assertNoSymlinkAncestors(path.dirname(absoluteSnapshotPath), absoluteSnapshotPath);
         const content = await readFrozenMaterial({ material: { ...material, relativePath: material.relativePath, hash: material.hash, absoluteSnapshotPath }, range: { startLine: 1, endLine: /\.pdf$/i.test(material.name) ? 1 : 30 } });
         if(content.some(x=>x.type==='image')){failures.push(`${material.name} 需要视觉核对；当前建议依据流程与文件名，尚未读取扫描页文字。`);continue;}
@@ -714,24 +766,28 @@ export class AgentHost implements AgentAPI {
         if (text.trim()) sources.push({ name: material.name, text, read: true });
       } catch { failures.push(`${material.name} 的文字未能自动读取；先根据当前流程和文件名提出建议，不能作为全文阅读完成。`); }
     }
-    const result = classificationSuggestion(c, sources);
+    const result = classificationSuggestionForView(c, sources);
     result.warnings.push(...failures);
     if (this.classificationCache.size > 100) this.classificationCache.clear();
     this.classificationCache.set(signature, result);
     return result;
   }
 
-  private async toView(profileKey: string, c: Case, state: AgentProcessState, store: AgentStore): Promise<AgentCaseView> {
-    const key = storeKey(c.id, state.scope.processKey);
-    const live = this.live.get(c.id);
+  private async toView(profileKey: string, c: CaseReplyView, state: AgentProcessState, store: AgentStore): Promise<AgentCaseView> {
+    const ticket=this.capture(profileKey,c.identity.id);
+    if(ticket.processKey!==state.scope.processKey)throw new Error(STALE_SCOPE);
+    const key = storeKey(c.identity.id, state.scope.processKey);
+    const live = this.live.get(this.liveKey(profileKey,c.identity.id));
     const liveMatches = !!live
       && live.profileKey === profileKey
-      && live.caseId === c.id
-      && live.processKey === state.scope.processKey;
+      && live.caseId === c.identity.id
+      && live.processKey === state.scope.processKey && this.liveScopeStillValid(live);
     const frozen = liveMatches && live.runId === state.activeRunId ? live.model : undefined;
-    return {
+    const view:AgentCaseView = {
       profileKey,
-      caseId: c.id,
+      scopeVersion:ticket.generation,
+      caseId: c.identity.id,
+      caseRevision:ticket.caseRevision!,
       processKey: state.scope.processKey,
       process: structuredClone(state),
       classificationSuggestion: state.classification.status === 'classified' ? undefined : await this.suggestClassification(profileKey, c, state),
@@ -741,17 +797,19 @@ export class AgentHost implements AgentAPI {
       model: frozen ?? await this.publicModel(profileKey),
       artifacts: await this.artifactsOf(profileKey, c, state.scope.processKey),
     };
+    this.assertView(view,ticket);
+    return view;
   }
 
   private async getCaseAlreadyLocked(ticket: RequestTicket, caseId: string): Promise<AgentCaseView> {
     this.assertTicket(ticket);
     const store = await this.loadStore(ticket.profileKey);
     this.assertTicket(ticket);
-    const c = this.desktop.findCase(caseId);
-    const state = await this.ensureProcess(store, c);
+    const c = this.desktop.replyCase(caseId);
+    const state = await this.ensureProcess(store, c,ticket);
     if (processKeyOf(c) !== state.scope.processKey) throw new Error(STALE_SCOPE);
     this.assertTicket(ticket);
-    await this.persistStore(ticket.profileKey, store);
+    await this.persistStore(ticket.profileKey, store,ticket);
     const view = await this.toView(ticket.profileKey, c, state, store);
     this.assertTicket(ticket);
     this.assertView(view, ticket);
@@ -765,15 +823,14 @@ export class AgentHost implements AgentAPI {
     this.assertTicket(ticket);
     const tasks: AgentTaskView[] = [];
     for (const process of store.processes) {
-      let c: Case | undefined;
-      try { c = this.desktop.findCase(process.scope.caseId); }
+      let c: CaseReplyView | undefined;
+      try { c = this.desktop.replyCase(process.scope.caseId); }
       catch { continue; }
-      if (processKeyOf(c) !== process.scope.processKey) continue;
       for (const job of process.jobs) {
         tasks.push({
-          caseId: c.id,
-          caseNumber: c.number,
-          caseTitle: c.title,
+          caseId: c.identity.id,
+          caseNumber: c.identity.number,
+          caseTitle: c.identity.title,
           processKey: process.scope.processKey,
           discussionId: job.discussionId,
           runId: job.runId,
@@ -799,14 +856,14 @@ export class AgentHost implements AgentAPI {
     this.assertTicket(ticket);
     this.assertView(view, ticket);
     this.emit(view);
-    if(command.type==='strategy'&&command.startDraft){const started=await this.startRunAlreadyLocked(ticket,caseId,{type:'run',action:'draft',discussionId:view.process.mainDiscussionId,userMessage:command.userMessage,queueId:command.queueId});this.emit(started);return started;}
+    if(command.type==='strategy'&&command.startDraft){const started=await this.startRunAlreadyLocked(ticket,caseId,{type:'run',action:'draft',discussionId:view.process.mainDiscussionId,userMessage:command.userMessage,queueId:command.queueId});this.assertView(started,ticket);this.emit(started);return started;}
     return view;
   }
 
   private async queueAlreadyLocked(ticket:RequestTicket,caseId:string,command:Extract<AgentCommand,{type:'queue'}>):Promise<AgentCaseView>{
     this.assertTicket(ticket);this.desktop.assertNotMigrating();
-    const store=await this.loadStore(ticket.profileKey),c=this.desktop.findCase(caseId);
-    const state=await this.ensureProcess(store,c);
+    const store=await this.loadStore(ticket.profileKey),c=this.desktop.replyCase(caseId);
+    const state=await this.ensureProcess(store,c,ticket);
     const discussion=state.discussions.find(d=>d.id===command.discussionId&&!d.archived);
     if(!discussion)throw new Error('讨论不存在或已归档。');
     if(!['add','edit','remove','send'].includes(command.operation))throw new Error('队列操作无效。');
@@ -824,26 +881,27 @@ export class AgentHost implements AgentAPI {
       if(command.operation==='remove')discussion.queuedMessages=discussion.queuedMessages.filter(q=>q.id!==entry.id);
       else if(command.operation==='edit'){if(!command.text?.trim())throw new Error('内容不能为空。');entry.text=command.text.trim();entry.error=undefined;}
       else if(command.operation==='send'){
-        if(state.activeRunId||this.live.has(caseId))throw new Error('请等待当前任务完成。');
+        if(state.activeRunId||this.live.has(this.liveKey(ticket.profileKey,caseId)))throw new Error('请等待当前任务完成。');
         return this.deliverQueuedAlreadyLocked(ticket,c,state,store,discussion.id,entry.id);
       }
     }
-    this.putProcess(store,state);await this.persistStore(ticket.profileKey,store);
+    this.assertTicket(ticket);this.putProcess(store,state);await this.persistStore(ticket.profileKey,store,ticket);
     return this.toView(ticket.profileKey,c,state,store);
   }
 
-  private async deliverQueuedAlreadyLocked(ticket:RequestTicket,c:Case,state:AgentProcessState,store:AgentStore,discussionId:string,id:string):Promise<AgentCaseView>{
+  private async deliverQueuedAlreadyLocked(ticket:RequestTicket,c:CaseReplyView,state:AgentProcessState,store:AgentStore,discussionId:string,id:string):Promise<AgentCaseView>{
     const discussion=state.discussions.find(d=>d.id===discussionId)!;
     const entry=discussion.queuedMessages!.find(q=>q.id===id)!;
     let command:AgentCommand;
     try{command=entry.purpose==='workflow'?workflowMessageCommand(state,discussionId,entry.text):{type:'run',action:'discuss',discussionId,userMessage:entry.text};if(command.type==='strategy'&&entry.analysisRunId!==state.analysis?.runId)throw new Error('策略来自新的分析，请查看后重新选定。');}
-    catch(e){entry.error=errorMessage(e);await this.persistStore(ticket.profileKey,store);return this.toView(ticket.profileKey,c,state,store);}
+    catch(e){this.assertTicket(ticket);entry.error=errorMessage(e);await this.persistStore(ticket.profileKey,store,ticket);return this.toView(ticket.profileKey,c,state,store);}
     if(command.type==='run'||command.type==='conversation'||command.type==='strategy')command={...command,queueId:id};
-    try{return await this.commandAlreadyLocked(ticket,c.id,command);}
+    try{return await this.commandAlreadyLocked(ticket,c.identity.id,command);}
     catch(e){
-      const latest=this.findProcess(store,c.id,state.scope.processKey)??state;
+      const latest=this.findProcess(store,c.identity.id,state.scope.processKey)??state;
       const pending=latest.discussions.find(d=>d.id===discussionId)?.queuedMessages?.find(q=>q.id===id);
-      if(pending){pending.error=errorMessage(e);await this.persistStore(ticket.profileKey,store);}
+      this.assertTicket(ticket);
+      if(pending){pending.error=errorMessage(e);await this.persistStore(ticket.profileKey,store,ticket);}
       return this.toView(ticket.profileKey,c,latest,store);
     }
   }
@@ -852,9 +910,9 @@ export class AgentHost implements AgentAPI {
     this.assertTicket(ticket);
     this.desktop.assertNotMigrating();
     const store = await this.loadStore(ticket.profileKey);
-    const c = this.desktop.findCase(caseId);
-    let state = await this.ensureProcess(store, c);
-    const scope = { caseId: c.id, processKey: state.scope.processKey };
+    const c = this.desktop.replyCase(caseId);
+    let state = await this.ensureProcess(store, c,ticket);
+    const scope = { caseId: c.identity.id, processKey: state.scope.processKey };
     if (processKeyOf(c) !== state.scope.processKey) throw new Error(STALE_SCOPE);
     if (command.type === 'opened') { state = structuredClone(state); state.openedAt ??= new Date().toISOString(); }
     else if (command.type === 'clearConversation') {
@@ -868,7 +926,7 @@ export class AgentHost implements AgentAPI {
     else if (command.type === 'manageDiscussion') state = unwrap(manageDiscussion(state, { ...scope, ...command }));
     else if (command.type === 'discussion') state = unwrap(openDiscussion(state, { ...scope, title: command.title }));
     else if (command.type === 'stop') {
-      const live = this.live.get(c.id);
+      const live = this.live.get(this.liveKey(ticket.profileKey,c.identity.id));
       if (command.runId && live && live.runId !== command.runId) throw new Error('当前活动任务已变更，已拒绝过期结果。');
       if (live) this.abortLive(live);
       else state = unwrap(stopAgentJob(state, { ...scope, runId: command.runId }));
@@ -881,11 +939,11 @@ export class AgentHost implements AgentAPI {
       if(!source)throw new Error('历史稿件不存在。');
       if(source.strategyId&&source.strategyId!==state.userSelectedStrategyId)throw new Error('该历史稿件属于其他策略，请先核对策略。');
       state=structuredClone(state);
-      const restored={...structuredClone(source),id:randomUUID(),at:new Date().toISOString(),basedOnVersionId:source.id,adoptStatus:'pending' as const,sourceSharedDraftHash:c.sharedDraftHash??''};
+      const restored={...structuredClone(source),id:randomUUID(),at:new Date().toISOString(),basedOnVersionId:source.id,adoptStatus:'pending' as const,sourceSharedDraftHash:c.manuscripts.sharedDraftHash??''};
       state.drafts.push(restored);
-      state=await this.adoptAlreadyLocked(ticket.profileKey,c,state,restored.id);
+      state=await this.adoptAlreadyLocked(ticket,c,state,restored.id);
     }
-    else if (command.type === 'adopt') state = await this.adoptAlreadyLocked(ticket.profileKey, c, state, command.versionId);
+    else if (command.type === 'adopt') state = await this.adoptAlreadyLocked(ticket, c, state, command.versionId);
     else if (command.type === 'issues') state = unwrap(confirmReviewIssuesHandled(state, { ...scope, reviewId: command.reviewId, issueIds: command.issueIds, handled: command.handled }));
     else if(command.type==='correctionContents'){const d=currentDraft(state);if(!d)throw new Error('请先采用稿件。');state=unwrap(recordUserDraft(state,{...scope,text:d.text,correctionContents:validateCorrectionContents(command.items)}));}
     else if(command.type==='applicationParts'){const d=currentDraft(state);if(!d)throw new Error('请先采用稿件。');state=unwrap(recordUserDraft(state,{...scope,text:d.text,applicationParts:validateApplicationParts(command.parts)}));}
@@ -901,27 +959,27 @@ export class AgentHost implements AgentAPI {
         reviewNotes: command.reviewNotes ?? d.reviewNotes,
       }));
     }
-    else if (command.type === 'finalize') state = await this.finalizeAlreadyLocked(ticket.profileKey, c, state);
+    else if (command.type === 'finalize') state = await this.finalizeAlreadyLocked(ticket, c, state);
     else if (command.type === 'unfinalize') {
-      state = unwrap(unfinalizeProcess(state, { caseId: c.id, processKey: state.scope.processKey }));
+      state = unwrap(unfinalizeProcess(state, { caseId: c.identity.id, processKey: state.scope.processKey }));
       state = this.syncManualDraft(store, state, c);
     }
     else if (command.type === 'setStage') {
-      state = unwrap(setProcessStage(state, { caseId: c.id, processKey: state.scope.processKey, targetStage: command.stage }));
+      state = unwrap(setProcessStage(state, { caseId: c.identity.id, processKey: state.scope.processKey, targetStage: command.stage }));
     }
     else throw new Error('不支持的 Agent 命令。');
     this.assertTicket(ticket);
     this.putProcess(store, state);
-    await this.persistStore(ticket.profileKey, store);
+    await this.persistStore(ticket.profileKey, store,ticket);
     return this.toView(ticket.profileKey, c, state, store);
   }
 
   private async conversationAlreadyLocked(ticket: RequestTicket, caseId: string, command: Extract<AgentCommand, { type: 'conversation' }>): Promise<AgentCaseView> {
     this.assertTicket(ticket);
     const store = await this.loadStore(ticket.profileKey);
-    const c = this.desktop.findCase(caseId);
-    let state = await this.ensureProcess(store, c);
-    if (state.activeRunId || this.live.has(caseId)) throw new Error('当前任务尚未停止。');
+    const c = this.desktop.replyCase(caseId);
+    let state = await this.ensureProcess(store, c,ticket);
+    if (state.activeRunId || this.live.has(this.liveKey(ticket.profileKey,caseId))) throw new Error('当前任务尚未停止。');
     const discussion = state.discussions.find(d => d.id === command.discussionId);
     if (!discussion || discussion.archived) throw new Error('讨论不存在或已归档。');
     const message = discussion.messages.find(m => m.id === command.messageId);
@@ -943,26 +1001,26 @@ export class AgentHost implements AgentAPI {
       fork.toolEvents = fork.toolEvents.filter(t => !excluded.has(t.runId));
     } else userMessage = `继续上次中断的任务：${userMessage}${command.text?.trim() ? '\n用户补充：' + command.text.trim() : ''}`;
     this.putProcess(store, state);
-    await this.persistStore(ticket.profileKey, store);
+    this.assertTicket(ticket);await this.persistStore(ticket.profileKey, store,ticket);
     return this.startRunAlreadyLocked(ticket, caseId, { type: 'run', action: job.action, discussionId: discussion.id, userMessage, resumeFromRunId: job.runId,queueId:command.queueId });
   }
 
   private async startRunAlreadyLocked(ticket: RequestTicket, caseId: string, command: Extract<AgentCommand, { type: 'run' }>): Promise<AgentCaseView> {
     this.assertTicket(ticket);
     this.desktop.assertNotMigrating();
-    if (this.live.has(caseId)) throw new Error('同一案件已有进行中的任务，不能并行启动。');
+    if (this.live.has(this.liveKey(ticket.profileKey,caseId))) throw new Error('同一案件已有进行中的任务，不能并行启动。');
     const workRoot = this.desktop.workspace.settings.workRoot;
     if (!workRoot) throw new Error('请先选择总工作文件夹。');
     const store = await this.loadStore(ticket.profileKey);
-    const c = this.desktop.findCase(caseId);
-    let state = await this.ensureProcess(store, c);
-    const scope = { caseId: c.id, processKey: state.scope.processKey };
+    const c = this.desktop.replyCase(caseId);
+    let state = await this.ensureProcess(store, c,ticket);
+    const scope = { caseId: c.identity.id, processKey: state.scope.processKey };
     if (processKeyOf(c) !== state.scope.processKey) throw new Error(STALE_SCOPE);
     const recovery = command.resumeFromRunId ? state.jobs.find(j => j.runId === command.resumeFromRunId && j.discussionId === command.discussionId && j.action === command.action && j.state !== 'running') : undefined;
     if (command.resumeFromRunId && !recovery) throw new Error('恢复来源任务无效。');
     const formal = command.action !== 'discuss';
-    const kind = currentWork(c).kind;
-    if (formal && (!editableCurrent(c) || (kind !== 'reply' && kind !== 'correction') || !isReplyClassified(state.classification))) {
+    const kind = c.stage.current.kind;
+    if (formal && (!c.stage.editable || (kind !== 'reply' && kind !== 'correction') || !isReplyClassified(state.classification))) {
       throw new Error('当前案件不能启动正式答复任务。');
     }
     let discussionId = command.discussionId;
@@ -1015,17 +1073,17 @@ export class AgentHost implements AgentAPI {
       const failed = failAgentJob(state, { ...scope, runId: job.runId, error: errorMessage(error) });
       if (failed.ok) {
         this.putProcess(store, failed.state);
-        delete store.partialText[storeKey(c.id, state.scope.processKey)];
+        delete store.partialText[storeKey(c.identity.id, state.scope.processKey)];
         await this.persistStore(ticket.profileKey, store);
       }
       throw error instanceof Error ? error : new Error(errorMessage(error));
     };
-    this.preparation(ticket,c.id,'materials');
+    this.preparation(ticket,c.identity.id,'materials');
     try {
       await diagnosticStage('host','materials',{caseId,runId:job.runId},async()=>{
       for (const item of selected) {
         if (!item.relativePath || isUnsafePath(item.relativePath)) continue;
-        const abs = await this.desktop.casePath(c.id, item.relativePath);
+        const abs = await this.desktop.casePath(c.identity.id, item.relativePath);
         await assertNoSymlinkAncestors(this.desktop.workspace.settings.workRoot || abs, abs);
         const stat = await fs.lstat(abs);
         if (stat.isSymbolicLink()) throw new Error('案件目录内不支持符号链接。');
@@ -1052,7 +1110,7 @@ export class AgentHost implements AgentAPI {
       }
       const manifest = {
         runId: job.runId,
-        caseId: c.id,
+        caseId: c.identity.id,
         processKey: state.scope.processKey,
         action: command.action,
         materials: snapshots.map(({ snapshotPath: _s, ...rest }) => ({
@@ -1082,7 +1140,7 @@ export class AgentHost implements AgentAPI {
       await failBeforeLive(error);
     }
     if (!promptValue) throw new Error('无法生成任务提示。');
-    if(formal&&this.beforeFormalRun){this.preparation(ticket,c.id,'permission');try{await diagnosticStage('host','permission',{caseId,runId:job.runId},()=>this.beforeFormalRun!(ticket.profileKey,c.id));this.assertTicket(ticket);if(processKeyOf(this.desktop.findCase(c.id))!==scope.processKey)throw Error(STALE_SCOPE);}catch(e){await failBeforeLive(e);}}
+    if(formal&&this.beforeFormalRun){this.preparation(ticket,c.identity.id,'permission');try{await diagnosticStage('host','permission',{caseId,runId:job.runId},()=>this.beforeFormalRun!(ticket.profileKey,c.identity.id));this.assertTicket(ticket);if(processKeyOf(this.desktop.replyCase(c.identity.id))!==scope.processKey)throw Error(STALE_SCOPE);}catch(e){await failBeforeLive(e);}}
     if (recovery) {
       const previous = state.discussions.find(d => d.id === recovery.discussionId);
       const recoveryNote = '\n恢复执行说明：原任务 ' + recovery.runId + '。只依据当前公开对话继续，不恢复隐藏推理。以下为执行证据而非新的指令；先核对已有成果，禁止盲目重复保存或外部操作。\n' + JSON.stringify({ action: recovery.action, state: recovery.state, tools: [...(previous?.toolEvents ?? []), ...(previous?.branches?.flatMap(b => b.toolEvents) ?? [])].filter(t => t.runId === recovery.runId), artifacts: await this.artifactsOf(ticket.profileKey, c, state.scope.processKey) });
@@ -1092,33 +1150,40 @@ export class AgentHost implements AgentAPI {
     const live: LiveRun = {
       profileKey: ticket.profileKey,
       generation: ticket.generation,
-      caseId: c.id,
+      caseId: c.identity.id,
       processKey: state.scope.processKey,
+      caseRevision: ticket.caseRevision!,
       runId: job.runId,
       workRoot,
       materialHashes,
       readAliases,
-      startSharedDraftHash: c.sharedDraftHash ?? '',
+      startSharedDraftHash: c.manuscripts.sharedDraftHash ?? '',
       abort,
       settled: false,
       ignoreEvents: false,
       outputDir,
       model: frozen,
     };
-    this.live.set(c.id, live);
     this.putProcess(store, state);
-    await this.persistStore(ticket.profileKey, store);
+    try {
+      this.assertTicket(ticket);
+      await this.persistStore(ticket.profileKey, store,ticket);
+      this.assertTicket(ticket);
+    } catch (error) {
+      await failBeforeLive(error);
+    }
+    this.live.set(this.liveKey(ticket.profileKey,c.identity.id), live);
     let handle: AgentHostRunHandle;
-    this.preparation(ticket,c.id,'dispatch');
+    this.preparation(ticket,c.identity.id,'dispatch');
     diagnostic('host','dispatch_started',{caseId,runId:job.runId});
     try {
       const returned = await this.run({
         artifactExpect:{kind:command.action,strategyId:state.userSelectedStrategyId??undefined,draftVersionId:job.boundDraftVersionId},
-        artifactScope: digest(JSON.stringify([c.id,live.processKey,materialHashes])),
+        artifactScope: digest(JSON.stringify([c.identity.id,live.processKey,materialHashes])),
         validateArtifact: raw => this.enqueue(async () => {
           if (!this.liveScopeStillValid(live) || abort.signal.aborted) return '任务范围已变化或已停止，不能完成。';
           const currentStore = await this.loadStore(ticket.profileKey);
-          const current = this.findProcess(currentStore, c.id, live.processKey);
+          const current = this.findProcess(currentStore, c.identity.id, live.processKey);
           if (!current) return '当前办理阶段已不存在。';
           const parsed = parseAgentArtifact(raw, {kind: command.action, strategyId: current.userSelectedStrategyId ?? undefined, draftVersionId: job.boundDraftVersionId});
           if (!parsed.ok) return parsed.error;
@@ -1127,7 +1192,7 @@ export class AgentHost implements AgentAPI {
           return checked.ok ? undefined : checked.error;
         }),
         runId: job.runId,
-        caseId: c.id,
+        caseId: c.identity.id,
         processKey: state.scope.processKey,
         action: command.action,
         discussionId: conversationId,
@@ -1209,13 +1274,14 @@ export class AgentHost implements AgentAPI {
         }
       }
       // C#4: streaming partial/thinking stay in-memory; flush on activity/tool boundary or terminal.
-      if (event.type === 'activity') await this.persistStore(live.profileKey, store);
-      if (this.liveScopeStillValid(live)) this.emit(await this.toView(live.profileKey, this.desktop.findCase(live.caseId), state, store));
+      if (event.type === 'activity') await this.persistStore(live.profileKey, store,this.liveTicket(live));
+      if (this.liveScopeStillValid(live)) await this.emitLive(live,this.desktop.replyCase(live.caseId),state,store);
       return;
     }
     if (event.type === 'tool') {
       if (!this.liveScopeStillValid(live)) return;
       const store = await this.loadStore(live.profileKey);
+      if (!this.liveScopeStillValid(live)) return;
       const state = this.findProcess(store, live.caseId, live.processKey);
       if (!state) return;
       const next = recordToolEvent(state, {
@@ -1233,8 +1299,8 @@ export class AgentHost implements AgentAPI {
       const job = next.state.jobs.find(j => j.runId === live.runId);
       if (job) { job.lastActivityAt = new Date().toISOString(); job.activity = event.status === 'started' ? '正在执行工具' : '等待模型响应'; }
       this.putProcess(store, next.state);
-      await this.persistStore(live.profileKey, store);
-      if (this.liveScopeStillValid(live)) this.emit(await this.toView(live.profileKey, this.desktop.findCase(live.caseId), next.state, store));
+      await this.persistStore(live.profileKey, store,this.liveTicket(live));
+      if (this.liveScopeStillValid(live)) await this.emitLive(live,this.desktop.replyCase(live.caseId),next.state,store);
     }
   }
 
@@ -1257,13 +1323,13 @@ export class AgentHost implements AgentAPI {
         catch {
           live.settled = true;
           live.ignoreEvents = true;
-          this.live.delete(live.caseId);
+          if(this.live.get(this.liveKey(live.profileKey,live.caseId))===live)this.live.delete(this.liveKey(live.profileKey,live.caseId));
         }
       }
     }
   }
 
-  private async emitTerminal(live: LiveRun, store: AgentStore, state: AgentProcessState | undefined, c: Case | undefined): Promise<void> {
+  private async emitTerminal(live: LiveRun, store: AgentStore, state: AgentProcessState | undefined, c: CaseReplyView | undefined): Promise<void> {
     const job=state?.jobs.find(j=>j.runId===live.runId);
     diagnostic('host','terminal',{runId:live.runId,state:job?.state,...(job?.error?diagnosticError(new Error(job.error)): {})});
     if (state) preserveInterruptedOutput(state, live.runId);
@@ -1292,19 +1358,19 @@ export class AgentHost implements AgentAPI {
         if (state) this.putProcess(store, state);
       }
       // Do not clear live: in-memory terminal state must stay visible for UI/recovery.
-      this.live.set(live.caseId, live);
+      if(!this.live.has(this.liveKey(live.profileKey,live.caseId))||this.live.get(this.liveKey(live.profileKey,live.caseId))===live)this.live.set(this.liveKey(live.profileKey,live.caseId), live);
       const canEmitFailed = !!c && !!state && this.liveScopeStillValid(live, c);
       if (canEmitFailed) {
-        try { this.emit(await this.toView(live.profileKey, c!, state!, store)); }
+        try { await this.emitLive(live,c!,state!,store); }
         catch (error) { diagnostic('host','terminal_delivery_failed',{runId:live.runId,...diagnosticError(error)}); }
       }
       throw new Error(`${TERMINAL_PERSIST_UNSAVED}：${errorMessage(persistError)}`);
     }
     delete live.persistAlert;
-    this.live.delete(live.caseId);
+    if(this.live.get(this.liveKey(live.profileKey,live.caseId))===live)this.live.delete(this.liveKey(live.profileKey,live.caseId));
     const canEmit = !!c && !!state && this.liveScopeStillValid(live, c);
     if (!canEmit) return;
-    try { this.emit(await this.toView(live.profileKey, c!, state!, store)); }
+    try { await this.emitLive(live,c!,state!,store); }
     catch(error) {diagnostic('host','terminal_delivery_failed',{runId:live.runId,...diagnosticError(error)});}
   }
 
@@ -1315,8 +1381,8 @@ export class AgentHost implements AgentAPI {
     live.ignoreEvents = true;
     // live stays until emitTerminal persists successfully (or marks 状态未落盘).
     const store = await this.loadStore(live.profileKey);
-    let c: Case | undefined;
-    try { if (this.desktop.key === live.profileKey) c = this.desktop.findCase(live.caseId); }
+    let c: CaseReplyView | undefined;
+    try { if (this.desktop.key === live.profileKey) c = this.desktop.replyCase(live.caseId); }
     catch { c = undefined; }
     let state = this.findProcess(store, live.caseId, live.processKey);
     if (state) {
@@ -1335,8 +1401,8 @@ export class AgentHost implements AgentAPI {
     live.ignoreEvents = true;
     // live stays until emitTerminal persists successfully (or marks 状态未落盘).
     const store = await this.loadStore(live.profileKey);
-    let c: Case | undefined;
-    try { if (this.desktop.key === live.profileKey) c = this.desktop.findCase(live.caseId); }
+    let c: CaseReplyView | undefined;
+    try { if (this.desktop.key === live.profileKey) c = this.desktop.replyCase(live.caseId); }
     catch { c = undefined; }
     let state = this.findProcess(store, live.caseId, live.processKey);
     const profileChanged = this.desktop.key !== live.profileKey || this.desktop.generation !== live.generation;
@@ -1411,16 +1477,17 @@ export class AgentHost implements AgentAPI {
     if(!this.shuttingDown&&this.liveScopeStillValid(live,c)){
       const discussion=state.discussions.find(d=>d.id===job.discussionId&&!d.archived);
       const queued=discussion?.queuedMessages?.find(q=>q.branchId===(discussion.activeBranchId??'original')&&!q.error);
-      if(discussion&&queued){const next=await this.deliverQueuedAlreadyLocked({profileKey:live.profileKey,generation:live.generation},c,state,store,discussion.id,queued.id);this.emit(next);}
+      if(discussion&&queued){const ticket=this.liveTicket(live);const next=await this.deliverQueuedAlreadyLocked(ticket,c,state,store,discussion.id,queued.id);this.assertView(next,ticket);this.emit(next);}
     }
   }
 
-  private async writeOnce(root: string, relativePath: string, content: string): Promise<string> {
+  private async writeOnce(root: string, relativePath: string, content: string, guard:()=>void): Promise<string> {
+    guard();
     const portablePath = portable(relativePath);
     const abs = await managedPath(root, portablePath, true);
     await assertNoSymlinkAncestors(root, abs);
     try {
-      await fs.writeFile(abs, content, { mode: 0o600, flag: 'wx' });
+      await atomicCreate(abs, content, guard);
       return portablePath;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
@@ -1430,14 +1497,16 @@ export class AgentHost implements AgentAPI {
     }
   }
 
-  private async publishRunFiles(live: LiveRun, c: Case, state: AgentProcessState, artifact: JobArtifact, version?: DraftVersion): Promise<void> {
-    if (!c.directory) return;
-    const root = await this.desktop.casePath(c.id);
-    const proc = processFolder(c, live.processKey);
+  private async publishRunFiles(live: LiveRun, c: CaseReplyView, state: AgentProcessState, artifact: JobArtifact, version?: DraftVersion): Promise<void> {
+    const guard=()=>{this.desktop.assertMigrationNotAccepted();if(!this.liveScopeStillValid(live))throw new Error(STALE_SCOPE);};
+    guard();
+    if (!c.identity.hasDirectory) return;
+    const root = await this.desktop.casePath(c.identity.id);
+    const proc = this.desktop.caseProcessFolder(c.identity.id, live.processKey);
     const relDir = path.join('02_工作稿', proc, datedFolder(({draft:'起草稿件',revise:'修订稿件',review:'独立复核',analysis:'材料分析',discuss:'策略讨论'} as Record<string,string>)[artifact.kind]??'办理结果',live.runId));
     const files: SharedRunIndex['files'] = [];
     const write = async (name: string, kind: string, title: string, content: string, versionId?: string) => {
-      const relativePath = await this.writeOnce(root, path.join(relDir, name), content);
+      const relativePath = await this.writeOnce(root, path.join(relDir, name), content, guard);
       files.push({ relativePath, hash: digest(content), kind, title, at: new Date().toISOString(), versionId });
     };
     if (artifact.kind === 'draft' || artifact.kind === 'revise') {
@@ -1454,7 +1523,7 @@ export class AgentHost implements AgentAPI {
     }
     const index: SharedRunIndex = {
       schema: 1,
-      caseId: c.id,
+      caseId: c.identity.id,
       profileKey: live.profileKey,
       processKey: live.processKey,
       runId: live.runId,
@@ -1462,16 +1531,20 @@ export class AgentHost implements AgentAPI {
       files,
     };
     const indexRel = portable(path.join('04_内部说明', `agent-run-${live.runId}.json`));
-    await atomicJSON(await managedPath(root, indexRel, true), index);
+    await atomicJSON(await managedPath(root, indexRel, true), index, guard);
   }
 
-  private async adoptAlreadyLocked(profileKey: string, c: Case, state: AgentProcessState, versionId: string): Promise<AgentProcessState> {
+  private async adoptAlreadyLocked(ticket: RequestTicket, c: CaseReplyView, state: AgentProcessState, versionId: string): Promise<AgentProcessState> {
+    const profileKey=ticket.profileKey;
+    this.assertTicket(ticket);
+    const scope = { profileKey, scopeVersion: ticket.generation, caseId: c.identity.id, processKey: ticket.processKey!, caseRevision: ticket.caseRevision };
     const version = state.drafts.find(item => item.id === versionId);
     if (!version) throw new Error('没有可采用的稿件版本。');
-    const liveHash = c.sharedDraftHash ?? '';
+    const liveHash = c.manuscripts.sharedDraftHash ?? '';
     const expected = version.sourceSharedDraftHash ?? state.expectedSharedDraftHash ?? '';
     if (liveHash !== expected) throw new Error('共享稿哈希不一致，已保留待核对产物，未覆盖用户稿。');
     const incoming = await this.caseMaterials(c);
+    this.assertTicket(ticket);
     const selected = incoming.filter(item => state.materials.some(existing => existing.selected && existing.id === item.id));
     if (state.confirmedMaterialFingerprint) {
       const fp = selected.map(item => `${item.id}\0${item.hash ?? ''}\0${item.relativePath ?? ''}`).sort().join('\n');
@@ -1479,58 +1552,45 @@ export class AgentHost implements AgentAPI {
     }
     if (processKeyOf(c) !== state.scope.processKey) throw new Error(STALE_SCOPE);
     let next = unwrap(adoptDraft(state, {
-      caseId: c.id,
+      caseId: c.identity.id,
       processKey: state.scope.processKey,
       versionId,
       sharedDraftHash: liveHash,
       expectedSharedDraftHash: state.expectedSharedDraftHash,
     }));
-    const workspace = structuredClone(this.desktop.workspace) as Workspace;
-    const target = workspace.cases.find(item => item.id === c.id);
-    if (!target) throw new Error('当前账号没有该案件。');
-    if (target.localDraft && target.localDraft !== version.text) {
-      const keepId = randomUUID();
-      target.localVersions = [...(target.localVersions ?? []), { id: keepId, text: target.localDraft, at: new Date().toISOString(), processId: currentWork(c).processId }];
-      const scope = { profileKey, scopeVersion: this.desktop.generation, caseId: c.id, processKey: state.scope.processKey };
-      await this.desktop.save(profileKey, workspace, scope);
-      const again = structuredClone(this.desktop.workspace) as Workspace;
-      const row = again.cases.find(item => item.id === c.id)!;
-      row.localDraft = version.text;
-      await this.desktop.save(profileKey, again, scope);
-      next = { ...next, expectedSharedDraftHash: this.desktop.findCase(c.id).sharedDraftHash };
-    } else {
-      target.localDraft = version.text;
-      await this.desktop.save(profileKey, workspace, { profileKey, scopeVersion: this.desktop.generation, caseId: c.id, processKey: state.scope.processKey });
-      next = { ...next, expectedSharedDraftHash: this.desktop.findCase(c.id).sharedDraftHash };
-    }
+    const savedHash=await this.desktop.saveManuscript({...scope,root:ticket.workRoot||undefined},version.text,liveHash);
+    this.assertTicket(ticket);
+    next={...next,expectedSharedDraftHash:savedHash};
     const store = this.stores.get(profileKey);
     if (store) {
-      const key = storeKey(c.id, state.scope.processKey);
-      store.lastObservedHash[key] = this.desktop.findCase(c.id).sharedDraftHash ?? '';
+      const key = storeKey(c.identity.id, state.scope.processKey);
+      store.lastObservedHash[key] = this.desktop.replyCase(c.identity.id).manuscripts.sharedDraftHash ?? '';
       store.lastObservedText[key] = version.text;
     }
     return next;
   }
 
-  private async finalizeAlreadyLocked(profileKey: string, c: Case, state: AgentProcessState): Promise<AgentProcessState> {
-    const next = unwrap(finalizeProcess(state, { caseId: c.id, processKey: state.scope.processKey }));
+  private async finalizeAlreadyLocked(ticket: RequestTicket, c: CaseReplyView, state: AgentProcessState): Promise<AgentProcessState> {
+    const profileKey=ticket.profileKey,guard=()=>this.assertTicket(ticket);
+    guard();
+    const next = unwrap(finalizeProcess(state, { caseId: c.identity.id, processKey: state.scope.processKey }));
     const draft = currentDraft(next);
-    if (!draft || !c.directory) return next;
+    if (!draft || !c.identity.hasDirectory) return next;
     if(draft.applicationParts===undefined)throw new Error('请先核对本次修改文件正文；未修改也需要明确保存。');
-    const root = await this.desktop.casePath(c.id);
-    const proc = processFolder(c, state.scope.processKey);
+    const root = await this.desktop.casePath(c.identity.id);
+    const proc = this.desktop.caseProcessFolder(c.identity.id, state.scope.processKey);
     const versionId = randomUUID();
     const relDir = path.join('03_定稿', proc, datedFolder('用户定稿',versionId));
     const files: SharedRunIndex['files'] = [];
     const templateRoot=path.join(this.rulesRoot,'..','document-templates');
-    const writeWord=async(name:string,kind:string,bytes:Buffer)=>{const relativePath=portable(path.join(relDir,name+'.docx'));await fs.writeFile(await managedPath(root,relativePath,true),bytes,{flag:'wx',mode:0o600});files.push({relativePath,hash:digest(bytes),kind,title:name,at:new Date().toISOString(),versionId:draft.id});return relativePath;};
+    const writeWord=async(name:string,kind:string,bytes:Buffer)=>{guard();const relativePath=portable(path.join(relDir,name+'.docx'));await atomicCreate(await managedPath(root,relativePath,true),bytes,guard);files.push({relativePath,hash:digest(bytes),kind,title:name,at:new Date().toISOString(),versionId:draft.id});return relativePath;};
     const reply=state.classification.status==='classified'&&state.classification.noticeCategory==='审查意见通知书';
     let main:string|undefined;
     if(reply)main=await writeWord('意见陈述书','final-word',await exportReplyDocx(templateRoot,draft.text,state.classification.officeActionRound||1));
     else{
       if(!draft.correctionContents?.length)throw new Error('请先准备并核对逐条补正字段。');
-      const content=JSON.stringify({schema:1,caseId:c.id,processKey:state.scope.processKey,draftVersionId:draft.id,FormCode:100006,CorrectionContentList:validateCorrectionContents(draft.correctionContents).map((row,Sort)=>({...row,ChangeId:randomUUID(),Sort})),note:'本地补正字段记录，不作为附件上传。用户只核对文件名称、具体位置、补正前和补正后；其余表单信息由程序读取并保留贝思兰德数据。'},null,2);
-      const relativePath=await this.writeOnce(root,path.join(relDir,'补正表单.json'),content);files.push({relativePath,hash:digest(content),kind:'final-correction-form',title:'补正表单（字段记录）',at:new Date().toISOString(),versionId:draft.id});
+      const content=JSON.stringify({schema:1,caseId:c.identity.id,processKey:state.scope.processKey,draftVersionId:draft.id,FormCode:100006,CorrectionContentList:validateCorrectionContents(draft.correctionContents).map((row,Sort)=>({...row,ChangeId:randomUUID(),Sort})),note:'本地补正字段记录，不作为附件上传。用户只核对文件名称、具体位置、补正前和补正后；其余表单信息由程序读取并保留贝思兰德数据。'},null,2);
+      const relativePath=await this.writeOnce(root,path.join(relDir,'补正表单.json'),content,guard);files.push({relativePath,hash:digest(content),kind:'final-correction-form',title:'补正表单（字段记录）',at:new Date().toISOString(),versionId:draft.id});
     }
     for(const [part,text]of Object.entries(draft.applicationParts!))await writeWord(APPLICATION_PART_LABELS[part as keyof typeof APPLICATION_PART_LABELS],'final-application-'+part,await exportApplicationParts(templateRoot,{[part]:text}));
     await writeWord('修改依据','final-basis',await exportNoteDocx(templateRoot,'修改依据',draft.amendmentBasis||'本次未修改申请文件。'));
@@ -1538,7 +1598,7 @@ export class AgentHost implements AgentAPI {
     next.finalized!.word=reply?{generated:true,status:'generated',relativePath:main,message:'已按确认模板生成意见陈述书及本次修改部分的 Word，内部说明分别保存。'}:{generated:false,status:'not-required',message:'补正内容已保存为逐条字段，提交页核对后写入补正表；本次修改的申请文件已生成 Word。'};
     const index: SharedRunIndex = {
       schema: 1,
-      caseId: c.id,
+      caseId: c.identity.id,
       profileKey,
       processKey: state.scope.processKey,
       runId: `final-${versionId}`,
@@ -1546,7 +1606,7 @@ export class AgentHost implements AgentAPI {
       files,
     };
     const indexRel = portable(path.join('04_内部说明', `agent-final-${versionId}.json`));
-    await atomicJSON(await managedPath(root, indexRel, true), index);
+    await atomicJSON(await managedPath(root, indexRel, true), index, guard);
     return next;
   }
 }

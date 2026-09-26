@@ -9,11 +9,12 @@ import { TaskCenter } from '../components/TaskCenter.tsx';
 import { AgentTasks } from '../components/AgentTasks.tsx';
 import { SettingsPage } from '../components/SettingsPage.tsx';
 import { Empty } from '../components/Primitives.tsx';
-import { desktop } from '../desktop.ts';
+import { agentProcessKey, desktop } from '../desktop.ts';
 import type { DesktopState } from '../desktop.ts';
-import type { Action, Case, Workspace } from '../domain/workflow.ts';
+import type { Case, Workspace } from '../domain/workflow.ts';
 import { currentRoute, internalTransferAvailable } from '../domain/lifecycle.ts';
 import { FEATURE_MODULE_BY_ID } from './features.ts';
+import type { CaseNavigationTarget } from './navigation.ts';
 import type { DesktopScope } from './scope.ts';
 
 type PageContentProps = {
@@ -21,14 +22,13 @@ type PageContentProps = {
   tab: CaseTab;
   item?: Case;
   module?: Module;
-  requestedRoundId?: string;
+  requestedTarget?: CaseNavigationTarget;
   settingsSection?: string;
   data: Workspace;
   nativeState?: DesktopState;
   refresh?: (state: DesktopState) => void;
-  onOpenCase: (item: Case, tab?: CaseTab, roundId?: string) => void;
+  onOpenCase: (item: Case, tab?: CaseTab, target?: CaseNavigationTarget) => void;
   onUpdateCase: (id: string, patch: Partial<Case>, scope?: DesktopScope) => Promise<void>;
-  onDispatch: (caseId: string, roundId: string, action: Action) => void;
   onArchive: (ids: string[], archived: boolean) => void;
   onImport: () => void;
   onSaveSettings: (settings: Workspace['settings']) => Promise<Workspace['settings']>;
@@ -39,27 +39,27 @@ export function PageContent({
   tab,
   item,
   module,
-  requestedRoundId,
+  requestedTarget,
   settingsSection,
   data,
   nativeState,
   refresh,
   onOpenCase,
   onUpdateCase,
-  onDispatch,
   onArchive,
   onImport,
   onSaveSettings,
 }: PageContentProps) {
   if (item) {
     return <CaseSpace
-      key={`${nativeState?.profileKey ?? 'preview'}-${nativeState?.scopeVersion ?? 0}-${item.id}-${requestedRoundId ?? ''}`}
-      requestedRoundId={requestedRoundId}
+      key={JSON.stringify([nativeState?.profileKey,nativeState?.scopeVersion,item.id,nativeState?.caseRevisions[item.id],agentProcessKey(item),requestedTarget])}
+      requestedTarget={requestedTarget}
       item={item}
       tab={tab}
       profileKey={nativeState?.profileKey}
       scopeVersion={nativeState?.scopeVersion}
-      navigate={nextTab => onOpenCase(item, nextTab)}
+      caseRevision={nativeState?.caseRevisions[item.id] ?? 0}
+      navigate={(nextTab, target) => onOpenCase(item, nextTab, target)}
       updateCase={(patch, scope) => onUpdateCase(item.id, patch, scope)}
     />;
   }
@@ -71,23 +71,23 @@ export function PageContent({
   if (page === 'tasks') {
     if (desktop && nativeState) {
       return <AgentTasks
-        key={nativeState.profileKey}
+        key={`${nativeState.profileKey}:${nativeState.scopeVersion}`}
         profileKey={nativeState.profileKey}
-        open={(id, nextTab) => {
+        open={(id, nextTab, target) => {
           const found = data.cases.find(caseItem => caseItem.id === id);
-          if (found) onOpenCase(found, nextTab);
+          if (found) onOpenCase(found, nextTab,target);
         }}
       />;
     }
     return <>
       <p className="quiet-banner">浏览器预览中的示例任务，仅供查看界面。</p>
-      <TaskCenter cases={data.cases} open={onOpenCase} dispatch={onDispatch}/>
+      <TaskCenter cases={data.cases} open={onOpenCase}/>
     </>;
   }
 
   if (page === 'transfer' && desktop && nativeState) {
     return <LocalWorkflow
-      key={nativeState.profileKey}
+      key={`${nativeState.profileKey}:${nativeState.scopeVersion}`}
       profileKey={nativeState.profileKey}
       cases={data.cases}
       open={caseItem => onOpenCase(caseItem, internalTransferAvailable(caseItem) ? 'submit' : ['reply', 'correction'].includes(caseItem.current?.kind ?? '') ? 'discussion' : currentRoute(caseItem) as CaseTab)}
@@ -96,11 +96,12 @@ export function PageContent({
 
   if (page === 'review' && desktop && nativeState) {
     return <ReviewQueue
+      key={`${nativeState.profileKey}:${nativeState.scopeVersion}`}
       profileKey={nativeState.profileKey}
-      open={(id, source) => {
-        const found = data.cases.find(caseItem => caseItem.id === id);
-        if (found) onOpenCase(found, 'review', source);
-      }}
+      open={(id, source, target) => {
+          const found = data.cases.find(caseItem => caseItem.id === id);
+          if (found) onOpenCase(found, target?'history':'review', target??{ sourceId: source });
+        }}
     />;
   }
 
@@ -120,7 +121,7 @@ export function PageContent({
 
   if (page === 'status') {
     return <CaseOutcomeCenter
-      key={nativeState?.profileKey ?? 'preview'}
+      key={`${nativeState?.profileKey ?? 'preview'}:${nativeState?.scopeVersion??0}`}
       cases={data.cases}
       profileKey={nativeState?.profileKey}
       refresh={refresh}

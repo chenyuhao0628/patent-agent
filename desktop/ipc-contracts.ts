@@ -294,11 +294,15 @@ export function ipcDesktopScope(value: unknown): DesktopScope {
   if ((record.caseId === undefined) !== (record.processKey === undefined)) {
     throw new Error('桌面作用域无效。');
   }
+  if (record.caseRevision !== undefined && (!Number.isSafeInteger(record.caseRevision) || Number(record.caseRevision) < 0)) {
+    throw new Error('桌面作用域无效。');
+  }
   return {
     profileKey,
     scopeVersion: record.scopeVersion as number,
     caseId: record.caseId === undefined ? undefined : ipcCaseId(record.caseId),
     processKey: record.processKey === undefined ? undefined : ipcProcessId(record.processKey),
+    ...(record.caseRevision === undefined ? {} : { caseRevision: record.caseRevision as number }),
   };
 }
 

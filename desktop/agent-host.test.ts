@@ -308,6 +308,65 @@ test('A-B-A 世代变化拒绝迟到结果；运行中人工稿可保存', async
   assert.ok(view.process.drafts.some(item => item.text === '运行中人工修改') || service.findCase(a.id).localDraft === '运行中人工修改');
 });
 
+test('案件级 Agent history returns prior process states without account-wide tasks', async t => {
+  const { service, host } = await setup(t);
+  const c = await prepareCase(service, 'HISTORY-1');
+  const first = await host.getCase('local', c.id);
+  service.findCase(c.id).current = { kind: 'reply', roundId: 'reply-history' };
+  await host.getCase('local', c.id);
+  const history = await host.history('local', c.id);
+  assert.deepEqual(new Set(history.map(state => state.scope.processKey)), new Set([first.processKey, 'reply-history']));
+  assert.equal(history.every(state => state.scope.caseId === c.id), true);
+});
+
+test('案件级 Agent history is read-only and does not create the current process', async t => {
+  const { service, host, root } = await setup(t);
+  const c = await prepareCase(service, 'HISTORY-READ');
+  assert.deepEqual(await host.history('local', c.id), []);
+  await assert.rejects(fs.access(path.join(root, 'profiles', 'local', 'agent', 'state.json')), /ENOENT/);
+});
+
+test('current round materials take precedence over same-ID common copies in views and frozen task inputs',async t=>{
+  const {service,host,ctl}=await setup(t);
+  const c=await prepareCase(service,'ROUND-MATERIAL');
+  const material=c.materials![0];
+  const copy=await service.files().writeMaterial(c,'01_通知与材料','updated-notice','current.txt',Buffer.from('Current round notice'));
+  c.rounds[0].materials=c.rounds[0].materials.map(m=>m.id===material.id?{...m,name:'current.txt',relativePath:copy.relativePath}:m);
+  const view=await host.getCase('local',c.id);
+  assert.equal(view.process.materials.filter(m=>m.id===material.id).length,1);
+  assert.equal(view.process.materials.find(m=>m.id===material.id)?.relativePath,copy.relativePath);
+  await readyAnalysis(host,c.id,[material.id]);
+  await host.command('local',c.id,{type:'run',action:'discuss',userMessage:'Check the current notice'});
+  await host.waitIdle();
+  const frozen=ctl.last!.materials.find(m=>m.name==='current.txt');
+  assert.ok(frozen);
+  assert.equal(await fs.readFile(frozen.snapshotPath,'utf8'),'Current round notice');
+});
+
+test('initial task persistence failure never reserves a live slot or prevents retry', async t => {
+  const { service, host, ctl } = await setup(t);
+  const c = await prepareCase(service, 'START-PERSIST');
+  await readyAnalysis(host, c.id, ['n-START-PERSIST', 'a-START-PERSIST']);
+  const internal = host as unknown as {
+    persistStore: (...args: unknown[]) => Promise<void>;
+    live: Map<string, unknown>;
+  };
+  const failing = t.mock.method(internal, 'persistStore', async () => {
+    throw new Error('Synthetic disk failure before dispatch');
+  });
+  await assert.rejects(host.command('local', c.id, { type: 'run', action: 'analysis' }), /Synthetic disk failure/);
+  assert.equal(ctl.starts, 0);
+  assert.equal(internal.live.size, 0);
+  failing.mock.restore();
+  const failed = await host.getCase('local', c.id);
+  assert.equal(failed.busy, false);
+  assert.equal(failed.process.jobs.at(-1)?.state, 'failed');
+  await host.command('local', c.id, { type: 'run', action: 'analysis' });
+  await host.waitIdle();
+  assert.equal(ctl.starts, 1);
+  assert.equal((await host.getCase('local', c.id)).process.jobs.at(-1)?.state, 'completed');
+});
+
 test('策略门、独立复核、定稿 Word、采用冲突与成果索引隔离', async t => {
   const { service, host, root } = await setup(t);
   const c = await prepareCase(service, 'F1');
@@ -454,6 +513,36 @@ test('getCase 排队后 A-B-A 切回仍拒绝旧 generation，不泄漏旧 profi
   assert.equal(leaked.includes('other'), false);
   const view = await host.getCase('local', c.id);
   assert.equal(view.profileKey, 'local');
+});
+
+test('Agent toView rejects account ABA across model metadata await without emitting the stale view', async t=>{
+  const model=modelStub();
+  let entered!:()=>void,release!:()=>void;
+  const begun=new Promise<void>(resolve=>{entered=resolve;});
+  const held=new Promise<void>(resolve=>{release=resolve;});
+  const list=model.list;
+  model.list=async key=>{entered();await held;return list(key);};
+  const {service,host}=await setup(t,undefined,{model});
+  const c=await prepareCase(service,'VIEW-ABA');
+  let emitted=0;host.onState(()=>emitted++);
+  const pending=host.getCase('local',c.id);
+  const rejected=assert.rejects(pending,/账号已切换/);
+  await begun;
+  service.key='other';service.generation++;service.key='local';service.generation++;
+  release();await rejected;
+  assert.equal(emitted,0);
+});
+
+test('Agent history reports damaged storage instead of an empty history or replacing the file',async t=>{
+  const {service,host}=await setup(t),c=await prepareCase(service,'BROKEN');
+  const folder=path.join(service.root,'profiles/local/agent');await fs.mkdir(folder,{recursive:true});
+  const file=path.join(folder,'state.json');
+  await fs.writeFile(file,'{"schema":1,"processes":');
+  const bytes=await fs.readFile(file);
+  await assert.rejects(host.history('local',c.id),/原记录已保留/);
+  await assert.rejects(host.getCase('local',c.id),/原记录已保留/);
+  await assert.rejects(host.reviewSources('local',c.id),/原记录已保留/);
+  assert.deepEqual(await fs.readFile(file),bytes);
 });
 
 test('同账号同流程普通 save 不中断 Agent；profile/generation 变化才按账号 abort', async t => {
@@ -1150,7 +1239,7 @@ test('C#3: emitTerminal persist failure retries, keeps live, marks 状态未落�
   const job = emitted!.process.jobs[emitted!.process.jobs.length - 1];
   assert.ok(job.error?.includes('状态未落盘'), job.error);
   assert.equal(job.activity, '状态未落盘');
-  assert.equal(hostAny.live.get(c.id)?.persistAlert, '状态未落盘');
+  assert.equal(hostAny.live.get(JSON.stringify(['local',c.id]))?.persistAlert, '状态未落盘');
   const after = JSON.parse(await fs.readFile(statePath, 'utf8')) as {
     processes: Array<{ scope: { caseId: string }; activeRunId: string | null; jobs: Array<{ state: string }> }>;
   };
@@ -1391,5 +1480,3 @@ test('定稿 Word 文件在外部被修改后，artifactsOf 仍保留该产物�
 
   await host.shutdown();
 });
-
-

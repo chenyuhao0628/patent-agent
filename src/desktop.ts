@@ -161,11 +161,13 @@ export function agentProcessKey(item: Case): string {
 
 export function shouldAcceptAgentView(
   view: AgentCaseView,
-  expected: { profileKey: string; caseId: string; processKey: string },
+  expected: { profileKey: string; caseId: string; processKey: string; scopeVersion?:number; caseRevision?:number },
 ): boolean {
   return view.profileKey === expected.profileKey
     && view.caseId === expected.caseId
-    && view.processKey === expected.processKey;
+    && view.processKey === expected.processKey
+    && (expected.scopeVersion===undefined||view.scopeVersion===expected.scopeVersion)
+    && (expected.caseRevision===undefined||view.caseRevision===expected.caseRevision);
 }
 
 export function sanitizeAgentError(raw: string): string {

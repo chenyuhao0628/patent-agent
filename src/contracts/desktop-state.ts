@@ -83,8 +83,12 @@ export type FolderOrganizationReport = {
 export type DesktopState = {
   auth?: AuthState;
   profileKey: string;
+  /** Monotonic snapshot order, including updates within the same case stage. */
+  snapshotVersion: number;
   /** Monotonic desktop-session scope; UI caches must not cross this boundary. */
   scopeVersion: number;
+  /** Per-case stage generation; protects case writes from A-B-A stage switches. */
+  caseRevisions: Readonly<Record<string, number>>;
   account: Account | null;
   workspace: Workspace;
   sync: SyncState;
@@ -100,6 +104,8 @@ export type DesktopScope = {
   scopeVersion: number;
   caseId?: string;
   processKey?: string;
+  /** Captured case stage generation. New renderer writes include this value. */
+  caseRevision?: number;
 };
 
 export type FlowNode = {

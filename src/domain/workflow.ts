@@ -1,5 +1,6 @@
 import type { CaseDesign } from './designFlows.ts';
 import type { PriorArtState } from './prior-art.ts';
+import type { CaseIdentityRecord, CaseManuscriptsRecord, CaseMaterialsRecord, CaseOutcomeRecord, CaseStorageRecord, CaseTransferRecord } from './case-record.ts';
 import { currentWork, editableCurrent } from './lifecycle.ts';
 import type { CurrentWork } from './lifecycle.ts';
 export type Stage = 'materials' | 'strategy' | 'draft' | 'review' | 'final';
@@ -8,6 +9,7 @@ export type Message = { id: string; role: 'user' | 'assistant'; text: string };
 export type Discussion = { id: string; title: string; messages: Message[] };
 export type Version = { id: string; text: string; label: string; at: string };
 export type Material = { id: string; name: string; role: string; location: string; excerpt: string; ready: boolean; fileNo?:string; relativePath?:string };
+export type LocalVersion = { id: string; text: string; at: string; processId?: string };
 export type Round = {
   priorArt?: PriorArtState;
   id: string; name: string; stage: Stage; confirmed: boolean; materials: Material[];
@@ -25,8 +27,29 @@ export type RemoteProcess = {personalStatus?:number;canEdit?:boolean;procCode?:s
 // 官方结论只来自贝思兰德官文清单判读：已授权（办理登记手续通知书/专利证书）、已驳回（驳回决定）、未见结果（清单里没有结论类官文）。
 // 字段缺失表示尚未判读；「未见结果」不等于官方未授权，界面必须保留这一区分。
 export type OfficialOutcome = {state:'granted'|'rejected'|'none';noticeName?:string;noticeTypeCode?:string;postDate?:string;checkedAt:string;incomplete?:boolean};
-export type Case = { officialOutcome?:OfficialOutcome; remoteClosure?:{finished:boolean;checkedAt:string}; companyName?:string;caseRemark?:string;caseInfoAt?:string; id: string; title: string; number: string; type: string; deadline: string; archived: boolean; tags: string[]; rounds: Round[]; design?: CaseDesign; current?:CurrentWork; source?:'baseland'|'local'; materials?:Material[]; applicationNumber?:string; directory?:string; remote?:{caseId:string;processes:RemoteProcess[];syncedAt:string}; localDraft?:string; sharedDraftHash?:string; localVersions?:{id:string;text:string;at:string;processId?:string}[] };
+/** Flat compatibility shape for legacy sync, file adapters and renderer IPC. */
+export type Case = CaseIdentityRecord & CaseStorageRecord & {
+  current?: CurrentWork;
+  rounds: Round[];
+  materials?: CaseMaterialsRecord['common'];
+  localDraft?: CaseManuscriptsRecord['localDraft'];
+  localVersions?: CaseManuscriptsRecord['localVersions'];
+  sharedDraftHash?: CaseManuscriptsRecord['sharedDraftHash'];
+  design?: CaseDesign;
+  officialOutcome?: CaseOutcomeRecord['official'];
+  remoteClosure?: CaseOutcomeRecord['closure'];
+  remote?: {
+    caseId: NonNullable<CaseTransferRecord['remoteCaseId']>;
+    syncedAt: NonNullable<CaseTransferRecord['syncedAt']>;
+    processes: CaseTransferRecord['processes'];
+  };
+};
 export type Settings = {provider:string;baseUrl:string;model:string;originalLibrary?:string;workRoot?:string;sharedDirectory?:string;localDirectory?:string;templatePath?:string;extensions?:{id:string;name:string;kind:'技能'|'MCP';enabled:boolean}[];lastTransferRecipient?:{userId:string;userName?:string;stepId?:string}};
+/**
+ * `cases` remains the compatibility snapshot used by the current renderer and
+ * IPC contracts. Desktop persistence also stores the normalized domain
+ * records beside it; the renderer never receives that private migration field.
+ */
 export type Workspace = { schema: 1; cases: Case[]; settings: Settings };
 export type Action =
   | { type: 'confirm'; value: boolean }

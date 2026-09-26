@@ -54,7 +54,7 @@ test('partial text stays on the active job discussion', () => {
     activeRunId: 'run-1',
     jobs: [{ runId: 'run-1', discussionId: 'main', action: 'discuss', state: 'running', startedAt: '2026-01-01' }],
   });
-  const view = { profileKey: 'alice', caseId: 'c1', processKey: 'p1', process: state, busy: true, partialText: 'STREAM', artifacts: [] };
+  const view = { profileKey: 'alice', scopeVersion:0, caseRevision:0, caseId: 'c1', processKey: 'p1', process: state, busy: true, partialText: 'STREAM', artifacts: [] };
   assert.equal(desktop.partialTextForDiscussion(view, 'main'), 'STREAM');
   assert.equal(desktop.partialTextForDiscussion(view, 'rev'), undefined);
   assert.equal(desktop.reviseRunDiscussionId(state), 'main');
@@ -91,11 +91,19 @@ test('non-formal discussion can pick materials even when readonly or finalized',
 
 test('late agent views from another processKey are discarded', () => {
   const expected = { profileKey: 'alice', caseId: 'c1', processKey: 'p-new' };
-  const stale = { profileKey: 'alice', caseId: 'c1', processKey: 'p-old', process: process({ scope: { caseId: 'c1', processKey: 'p-old' } }), busy: true, partialText: 'OLD', artifacts: [{ id: 'a', title: '旧成果', kind: 'draft', relativePath: 'old.txt', at: '2026-01-01' }] };
-  const fresh = { profileKey: 'alice', caseId: 'c1', processKey: 'p-new', process: process({ scope: { caseId: 'c1', processKey: 'p-new' } }), busy: false, artifacts: [] };
+  const stale = { profileKey: 'alice', scopeVersion:0, caseRevision:0, caseId: 'c1', processKey: 'p-old', process: process({ scope: { caseId: 'c1', processKey: 'p-old' } }), busy: true, partialText: 'OLD', artifacts: [{ id: 'a', title: '旧成果', kind: 'draft', relativePath: 'old.txt', at: '2026-01-01' }] };
+  const fresh = { profileKey: 'alice', scopeVersion:0, caseRevision:0, caseId: 'c1', processKey: 'p-new', process: process({ scope: { caseId: 'c1', processKey: 'p-new' } }), busy: false, artifacts: [] };
   assert.equal(desktop.shouldAcceptAgentView(stale, expected), false);
   assert.equal(desktop.shouldAcceptAgentView(fresh, expected), true);
   assert.equal(desktop.partialTextForDiscussion(stale, 'main'), undefined);
+});
+
+test('agent event delivery rejects account and case-stage ABA generations',()=>{
+  const view={profileKey:'alice',scopeVersion:4,caseRevision:2,caseId:'c1',processKey:'p1',process:process(),busy:false,artifacts:[]};
+  const expected={profileKey:'alice',caseId:'c1',processKey:'p1',scopeVersion:4,caseRevision:2};
+  assert.equal(desktop.shouldAcceptAgentView(view,expected),true);
+  assert.equal(desktop.shouldAcceptAgentView({...view,scopeVersion:2},expected),false);
+  assert.equal(desktop.shouldAcceptAgentView({...view,caseRevision:0},expected),false);
 });
 
 test('discussion job alert uses latest job on that discussion only and sanitizes secrets', () => {
@@ -133,7 +141,7 @@ test('agentProcessKey matches host processId/roundId/local-kind', () => {
 });
 
 test('sendAgentMessage restores text on failure', async () => {
-  const view = { profileKey: 'alice', caseId: 'c1', processKey: 'p', process: process(), busy: false, artifacts: [] };
+  const view = { profileKey: 'alice', scopeVersion:0, caseRevision:0, caseId: 'c1', processKey: 'p', process: process(), busy: false, artifacts: [] };
   const ok = {
     getCase: async () => view,
     command: async () => view,

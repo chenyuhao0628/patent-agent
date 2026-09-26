@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import JSZip from 'jszip';
-import { extractDocxContent, extractDocxParagraphs, getImageMime, bufferToDataUrl } from './files.ts';
+import { digest, extractDocxContent, extractDocxParagraphs, getImageMime, bufferToDataUrl } from './files.ts';
 import { TransferHost } from './transfer-host.ts';
 import * as fs from 'node:fs/promises';
 import path from 'node:path';
@@ -288,7 +288,7 @@ test('previewFile supports standalone image file preview', async t => {
   (host as any).sessions.get(v.id).files.reply = {
     name: '附图1.png',
     relativePath: '附图1.png',
-    hash: 'hash1',
+    hash: digest(SAMPLE_PNG),
   };
 
   const preview = await host.previewFile(service.key, v.id, { role: 'reply' });
@@ -296,4 +296,42 @@ test('previewFile supports standalone image file preview', async t => {
   assert.equal(preview.mediaType, 'image');
   assert.ok(preview.dataUrl?.startsWith('data:image/png;base64,'));
   assert.match(preview.content || '', /!\[附图1\.png\]\(data:image\/png;base64,/);
+});
+
+test('explicit preview identities never fall back or download files outside the session', async t => {
+  const { service, host, c, client } = await setup(t);
+  client.form={File:{FileNo:'owned-file',FileName:'本案.txt'}};
+  const view=await host.prepare(service.key,c.id);
+  let downloads=0;
+  client.download=async()=>{downloads++;return Buffer.from('本案材料');};
+  for(const ref of [{fileNo:'other-file'},{fileNo:'owned-file',name:'其他案.txt'},{name:'不存在.txt'},{role:'reply' as const},{partCode:'missing'}]){
+    await assert.rejects(host.previewFile(service.key,view.id,ref),/不存在|不属于|无法唯一/);
+  }
+  assert.equal(downloads,0);
+  const preview=await host.previewFile(service.key,view.id,{fileNo:'owned-file',name:'本案.txt'});
+  assert.equal(preview.content,'本案材料');
+  assert.equal(downloads,1);
+});
+
+test('preview rejects changed copies and account/process ABA during download or extraction', async t => {
+  const { service, host, c, client, root } = await setup(t);
+  client.form={File:{fileNo:'owned-file',name:'本案.txt'}};
+  let view=await host.prepare(service.key,c.id);
+  const source=path.join(root,'reply.docx');
+  await fs.copyFile(path.resolve('resources/document-templates/reply.docx'),source);
+  view=await host.addFile(service.key,view.id,'reply',source);
+  await fs.writeFile(await service.casePath(c.id,view.files[0].relativePath),'changed');
+  await assert.rejects(host.previewFile(service.key,view.id,{role:'reply'}),/副本已经变化/);
+  client.download=async()=>{service.generation+=2;return Buffer.from('late');};
+  await assert.rejects(host.previewFile(service.key,view.id,{fileNo:'owned-file'}),/作用域已变化/);
+  service.generation-=2;
+  client.download=async()=>Buffer.from('content');
+  const original=(host as any).generateFilePreview.bind(host);
+  (host as any).generateFilePreview=async(...args:unknown[])=>{
+    const result=await original(...args);
+    (service as any).bumpCaseRevision(c.id);
+    (service as any).bumpCaseRevision(c.id);
+    return result;
+  };
+  await assert.rejects(host.previewFile(service.key,view.id,{fileNo:'owned-file'}),/重新切换/);
 });

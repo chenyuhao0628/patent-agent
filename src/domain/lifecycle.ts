@@ -1,6 +1,6 @@
-import type { Case, RemoteProcess, Submission, Workspace } from './workflow.ts';
+import type { Case, RemoteProcess, Round, Submission, Workspace } from './workflow.ts';
 import { applyCaseDeadline, mergeRemoteProcess } from './deadlines.ts';
-import { outcomeStatement } from './outcome.ts';
+import { hasOfficialOutcome, outcomeStatement } from './outcome.ts';
 import {
   stageVerdict, stageCurrentFields, INTERNAL_ENDED_WAIT_LABEL, OFFICIAL_PARTY,
   UNVERIFIED_INTERNAL_LABEL, UNVERIFIED_OFFICIAL_LABEL, WAITING_OFFICIAL_LABEL,
@@ -12,7 +12,21 @@ export {
 
 export type WorkKind = 'write' | 'reply' | 'correction' | 'review' | 'waiting' | 'external' | 'needs-confirmation';
 export type CurrentWork = { kind: WorkKind; roundId?: string; processId?: string; label?: string; remoteStatus?: number; node?: string; party?: string; handler?: string };
-export type HistoryRecord = { id: string; title: string; detail: string; text: string };
+export type CaseLifecycleFacts = Pick<Case, 'current' | 'archived' | 'remote' | 'source' | 'remoteClosure' | 'officialOutcome'> & {
+  rounds: Array<Pick<Round, 'id' | 'name' | 'stage' | 'job'>>;
+  design?: { writing: { disclosure: string; finalVersionId: string | null }; review?: { source: string } | null };
+};
+export type HistoryTarget = {
+  tab?: 'discussion' | 'reply' | 'write' | 'review' | 'history' | 'outputs' | 'submit';
+  roundId?: string;
+  processId?: string;
+  discussionId?: string;
+  sourceId?: string;
+  runId?: string;
+  historyId?: string;
+};
+export type HistoryFileReference = { kind:'professional'; caseId:string; processId:string; name:string; relativePath:string };
+export type HistoryRecord = { id: string; title: string; detail: string; text: string; target?: HistoryTarget; files?:HistoryFileReference[] };
 export const workNames: Record<WorkKind,string> = {write:'专利撰写',reply:'审查意见答复',correction:'补正',review:'独立审查',waiting:'等待后续通知',external:'系统流程', 'needs-confirmation':'当前阶段待核对'};
 export function processBusinessKind(name:string):'write'|'reply'|'correction'|undefined {
   if(/^取消提出申请(?:$|[（(\s])/.test(name.trim()))return undefined;
@@ -23,7 +37,7 @@ export function processBusinessKind(name:string):'write'|'reply'|'correction'|un
   return undefined;
 }
 
-export function processSubmission(c:Case):Submission|undefined {
+export function processSubmission(c:CaseLifecycleFacts):Submission|undefined {
   const id=currentWork(c).processId;
   if(!id)return undefined;
   const p=(c.remote?.processes??[]).find(p=>p.id===id);
@@ -59,7 +73,7 @@ function officialWaitingFields(processId:string,status:number,label?:string):Cur
 
 
 // Legacy prototype data is retained; conflicting parallel work is never silently selected.
-export function currentWork(c: Case): CurrentWork {
+export function currentWork(c: CaseLifecycleFacts): CurrentWork {
   if (c.current) return c.current;
   const writing = !!c.design?.writing.disclosure;
   const independent = !!c.design?.review && c.design.review.source !== 'writing';
@@ -70,16 +84,30 @@ export function currentWork(c: Case): CurrentWork {
   return r ? {kind:r.name.includes('补正')?'correction':'reply',roundId:r.id} : {kind:'waiting'};
 }
 export function activeRound(c:Case) { return c.rounds.find(r=>r.id===currentWork(c).roundId); }
-export function editableCurrent(c:Case) {
-  if(c.remoteClosure?.finished)return false;
+export function editableCurrent(c:CaseLifecycleFacts) {
+  if(c.remoteClosure?.finished||hasOfficialOutcome(c))return false;
   const w=currentWork(c),sub=processSubmission(c);
   if(isConfirmedOfficialSubmission(sub)||w.kind==='waiting')return false;
   const p=c.remote?.processes.find(p=>p.id===w.processId);
+  if(p?.canEdit===false)return false;
   return !c.archived && ['write','reply','correction','review'].includes(w.kind) && (w.remoteStatus === undefined || w.remoteStatus===0 || ([200,300,400].includes(w.remoteStatus)&&p?.canEdit===true));
 }
-export function internalTransferAvailable(c:Case){
+export function internalTransferAvailable(c:CaseLifecycleFacts){
+  if(c.remoteClosure?.finished||hasOfficialOutcome(c))return false;
   const w=currentWork(c),status=w.remoteStatus??c.remote?.processes.find(p=>p.id===w.processId)?.status;
-  return c.source==='baseland'&&!c.archived&&!!w.processId&&['write','reply','correction'].includes(w.kind)&&!isConfirmedOfficialSubmission(processSubmission(c))&&[0,200,300,400].includes(status??-1);
+  const p=c.remote?.processes.find(process=>process.id===w.processId);
+  return c.source==='baseland'&&!c.archived&&!!w.processId&&['write','reply','correction'].includes(w.kind)&&!isConfirmedOfficialSubmission(processSubmission(c))&&p?.canEdit!==false&&[0,200,300,400].includes(status??-1);
+}
+/** Observation timestamps and display labels do not start a new editing scope. */
+export function caseScopeFingerprint(c:CaseLifecycleFacts):string {
+  const work=currentWork(c);
+  const outcome=c.officialOutcome?.state;
+  return JSON.stringify([
+    c.source,c.remote?.caseId,work.kind,work.processId,work.roundId,
+    !!c.archived,!!c.remoteClosure?.finished,
+    outcome==='granted'||outcome==='rejected'?outcome:undefined,
+    editableCurrent(c),internalTransferAvailable(c),
+  ]);
 }
 function withoutJobs<T extends {job:unknown}>(rounds:T[]):T[] {
   return rounds.map(r=>r.job?{...r,job:null}:r);
@@ -105,13 +133,13 @@ export function applyOfficialWaiting(c:Case,processId:string):void {
   c.rounds=withoutJobs(c.rounds);
   applyCaseDeadline(c);
 }
-export function workModule(c:Case) { const k=currentWork(c).kind; return k==='correction'?'reply':k; }
-export function caseStatus(c:Case) {
+export function workModule(c:CaseLifecycleFacts) { const k=currentWork(c).kind; return k==='correction'?'reply':k; }
+export function caseStatus(c:CaseLifecycleFacts) {
   if(c.archived)return '已归档';
   // 官方结论已知时，案件不再停留在"等待官方"之类的过程文案上，直接显示结论本身。
   const statement=outcomeStatement(c);
   if(statement)return statement;
-  const w=currentWork(c),r=activeRound(c),sub=processSubmission(c),process=currentRemoteOf(c,w);
+  const w=currentWork(c),r=c.rounds.find(r=>r.id===w.roundId),sub=processSubmission(c),process=c.remote?.processes.find(p=>p.id===w.processId);
   const title=w.label??workNames[w.kind];
   if(c.source==='baseland'&&process&&!['queued','sending','failed'].includes(sub?.state??'')){
     if(sub&&isConfirmedOfficialSubmission(sub))return officialStatusLabel(sub);

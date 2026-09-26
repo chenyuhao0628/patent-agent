@@ -9,12 +9,14 @@ export type { AgentCommand } from './domain/agent-command.ts';
 
 export const AGENT_API_CONTRACT_VERSION = 1 as const;
 export type ClassificationSuggestion = { classification: import('./domain/agent.ts').OpenClassification; evidence: string[]; warnings: string[] };
-export type AgentPreparation={profileKey:string;caseId:string;processKey:string;step:'queued'|'preparing'|'materials'|'permission'|'dispatch'|'done'};
+export type AgentPreparation={profileKey:string;scopeVersion:number;caseId:string;caseRevision:number;processKey:string;step:'queued'|'preparing'|'materials'|'permission'|'dispatch'|'done'};
 
 export type AgentCaseView = {
   classificationSuggestion?: ClassificationSuggestion;
   profileKey: string;
+  scopeVersion: number;
   caseId: string;
+  caseRevision: number;
   processKey: string;
   process: AgentProcessState;
   busy: boolean;
@@ -44,6 +46,7 @@ export type AgentAPI = {
   onPreparation?: (callback:(event:AgentPreparation)=>void)=>()=>void;
   listProgress?: (profileKey: string) => Promise<import('./domain/local-progress.ts').LocalProgress[]>;
   getCase(profileKey: string, caseId: string): Promise<AgentCaseView>;
+  history?: (profileKey: string, caseId: string) => Promise<AgentProcessState[]>;
   reviewSources?: (profileKey: string, caseId?: string) => Promise<ReviewSource[]>;
   command(profileKey: string, caseId: string, command: AgentCommand): Promise<AgentCaseView>;
   listTasks(profileKey: string): Promise<AgentTaskView[]>;

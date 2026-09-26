@@ -15,10 +15,11 @@ import type {
 export type { DesktopEventPayloads, DesktopIpcChannels, IpcArgs, IpcChannel, IpcResult } from './ipc.ts';
 
 export type DesktopCaseAPI = {
-  saveWorkspace(key: string, workspace: import('../domain/workflow.ts').Workspace, scope: DesktopScope): Promise<void>;
+  saveWorkspace(key: string, workspace: import('../domain/workflow.ts').Workspace, scope: DesktopScope): Promise<DesktopState>;
   saveSettings(key: string, settings: Settings): Promise<DesktopState>;
   refreshShared(key: string): Promise<DesktopState>;
   sync(source?: 'manual' | 'focus'): Promise<DesktopState>;
+  refreshCase(key: string, caseId: string): Promise<{ state: DesktopState; flow: FlowView }>;
   createCase(input: { title: string; number: string; kind: 'write' | 'review' }): Promise<DesktopState>;
   caseInfo(key: string, caseId: string): Promise<DesktopState>;
   refreshCaseOutcomes(key: string): Promise<DesktopState>;

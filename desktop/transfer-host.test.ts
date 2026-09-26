@@ -50,6 +50,36 @@ test('inspect restores saved transfer session without network calls and preserve
   const submitted=await reopened.submit(service.key,inspected.id);
   assert.equal(submitted.phase,'submitted');
 });
+
+test('transfer history across past processes is read-only, isolated, and never creates an executable session',async t=>{
+  const {service,client,host,agent,c,source}=await setup(t);
+  let view=await host.prepare(service.key,c.id);
+  view=await host.addFile(service.key,view.id,'reply',source);
+  const journal=await service.casePath(c.id,`04_内部说明/transfer-${view.id}.json`),before=await fs.readFile(journal);
+  c.current={kind:'reply',processId:'later',remoteStatus:400};
+  const calls=client.calls.length;
+  const reader=new TransferHost(service,agent),history=await reader.history(service.key,c.id);
+  assert.equal(history.length,1);
+  assert.equal(history[0].processId,'proc-1');
+  assert.equal(client.calls.length,calls);
+  assert.deepEqual(await fs.readFile(journal),before);
+  assert.throws(()=>reader.requestScope(service.key,view.id),/过期/);
+  history[0].review.remark='not saved';
+  assert.deepEqual(await fs.readFile(journal),before);
+});
+
+test('damaged transfer journal is reported rather than replaced by a new session',async t=>{
+  const {service,client,host,agent,c}=await setup(t);
+  const view=await host.prepare(service.key,c.id);
+  const journal=await service.casePath(c.id,`04_内部说明/transfer-${view.id}.json`);
+  await fs.writeFile(journal,'{"schema":1,"view":');
+  const before=await fs.readFile(journal),calls=client.calls.length;
+  const reader=new TransferHost(service,agent);
+  await assert.rejects(reader.history(service.key,c.id));
+  await assert.rejects(reader.inspect(service.key,c.id));
+  assert.equal(client.calls.length,calls);
+  assert.deepEqual(await fs.readFile(journal),before);
+});
 test('revoke reverts saved transfer to draft, preserves user inputs, and supports clean re-save',async t=>{
   const {service,client,host,agent,c,source}=await setup(t);
   let v=await host.prepare(service.key,c.id);v=await host.addFile(service.key,v.id,'reply',source);
@@ -736,8 +766,7 @@ test('previewFile supports local file, remote download, and partCode preview',as
   assert.equal(partPreview.content,'1. 一种测试专利。');
 
   // Preview by remote fileNo
+  (host as any).sessions.get(v.id).remote.files.push({FileNo:'remote-f1',FileName:'远端文件.docx'});
   const remotePreview=await host.previewFile(service.key,v.id,{fileNo:'remote-f1',name:'远端文件.docx'});
   assert.equal(remotePreview.name,'远端文件.docx');
 });
-
-

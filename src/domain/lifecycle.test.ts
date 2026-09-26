@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { seedWorkspace, updateRound } from './workflow.ts';
 import type { Case, RemoteProcess } from './workflow.ts';
-import { caseStatus, currentWork, editableCurrent, effectiveSubmission, historyRecords, isConfirmedOfficialSubmission, INTERNAL_ENDED_WAIT_LABEL, normalizeCase, normalizeWorkspace, processSubmission, WAITING_OFFICIAL_LABEL, workModule } from './lifecycle.ts';
+import { caseScopeFingerprint, caseStatus, currentWork, editableCurrent, effectiveSubmission, historyRecords, internalTransferAvailable, isConfirmedOfficialSubmission, INTERNAL_ENDED_WAIT_LABEL, normalizeCase, normalizeWorkspace, processSubmission, WAITING_OFFICIAL_LABEL, workModule } from './lifecycle.ts';
 import { currentHandling } from './handling.ts';
 import { libraryStatus } from './library.ts';
 import { initialDesign } from './designFlows.ts';
@@ -37,6 +37,48 @@ function remoteCase(over: Partial<Case> = {}, processOver: Partial<RemoteProcess
     ...over,
   };
 }
+
+test('case scope fingerprint ignores refreshed metadata but retains stage, permission and conclusion boundaries',()=>{
+  const original=remoteCase({}, {submission:undefined}),stable=caseScopeFingerprint(original);
+  const refreshed=structuredClone(original);
+  refreshed.current!.label='Updated caption';
+  refreshed.current!.node='Updated node label';
+  refreshed.remote!.syncedAt='2026-09-26';
+  refreshed.remoteClosure={finished:false,checkedAt:'2026-09-26'};
+  refreshed.officialOutcome={state:'none',checkedAt:'2026-09-26',incomplete:true};
+  assert.equal(caseScopeFingerprint(refreshed),stable);
+  const changes:Array<(c:Case)=>void>=[
+    c=>{c.archived=true;},
+    c=>{c.current!.processId='p2';},
+    c=>{c.current!.roundId=undefined;},
+    c=>{c.current!.kind='waiting';},
+    c=>{c.remote!.processes[0].canEdit=false;},
+    c=>{c.remoteClosure={finished:true,checkedAt:'2026-09-26'};},
+    c=>{c.officialOutcome={state:'granted',checkedAt:'2026-09-26'};},
+    c=>{c.remote!.caseId='another-case';},
+  ];
+  for(const change of changes){
+    const next=structuredClone(original);change(next);
+    assert.notEqual(caseScopeFingerprint(next),stable);
+  }
+});
+
+test('official outcomes and case closure block editing and transfer without deleting drafts or auto-archiving',()=>{
+  const c=remoteCase({}, {submission:undefined});
+  assert.equal(editableCurrent(c),true);
+  assert.equal(internalTransferAvailable(c),true);
+  for(const state of ['granted','rejected'] as const){
+    const ended={...c,officialOutcome:{state,checkedAt:'2026-09-26'}};
+    assert.equal(editableCurrent(ended),false);
+    assert.equal(internalTransferAvailable(ended),false);
+    assert.equal(ended.archived,false);
+    assert.equal(ended.localDraft,c.localDraft);
+  }
+  const closed={...c,remoteClosure:{finished:true,checkedAt:'2026-09-26'}};
+  assert.equal(editableCurrent(closed),false);
+  assert.equal(internalTransferAvailable(closed),false);
+  assert.equal(editableCurrent({...c,officialOutcome:{state:'none',checkedAt:'2026-09-26'}}),true);
+});
 
 test('confirmed sent and receipt change current kind to waiting and keep process, round and draft', () => {
   const received = normalizeCase(remoteCase());
@@ -224,6 +266,8 @@ test('personal pending, own started work, next handler and completed are distinc
   const base=seedWorkspace().cases[0];
   const make=(status:number,canEdit?:boolean,user='陈雨浩')=>normalizeCase({...base,source:'baseland',archived:false,current:{kind:'write',processId:'p',remoteStatus:status},remote:{caseId:'c',syncedAt:'now',processes:[{id:'p',name:'提出申请',status,personalStatus:status,node:'',undertaker:'陈雨浩',deadline:'',canEdit,handId:status?'h':undefined,currentFlow:status?{name:user==='杨佳'?'递交官方':'开始',user}:undefined,submission:{state:'draft',source:'hand',checkedAt:'now'}}]}} as Case);
   assert.match(caseStatus(make(0)),/^待处理/);
+  assert.equal(editableCurrent(make(0,false)),false);
+  assert.equal(internalTransferAvailable(make(0,false)),false);
   const own=make(400,true);assert.equal(editableCurrent(own),true);assert.match(caseStatus(own),/递交中.*陈雨浩/);
   const handed=make(400,false,'杨佳');assert.equal(editableCurrent(handed),false);assert.match(libraryStatus(handed).short,/递交中.*杨佳/);
   assert.equal(editableCurrent(make(400,undefined)),false);

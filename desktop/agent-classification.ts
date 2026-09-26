@@ -1,4 +1,5 @@
 import type { Case } from '../src/domain/workflow.ts';
+import { projectReplyView, type CaseReplyView } from '../src/domain/case-view.ts';
 import type { OpenClassification } from '../src/domain/agent.ts';
 import { currentWork } from '../src/domain/lifecycle.ts';
 
@@ -20,9 +21,13 @@ function numberOf(text: string): number | undefined {
 }
 
 export function classificationSuggestion(c: Case, notices: Array<{ name: string; text: string; read?: boolean }> = []): ClassificationSuggestion {
-  const current = currentWork(c);
-  const proc = c.remote?.processes.find(p => p.id === current.processId);
-  const round = c.rounds.find(r => r.id === current.roundId || r.id === `proc-${current.processId}`);
+  return classificationSuggestionForView(projectReplyView(c), notices);
+}
+
+export function classificationSuggestionForView(c: CaseReplyView, notices: Array<{ name: string; text: string; read?: boolean }> = []): ClassificationSuggestion {
+  const current = c.stage.current;
+  const proc = c.processes.find(p => p.id === current.processId);
+  const round = c.manuscripts.replyRounds.find(r => r.id === current.roundId || r.id === `proc-${current.processId}`);
   const sources = [
     ...(proc ? [{ name: '贝思兰德当前流程', text: proc.name }] : []),
     ...(round ? [{ name: '当前通知轮次', text: round.name }] : []),
@@ -30,9 +35,9 @@ export function classificationSuggestion(c: Case, notices: Array<{ name: string;
   ];
   const evidence: string[] = [], warnings: string[] = [];
   const classification: OpenClassification = { status: 'unclassified' };
-  if (c.type === '发明' || c.type === '实用新型') {
-    classification.patentType = c.type;
-    evidence.push(`案件专利类型：${c.type}`);
+  if (c.identity.type === '发明' || c.identity.type === '实用新型') {
+    classification.patentType = c.identity.type;
+    evidence.push(`案件专利类型：${c.identity.type}`);
   } else warnings.push('案件未提供明确专利类型，请核对。');
   const categories = new Set<string>();
   const rounds = new Set<number>();
@@ -59,8 +64,8 @@ export function classificationSuggestion(c: Case, notices: Array<{ name: string;
   else if (classification.noticeCategory === '审查意见通知书') warnings.push('没有识别到明确的审查次数，请核对通知书。');
   if (classification.noticeCategory === '补正通知书') {
     classification.officeActionRound = 1;
-    const history = c.rounds.filter(r => r !== round && /审查意见/.test(r.name));
-    const completed = history.filter(r => r.final || r.finalHistory?.length || c.remote?.processes.find(p => r.id === `proc-${p.id}`)?.submission?.state === 'received');
+    const history = c.manuscripts.replyRounds.filter(r => r !== round && /审查意见/.test(r.name));
+    const completed = history.filter(r => r.final || r.finalHistory?.length || c.processes.find(p => r.id === `proc-${p.id}`)?.submission?.state === 'received');
     const candidates = completed.map(r => numberOf(r.name)).filter((n): n is number => !!n);
     classification.correctionBasis = candidates.length ? `round_${Math.max(...candidates)}` : 'original';
     evidence.push(candidates.length ? `补正基线建议：已有第 ${Math.max(...candidates)} 轮答复记录` : '补正基线建议：未见已完成答复记录，使用原始申请');

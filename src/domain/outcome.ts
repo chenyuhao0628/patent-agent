@@ -1,4 +1,5 @@
 import type { Case } from './workflow.ts';
+type OutcomeFacts = Pick<Case, 'source' | 'remote' | 'officialOutcome'>;
 
 // 官方结论（案件状态）：只表达贝思兰德官文清单判读出的官方结果。
 // 「未见结果」只说明清单里没有授权/驳回类官文，不等于官方未授权；「未判读」表示还没查过。
@@ -10,11 +11,11 @@ export const OUTCOME_ORDER: OutcomeView[] = ['rejected', 'granted', 'none', 'unk
 export const outcomeLabels: Record<OutcomeView, string> = { rejected: '已驳回', granted: '已授权', none: '未见结果', unknown: '未判读' };
 export const OUTCOME_SOURCE_NOTE = '结论来自贝思兰德官文清单：授权=办理登记手续通知书（200602）或专利证书，驳回=驳回决定（200305/210407/210408）。';
 
-export function outcomeApplies(c: Case): boolean {
+export function outcomeApplies(c: OutcomeFacts): boolean {
   return c.source === 'baseland' && !!c.remote;
 }
 
-export function outcomeView(c: Case): OutcomeView {
+export function outcomeView(c: OutcomeFacts): OutcomeView {
   return c.remote && c.officialOutcome ? c.officialOutcome.state : 'unknown';
 }
 
@@ -24,13 +25,13 @@ export function outcomeLabel(c: Case): string {
 
 // 只有授权/驳回才算「官方结果已到」。未见结果与未判读都不算：官文清单不是完整历史，
 // 没有查到结论不等于官方没有结论，这两类案件仍然按"等待官方"处理。
-export function hasOfficialOutcome(c: Case): boolean {
+export function hasOfficialOutcome(c: OutcomeFacts): boolean {
   const view = outcomeView(c);
   return outcomeApplies(c) && (view === 'granted' || view === 'rejected');
 }
 
 // 结论一句话，用于案件状态与流程显示：已授权 · 办理登记手续通知书（2026-09-14）。
-export function outcomeStatement(c: Case): string | undefined {
+export function outcomeStatement(c: OutcomeFacts): string | undefined {
   if (!hasOfficialOutcome(c)) return undefined;
   const outcome = c.officialOutcome!;
   const name = outcome.noticeName || (outcome.state === 'granted' ? '办理登记手续通知书' : '驳回决定');

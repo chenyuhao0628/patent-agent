@@ -5,12 +5,23 @@ import { BaselandAuthError } from './baseland.ts';
 import { readSharedCases } from './shared.ts';
 import * as fs from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 import { applyRemoteClosure, applySubmissionToCurrent, assignCurrentProcess, BaselandClient, isInternallyActiveProcess, mergePersonalRows, officialDate, profileKey, rowStamp, shouldQueryOfficial, SUBMISSION_REFRESH_ERROR } from './baseland.ts';
 import { applyCaseDeadline, mergeRemoteProcess } from '../src/domain/deadlines.ts';
-import { atomicJSON, CaseFiles, digest, managedPath, readJSON, safeName, validateRoots } from './files.ts';
-import { normalizeWorkspace, currentWork, editableCurrent } from '../src/domain/lifecycle.ts';
+import { atomicJSON, CaseFiles, digest, managedPath, processFolder, readJSON, safeName, validateRoots } from './files.ts';
+import { projectReplyView, projectProfessionalView, projectTransferView } from '../src/domain/case-view.ts';
+import { normalizeWorkspace, currentWork, editableCurrent, caseScopeFingerprint } from '../src/domain/lifecycle.ts';
 import { pauseRunning } from '../src/domain/workflow.ts';
 import type { Case, CurrentFlowInfo, RemoteProcess, Settings, Submission, Workspace } from '../src/domain/workflow.ts';
+import {
+  caseFromRecord,
+  caseRecordFromCase,
+  caseRecordsFromStoredWorkspace,
+  preserveRecordFields,
+  validLegacyCases,
+  type CaseRecord,
+  type StoredCaseWorkspace,
+} from '../src/domain/case-record.ts';
 import type { Account, DesktopState, FlowView, MigrationState, SyncState, StorageState } from '../src/desktop.ts';
 import type { DesktopScope } from '../src/contracts/desktop-state.ts';
 import {
@@ -25,7 +36,20 @@ import { organizeWorkFolders } from './work-folder-organizer.ts';
 export type Vault={available:()=>boolean;encrypt:(text:string)=>Buffer;decrypt:(data:Buffer)=>string};
 const empty=():Workspace=>({schema:1,cases:[],settings:{provider:'DeepSeek',baseUrl:'',model:''}});
 export type SyncOptions={source?:'manual'|'timer'|'focus'|'login'|'settings'|'startup';full?:boolean};
+export type OperationScope = DesktopScope & { root: string | undefined };
 type SyncSignals={processes:string;detailedAt:number};
+type StoredProfileWorkspace = Partial<StoredCaseWorkspace> & { cases?: Case[]; profile?: string };
+type ProfileLoad = {
+  workspace: Workspace;
+  needsPersist: boolean;
+  needsBackup: boolean;
+  unsafe: boolean;
+  message?: string;
+};
+
+function objectOf(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
+}
 // 官方递交状态缓存：在办流程 5 分钟，终态（已收到回执）1 小时。
 // 「15 分钟强制核验」不该击穿终态流程的缓存。实测本所账号 40 案 / 50 流程、24 条流程有递交实例：
 // 需要查官方状态的当前流程 22 个，其中 13 个已是「已收到回执」，每轮强制核验白刷 13 次
@@ -99,12 +123,124 @@ export class DesktopService {
   migrationState:MigrationState={running:false,phase:'idle',canCancel:false,message:''};
   migrationTestHook?:(phase:'beforeStaging'|'copying'|'verifying'|'beforePublish')=>void|Promise<void>;
   flowFileWrites=0;
+  private caseRevisions=new Map<string,number>();
+  private snapshotVersion=0;
   private persistGate:Promise<unknown>=Promise.resolve();
   private reauthTask?:Promise<boolean>;
   private reauthController?:AbortController;
   private savedCredentials?:{username:string;password:string};
+  private profileStorageUnsafe=false;
+  private profileRecords=new Map<string,CaseRecord[]>();
+  private profileExtras=new Map<string,Record<string,unknown>>();
   constructor(root:string,vault:Vault,clientFactory=(origin:string,token?:string)=>new BaselandClient(origin,token)) {this.root=root;this.vault=vault;this.clientFactory=clientFactory;}
-  profileFile(){return path.join(this.root,'profiles',this.key,'workspace.json');}
+  private resetCaseRevisions(cases=this.workspace.cases) {
+    const next=new Map(this.caseRevisions);
+    for(const c of cases)next.set(c.id,this.caseRevisions.get(c.id)??0);
+    this.caseRevisions=next;
+  }
+  caseRevisionOf(caseId:string){return this.caseRevisions.get(caseId)??0;}
+  private bumpCaseRevision(caseId:string){this.caseRevisions.set(caseId,this.caseRevisionOf(caseId)+1);}
+  private syncCaseRevisions(previous:Case[], next:Case[]) {
+    const old=new Map(previous.map(c=>[c.id,c]));
+    for(const c of next){
+      const before=old.get(c.id);
+      if(before)this.updateCaseRevision(c,caseScopeFingerprint(before));
+      if(!this.caseRevisions.has(c.id))this.caseRevisions.set(c.id,0);
+    }
+    for(const c of previous)if(!next.some(item=>item.id===c.id))this.bumpCaseRevision(c.id);
+  }
+  private updateCaseRevision(c:Case,previous:string){
+    if(previous!==caseScopeFingerprint(c))this.bumpCaseRevision(c.id);
+  }
+  profileFile(key=this.key){return path.join(this.root,'profiles',key,'workspace.json');}
+  private async loadProfileWorkspace(key:string):Promise<ProfileLoad>{
+    const file=this.profileFile(key);
+    const unsafe=(reason:string,workspace=empty()):ProfileLoad=>({
+      workspace,needsPersist:false,needsBackup:false,unsafe:true,
+      message:`本机案件记录未能安全读取（${reason}），原文件已保留；请先备份后再迁移。`,
+    });
+    let raw:unknown;
+    let exists=true;
+    try{raw=JSON.parse(await fs.readFile(file,'utf8'));}catch(e){
+      if((e as NodeJS.ErrnoException).code==='ENOENT'){
+        exists=false;
+        raw={schema:1,settings:empty().settings,cases:[]};
+      }else return unsafe('本机记录无法读取');
+    }
+    const stored=objectOf(raw) as StoredProfileWorkspace|undefined;
+    if(!stored||stored.schema!==1||!objectOf(stored.settings))return unsafe('工作区结构无效');
+    if(stored.profile!==undefined&&stored.profile!==key)return unsafe('账号工作区标识不匹配');
+    const rawSettings=stored?.settings;
+    const rawCases=stored?.cases;
+    const legacyValid=validLegacyCases(rawCases);
+    const legacy:Workspace={
+      schema:1,
+      cases:legacyValid?rawCases:[],
+      settings:typeof rawSettings==='object'&&rawSettings ? rawSettings as Settings : empty().settings,
+    };
+    let normalized:Workspace;
+    try{
+      normalized=normalizeWorkspace(pauseRunning(legacy));
+    }catch{return unsafe('旧版案件记录结构不完整');}
+    this.profileExtras.set(key,Object.fromEntries(Object.entries(stored).filter(([name])=>!['schema','profile','settings','cases','caseRecords','caseRecordsSchema','caseRecordsHash'].includes(name))));
+    const hasRecords=!!stored&&Object.prototype.hasOwnProperty.call(stored,'caseRecords');
+    if(!hasRecords){
+      if(!legacyValid)return unsafe('旧版案件记录结构不完整');
+      this.profileRecords.set(key,[]);
+      return {workspace:normalized,needsPersist:true,needsBackup:exists,unsafe:false};
+    }
+    const profileMatches=stored?.profile===key;
+    const records=caseRecordsFromStoredWorkspace(stored?.caseRecords);
+    const hashIsValid=Array.isArray(stored?.caseRecords)
+      && stored?.caseRecordsSchema===1
+      && typeof stored.caseRecordsHash==='string'
+      && !!stored.caseRecordsHash
+      && digest(JSON.stringify(stored.caseRecords))===stored.caseRecordsHash;
+    if(!profileMatches||!records||!hashIsValid){
+      const reason=!profileMatches?'账号工作区标识不匹配':!records?'案件领域记录结构不完整':'案件领域记录摘要校验失败';
+      // A damaged canonical envelope must never be replaced by a derived
+      // legacy projection on startup. The caller can still inspect the
+      // legacy snapshot, but the original bytes remain untouched.
+      return unsafe(reason,normalized);
+    }
+    if(rawCases!==undefined&&(!legacyValid||rawCases.length!==records.length||rawCases.some(c=>!records.some(r=>r.identity.id===c.id))))return unsafe('领域记录与兼容案件索引不完整或冲突',normalized);
+    if(legacyValid&&rawCases.some(c=>{
+      const record=records.find(r=>r.identity.id===c.id)!;
+      const canonical=caseRecordFromCase(caseFromRecord(record)),compatible=caseRecordFromCase(c);
+      return !isDeepStrictEqual(JSON.parse(JSON.stringify(canonical)),JSON.parse(JSON.stringify(compatible)));
+    }))return unsafe('领域记录与兼容稿件内容冲突',normalized);
+    this.profileRecords.set(key,records);
+    const rebuilt={
+      ...normalized,
+      cases:records.map(record=>{
+        const base=normalized.cases.find(candidate=>candidate.id===record.identity.id);
+        return normalizeWorkspace({
+          schema:1,
+          cases:[caseFromRecord(record,base)],
+          settings:normalized.settings,
+        }).cases[0];
+      }),
+    };
+    // Startup recovery pauses jobs from canonical records as well. The
+    // compatibility projection can never reintroduce running work.
+    return {
+      workspace:normalizeWorkspace(pauseRunning(rebuilt)),
+      needsPersist:stored.profile!==key,
+      needsBackup:stored.profile!==key,
+      unsafe:false,
+    };
+  }
+
+  private async backupLegacyProfileWorkspace(key=this.key):Promise<void>{
+    const source=this.profileFile(key);
+    try{await fs.access(source);}catch(e){if((e as NodeJS.ErrnoException).code==='ENOENT')return;throw e;}
+    const backup=path.join(path.dirname(source),`workspace.migration-backup.${randomUUID()}.json`);
+    try{
+      await fs.copyFile(source,backup,fs.constants.COPYFILE_EXCL);
+    }catch(e){
+      throw new Error(`本机案件记录迁移备份失败，未重写原文件：${(e as Error).message}`);
+    }
+  }
   async init(verify=true){
     const saved=await readJSON<{key:string;account:Account;encrypted:string;credentials?:string}|null>(path.join(this.root,'session.json'),null);
     if(saved){
@@ -122,8 +258,19 @@ export class DesktopService {
       }
       catch{this.account=null;this.key=saved.key;this.client=null;this.savedCredentials=undefined;this.auth={phase:'unreadable',message:'本机登录凭证无法读取，请重新登录；原账号案件记录已保留。',attempts:0};}
     }
-    this.workspace=normalizeWorkspace(pauseRunning(await readJSON(this.profileFile(),empty())));
-    if(this.workspace.settings.workRoot)await this.refreshShared(this.key);
+    const loaded=await this.loadProfileWorkspace(this.key);
+    this.workspace=loaded.workspace;
+    this.profileStorageUnsafe=loaded.unsafe;
+    if(loaded.unsafe){
+      this.storageState={running:false,message:loaded.message??'本机案件记录未能安全读取，原文件已保留。'};
+    }else if(loaded.needsBackup){
+      await this.backupLegacyProfileWorkspace(this.key);
+      await this.persist();
+    }else if(loaded.needsPersist){
+      await this.persist();
+    }
+    this.resetCaseRevisions();
+    if(this.workspace.settings.workRoot&&!loaded.unsafe)await this.refreshShared(this.key);
     if(this.client&&this.account){this.auth={phase:'verifying',message:'正在验证登录…',attempts:0};if(verify)await this.verifyLogin(true);}
   }
   async reauthorize():Promise<boolean>{
@@ -212,18 +359,51 @@ export class DesktopService {
     return this.state();
   }
   version='开发预览';
-  state():DesktopState {return structuredClone({profileKey:this.key,scopeVersion:this.generation,account:this.account,auth:this.auth,workspace:this.workspace,sync:this.syncState,storage:this.storageState,migration:this.migrationState,version:this.version,dataDirectory:path.join(this.root,'profiles',this.key)});}
-  assertNotMigrating(){if(this.migrationLock)throw new Error('正在迁移当前账号工作目录，无法进行该操作。');}
+  state():DesktopState {return structuredClone({profileKey:this.key,snapshotVersion:++this.snapshotVersion,scopeVersion:this.generation,caseRevisions:Object.fromEntries(this.caseRevisions),account:this.account,auth:this.auth,workspace:this.workspace,sync:this.syncState,storage:this.storageState,migration:this.migrationState,version:this.version,dataDirectory:path.join(this.root,'profiles',this.key)});}
+  assertWritable(){if(this.profileStorageUnsafe)throw new Error('本机案件领域记录未通过安全校验，未写入；请先备份并修复原文件。');}
+  assertNotMigrating(writing=true){if(writing)this.assertWritable();if(this.migrationLock)throw new Error('正在迁移当前账号工作目录，无法进行该操作。');}
   isWorkMigrationBusy(){return this.migrationLock||this.migrationQueued;}
-  assertMigrationNotAccepted(){if(this.isWorkMigrationBusy())throw new Error('正在迁移当前账号工作目录，无法进行该操作。');}
+  assertMigrationNotAccepted(writing=true){if(writing)this.assertWritable();if(this.isWorkMigrationBusy())throw new Error('正在迁移当前账号工作目录，无法进行该操作。');}
   markWorkMigrationQueued(){this.assertMigrationNotAccepted();this.migrationQueued=true;}
   clearWorkMigrationQueued(){this.migrationQueued=false;}
   abortWorkMigration(){this.migrationAbort?.abort();}
   setMigration(patch:Partial<MigrationState>){this.migrationState={...this.migrationState,...patch};this.changed();}
-  files(guard?:()=>void){return new CaseFiles(this.workspace.settings,this.key,true,guard);}
-  async persist(){await atomicJSON(this.profileFile(),structuredClone(this.workspace));}
+  files(guard?:()=>void){
+    this.assertWritable();
+    const key=this.key,generation=this.generation,root=this.workspace.settings.workRoot;
+    return new CaseFiles(this.workspace.settings,key,true,()=>{
+      this.assertWritable();this.assertKey(key);
+      if(generation!==this.generation||root!==this.workspace.settings.workRoot)throw new Error('账号或目录已变化，未写入迟到文件。');
+      guard?.();
+    });
+  }
+  private async writeWorkspace(
+    workspace:Workspace,
+    guard:()=>void=()=>{},
+    key=this.key,
+    generation=this.generation,
+  ){
+    if(this.profileStorageUnsafe)throw new Error('本机案件领域记录未通过安全校验，未写入；请先备份并修复原文件。');
+    const snapshot=structuredClone(workspace);
+    const previous=this.profileRecords.get(key);
+    const records=snapshot.cases.map(c=>preserveRecordFields(previous?.find(r=>r.identity.id===c.id),caseRecordFromCase(c)));
+    const hash=digest(JSON.stringify(records));
+    const stored:StoredCaseWorkspace={...this.profileExtras.get(key),schema:1,profile:key,settings:snapshot.settings,
+      caseRecords:records,caseRecordsSchema:1,caseRecordsHash:hash,cases:records.map(r=>caseFromRecord(r))};
+    const check=()=>{
+      guard();
+      if(key!==this.key||generation!==this.generation)throw new Error('账号或桌面作用域已变化，本次旧页面操作未保存。');
+    };
+    await atomicJSON(this.profileFile(key),stored,check);
+    check();this.profileRecords.set(key,records);
+  }
+  async persist(guard:()=>void=()=>{}){
+    if(this.profileStorageUnsafe)throw new Error('本机案件领域记录未通过安全校验，未写入；请先备份并修复原文件。');
+    const key=this.key,generation=this.generation,workspace=structuredClone(this.workspace);
+    await this.writeWorkspace(workspace,guard,key,generation);
+  }
   async login(input:{origin:string;username:string;password:string;remember:boolean}){
-    this.assertNotMigrating();
+    this.assertNotMigrating(false);
     if(this.loginBusy)throw new Error('正在登录，请稍候。');
     if(!input.username.trim()||!input.password.trim())throw new Error('请填写账号和密码。');
     this.loginBusy=true;
@@ -237,22 +417,26 @@ export class DesktopService {
       const client=this.clientFactory(input.origin),account=await client.login(input.username.trim(),input.password);
       if(generation!==this.generation)throw new Error('登录操作已取消。');
       const nextKey=profileKey(account.origin,account.username);
-      const nextWorkspace=normalizeWorkspace(pauseRunning(await readJSON(path.join(this.root,'profiles',nextKey,'workspace.json'),empty())));
+      const nextLoaded=await this.loadProfileWorkspace(nextKey);
       if(generation!==this.generation)throw new Error('登录操作已取消。');
       account.remembered=input.remember&&this.vault.available();
       const encrypted=account.remembered?this.vault.encrypt(client.token).toString('base64'):undefined;
       const credentials=account.remembered?this.vault.encrypt(JSON.stringify({username:input.username.trim(),password:input.password})).toString('base64'):undefined;
       this.savedCredentials=account.remembered?{username:input.username.trim(),password:input.password}:undefined;
-      await this.persist();
+      if(!this.profileStorageUnsafe)await this.persist();
       if(account.remembered)await atomicJSON(path.join(this.root,'session.json'),{key:nextKey,account,encrypted,credentials});
       else await fs.rm(path.join(this.root,'session.json'),{force:true});
       this.controller?.abort();this.generation++;this.verification=undefined;this.submissionCache.clear();this.caseClosureCache.clear();this.fileListCache.clear();this.syncSignals=undefined;
       this.persistGate=Promise.resolve();
       this.syncPreparing=false;
-      this.key=nextKey;this.client=client;this.client.onUnauthorized=()=>this.reauthorize();this.account=account;this.workspace=nextWorkspace;this.auth={phase:'authenticated',message:'登录已验证',attempts:0,lastCheckedAt:new Date().toISOString()};
+      this.key=nextKey;this.client=client;this.client.onUnauthorized=()=>this.reauthorize();this.account=account;this.workspace=nextLoaded.workspace;this.profileStorageUnsafe=nextLoaded.unsafe;this.caseRevisions.clear();this.resetCaseRevisions();this.auth={phase:'authenticated',message:'登录已验证',attempts:0,lastCheckedAt:new Date().toISOString()};
       this.syncState={running:false,message:'已登录，准备读取工作目录。'};
-      this.storageState={running:false,message:'请选择当前账号的总工作文件夹。'};
-      if(this.workspace.settings.workRoot)await this.refreshShared(this.key);
+      this.storageState={running:false,message:nextLoaded.message??'请选择当前账号的总工作文件夹。'};
+      if(!nextLoaded.unsafe){
+        if(nextLoaded.needsBackup)await this.backupLegacyProfileWorkspace(nextKey);
+        if(nextLoaded.needsPersist||nextLoaded.needsBackup)await this.persist();
+      }
+      if(this.workspace.settings.workRoot&&!nextLoaded.unsafe)await this.refreshShared(this.key);
       this.syncState={running:false,message:account.remembered?'已登录；仅同步当前账号负责的案件。':'已登录，本次凭证仅保留到退出应用。'};
       this.changed();return this.state();
     }finally{this.loginBusy=false;}
@@ -264,22 +448,33 @@ export class DesktopService {
   }
   private filesystemBusy(){return this.storageState.running||this.syncPreparing||this.syncState.running||this.flowFileWrites>0;}
   async logout(){
-    this.assertNotMigrating();
+    this.assertNotMigrating(false);
     this.reauthController?.abort();
     const pendingReauth=this.reauthTask;
     this.reauthTask=undefined;
     this.reauthController=undefined;
     if(pendingReauth)await pendingReauth.catch(()=>{});
-    this.generation++;this.verification=undefined;this.controller?.abort();this.submissionCache.clear();this.caseClosureCache.clear();this.fileListCache.clear();this.syncSignals=undefined;await this.persist();await fs.rm(path.join(this.root,'session.json'),{force:true});
+    this.generation++;this.verification=undefined;this.controller?.abort();this.submissionCache.clear();this.caseClosureCache.clear();this.fileListCache.clear();this.syncSignals=undefined;if(!this.profileStorageUnsafe)await this.persist();await fs.rm(path.join(this.root,'session.json'),{force:true});
     this.persistGate=Promise.resolve();
     this.syncPreparing=false;
-    this.client=null;this.account=null;this.savedCredentials=undefined;this.auth={phase:'signed-out',message:'已退出登录',attempts:0};this.key='local';this.workspace=await readJSON(this.profileFile(),empty());
-    this.syncState={running:false,message:'已退出账号。'};this.storageState={running:false,message:'请选择总工作文件夹。'};if(this.workspace.settings.workRoot)await this.refreshShared(this.key);
+    this.client=null;this.account=null;this.savedCredentials=undefined;this.auth={phase:'signed-out',message:'已退出登录',attempts:0};this.key='local';
+    const localLoaded=await this.loadProfileWorkspace(this.key);
+    this.workspace=localLoaded.workspace;
+    this.profileStorageUnsafe=localLoaded.unsafe;
+    this.caseRevisions.clear();this.resetCaseRevisions();
+    this.storageState={running:false,message:localLoaded.message??'请选择总工作文件夹。'};
+    if(!localLoaded.unsafe){
+      if(localLoaded.needsBackup)await this.backupLegacyProfileWorkspace(this.key);
+      if(localLoaded.needsPersist||localLoaded.needsBackup)await this.persist();
+    }
+    this.syncState={running:false,message:'已退出账号。'};if(this.workspace.settings.workRoot&&!localLoaded.unsafe)await this.refreshShared(this.key);
     this.syncState={running:false,message:'已退出账号；原账号的本机记录已保留。'};this.changed();return this.state();
   }
   assertKey(key:string){if(key!==this.key)throw new Error('账号已切换，本次旧页面操作未保存。');}
   async settings(key:string,s:Settings){
-    this.assertKey(key);this.assertNotMigrating();const roots=await validateRoots(s);
+    const scope=this.captureScope(key),input=structuredClone(s);
+    return this.enqueuePersist(async()=>{
+    this.assertScope(scope);s=input;const roots=await validateRoots(s);this.assertScope(scope);
     if(this.workspace.settings.workRoot&&roots.workRoot!==this.workspace.settings.workRoot){
       const occupied=this.workspace.cases.some(c=>c.directory)||await namespaceHasEntries(this.workspace.settings.workRoot,this.key);
       if(occupied)throw new Error('工作文件夹已有案件。请保留当前目录；请使用当前账号工作目录迁移。');
@@ -287,10 +482,11 @@ export class DesktopService {
     const lastTransferRecipient=s.lastTransferRecipient??this.workspace.settings.lastTransferRecipient;
     const nextSettings={provider:s.provider,baseUrl:s.baseUrl,model:s.model,templatePath:s.templatePath,extensions:s.extensions, ...(lastTransferRecipient?{lastTransferRecipient}:{}), ...roots};
     // Publish settings in memory only after the atomic disk write succeeds.
-    await atomicJSON(this.profileFile(),{...structuredClone(this.workspace),settings:nextSettings});
-    this.assertKey(key);this.workspace.settings=nextSettings;
+    await this.writeWorkspace({...structuredClone(this.workspace),settings:nextSettings},()=>this.assertScope(scope));
+    this.assertScope(scope);this.workspace.settings=nextSettings;
     this.storageState={running:false,message:roots.workRoot?(this.syncState.running?'目录设置已保存；正在同步，可在同步完成后刷新读取。':'目录设置已保存，准备读取工作目录。'):roots.originalLibrary?'原始申请文件库已保存；请选择总工作文件夹。':'请选择原始申请文件库和总工作文件夹。'};
     this.changed();return this.state();
+    });
   }
   refreshShared(key:string){
     const generation=this.generation;
@@ -305,8 +501,10 @@ export class DesktopService {
     this.storageState={...this.storageState,running:true,message:'正在读取工作目录中的案件与稿件…'};this.changed();
     try{
       const {workRoot}=await validateRoots(this.workspace.settings);if(!workRoot)throw new Error('请先选择总工作文件夹。');
-      const result=await readSharedCases(workRoot,key,this.workspace.cases);this.assertKey(key);
+      const previous=this.workspace.cases;
+      const result=await readSharedCases(workRoot,key,previous);this.assertKey(key);
       if(generation!==this.generation)return this.state();
+      this.syncCaseRevisions(previous,result.cases);
       this.workspace.cases=result.cases;await this.persist();
       this.storageState={running:false,lastAt:new Date().toISOString(),caseCount:result.count,message:`已读取 ${result.count} 个本工作台案件。`+(result.warnings.length?`${result.warnings.length} 个目录需核对：${result.warnings.slice(0,2).join('；')}`:result.count?'材料与工作稿已更新；本机对话和任务不从共享目录导入。':'新案件将在此创建；普通文件夹不会自动当作案件。')};
     }catch(e){if(key!==this.key||generation!==this.generation)return this.state();this.storageState={running:false,message:'工作目录未读取完成：'+(e as Error).message};}
@@ -314,7 +512,9 @@ export class DesktopService {
   }
   async save(key:string,incoming:Workspace,scope?:DesktopScope){
     this.assertKey(key);this.assertNotMigrating();if(incoming.schema!==1||!Array.isArray(incoming.cases))throw new Error('案件记录格式不正确。');
-    return this.enqueuePersist(()=>this.saveNow(key,incoming,scope));
+    const root=this.workspace.settings.workRoot;
+    const frozen=structuredClone(incoming),ticket=structuredClone(scope??{profileKey:key,scopeVersion:this.generation});
+    return this.enqueuePersist(()=>{if(root!==this.workspace.settings.workRoot)throw new Error('工作目录已变化，本次旧页面操作未保存。');return this.saveNow(key,frozen,ticket);});
   }
   async organizeFolders(key:string) {
     this.assertKey(key); this.assertNotMigrating();
@@ -355,6 +555,19 @@ export class DesktopService {
     const work=currentWork(c);
     return (work.processId||work.roundId||`local-${work.kind}`).trim();
   }
+  captureScope(key:string,caseId?:string):OperationScope {
+    this.assertKey(key);this.assertMigrationNotAccepted();
+    const c=caseId?this.findCase(caseId):undefined;
+    return {profileKey:key,scopeVersion:this.generation,root:this.workspace.settings.workRoot,
+      ...(c?{caseId:c.id,processKey:this.scopeProcessKey(c),caseRevision:this.caseRevisionOf(c.id)}:{})};
+  }
+  assertScope(scope:OperationScope){
+    this.assertMigrationNotAccepted();this.assertScopeIdentity(scope);
+  }
+  assertScopeIdentity(scope:OperationScope){
+    this.assertWriteScope(scope.profileKey,scope);
+    if(scope.root!==this.workspace.settings.workRoot)throw new Error('工作目录已变化，本次旧页面操作未保存。');
+  }
   private assertWriteScope(key:string,scope?:DesktopScope){
     this.assertKey(key);
     if(!scope)return;
@@ -363,12 +576,14 @@ export class DesktopService {
     if(!scope.caseId)return;
     const c=this.workspace.cases.find(item=>item.id===scope.caseId);
     if(!c)throw new Error('案件已离开当前账号，本次旧页面操作未保存。');
+    if(scope.caseRevision!==undefined&&scope.caseRevision!==this.caseRevisionOf(c.id))throw new Error('案件办理阶段已重新切换，本次旧页面操作未保存。');
     if(scope.processKey!==undefined&&this.scopeProcessKey(c)!==scope.processKey)throw new Error('案件办理流程已变化，本次旧页面操作未保存。');
   }
   private async saveNow(key:string,incoming:Workspace,scope?:DesktopScope){
     this.assertKey(key);this.assertNotMigrating();this.assertWriteScope(key,scope);
     // Renderer may edit local fields only, never remote identity, ownership or active workflow.
-    const guard=()=>{this.assertNotMigrating();this.assertWriteScope(key,scope);};
+    const root=this.workspace.settings.workRoot;
+    const guard=()=>{this.assertNotMigrating();this.assertWriteScope(key,scope);if(root!==this.workspace.settings.workRoot)throw new Error('工作目录已变化，本次旧页面操作未保存。');};
     const next=structuredClone(this.workspace),files=this.files(guard);
     const targetIds=scope?.caseId?[scope.caseId]:incoming.cases.map(c=>c.id);
     for(const id of targetIds){
@@ -391,21 +606,66 @@ export class DesktopService {
       if(c.localDraft!==undefined)c.directory=await files.saveDraft(c);
     }
     this.assertWriteScope(key,scope);
-    this.workspace={...this.workspace,cases:this.workspace.cases.map(c=>{
+    const before=this.workspace;
+    const updated={...this.workspace,cases:this.workspace.cases.map(c=>{
       if(scope?.caseId&&c.id!==scope.caseId)return c;
       const changed=next.cases.find(x=>x.id===c.id);if(!changed)return c;
       return {...c,archived:changed.archived,tags:changed.tags,...(c.source==='local'?{title:changed.title,deadline:changed.deadline,current:changed.current}:{}),...(c.current?.processId===changed.current?.processId?{localDraft:changed.localDraft,localVersions:changed.localVersions,directory:changed.directory,sharedDraftHash:changed.sharedDraftHash}:{})};
     })};
-    await atomicJSON(this.profileFile(),structuredClone(this.workspace),guard);
+    await this.writeWorkspace(updated,guard);
+    guard();this.syncCaseRevisions(before.cases,updated.cases);this.workspace=updated;
+    this.changed();
+    return this.state();
   }
   async createCase(input:{title:string;number:string;kind:'write'|'review'}) {
-    this.assertNotMigrating();
+    const scope=this.captureScope(this.key),frozen=structuredClone(input);
+    return this.enqueuePersist(async()=>{
+    this.assertScope(scope);input=frozen;
     if(!input.title.trim()||!input.number.trim()||!['write','review'].includes(input.kind))throw new Error('请填写案件名称、案号和当前业务。');
     if(this.workspace.cases.some(c=>c.number===input.number.trim()))throw new Error('该案号已存在，请从案件库打开。');
     const c:Case={id:randomUUID(),number:input.number.trim(),title:input.title.trim(),type:'发明',deadline:'',tags:[],archived:false,rounds:[],materials:[],source:'local',current:{kind:input.kind},localDraft:'',localVersions:[]};
-    c.directory=await this.files().ensureCase(c);this.workspace.cases.push(c);await this.persist();this.changed();return this.state();
+    const check=()=>this.assertScope(scope);
+    c.directory=await this.files(check).ensureCase(c);check();
+    const next={...this.workspace,cases:[...this.workspace.cases,c]};
+    await this.writeWorkspace(next,check);check();this.workspace=next;this.changed();return this.state();
+    });
   }
   findCase(id:string){const c=this.workspace.cases.find(c=>c.id===id);if(!c)throw new Error('当前账号没有该案件。');return c;}
+  caseRecord(id:string){return preserveRecordFields(this.profileRecords.get(this.key)?.find(r=>r.identity.id===id),caseRecordFromCase(this.findCase(id)));}
+  replyCase(id:string){return projectReplyView(this.caseRecord(id));}
+  replyCases(){return this.workspace.cases.map(c=>this.replyCase(c.id));}
+  professionalCase(id:string){return projectProfessionalView(this.caseRecord(id));}
+  professionalCases(){return this.workspace.cases.map(c=>this.professionalCase(c.id));}
+  transferCase(id:string){return projectTransferView(this.caseRecord(id));}
+  caseProcessFolder(id:string,processId:string){return processFolder(this.findCase(id),processId);}
+  saveManuscript(scope:OperationScope,text:string,expectedHash:string){
+    this.assertScope(scope);
+    if(!scope.caseId)throw new Error('缺少稿件案件作用域。');
+    return this.enqueuePersist(async()=>{
+      this.assertScope(scope);
+      const c=this.findCase(scope.caseId!);
+      if((c.sharedDraftHash??'')!==expectedHash)throw new Error('共享稿哈希不一致，未覆盖用户稿。');
+      if(c.localDraft&&c.localDraft!==text){
+        const keep=structuredClone(this.workspace),target=keep.cases.find(x=>x.id===c.id)!;
+        target.localVersions=[...(target.localVersions??[]),{id:randomUUID(),text:c.localDraft,at:new Date().toISOString(),processId:currentWork(c).processId}];
+        await this.saveNow(scope.profileKey,keep,scope);
+      }
+      this.assertScope(scope);
+      const next=structuredClone(this.workspace);
+      next.cases.find(x=>x.id===scope.caseId)!.localDraft=text;
+      await this.saveNow(scope.profileKey,next,scope);
+      return this.findCase(scope.caseId!).sharedDraftHash;
+    });
+  }
+  rememberTransferRecipient(scope:OperationScope,recipient:NonNullable<Settings['lastTransferRecipient']>){
+    const frozen=structuredClone(recipient);
+    return this.enqueuePersist(async()=>{
+      const check=()=>this.assertScope(scope);check();
+      const next={...this.workspace,settings:{...this.workspace.settings,lastTransferRecipient:frozen}};
+      await this.writeWorkspace(next,check);
+      check();this.workspace=next;this.changed();
+    });
+  }
   sync(options:SyncOptions={}):Promise<DesktopState>{
     if(this.stopping)return Promise.reject(new Error('应用正在退出。'));
     const source=options.source??'manual',full=options.full??source==='manual',generation=this.generation;
@@ -554,8 +814,9 @@ export class DesktopService {
           if(stale)diagnostic('sync','newer_state_preserved');
           if(next.localDraft!==undefined)await files.saveDraft(next);else await files.ensureCase(next);
           check();
+          this.syncCaseRevisions(latest?[latest]:[],[next]);
           this.workspace.cases=[...this.workspace.cases.filter(x=>x.id!==next.id),next];
-          await atomicJSON(persistFile,structuredClone(this.workspace));
+          await this.persist();
         });
         });
       });
@@ -628,6 +889,7 @@ export class DesktopService {
     return merged;
   }
   private applyPersonalFlow(latest:Case,view:FlowView,personalIds:string[]){
+    const priorStage=JSON.stringify([latest.current?.kind,latest.current?.processId,latest.current?.roundId]);
     const keepId=latest.current?.processId;
     const blocked=latest.current?.kind==='external'&&!keepId;
     latest.remote={caseId:latest.remote!.caseId,syncedAt:view.at,processes:this.scopedPersonalProcesses(latest,view,personalIds)};
@@ -641,9 +903,9 @@ export class DesktopService {
       else selectedId=inPersonal(view.currentProcessId)?view.currentProcessId:inPersonal(keepId)?keepId:undefined;
     }
     const proc=selectedId?latest.remote.processes.find(p=>p.id===selectedId):undefined;
-    let stageChanged=!!proc&&!!keepId&&proc.id!==keepId;
+    const selectionChanged=!!proc&&proc.id!==keepId;
     if(!blocked&&proc&&personalIds.includes(proc.id)){
-      if(stageChanged)assignCurrentProcess(latest,proc,view.at);
+      if(selectionChanged)assignCurrentProcess(latest,proc,view.at);
       else{
         if(latest.current)latest.current={...latest.current,remoteStatus:proc.status,processId:keepId||proc.id};
         applySubmissionToCurrent(latest,proc);
@@ -652,15 +914,15 @@ export class DesktopService {
         this.submissionCache.set(this.officialCacheKey(latest,proc.id),{at:Date.now(),submission:proc.submission,handId:proc.handId,currentFlow:proc.currentFlow,needSendOfficial:proc.needSendOfficial,canEdit:proc.canEdit});
       }
     }else if(!blocked&&internallyActive.length>1&&!inActive(keepId)){
-      stageChanged=!!keepId;
       assignCurrentProcess(latest,undefined,view.at);
     }else applyCaseDeadline(latest);
-    return stageChanged;
+    return priorStage!==JSON.stringify([latest.current?.kind,latest.current?.processId,latest.current?.roundId]);
   }
   async selectCurrentProcess(key:string,caseId:string,processId:string){
     this.assertKey(key);this.assertNotMigrating();
+    const scope=this.captureScope(key,caseId);
     return this.enqueuePersist(async()=>{
-      this.assertKey(key);this.assertNotMigrating();
+      this.assertScope(scope);
       const c=this.findCase(caseId);
       if(c.archived)throw new Error('案件已归档，不能切换当前阶段。');
       if(!c.remote)throw new Error('本地案件尚未关联贝思兰德。');
@@ -668,7 +930,9 @@ export class DesktopService {
       if(!p)throw new Error('目标流程不在本案个人流程中。');
       if(!isInternallyActiveProcess(p))throw new Error('该流程已结束或不是当前可办理的内部流程。');
       const at=new Date().toISOString();
+      const previous=caseScopeFingerprint(c);
       assignCurrentProcess(c,p,at);
+      this.updateCaseRevision(c,previous);
       await this.files().ensureCase(c);
       await this.files().saveDraft(c);
       await this.persist();
@@ -676,9 +940,40 @@ export class DesktopService {
       return this.state();
     });
   }
+  private caseRefreshRequests=new Map<string,Promise<{state:DesktopState;flow:FlowView}>>();
+  refreshCase(key:string,id:string):Promise<{state:DesktopState;flow:FlowView}> {
+    const scope=this.captureScope(key),remoteCaseId=this.findCase(id).remote?.caseId;
+    if(!remoteCaseId)throw new Error('本案尚未关联贝思兰德。');
+    const tag=JSON.stringify([scope,id,remoteCaseId]);
+    const existing=this.caseRefreshRequests.get(tag);
+    if(existing)return existing;
+    const check=()=>{
+      this.assertScope(scope);
+      if(this.findCase(id).remote?.caseId!==remoteCaseId)throw new Error('案件关联已变化，请重新刷新。');
+    };
+    // Refresh can itself advance the stage. Bind the whole read to the account
+    // and case identity, not to the lifetime of the old renderer page.
+    const request=(async()=>{
+      try{
+        await this.sync({source:'manual',full:true});check();
+        const flow=await this.flow(id);check();
+        await this.refreshCaseOutcome(key,id);check();
+        const state=await this.caseInfo(key,id);check();
+        return {state,flow};
+      }catch(e){
+        check();
+        this.storageState={...this.storageState,message:'本案刷新未完成：'+(e as Error).message};
+        this.changed();
+        throw e;
+      }
+    })();
+    this.caseRefreshRequests.set(tag,request);
+    void request.finally(()=>{if(this.caseRefreshRequests.get(tag)===request)this.caseRefreshRequests.delete(tag);}).catch(()=>{});
+    return request;
+  }
   private flowRequests=new Map<string,ReturnType<DesktopService['readCaseFlow']>>();
   flow(id:string,enqueueWrite?:<T>(fn:()=>Promise<T>)=>Promise<T>){
-    const scope=`${this.generation}/${this.key}/${id}`;
+    const scope=JSON.stringify([this.generation,this.key,this.workspace.settings.workRoot,id,this.caseRevisionOf(id),this.scopeProcessKey(this.findCase(id))]);
     const existing=this.flowRequests.get(scope);if(existing)return existing;
     const request=this.readCaseFlow(id,enqueueWrite);this.flowRequests.set(scope,request);
     void request.finally(()=>{if(this.flowRequests.get(scope)===request)this.flowRequests.delete(scope);}).catch(()=>{});
@@ -688,8 +983,9 @@ export class DesktopService {
     this.assertMigrationNotAccepted();
     if(!this.client||this.account?.status!=='authenticated')throw new Error('请先登录贝思兰德。');
     const generation=this.generation,key=this.key,client=this.client;
-    const files=new CaseFiles({...this.workspace.settings},key);
-    const persistFile=this.profileFile();
+    const revision=this.caseRevisionOf(id);
+    const accountScope=this.captureScope(key);
+    const files=this.files(()=>this.assertScopeIdentity(accountScope));
     const ownedRoot=this.workspace.settings.workRoot;
     const c=this.findCase(id);
     if(!c.remote)throw new Error('本地案件尚未关联贝思兰德。');
@@ -700,24 +996,26 @@ export class DesktopService {
     const queriedSyncedAt=c.remote.syncedAt;
     const view=await client.flow(structuredClone(c));
     if(generation!==this.generation||this.key!==key)throw new Error('账号已切换，本次旧页面操作未保存。');
-    if(this.isWorkMigrationBusy()||(ownedRoot&&this.workspace.settings.workRoot!==ownedRoot))return view;
+    if(this.isWorkMigrationBusy()||this.workspace.settings.workRoot!==ownedRoot)throw new Error('目录已变化或正在迁移，请重新查询。');
     const commit=async()=>{
       if(generation!==this.generation||this.key!==key)throw new Error('账号已切换，本次旧页面操作未保存。');
-      if(this.isWorkMigrationBusy()||(ownedRoot&&this.workspace.settings.workRoot!==ownedRoot))return view;
+      if(this.isWorkMigrationBusy()||this.workspace.settings.workRoot!==ownedRoot)throw new Error('目录已变化或正在迁移，请重新查询。');
       const latest=this.workspace.cases.find(x=>x.id===id);
-      if(!latest?.remote||latest.remote.caseId!==remoteCaseId)return view;
+      if(!latest?.remote||latest.remote.caseId!==remoteCaseId)throw new Error('案件关联已变化，请重新查询。');
       const latestScope=latest.remote.processes.map(p=>p.id).slice().sort().join('\0');
-      if((latest.current?.processId??'')!==queriedProcessId||latestScope!==queriedScope||latest.remote.syncedAt!==queriedSyncedAt){
+      if(this.caseRevisionOf(id)!==revision||(latest.current?.processId??'')!==queriedProcessId||latestScope!==queriedScope||latest.remote.syncedAt!==queriedSyncedAt){
         throw new Error('案件流程已更新，请重新查询。');
       }
+      const previous=caseScopeFingerprint(latest);
       const stageChanged=this.applyPersonalFlow(latest,view,personalIds);
+      this.updateCaseRevision(latest,previous);
       this.flowFileWrites++;
       try{
         await files.ensureCase(latest);
         if(stageChanged)await files.saveDraft(latest);
         if(generation!==this.generation||this.key!==key)throw new Error('账号已切换，本次旧页面操作未保存。');
         if(ownedRoot&&this.workspace.settings.workRoot!==ownedRoot)throw new Error('账号已切换，本次旧页面操作未保存。');
-        await atomicJSON(persistFile,structuredClone(this.workspace));
+        await this.persist();
         this.changed();
         return view;
       }finally{this.flowFileWrites--;}
@@ -727,19 +1025,22 @@ export class DesktopService {
   async caseInfo(key:string,id:string) {
     this.assertKey(key); this.assertMigrationNotAccepted();
     if (!this.client || this.account?.status !== 'authenticated') throw new Error('请先登录贝思兰德。');
+    const scope=this.captureScope(key,id);
     const generation=this.generation, root=this.workspace.settings.workRoot, c=structuredClone(this.findCase(id));
     const result=await this.client.caseInfo(c);
     return this.enqueuePersist(async()=>{
-      this.assertKey(key); this.assertNotMigrating();
+      this.assertScope(scope);
       const latest=this.findCase(id);
       if (generation!==this.generation || root!==this.workspace.settings.workRoot || latest.remote?.caseId!==c.remote?.caseId || latest.current?.processId!==c.current?.processId) throw new Error('案件或流程已变化，请刷新备注。');
+      const previous=caseScopeFingerprint(latest);
       if (result.caseRemark!==undefined) latest.caseRemark=result.caseRemark;
       const proc=latest.remote?.processes.find(p=>p.id===result.processId);
       if (proc && result.process) Object.assign(proc,result.process);
       latest.caseInfoAt=result.at;applyRemoteClosure(latest,result.closure);
+      this.updateCaseRevision(latest,previous);
       if(latest.remote)this.caseClosureCache.delete(latest.remote.caseId);
       this.flowFileWrites++;
-      try { await this.files().ensureCase(latest); await atomicJSON(this.profileFile(),structuredClone(this.workspace)); this.changed(); return this.state(); }
+      try { await this.files().ensureCase(latest); await this.persist(); this.changed(); return this.state(); }
       finally { this.flowFileWrites--; }
     });
   }
@@ -760,9 +1061,13 @@ export class DesktopService {
       this.assertKey(key);
       for(const c of this.workspace.cases){
         const value=results.get(c.id);
-        if(value&&c.remote)c.officialOutcome=value;
+        if(value&&c.remote){
+          const previous=caseScopeFingerprint(c);
+          c.officialOutcome=value;
+          this.updateCaseRevision(c,previous);
+        }
       }
-      await atomicJSON(this.profileFile(),structuredClone(this.workspace));
+      await this.persist();
     });
     return failures;
   }
@@ -781,9 +1086,11 @@ export class DesktopService {
       this.assertKey(key);this.assertNotMigrating();
       const latest=this.findCase(id);
       if(generation!==this.generation||latest.remote?.caseId!==caseId)throw new Error('案件或账号已变化，请重新判读。');
+      const previous=caseScopeFingerprint(latest);
       latest.officialOutcome=value;
+      this.updateCaseRevision(latest,previous);
       await this.files().ensureCase(latest);
-      await atomicJSON(this.profileFile(),structuredClone(this.workspace));
+      await this.persist();
     });
     this.changed();
     return this.state();
@@ -809,11 +1116,13 @@ export class DesktopService {
       for(const c of this.workspace.cases){
         const value=results.get(c.id);
         if(value&&c.remote){
+          const previous=caseScopeFingerprint(c);
           c.officialOutcome=value;
+          this.updateCaseRevision(c,previous);
           await this.files().ensureCase(c);
         }
       }
-      await atomicJSON(this.profileFile(),structuredClone(this.workspace));
+      await this.persist();
     });
     this.changed();
     if(failures.length){
@@ -822,22 +1131,24 @@ export class DesktopService {
     }
     return this.state();
   }
-  async updateReferences(key:string,id:string,expected:{generation:number;root:string|undefined;process:string},added:Case['materials'],removeId?:string){
+  async updateReferences(key:string,id:string,expected:{generation:number;root:string|undefined;process:string;caseRevision?:number},added:Case['materials'],removeId?:string){
+    const scope={profileKey:key,scopeVersion:expected.generation,caseId:id,processKey:expected.process,caseRevision:expected.caseRevision,root:expected.root};
     return this.enqueuePersist(async()=>{
       this.assertKey(key);this.assertNotMigrating();if(this.syncState.running||this.syncPreparing)throw new Error('正在同步案件，请同步完成后再添加或移除材料。');const c=this.findCase(id);
       const w=currentWork(c),process=w.processId||w.roundId||`local-${w.kind}`;
-      if(this.generation!==expected.generation||this.workspace.settings.workRoot!==expected.root||process!==expected.process||!editableCurrent(c)||w.kind!=='write')throw new Error('案件、账号或撰写阶段已变化，请重新选择材料。');
+      if(this.generation!==expected.generation||this.workspace.settings.workRoot!==expected.root||process!==expected.process||(expected.caseRevision!==undefined&&expected.caseRevision!==this.caseRevisionOf(id))||!editableCurrent(c)||w.kind!=='write')throw new Error('案件、账号或撰写阶段已变化，请重新选择材料。');
       if(removeId&&!c.materials?.some(m=>m.id===removeId&&m.id.startsWith('reference-')))throw new Error('仅可移除本案手动添加的参考材料。');
       const previous=c.materials;c.materials=[...(c.materials??[]).filter(m=>m.id!==removeId),...(added??[])];
-      try{await this.files().ensureCase(c);await this.persist();}catch(e){c.materials=previous;throw e;}
+      try{const check=()=>this.assertScope(scope);await this.files(check).ensureCase(c);await this.persist(check);check();}catch(e){c.materials=previous;throw e;}
       this.changed();
     });
   }
-  async findOriginals(id:string){return this.files().findOriginals(this.findCase(id));}
+  async findOriginals(id:string){const scope=this.captureScope(this.key,id),found=await this.files().findOriginals(this.findCase(id));this.assertScope(scope);return found;}
   copyOriginal(id:string,source:string){
+    const scope=this.captureScope(this.key,id);
     const generation=this.generation,key=this.key,settings={...this.workspace.settings};
     const process=JSON.stringify(this.findCase(id).current);
-    const check=()=>{this.assertMigrationNotAccepted();if(generation!==this.generation||key!==this.key||settings.workRoot!==this.workspace.settings.workRoot||process!==JSON.stringify(this.findCase(id).current))throw new Error('账号、目录或案件阶段已变化，请重新匹配。');};
+    const check=()=>{this.assertScope(scope);if(generation!==this.generation||key!==this.key||settings.workRoot!==this.workspace.settings.workRoot||process!==JSON.stringify(this.findCase(id).current))throw new Error('账号、目录或案件阶段已变化，请重新匹配。');};
     return this.enqueuePersist(async()=>{
       check();const c=structuredClone(this.findCase(id)),files=new CaseFiles(settings,key,false,check);
       const saved=await files.copyOriginal(c,source);check();
@@ -846,7 +1157,7 @@ export class DesktopService {
       this.workspace.cases=this.workspace.cases.map(x=>x.id===id?c:x);await this.persist();this.changed();return this.state();
     });
   }
-  async casePath(id:string,relative=''){const c=this.findCase(id);if(!c.directory)throw new Error('案件目录尚未创建。');const root=(await validateRoots(this.workspace.settings)).workRoot;if(!root)throw new Error('请先选择工作目录。');const dir=await managedPath(root,c.directory);return relative?managedPath(dir,relative):dir;}
+  async casePath(id:string,relative=''){const scope=this.captureScope(this.key,id),directory=this.findCase(id).directory;if(!directory)throw new Error('案件目录尚未创建。');const root=(await validateRoots(this.workspace.settings)).workRoot;if(!root)throw new Error('请先选择工作目录。');const dir=await managedPath(root,directory),target=relative?await managedPath(dir,relative):dir;this.assertScopeIdentity(scope);return target;}
   async shutdown(){
     this.stopping=true;
     this.controller?.abort();
@@ -971,7 +1282,7 @@ export class DesktopService {
   private async commitMigratedWorkRoot(key:string,workRoot:string){
     this.assertKey(key);
     const nextSettings={...this.workspace.settings,workRoot};
-    await atomicJSON(this.profileFile(),{...structuredClone(this.workspace),settings:nextSettings});
+    await this.writeWorkspace({...structuredClone(this.workspace),settings:nextSettings});
     this.assertKey(key);
     this.workspace.settings=nextSettings;
   }

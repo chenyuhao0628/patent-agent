@@ -54,6 +54,20 @@ test('feature visibility keeps historical read-only work reachable', () => {
   assert.equal(featureEditable(FEATURE_MODULE_BY_ID.review, context, fixture({ current: { kind: 'review' } })), true);
 });
 
+test('correction waiting keeps the reply history entry visible', () => {
+  const context = featureContext(true);
+  const correction = fixture({
+    current: { kind: 'waiting', processId: 'p-1' },
+    remote: {
+      caseId: 'remote-1',
+      syncedAt: '',
+      processes: [{ id: 'p-1', name: '补正通知书', status: 500, node: '结束', undertaker: '本人', deadline: '' }],
+    },
+  });
+  assert.equal(featureVisible(FEATURE_MODULE_BY_ID.reply, context, correction), true);
+  assert.equal(featureAvailable(FEATURE_MODULE_BY_ID.reply, context, correction), false);
+});
+
 test('feature visibility keeps reply and writing history available without granting start permission', () => {
   const context = featureContext(true);
   const replyHistory = fixture({

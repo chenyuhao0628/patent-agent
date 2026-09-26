@@ -121,7 +121,7 @@ async function isIndexedCaseDirectory(namespaceRoot: string, name: string, profi
     const st = await fs.lstat(manifest);
     if (st.isSymbolicLink() || !st.isFile() || st.size > 8 * 1024 * 1024) return false;
     const raw = JSON.parse(await fs.readFile(manifest, 'utf8')) as {schema?: unknown; profile?: unknown; id?: unknown; title?: unknown};
-    return [1, 2].includes(Number(raw.schema)) && raw.profile === profileKey && typeof raw.id === 'string' && !!raw.id && typeof raw.title === 'string' && !!raw.title;
+    return [1, 2, 3].includes(Number(raw.schema)) && raw.profile === profileKey && typeof raw.id === 'string' && !!raw.id && typeof raw.title === 'string' && !!raw.title;
   } catch { return false; }
 }
 

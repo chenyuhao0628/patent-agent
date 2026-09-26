@@ -9,12 +9,13 @@ import type { AgentHost, AgentHostRun, AgentHostRunInput } from './agent-host.ts
 import type { ModelService } from './model-service.ts';
 import { atomicJSON } from './files.ts';
 
-async function fixture(t:test.TestContext,options:{delayed?:boolean;unread?:boolean}={}) {
+async function fixture(t:test.TestContext,options:{delayed?:boolean;unread?:boolean;hold?:Promise<void>}={}) {
  const root=await fs.mkdtemp(path.join(os.tmpdir(),'professional-'));
  const service=new DesktopService(path.join(root,'data'),{available:()=>false,encrypt:()=>Buffer.alloc(0),decrypt:()=>''});await service.init();await fs.mkdir(path.join(root,'work'));await service.settings('local',{provider:'',baseUrl:'',model:'',workRoot:path.join(root,'work')});await service.createCase({title:'隔离夹持装置',number:'QA-1',kind:'write'});
  const inputs:AgentHostRunInput[]=[];
  const run:AgentHostRun=input=>{inputs.push(input);let stopped=false;return {abort:()=>{stopped=true;},wait:(async()=>{
   if(options.delayed)await new Promise<void>(resolve=>input.signal.addEventListener('abort',()=>resolve(),{once:true}));
+  if(options.hold)await Promise.race([options.hold,new Promise<void>(resolve=>input.signal.addEventListener('abort',()=>resolve(),{once:true}))]);
   if(stopped||input.signal.aborted)return;
   if(!options.unread){await input.onEvent({type:'tool',filename:'SKILL.md',toolKind:'read_skill',status:'ok'});for(const m of input.materials)await input.onEvent({type:'tool',filename:m.name,materialId:m.id,toolKind:'read_material',status:'ok'});if(input.draft)await input.onEvent({type:'tool',filename:'draft',toolKind:'read_draft',status:'ok'});}
   const kind=input.action==='review'?'review':'writing';const result={kind,text:kind==='review'?'P2：请核对原稿说明书支持；未检索。':'本阶段完整合成结果。',documents:{ABSTRACT:'本公开涉及夹持装置。',ABSTRACT_IMAGE:'未提供摘要附图。',CLAIMS:'1. 一种夹持装置，包括夹持件。',DESCRIPTION:'技术领域\n本公开涉及夹持装置。\n背景技术\n需要夹持。\n发明内容\n采用夹持件。\n具体实施方式\n夹持件夹持工件。',DRAWINGS:'未提供真实附图。'}};
@@ -34,6 +35,129 @@ test('new reply reviews remain visible when the same source already has a person
  await f.host.command('local',f.id,{type:'review',sourceId:source.id});await settled(f.host,f.id);
  f.agent.reviewSources=async()=>[{...source,reports:[report,{...report,id:'reply-review-2',at:'2026-09-12T01:00:00Z'}]}];
  const rows=await f.host.listReviews('local');assert.equal(rows[0].reports?.length,3);assert.equal(new Set(rows[0].reports?.map(r=>r.id)).size,3);
+});
+test('professional history reads sources and jobs across prior process records',async t=>{
+ const f=await fixture(t);
+ f.service.findCase(f.id).localDraft='第一流程稿';
+ await f.host.command('local',f.id,{type:'ready-manual'});
+ f.service.findCase(f.id).current={kind:'write',processId:'later-process'};
+ f.service.findCase(f.id).localDraft='后续流程稿';
+ await f.host.command('local',f.id,{type:'ready-manual'});
+ const history=await f.host.history('local',f.id);
+ assert.equal(history.sources.length,2);
+ assert.deepEqual(new Set(history.sources.map(source=>source.processKey)),new Set(['local-write','later-process']));
+ assert.equal(history.jobs.length,0);
+});
+test('full sync that only updates observation metadata preserves a running writing task',async t=>{
+ let release!:()=>void;
+ const hold=new Promise<void>(resolve=>{release=resolve;});
+ const f=await fixture(t,{hold}),s=f.service,c=s.findCase(f.id);
+ c.source='baseland';c.current={kind:'write',processId:'p1',remoteStatus:0};
+ c.remote={caseId:'remote',syncedAt:'old',processes:[{id:'p1',name:'提出申请',status:0,node:'',undertaker:'',deadline:''}]};
+ c.remoteClosure={finished:false,checkedAt:'2026-01-01T00:00:00.000Z'};
+ c.officialOutcome={state:'none',checkedAt:'2026-01-01T00:00:00.000Z'};
+ await s.files().saveDraft(c);await s.persist();
+ s.account={username:'a',displayName:'A',organization:'T',origin:'https://fixture.baselandtec.com',userId:'u',status:'authenticated',remembered:false};
+ const stamp='2026-09-26T12:00:00.000Z';
+ s.client={
+  personalCasesSnapshot:async()=>({rows:[{CaseId:'remote',CaseProcId:'p1',CaseName:c.title,CaseNo:c.number,CaseProcName:'提出申请',_status:0}],stats:[]}),
+  caseClosure:async()=>({finished:false,checkedAt:stamp}),
+  officialOutcome:async()=>({state:'none',checkedAt:stamp}),
+  files:async()=>[],
+ } as never;
+ s.changed=()=>f.host.noteScopeChange();
+ await f.host.command('local',f.id,{type:'write',message:'Synthetic writing',materialIds:[]});
+ const revision=s.caseRevisionOf(f.id);
+ await s.sync({source:'manual'});
+ assert.match(s.syncState.message,/已同步/);
+ assert.equal(s.findCase(f.id).remoteClosure?.checkedAt,stamp);
+ assert.equal(s.caseRevisionOf(f.id),revision);
+ assert.equal(f.inputs[0].signal.aborted,false);
+ release();
+ const done=await settled(f.host,f.id);
+ assert.equal(done.record.jobs[0].state,'completed');
+ assert.ok(done.record.jobs[0].artifactPath);
+});
+test('historical attachments and reports stay permitted without reappearing in the editable current queue',async t=>{
+ const f=await fixture(t),original=path.join(f.root,'historical.txt');
+ await fs.writeFile(original,'historical body');
+ const attached=await f.host.addFiles('local',f.id,[original]),source=attached.queue[0].source;
+ await f.host.command('local',f.id,{type:'review',sourceId:source.id});
+ const reviewed=await settled(f.host,f.id),report=reviewed.record.jobs[0];
+ const next=structuredClone(f.service.workspace);next.cases[0].current={kind:'write',processId:'later'};
+ await f.service.save('local',next,f.service.captureScope('local',f.id));
+ assert.equal((await f.host.getCase('local',f.id)).queue.length,0);
+ const history=await f.host.history('local',f.id);
+ assert.equal(history.sources[0].files[0].relativePath,source.files[0].relativePath);
+ assert.equal(history.jobs[0].artifactPath,report.artifactPath);
+ for(const file of [source.files[0].relativePath,report.artifactPath!]){
+  assert.equal(await f.host.fileAllowed('local',f.id,file),true);
+  assert.ok((await fs.stat(await f.service.casePath(f.id,file))).isFile());
+ }
+ await f.service.createCase({title:'Other',number:'OTHER',kind:'review'});
+ const other=f.service.workspace.cases.at(-1)!;
+ assert.equal(await f.host.fileAllowed('local',other.id,source.files[0].relativePath),false);
+ await assert.rejects(f.host.fileAllowed('another-profile',f.id,report.artifactPath!),/账号/);
+});
+test('professional history keeps source reports and jobs without a source',async t=>{
+ const f=await fixture(t);
+ f.service.findCase(f.id).localDraft='待审稿';
+ await f.host.command('local',f.id,{type:'ready-manual'});
+ const store=(f.host as any).stores.get('local');
+ const record=store.records.find((item:any)=>item.caseId===f.id);
+ const source=record.sources[0];
+ const report={id:'report-in-source',caseId:f.id,processKey:record.processKey,kind:'review',sourceId:source.id,state:'completed',at:'2026-09-26T02:00:00.000Z',text:'来源内复核',tools:[],skillName:'review',skillHash:''};
+ source.reports=[report];
+ record.jobs.push({...report,id:'orphan-review',sourceId:undefined,text:'孤立复核'});
+ const history=await f.host.history('local',f.id);
+ assert.deepEqual(new Set(history.jobs.map(job=>job.id)),new Set(['report-in-source','orphan-review']));
+ assert.equal(history.sources[0].reports?.length,1);
+});
+test('professional queued mutations reject account and process ABA before reading or writing sources',async t=>{
+ const f=await fixture(t);
+ f.service.findCase(f.id).localDraft='保留人工稿';
+ for(const change of ['account','stage']){
+  let release!:()=>void;
+  (f.host as any).operations=new Promise<void>(resolve=>{release=resolve;});
+  const pending=f.host.command('local',f.id,{type:'ready-manual'});
+  const rejected=assert.rejects(pending,/作用域已变化|重新切换/);
+  if(change==='account'){f.service.key='other';f.service.generation++;f.service.key='local';f.service.generation++;}
+  else for(const kind of ['review','write'] as const){
+   const next=structuredClone(f.service.workspace);next.cases[0].current={kind};
+   await f.service.save('local',next,f.service.captureScope('local',f.id));
+  }
+  release();await rejected;
+  await assert.rejects(fs.stat(path.join(f.service.root,'profiles/local/professional-work.json')),/ENOENT/);
+ }
+ assert.equal(f.inputs.length,0);
+});
+test('damaged professional storage reports an error and never overwrites the original',async t=>{
+ const f=await fixture(t),file=path.join(f.service.root,'profiles/local/professional-work.json');
+ await fs.writeFile(file,'{"schema":1,"records":');
+ const original=await fs.readFile(file);
+ await assert.rejects(f.host.history('local',f.id),/原文件已保留/);
+ await assert.rejects(f.host.command('local',f.id,{type:'write',message:'test',materialIds:[]}),/原文件已保留/);
+ assert.deepEqual(await fs.readFile(file),original);
+ assert.equal(f.inputs.length,0);
+});
+test('professional views, queue, tasks and file permissions reject cross-case/process report identities',async t=>{
+ const f=await fixture(t);f.service.findCase(f.id).localDraft='本案稿';
+ await f.host.command('local',f.id,{type:'ready-manual'});
+ const record=(f.host as any).stores.get('local').records[0],source=record.sources[0];
+ const report={id:'own',caseId:f.id,processKey:record.processKey,sourceId:source.id,kind:'review',state:'completed',at:'2026-09-26',text:'本案报告',tools:[],skillName:'review',skillHash:''};
+ source.reports=[report,{...report,id:'foreign',caseId:'another-case'},{...report,id:'wrong-process',processKey:'old'},{...report,id:'wrong-source',sourceId:'another-source'}];
+ record.jobs=[report,{...report,id:'foreign-job',caseId:'another-case',artifactPath:'foreign.md'},{...report,id:'wrong-process-job',processKey:'old'}];
+ record.sources.push({...source,id:'foreign-source',caseId:'another-case'});
+ const view=await f.host.getCase('local',f.id);
+ assert.deepEqual(view.record.jobs.map(j=>j.id),['own']);
+ assert.equal(view.record.sources.length,1);
+ assert.deepEqual(view.record.sources[0].reports?.map(j=>j.id),['own']);
+ assert.deepEqual(view.queue[0].reports?.map(j=>j.id),['own']);
+ assert.deepEqual(view.queue[0].source.reports?.map(j=>j.id),['own']);
+ const history=await f.host.history('local',f.id);
+ assert.deepEqual(history.jobs.map(j=>j.id),['own']);
+ assert.deepEqual((await f.host.listTasks('local')).map(j=>j.runId),['own']);
+ assert.equal(await f.host.fileAllowed('local',f.id,'foreign.md'),false);
 });
 test('five writing confirmations preserve versions and create optional independent review; submitting archives without review',async t=>{
  const f=await fixture(t);

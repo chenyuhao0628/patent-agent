@@ -41,6 +41,7 @@ export type NameDiscrepancyRequest = {
   caseName: string;
 };
 export type TransferAPI = {
+  history(profileKey: string, caseId: string): Promise<TransferView[]>;
   inspect(profileKey: string, caseId: string): Promise<TransferView | null>;
   prepare(profileKey: string, caseId: string, sourceMode?: TransferSource): Promise<TransferView>;
   pickFile(profileKey: string, id: string, role: TransferFileRole): Promise<TransferView>;

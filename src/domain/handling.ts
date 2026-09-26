@@ -4,7 +4,7 @@ import {
   WAITING_OFFICIAL_LABEL, workNames,
 } from './lifecycle.ts';
 import { stageVerdict } from './stage-verdict.ts';
-import type { WorkKind } from './lifecycle.ts';
+import type { CaseLifecycleFacts, WorkKind } from './lifecycle.ts';
 import { hasOfficialOutcome, outcomeLabels, outcomeView } from './outcome.ts';
 
 export type HandlingFlowHint = {
@@ -52,7 +52,7 @@ export function isOfficialWaitingSubmission(sub?: Submission): boolean {
   return stageVerdict({ submission: sub }) === 'waiting-official';
 }
 
-function processNameOf(c: Case, process?: RemoteProcess): string {
+function processNameOf(c: CaseLifecycleFacts, process?: RemoteProcess): string {
   const work = currentWork(c);
   if (process?.name) return process.name;
   if (work.label && work.label !== WAITING_OFFICIAL_LABEL && work.label !== UNVERIFIED_OFFICIAL_LABEL && work.label !== UNVERIFIED_INTERNAL_LABEL && work.label !== INTERNAL_ENDED_WAIT_LABEL) return work.label;
@@ -71,7 +71,7 @@ function pendingWithoutInstance(process: RemoteProcess, hint?: HandlingFlowHint)
   return true;
 }
 
-export function currentHandling(c: Case, hint?: HandlingFlowHint): CurrentHandling {
+export function currentHandling(c: CaseLifecycleFacts, hint?: HandlingFlowHint): CurrentHandling {
   const work = currentWork(c);
   const processId = hint?.currentProcessId ?? work.processId;
   const process = processId ? (c.remote?.processes ?? []).find(p => p.id === processId) : undefined;

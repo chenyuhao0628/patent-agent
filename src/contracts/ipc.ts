@@ -1,9 +1,10 @@
 import type { AgentCaseView, AgentTaskView, AgentPreparation } from '../agent-api.ts';
+import type { AgentProcessState } from '../domain/agent.ts';
 import type { ReviewSource } from '../professional-api.ts';
 import type { ApplicationPreferences, ApplicationSettingsView } from '../application-api.ts';
 import type { LocalProgress } from '../domain/local-progress.ts';
 import type { ModelConfigPublic, ProviderSaveInput, UpstreamModel, ConnectionTestResult, DshProviderPreview } from '../domain/models.ts';
-import type { ProfessionalCaseView, ProfessionalCommand, ReviewQueueItem } from '../professional-api.ts';
+import type { ProfessionalCaseView, ProfessionalCommand, ProfessionalHistoryView, ReviewQueueItem } from '../professional-api.ts';
 import type {
   NameDiscrepancyRequest,
   TransferFilePreviewRef,
@@ -92,9 +93,10 @@ export type DesktopIpcChannels = {
   logout: { args: []; result: DesktopState };
   selectDirectory: { args: ['originalLibrary' | 'workRoot']; result: string | null };
   saveSettings: { args: [string, Settings]; result: DesktopState };
-  saveWorkspace: { args: [string, Workspace, DesktopScope]; result: void };
+  saveWorkspace: { args: [string, Workspace, DesktopScope]; result: DesktopState };
   refreshShared: { args: [string]; result: DesktopState };
   sync: { args: [source?: 'manual' | 'focus']; result: DesktopState };
+  refreshCase: { args: [profileKey: string, caseId: string]; result: { state: DesktopState; flow: FlowView } };
   createCase: { args: [{ title: string; number: string; kind: 'write' | 'review' }]; result: DesktopState };
   flow: { args: [caseId: string]; result: FlowView };
   caseInfo: { args: [profileKey: string, caseId: string]; result: DesktopState };
@@ -113,6 +115,7 @@ export type DesktopIpcChannels = {
   model: { args: ModelIpcArgs; result: ModelIpcResult };
   modelCancel: { args: [requestId: string]; result: void };
   professionalGet: { args: [profileKey: string, caseId: string]; result: ProfessionalCaseView };
+  professionalHistory: { args: [profileKey: string, caseId: string]; result: ProfessionalHistoryView };
   professionalReviews: { args: [profileKey: string]; result: ReviewQueueItem[] };
   professionalCommand: { args: [profileKey: string, caseId: string, command: ProfessionalCommand]; result: ProfessionalCaseView };
   professionalPick: { args: [profileKey: string, caseId: string]; result: ProfessionalCaseView };
@@ -120,6 +123,7 @@ export type DesktopIpcChannels = {
   professionalRemoveReference: { args: [profileKey: string, caseId: string, materialId: string]; result: ProfessionalCaseView };
   professionalOpen: { args: [profileKey: string, caseId: string, relativePath: string]; result: void };
   agentGetCase: { args: [profileKey: string, caseId: string]; result: AgentCaseView };
+  agentHistory: { args: [profileKey: string, caseId: string]; result: AgentProcessState[] };
   agentReviewSources: { args: [profileKey: string, caseId?: string]; result: ReviewSource[] };
   agentCommand: { args: [profileKey: string, caseId: string, command: AgentCommand]; result: AgentCaseView };
   agentProgress: { args: [profileKey: string]; result: LocalProgress[] };
@@ -132,6 +136,7 @@ export type DesktopIpcChannels = {
   documentToolsConfigure: { args: [{ webEnabled: boolean; autoInstall: boolean; commandsEnabled: boolean; downloadsEnabled: boolean }]; result: DocumentToolStatus };
   documentToolsOpen: { args: []; result: void };
   transferInspect: { args: [profileKey: string, caseId: string]; result: TransferView | null };
+  transferHistory: { args: [profileKey: string, caseId: string]; result: TransferView[] };
   transferPrepare: { args: [profileKey: string, caseId: string, sourceMode?: TransferSource]; result: TransferView };
   transferPickFile: { args: [profileKey: string, caseId: string, role: TransferFileRole]; result: TransferView };
   transferRemoveFile: { args: [profileKey: string, caseId: string, role: TransferFileRole]; result: TransferView };

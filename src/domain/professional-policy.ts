@@ -13,6 +13,22 @@ export type WritingPhase = (typeof WRITING_PHASES)[number];
 
 export const PROFESSIONAL_BUSINESS_KINDS = ['write', 'reply', 'correction', 'review'] as const;
 
+export type ProfessionalCaseEligibilityView = {
+  stage: {
+    kind: string;
+    editable: boolean;
+  };
+};
+
+export function professionalWorkEditableForView(view: ProfessionalCaseEligibilityView): boolean {
+  return view.stage.editable
+    && PROFESSIONAL_BUSINESS_KINDS.includes(view.stage.kind as (typeof PROFESSIONAL_BUSINESS_KINDS)[number]);
+}
+
+export function professionalWritingEditableForView(view: ProfessionalCaseEligibilityView): boolean {
+  return professionalWorkEditableForView(view) && view.stage.kind === 'write';
+}
+
 export function professionalWorkEditable(caseItem: Case): boolean {
   return editableCurrent(caseItem)
     && PROFESSIONAL_BUSINESS_KINDS.includes(currentWork(caseItem).kind as (typeof PROFESSIONAL_BUSINESS_KINDS)[number]);

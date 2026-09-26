@@ -15,7 +15,7 @@ import { workflowNodes } from '../src/domain/workflow-nodes.ts';
 
 const origin='https://fixture.baselandtec.com';
 const pdf=Buffer.from('%PDF-1.7\nFictional patent fixture\n%%EOF');
-async function fixture(t:test.TestContext){
+async function fixture(t:test.TestContext,granted=true){
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'patent-agent-test-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
   const originals=path.join(root,'原始申请库'),work=path.join(root,'工作文件夹');await fs.mkdir(originals);await fs.mkdir(work);
   const key=randomBytes(32);
@@ -31,7 +31,7 @@ async function fixture(t:test.TestContext){
     else if(u.pathname.endsWith('/GetPersonalCaseCount'))data=body.ActiveName==='waitHand'?1:0;
     else if(u.pathname.endsWith('/GetPersonalCase'))data={List:body.ActiveName==='waitHand'?[{CaseId:'case-'+user,CaseProcId:'proc-'+user,CaseName:'夹持装置',CaseNo:'202612345678.9',CaseProcName:'第一次审查意见答复',CaseProcUndertakerUserName:user,CaseProcLegalDate:'2026-10-01',CaseHandId:'hand-'+user}]:[],Total:body.ActiveName==='waitHand'?1:0};
     else if(u.pathname.endsWith('/GetCaseProcFileList'))data=[{FileNo:'notice-'+user,FileName:'审查意见.pdf'},{FileNo:'retry-'+user,FileName:'对比文件.pdf'}];
-    else if(u.pathname.endsWith('/GetNoticeListByCaseId')){assert.equal(typeof body.caseId,'string');assert.ok(body.PagedInfo,'the notice list endpoint rejects an empty body');data=[{NoticeName:'办理登记手续通知书',NoticeTypeCode:'200602',PostDate:'2026-09-14T00:00:00',NoticeStatusName:'待导入'},{NoticeName:'第一次审查意见通知书',NoticeTypeCode:'210401',PostDate:'2026-08-26T00:00:00'}];}
+    else if(u.pathname.endsWith('/GetNoticeListByCaseId')){assert.equal(typeof body.caseId,'string');assert.ok(body.PagedInfo,'the notice list endpoint rejects an empty body');data=[...(granted?[{NoticeName:'办理登记手续通知书',NoticeTypeCode:'200602',PostDate:'2026-09-14T00:00:00',NoticeStatusName:'待导入'}]:[]),{NoticeName:'第一次审查意见通知书',NoticeTypeCode:'210401',PostDate:'2026-08-26T00:00:00'}];}
     else if(u.pathname.endsWith('/FileStorageGetFile'))return new Response(u.searchParams.get('fileNo')?.startsWith('retry')&&broken?Buffer.from('<html>failed</html>'):pdf);
     else if(u.pathname.endsWith('/GetCaseDetailProcList')){assert.equal(body.TableType,80001);assert(Array.isArray(body.UserTableTitleColumnList));data=[{CaseProcId:'proc-'+user,CaseProcName:'第一次审查意见答复',ProcStatusCode:200,StatusCode:200,CaseProcCurrentFlowName:'最新核稿节点',CaseProcUndertakerUserName:'主管',CaseProcLegalDate:'2026-10-01',CaseProcCustomDate:'2026-09-28',CaseProcNameInfo:{CaseProcName:'第一次审查意见答复'}}];}
     else if(u.pathname.endsWith('/GetCaseAllFlowHistoryInfo'))data={List:[{CaseProcName:'提出申请',ProcCreateDate:'2026-01-01',FinishDate:'2026-02-01'}]};
@@ -43,7 +43,7 @@ async function fixture(t:test.TestContext){
     return Response.json({IsSuccess:true,Data:data});
   };
   const make=(device='本机记录')=>new DesktopService(path.join(root,device),vault,(o,token)=>new BaselandClient(o,token,fetcher));
-  return {root,originals,work,make,vault,fetcher,requests,repair:()=>{broken=false;}};
+  return {root,originals,work,make,vault,fetcher,requests,repair:()=>{broken=false;},setGranted:(value:boolean)=>{granted=value;}};
 }
 test('native files use stable case folders, preserve originals, reject symlink escapes and unsafe names',async t=>{
   const f=await fixture(t),files=new CaseFiles({provider:'',baseUrl:'',model:'',originalLibrary:f.originals,workRoot:f.work},'alice');
@@ -94,6 +94,13 @@ test('login, personal sync, retry, native draft persistence and account switchin
   assert.equal(c.officialOutcome?.noticeTypeCode,'200602');
   await service.refreshCaseOutcomes(aliceKey);
   assert.equal(service.workspace.cases[0].officialOutcome?.state,'granted','手动重新判读同样只读官文清单');
+  assert.equal(editableCurrent(service.workspace.cases[0]),false);
+  const concluded=structuredClone(service.workspace);concluded.cases[0].localDraft='已授权后不能新写稿件';
+  await service.save(aliceKey,concluded);
+  assert.notEqual(service.workspace.cases[0].localDraft,concluded.cases[0].localDraft);
+  f.setGranted(false);await service.refreshCaseOutcomes(aliceKey);
+  assert.equal(service.workspace.cases[0].officialOutcome?.state,'none');
+  assert.equal(editableCurrent(service.workspace.cases[0]),true);
   assert.equal(c.rounds[0].materials.filter(m=>m.ready).length,1);assert.match(service.syncState.message,/需重试/);
   f.repair();await service.sync();assert.equal(service.workspace.cases[0].rounds[0].materials.filter(m=>m.ready).length,2);
   const edit=structuredClone(service.workspace);edit.cases[0].localDraft='用户亲自撰写的工作稿';edit.cases[0].localVersions=[{id:randomUUID(),text:edit.cases[0].localDraft,at:new Date().toISOString(),processId:c.current?.processId}];
@@ -158,7 +165,7 @@ test('login checks nested business result and does not replace Data.Token with a
 });
 
 test('a second device reads a shared work folder and preserves private conversations and changed drafts',async t=>{
-  const f=await fixture(t);f.repair();const a=f.make('电脑A'),b=f.make('电脑B');
+  const f=await fixture(t,false);f.repair();const a=f.make('电脑A'),b=f.make('电脑B');
   await a.init();await a.login({origin,username:'alice',password:'fixture',remember:false});
   await a.settings(a.key,{...a.workspace.settings,workRoot:f.work});await a.sync();
   a.workspace.cases[0].rounds[0].discussions[0].messages.push({id:'local-chat',role:'user',text:'PRIVATE_CONVERSATION_SENTINEL'});
@@ -179,7 +186,7 @@ test('shared directory reading handles portable paths and incomplete cloud files
   const f=await fixture(t),s=f.make();await s.init();await s.settings('local',{...s.workspace.settings,workRoot:f.work});await s.createCase({title:'共享目录测试装置',number:'SHARED-001',kind:'write'});
   const edit=structuredClone(s.workspace);edit.cases[0].localDraft='保留本机稿件';await s.save('local',edit);
   const c=s.workspace.cases[0],manifest=path.join(f.work,c.directory!,'案件信息.json');let raw=JSON.parse(await fs.readFile(manifest,'utf8'));
-  raw.materials=[{id:'cloud-file',name:'云盘尚未下载.pdf',role:'材料',relativePath:'01_通知与材料\\尚未下载.pdf'}];await fs.writeFile(manifest,JSON.stringify(raw));
+  raw.materials=[{id:'cloud-file',name:'云盘尚未下载.pdf',role:'材料',relativePath:'01_通知与材料\\尚未下载.pdf'}];raw.domains.materials.common=raw.materials;await fs.writeFile(manifest,JSON.stringify(raw));
   await s.refreshShared('local');assert.equal(s.workspace.cases[0].materials?.[0].ready,false);assert.equal(s.workspace.cases[0].materials?.[0].relativePath,'01_通知与材料/尚未下载.pdf');
   await fs.writeFile(manifest,'{unfinished cloud sync');await s.refreshShared('local');assert.match(s.storageState.message,/需核对/);assert.equal(s.workspace.cases[0].localDraft,'保留本机稿件');assert.equal(await fs.readFile(manifest,'utf8'),'{unfinished cloud sync');
 });
@@ -188,7 +195,7 @@ test('shared stage changes preserve the old draft as history instead of carrying
   const f=await fixture(t),s=f.make();await s.init();await s.settings('local',{...s.workspace.settings,workRoot:f.work});await s.createCase({title:'阶段同步测试装置',number:'SHARED-002',kind:'write'});
   const edit=structuredClone(s.workspace);edit.cases[0].localDraft='上一阶段的工作稿';await s.save('local',edit);
   const c=s.workspace.cases[0],manifest=path.join(f.work,c.directory!,'案件信息.json'),raw=JSON.parse(await fs.readFile(manifest,'utf8'));
-  raw.current={kind:'reply',processId:'next-process'};await fs.writeFile(manifest,JSON.stringify(raw));
+  raw.current={kind:'reply',processId:'next-process'};raw.domains.stage.current=raw.current;await fs.writeFile(manifest,JSON.stringify(raw));
   await s.refreshShared('local');const restored=s.workspace.cases[0];
   assert.equal(restored.current?.processId,'next-process');assert.equal(restored.localDraft,'');assert.equal(restored.sharedDraftHash,undefined);assert(restored.localVersions?.some(v=>v.text==='上一阶段的工作稿'));
   const next=structuredClone(s.workspace);next.cases[0].localDraft='新阶段稿件';await s.save('local',next);
