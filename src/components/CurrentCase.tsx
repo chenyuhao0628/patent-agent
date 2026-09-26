@@ -38,6 +38,108 @@ function sourceHistoryRecord(source: { id: string; title: string; business: stri
   };
 }
 
+function agentHistoryRecords(view: AgentCaseView): HistoryRecord[] {
+  const process = view.process;
+  const records: HistoryRecord[] = [];
+  const stateLabel = (state: string) => ({ running: '运行中', stopped: '已停止', failed: '失败', completed: '已完成' } as Record<string, string>)[state] ?? state;
+  const actionLabel = (action: string) => ({ analysis: '意见分析', discuss: '讨论', draft: '起草', revise: '修改起草', review: '独立复核' } as Record<string, string>)[action] ?? action;
+  const discussionNames = new Map(process.discussions.map(discussion => [discussion.id, discussion.title]));
+  const seenMessages = new Set<string>();
+  for (const discussion of process.discussions) {
+    for (const message of discussion.messages) {
+      if (seenMessages.has(message.id)) continue;
+      seenMessages.add(message.id);
+      records.push({
+        id: `agent-message-${message.id}`,
+        title: `${discussion.title} · ${message.role === 'user' ? '用户消息' : 'Agent 回复'}`,
+        detail: `${historyDate(message.at)} · ${message.incomplete ? '未完成输出 · 只读' : '只读'}`,
+        text: message.text,
+      });
+    }
+    for (const branch of discussion.branches ?? []) {
+      for (const message of branch.messages) {
+        if (seenMessages.has(message.id)) continue;
+        seenMessages.add(message.id);
+        records.push({
+          id: `agent-branch-message-${message.id}`,
+          title: `${discussion.title} · ${branch.title} · ${message.role === 'user' ? '用户消息' : 'Agent 回复'}`,
+          detail: `${historyDate(message.at)} · 历史分支 · 只读`,
+          text: message.text,
+        });
+      }
+    }
+    for (const queued of discussion.queuedMessages ?? []) {
+      records.push({
+        id: `agent-queued-${queued.id}`,
+        title: `${discussion.title} · 排队消息`,
+        detail: `${historyDate(queued.at)} · ${queued.error ? '跳过失败项' : '未完成任务'} · 只读`,
+        text: [queued.text, queued.error ? `处理结果：${queued.error}` : '该消息尚未形成完成回复。'].join('\n\n'),
+      });
+    }
+  }
+  for (const job of process.jobs) {
+    const discussion = discussionNames.get(job.discussionId);
+    records.push({
+      id: `agent-job-${job.runId}`,
+      title: `${actionLabel(job.action)}任务${discussion ? ` · ${discussion}` : ''}`,
+      detail: `${historyDate(job.startedAt)} · ${stateLabel(job.state)} · 只读`,
+      text: [
+        job.userMessage ? `用户要求：${job.userMessage}` : '',
+        job.partialText ? `已输出内容：\n${job.partialText}` : '',
+        job.error ? `任务结果：${job.error}` : `任务状态：${stateLabel(job.state)}`,
+      ].filter(Boolean).join('\n\n'),
+    });
+  }
+  const analyses = [...new Map([...process.analysisHistory, ...(process.analysis ? [process.analysis] : [])].map(analysis => [analysis.runId, analysis])).values()];
+  for (const analysis of analyses) {
+    records.push({
+      id: `agent-analysis-${analysis.runId}`,
+      title: '意见分析与策略',
+      detail: `${historyDate(analysis.at)} · ${analysis.runId === process.analysis?.runId ? '当前分析' : '历史分析'} · 只读`,
+      text: [
+        '意见分析',
+        ...analysis.opinions.map((opinion, index) => `${index + 1}. ${opinion.title}\n${opinion.summary}\n依据：${opinion.basis}`),
+        '策略候选',
+        ...analysis.strategies.map((strategy, index) => `${index + 1}. ${strategy.title}\n${strategy.summary}\n优点：${strategy.benefits}\n风险：${strategy.risks}\n依据：${strategy.basis}`),
+      ].join('\n\n'),
+    });
+  }
+  for (const draft of process.drafts) {
+    records.push({
+      id: `agent-draft-${draft.id}`,
+      title: `答复稿件 · ${draft.adoptStatus === 'adopted' ? '已采用' : draft.adoptStatus === 'pending' ? '待采用' : draft.adoptStatus === 'conflict' ? '冲突' : '未采用'}`,
+      detail: `${historyDate(draft.at)} · ${draft.source === 'user' ? '人工版本' : 'Agent 版本'} · 只读`,
+      text: [
+        draft.text,
+        draft.amendmentText ? `建议修改文本：\n${draft.amendmentText}` : '',
+        draft.amendmentBasis ? `修改依据：\n${draft.amendmentBasis}` : '',
+        draft.reviewNotes ? `复核说明：\n${draft.reviewNotes}` : '',
+        draft.correctionContents?.length ? `补正条目：\n${JSON.stringify(draft.correctionContents, null, 2)}` : '',
+      ].filter(Boolean).join('\n\n'),
+    });
+  }
+  for (const review of process.reviews) {
+    records.push({
+      id: `agent-review-${review.id}`,
+      title: '答复独立复核',
+      detail: `${historyDate(review.at)} · ${review.invalidated ? '已失效' : '只读'}`,
+      text: [
+        review.summary,
+        ...review.issues.map((issue, index) => `${index + 1}. ${issue.finding}\n依据：${issue.basis}\n建议：${issue.suggestion}\n处理：${issue.handled ? '已记录处理' : '未记录处理'}`),
+      ].join('\n\n'),
+    });
+  }
+  for (const final of [...process.finalizeHistory, ...(process.finalized ? [process.finalized] : [])]) {
+    records.push({
+      id: `agent-final-${final.draftVersionId}-${final.at}`,
+      title: '答复定稿',
+      detail: `${historyDate(final.at)} · ${final.word.status === 'generated' ? '已生成 Word' : final.word.message} · 只读`,
+      text: final.text,
+    });
+  }
+  return records;
+}
+
 export function CaseHistory({item,profileKey}:{item:Case;profileKey?:string}){
   const [preview,setPreview]=useState('');
   const [remoteRecords,setRemoteRecords]=useState<HistoryRecord[]>([]);
@@ -49,6 +151,7 @@ export function CaseHistory({item,profileKey}:{item:Case;profileKey?:string}){
     if(!desktop||!profileKey)return;
     setRemoteLoading(true);
     const loads:Promise<HistoryRecord[]>[]=[];
+    loads.push(desktop.agent.getCase(profileKey,item.id).then(agentHistoryRecords));
     if(desktop.agent.reviewSources){
       loads.push(desktop.agent.reviewSources(profileKey,item.id).then(sources=>sources.map(sourceHistoryRecord)));
     }
