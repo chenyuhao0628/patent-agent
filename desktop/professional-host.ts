@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import type { Case } from '../src/domain/workflow.ts';
 import { currentWork, editableCurrent } from '../src/domain/lifecycle.ts';
 import { currentHandling } from '../src/domain/handling.ts';
+import { hasOfficialOutcome } from '../src/domain/outcome.ts';
 import { WRITING_PHASES } from '../src/professional-api.ts';
 import { PROFESSIONAL_DECISION_MAX, PROFESSIONAL_WRITE_MESSAGE_MAX } from '../src/professional-api.ts';
 import type { ProfessionalCaseView, ProfessionalCommand, ProfessionalJob, ProfessionalRecord, ReviewQueueItem, ReviewSource, WorkFile } from '../src/professional-api.ts';
@@ -58,6 +59,8 @@ export class ProfessionalHost {
   private async archiveReason(c:Case,source:ReviewSource) {
     if(source.supersededAt)return '已有后续稿件版本';
     if(c.archived)return '案件已归档';
+    if(c.remoteClosure?.finished)return '案件已结案';
+    if(hasOfficialOutcome(c))return '已有官方结论';
     if(keyOf(c)!==source.processKey)return '已进入后续办理流程';
     if(currentHandling(c).officialWaiting)return '已递交，等待官方处理结果';
     if(!c.directory)return undefined;
@@ -134,7 +137,7 @@ export class ProfessionalHost {
       if(!editableCurrent(c)||currentWork(c).kind!=='write'||!Number.isInteger(command.phase)||command.phase<0||command.phase>record.phase)throw new Error('不能回到指定阶段。');
       record.phase=command.phase;record.completed=false;record.confirmations=record.confirmations.filter(x=>x.phase<command.phase);await this.persist(key);
     }else if(command.type==='ready-manual'){
-      if(!c.localDraft?.trim()||!['write','reply','correction'].includes(currentWork(c).kind)||currentHandling(c).officialWaiting)throw new Error('本案没有可列入审查的当前工作稿。');
+      if(c.archived||c.remoteClosure?.finished||hasOfficialOutcome(c)||!c.localDraft?.trim()||!['write','reply','correction'].includes(currentWork(c).kind)||currentHandling(c).officialWaiting)throw new Error('本案没有可列入审查的当前工作稿。');
       const hash=digest(c.localDraft),sourceId='manual-'+digest(c.id+'\0'+record.processKey+'\0'+hash);
       if(!record.sources.some(s=>s.id===sourceId))record.sources.push({id:sourceId,caseId:id,processKey:record.processKey,title:'已完成的人工工作稿',business:currentWork(c).kind==='write'?'申请':currentWork(c).kind==='correction'?'补正':'答复',at:new Date().toISOString(),text:c.localDraft,files:[]});
       await this.persist(key);
@@ -159,6 +162,7 @@ export class ProfessionalHost {
   }
   async addFiles(key:string,id:string,paths:string[]):Promise<ProfessionalCaseView>{return this.serial(async()=>{
     const c=this.guard(key,id),processKey=keyOf(c),root=this.service.workspace.settings.workRoot,generation=this.service.generation,record=this.record(await this.store(key),c);
+    if(c.archived||c.remoteClosure?.finished||hasOfficialOutcome(c)||currentHandling(c).officialWaiting||currentWork(c).kind==='waiting')throw new Error('当前案件仅可查看，不能新增独立审查稿件。');
     if(this.active.has(id))throw new Error('请先停止本案任务再选择完成稿。');
     if(!paths.length||paths.length>12)throw new Error('每次可选择 1–12 份完成稿。');
     const files:WorkFile[]=[];

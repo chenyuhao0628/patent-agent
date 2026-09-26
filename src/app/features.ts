@@ -68,7 +68,9 @@ export const FEATURE_MODULES: readonly FeatureModule[] = [
     desktopOnly: true,
     canView: () => true,
     canStart: caseItem => activeCase(caseItem) && ['write', 'reply', 'correction', 'review'].includes(currentWork(caseItem).kind),
-    canEdit: caseItem => !caseItem.archived,
+    canEdit: caseItem => !caseItem.archived
+      && !currentHandling(caseItem).officialWaiting
+      && currentWork(caseItem).kind !== 'waiting',
   },
   {
     id: 'transfer',

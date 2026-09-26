@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { FEATURE_MODULE_BY_ID, FEATURE_MODULES, featureAvailable, featureContext, featureContextForDesktop, featureVisible } from './features.ts';
+import { FEATURE_MODULE_BY_ID, FEATURE_MODULES, featureAvailable, featureContext, featureContextForDesktop, featureEditable, featureVisible } from './features.ts';
 import type { Case } from '../domain/workflow.ts';
 import { initialDesign } from '../domain/designFlows.ts';
 
@@ -50,6 +50,8 @@ test('feature visibility keeps historical read-only work reachable', () => {
   assert.equal(featureVisible(FEATURE_MODULE_BY_ID.review, context, waiting), true);
   assert.equal(featureVisible(FEATURE_MODULE_BY_ID.reply, context, fixture({ archived: true })), true);
   assert.equal(featureAvailable(FEATURE_MODULE_BY_ID.reply, context, fixture({ archived: true })), false);
+  assert.equal(featureEditable(FEATURE_MODULE_BY_ID.review, context, waiting), false);
+  assert.equal(featureEditable(FEATURE_MODULE_BY_ID.review, context, fixture({ current: { kind: 'review' } })), true);
 });
 
 test('feature visibility keeps reply and writing history available without granting start permission', () => {

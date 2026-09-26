@@ -116,3 +116,14 @@ test('writing reference import rejects invalid batches, account changes and acti
  await f.host.command('local',f.id,{type:'stop'});await settled(f.host,f.id);
  f.service.findCase(f.id).current={kind:'waiting'};await assert.rejects(f.host.addReferences('local',f.id,[good]),/撰写阶段/);
 });
+
+test('review source writes are blocked for archived, closed and official-waiting cases',async t=>{
+ const f=await fixture(t);const source=path.join(f.root,'完成稿.txt');await fs.writeFile(source,'完成稿正文');
+ const c=f.service.findCase(f.id);
+ c.current={kind:'waiting'};
+ await assert.rejects(f.host.addFiles('local',f.id,[source]),/仅可查看/);
+ c.current={kind:'write'};c.archived=true;
+ await assert.rejects(f.host.addFiles('local',f.id,[source]),/仅可查看/);
+ c.archived=false;c.remoteClosure={finished:true,checkedAt:new Date().toISOString()};
+ await assert.rejects(f.host.addFiles('local',f.id,[source]),/仅可查看/);
+});
