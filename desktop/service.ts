@@ -369,7 +369,10 @@ export class DesktopService {
     this.assertKey(key);this.assertNotMigrating();this.assertWriteScope(key,scope);
     // Renderer may edit local fields only, never remote identity, ownership or active workflow.
     const next=structuredClone(this.workspace),files=this.files();
-    for(const c of next.cases){const edit=incoming.cases.find(x=>x.id===c.id);if(!edit)continue;
+    const targetIds=scope?.caseId?[scope.caseId]:incoming.cases.map(c=>c.id);
+    for(const id of targetIds){
+      const c=next.cases.find(item=>item.id===id),edit=incoming.cases.find(x=>x.id===id);
+      if(!c||!edit)throw new Error('案件不属于当前保存作用域。');
       c.archived=edit.archived===true;c.tags=Array.isArray(edit.tags)?edit.tags.filter(x=>typeof x==='string').slice(0,30):c.tags;
       if(c.source==='local'){
         if(typeof edit.title==='string'&&edit.title.trim())c.title=edit.title.trim().slice(0,250);
@@ -387,7 +390,11 @@ export class DesktopService {
       if(c.localDraft!==undefined)c.directory=await files.saveDraft(c);
     }
     this.assertWriteScope(key,scope);
-    this.workspace={...this.workspace,cases:this.workspace.cases.map(c=>{const changed=next.cases.find(x=>x.id===c.id);if(!changed)return c;return {...c,archived:changed.archived,tags:changed.tags,...(c.source==='local'?{title:changed.title,deadline:changed.deadline,current:changed.current}:{}),...(c.current?.processId===changed.current?.processId?{localDraft:changed.localDraft,localVersions:changed.localVersions,directory:changed.directory,sharedDraftHash:changed.sharedDraftHash}:{})};})};
+    this.workspace={...this.workspace,cases:this.workspace.cases.map(c=>{
+      if(scope?.caseId&&c.id!==scope.caseId)return c;
+      const changed=next.cases.find(x=>x.id===c.id);if(!changed)return c;
+      return {...c,archived:changed.archived,tags:changed.tags,...(c.source==='local'?{title:changed.title,deadline:changed.deadline,current:changed.current}:{}),...(c.current?.processId===changed.current?.processId?{localDraft:changed.localDraft,localVersions:changed.localVersions,directory:changed.directory,sharedDraftHash:changed.sharedDraftHash}:{})};
+    })};
     await this.persist();
   }
   async createCase(input:{title:string;number:string;kind:'write'|'review'}) {

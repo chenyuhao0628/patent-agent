@@ -391,6 +391,14 @@ type FeatureModule = {
 - 自动化证据：`npm test` 564 项通过；`npx tsc --noEmit` 通过；`npm run build` 通过；`git diff --check` 通过。
 - 本阶段未进行真实模型、真实案件材料、GUI 视觉、退出恢复、模板 Word 版式、macOS 覆盖安装、Windows 实机安装、服务端写入或官方递交验收。
 
+2026-09-26 完成案件级保存隔离：
+
+- 带案件作用域的 `DesktopService.save` 只处理该 `caseId`，不再遍历或合并渲染层携带的其他案件快照；账号级兼容保存仍保留给同步和全局工作区操作。
+- 案件级保存继续在队列开始、文件写入前后复核账号代际、案件存在性和流程键；跨案件旧快照不会因当前案件保存而落盘。
+- 新增跨案件工作稿隔离回归，验证第二案件的正文和工作稿目录保持不变。
+- 自动化证据：`npm test` 566 项通过；`npx tsc --noEmit` 通过；`npm run build` 通过；`git diff --check` 通过。
+- 本阶段未进行真实模型、真实案件材料、GUI 视觉、退出恢复、模板 Word 版式、macOS 覆盖安装、Windows 实机安装、服务端写入或官方递交验收。
+
 2026-09-26 完成独立审查可写边界统一：
 
 - 新增 `professionalWorkEditable` 和 `professionalWritingEditable` 领域策略，Feature Registry、Professional Host 和案件状态共同使用当前业务与 `editableCurrent` 判定。

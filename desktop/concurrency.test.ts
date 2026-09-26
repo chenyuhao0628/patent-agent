@@ -87,6 +87,23 @@ test('workspace save rechecks the captured case process in the main process',asy
   assert.equal(s.workspace.cases[0].localDraft,'');
 });
 
+test('case-scoped workspace save cannot carry edits from another case',async t=>{
+  const {root,work,vault}=await tempService(t);
+  const s=new DesktopService(path.join(root,'data'),vault);
+  s.key='account-a';s.workspace.settings.workRoot=work;
+  await s.createCase({title:'第一案件',number:'SCOPE-001',kind:'write'});
+  await s.createCase({title:'第二案件',number:'SCOPE-002',kind:'write'});
+  const first=s.workspace.cases[0],second=s.workspace.cases[1];
+  const incoming=structuredClone(s.workspace);
+  incoming.cases[0].localDraft='第一案件新稿';
+  incoming.cases[1].localDraft='不应通过第一案件页面写入';
+  const scope={profileKey:s.key,scopeVersion:s.generation,caseId:first.id,processKey:'local-write'};
+  await s.save(s.key,incoming,scope);
+  assert.equal(s.workspace.cases[0].localDraft,'第一案件新稿');
+  assert.equal(s.workspace.cases[1].localDraft,'');
+  assert.deepEqual(await fs.readdir(path.join(work,second.directory!,'02_工作稿')),[]);
+});
+
 test('account switch during flow filesystem write does not leak into the new account root',async t=>{
   const {root,work,vault}=await tempService(t);
   const workB=path.join(root,'work-b');await fs.mkdir(workB);

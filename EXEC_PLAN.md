@@ -220,6 +220,13 @@
 - 验证：`npm test` 564 项通过；`npx tsc --noEmit` 通过；`npm run build` 通过；`git diff --check` 通过。
 - 未验收：真实模型、真实案件材料、GUI 视觉、退出恢复、模板 Word 版式、macOS 覆盖安装、Windows 实机安装、服务端写入和官方递交。
 
+## 26. 2026-09-26 案件级保存隔离
+
+- 带案件作用域的 `DesktopService.save` 只处理作用域案件，不再把同一渲染快照中的其他案件草稿或元数据写入磁盘；账号级保存仍保留给全局同步和兼容操作。
+- 新增跨案件工作稿隔离回归，验证第二案件的内存稿和工作稿目录不会被第一案件页面携带的旧快照改变。
+- 验证：`npm test` 566 项通过；`npx tsc --noEmit` 通过；`npm run build` 通过；`git diff --check` 通过。
+- 未验收：真实模型、真实案件材料、GUI 视觉、退出恢复、模板 Word 版式、macOS 覆盖安装、Windows 实机安装、服务端写入和官方递交。
+
 ## 25. 2026-09-26 独立审查可写边界统一
 
 - 新增 `professionalWorkEditable` 和 `professionalWritingEditable` 领域策略，Feature Registry、Professional Host 和案件状态共同使用当前业务与 `editableCurrent` 判定。
