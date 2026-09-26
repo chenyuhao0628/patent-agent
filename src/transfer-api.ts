@@ -1,3 +1,4 @@
+export const TRANSFER_API_CONTRACT_VERSION = 1 as const;
 export const FIVE_PARTS = [
   { code: '100001', name: '权利要求书' }, { code: '100002', name: '说明书' },
   { code: '100003', name: '说明书附图' }, { code: '100004', name: '说明书摘要' },

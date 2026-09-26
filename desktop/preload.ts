@@ -5,6 +5,7 @@ const call=async(name:string,...args:unknown[])=>{
 };
 const modelCall=(method:string,key:string,args:unknown[],requestId?:string)=>call('model',method,key,args,requestId);
 contextBridge.exposeInMainWorld('patentDesktop',{
+  contractVersion:1,
   diagnosticExport:()=>call('diagnosticExport'),diagnosticReport:(input:unknown)=>call('diagnosticReport',input),
   extensions:{test:(k:string,id:string)=>call('extensions','test',k,id),list:(k:string)=>call('extensions','list',k),toggle:(k:string,id:string,v:boolean)=>call('extensions','toggle',k,id,v),remove:(k:string,id:string)=>call('extensions','remove',k,id),saveMcp:(k:string,raw:string,id?:string)=>call('extensions','saveMcp',k,raw,id),saveSkill:(k:string,n:string,t:string,id?:string)=>call('extensions','saveSkill',k,n,t,id),importSkill:(k:string)=>call('extensions','importSkill',k)},
   priorArt:{status:(k:string)=>call('priorArt','status',k),save:(k:string,v:string)=>call('priorArt','save',k,v),clear:(k:string)=>call('priorArt','clear',k),importLegacy:(k:string)=>call('priorArt','importLegacy',k),test:(k:string)=>call('priorArt','test',k),prepare:(k:string,id:string,v:string)=>call('priorArt','prepare',k,id,v)},

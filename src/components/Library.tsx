@@ -220,7 +220,7 @@ export function Library({ cases, openCase, onImport, module, archiveCases, scope
     <div className="library-toolbar">
       <div className="library-toolbar-group library-filters" role="group" aria-label="筛选">
         <label>专利类型<select aria-label="专利类型" value={patentType} onChange={e => setPatentType(e.target.value)}><option value="">全部类型</option>{result.availablePatentTypes.map(type => <option key={type} value={type}>{type}</option>)}</select></label>
-        <label>办理业务<select aria-label="办理业务" value={business} onChange={e => setBusiness(e.target.value)}><option value="">全部业务</option>{result.availableBusinessKinds.map(kind => <option key={kind} value={kind}>{kind}</option>)}</select></label>
+        {!module && <label>办理业务<select aria-label="办理业务" value={business} onChange={e => setBusiness(e.target.value)}><option value="">全部业务</option>{result.availableBusinessKinds.map(kind => <option key={kind} value={kind}>{kind}</option>)}</select></label>}
         <label>当前状态<select aria-label="当前状态" value={statusCategory} onChange={e => { const next = e.target.value as CaseStatusCategory | ''; setStatusCategory(next); if (next === 'closed') setArchived('all'); }}><option value="">全部状态</option>{result.availableStatusCategories.map(cat => <option key={cat} value={cat}>{statusCategoryLabels[cat]}</option>)}</select></label>
         <label>归档<select aria-label="归档" value={archived} onChange={e => setArchived(e.target.value as ArchivedFilter)}><option value="active">未归档</option><option value="archived">已归档</option><option value="all">全部</option></select></label>
         <button type="button" disabled={!filtersOn} onClick={resetFilters}>重置筛选</button>

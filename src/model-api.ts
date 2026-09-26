@@ -6,6 +6,7 @@ import type {
   UpstreamModel,
 } from './domain/models.ts';
 
+export const MODEL_API_CONTRACT_VERSION = 1 as const;
 export type {
   ConnectionTestResult,
   DshImportedModel,

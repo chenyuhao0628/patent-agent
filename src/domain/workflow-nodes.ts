@@ -1,8 +1,11 @@
 import type { Case } from './workflow.ts';
 import type { LocalProgress } from './local-progress.ts';
 import { currentWork, isConfirmedOfficialSubmission, processSubmission, processBusinessKind } from './lifecycle.ts';
-import { WRITING_PHASES } from '../professional-api.ts';
+import { WRITING_PHASES } from './professional-policy.ts';
 export type WorkflowNode = { label: string; state: 'done' | 'current' | 'pending' | 'unknown' | 'optional'; at?: string; detail?: string; closedBySubmission?: boolean };
+// Current product default; keep it in one policy value so an institution-specific
+// preference can replace it later without scattering a person's name across UI code.
+export const DEFAULT_INTERNAL_TRANSFER_RECIPIENT = '杨佳';
 export function workflowBusiness(c: Case) {
   const w = currentWork(c);
   return processBusinessKind(c.remote?.processes.find(p => p.id === w.processId)?.name ?? '') ?? w.kind;
@@ -32,7 +35,7 @@ export function workflowNodes(c: Case, progress?: LocalProgress): WorkflowNode[]
   if (!remote) {
     const nodes: WorkflowNode[] = [
       ...local,
-      { label: '转交下一办理人', state: hasCurrent ? 'pending' : 'current', detail: '杨佳' },
+      { label: '转交下一办理人', state: hasCurrent ? 'pending' : 'current', detail: DEFAULT_INTERNAL_TRANSFER_RECIPIENT },
       { label: '提交官方', state: 'pending' },
       { label: '已完成', state: 'pending' },
     ];

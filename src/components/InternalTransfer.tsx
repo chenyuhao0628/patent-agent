@@ -4,9 +4,11 @@ import { desktop } from '../desktop.ts';
 import type { Case } from '../domain/workflow.ts';
 import { currentWork, internalTransferAvailable } from '../domain/lifecycle.ts';
 import { currentHandling } from '../domain/handling.ts';
+import { DEFAULT_INTERNAL_TRANSFER_RECIPIENT } from '../domain/workflow-nodes.ts';
 import { FIVE_PARTS } from '../transfer-api.ts';
 import type { TransferView, TransferReview, TransferFileRole, TransferForm, NameDiscrepancyRequest } from '../transfer-api.ts';
 import { Modal, Note } from './Primitives.tsx';
+import { transferRouteDefinition } from '../app/transfer-routes.ts';
 import { FormattedFormulaText } from './FormattedFormulaText.tsx';
 
 const declarations:Record<string,string>={IsApplySameDay:'同日申请',IsPublicAdvance:'请求提前公开',IsExhibition:'展览会公开声明',IsPublished:'学术或技术会议公开声明',IsPublicForCommonProfit:'公共利益目的公开声明',IsDisclosure:'他人未经同意泄露声明',IsGiveUpOn51Section:'放弃主动修改',IsRequestDelayReview1YearForUtility:'实用新型延迟审查一年'};
@@ -138,7 +140,7 @@ export function InternalTransfer({profileKey,item,refreshSeq,navigate}:{profileK
     if(activeStep?.users?.length){
       const validUser=activeStep.users.find(u=>u.id===nextUserId);
       if(!validUser){
-        const yj=activeStep.users.find(u=>u.name==='杨佳');
+        const yj=activeStep.users.find(u=>u.name===DEFAULT_INTERNAL_TRANSFER_RECIPIENT);
         if(yj){
           nextUserId=yj.id;
           changed=true;
@@ -200,9 +202,11 @@ export function InternalTransfer({profileKey,item,refreshSeq,navigate}:{profileK
   const correctionsDirty=!!view&&!!review&&JSON.stringify(view.review.form.corrections)!==JSON.stringify(review.form.corrections);
   const locked=busy||view?.phase!=='draft'||view?.canEditRemote===false;
   const lockedRecipient=busy||(view?.phase!=='draft'&&view?.phase!=='saved')||view?.canEditRemote===false;
-  const roles:TransferFileRole[]=view?.route==='application'?['application']:['baseline','application',...(view?.route==='reply'?['reply' as const]:[])];
+  const roles: readonly TransferFileRole[] = view ? transferRouteDefinition(view.route).fileRoles : [];
   const roleName={baseline:'修改前申请文件（比对用，可选）',application:view?.route==='application'?'完整申请文件':'本次修改后的申请文件（有修改时）',reply:'意见陈述书 Word'};
   const step=view?.steps.find(s=>s.id===review?.stepId),user=step?.users.find(u=>u.id===review?.userId);
+  const phaseLabel:Record<TransferView['phase'],string>={draft:'草稿，尚未写入服务端',saved:'已保存，等待内部转交',submitted:'内部转交已确认',uncertain:'结果待核验，不能重复操作',superseded:'已被新方案替代'};
+  const phaseDescription:Record<TransferView['phase'],string>={draft:'请依次核对材料、业务表单和下一办理人。',saved:'保存、回读和材料核验已完成，官方递交仍由后续办理人负责。',submitted:'服务端已回读下一流程和办理人，当前方案不能再次转交。',uncertain:'上一次操作结果不完整，先刷新核对或返回草稿，不会自动重发。',superseded:'本方案仅保留历史记录，不能继续执行。'};
 
   const handlePreviewDoc=async(fileRef:{role?:TransferFileRole;partCode?:string;fileNo?:string;name?:string})=>{
     if(!desktop?.transfer?.previewFile||!view)return;
@@ -250,6 +254,7 @@ export function InternalTransfer({profileKey,item,refreshSeq,navigate}:{profileK
     )}
   </div>
     {!inspecting&&!view&&<p className="note"><strong>推荐方案</strong>：使用工作台已完成起草与定稿的成果直接生成提交文件。如果你已在外部完成撰写、答复或补正，也可选择“本地文件人工提交”直接导入本地 DOCX 文件。</p>}
+    {view&&!inspecting&&<div className={`transfer-status-summary is-${view.phase}`} role="status"><div className="transfer-status-main"><span>本次提交状态</span><strong>{phaseLabel[view.phase]}</strong><p>{phaseDescription[view.phase]}</p></div><dl><div><dt>本地文件</dt><dd>{view.files.length} 份</dd></div><div><dt>远端材料</dt><dd>{view.existingFileNames.length} 份</dd></div><div><dt>下一办理人</dt><dd>{user?.name||'未选择'}</dd></div></dl></div>}
     {error&&<div className="inline-warning" role="alert"><p>{error}</p><div className="button-row" style={{marginTop:'8px'}}>{view?.phase==='uncertain'?(view.submissionAttempted?<button className="primary" disabled={busy} onClick={()=>void act(()=>desktop!.transfer.refresh(profileKey,view.id))}>刷新核对转交结果</button>:<button className="primary" disabled={busy} onClick={()=>void act(()=>desktop!.transfer.revoke(profileKey,view.id))}>返回草稿重新整理（保留本次文件与表单）</button>):<button className="primary" disabled={busy} onClick={()=>{transferCache.delete(cacheKey);void act(()=>desktop!.transfer.prepare(profileKey,item.id,'local'));}}>进入本地文件人工提交（跳过工作台）</button>}</div></div>}
     {view&&review&&<>
       {view.phase==='draft'&&<div className="button-row"><button disabled={busy} onClick={()=>{transferCache.delete(cacheKey);setView(undefined);setReview(undefined);setTab(0);}}>更换文件来源</button>{view.sourceMode==='workbench'&&<button disabled={busy} onClick={()=>void act(()=>desktop!.transfer.reprepare(profileKey,view.id))}>重新获取工作台稿件</button>}</div>}
@@ -395,10 +400,10 @@ export function InternalTransfer({profileKey,item,refreshSeq,navigate}:{profileK
         {tab===2&&<><div className="form-grid"><label className="field">下一流程<select disabled={lockedRecipient} value={review.stepId} onChange={e=>{
           const nextStepId=e.target.value;
           const st=view.steps.find(s=>s.id===nextStepId);
-          const defaultUser=st?.users.find(u=>u.name==='杨佳')||(st?.users.length===1?st.users[0]:undefined);
+          const defaultUser=st?.users.find(u=>u.name===DEFAULT_INTERNAL_TRANSFER_RECIPIENT)||(st?.users.length===1?st.users[0]:undefined);
           patch({stepId:nextStepId,userId:defaultUser?.id||''});
         }}><option value="">选择流程</option>{view.steps.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select></label><label className="field">下一办理人<select disabled={lockedRecipient} value={review.userId} onChange={e=>patch({userId:e.target.value})}><option value="">选择办理人</option>{step?.users.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}</select></label></div><label className="field">转交备注<textarea disabled={lockedRecipient} maxLength={1000} value={review.remark} onChange={e=>patch({remark:e.target.value})}/></label>
-          {view.phase==='saved'&&!user&&<div className="inline-warning" style={{margin:'8px 0'}}><p>请在上方选择下一流程与办理人（默认：杨佳）以完成转交。</p></div>}
+          {view.phase==='saved'&&!user&&<div className="inline-warning" style={{margin:'8px 0'}}><p>请在上方选择下一流程与办理人（默认：{DEFAULT_INTERNAL_TRANSFER_RECIPIENT}）以完成转交。</p></div>}
           {view.existingFileNames.length>0&&<div style={{margin:'12px 0',padding:'12px',borderRadius:'8px',border:'1px solid var(--line)',background:'var(--surface,#f8fafc)'}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px'}}>
               <b>贝思兰德递交材料清单 · {view.existingFileNames.length} 件</b>

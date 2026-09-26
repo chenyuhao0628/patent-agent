@@ -4,7 +4,7 @@
   flex-direction:column;
   min-width:0;
   max-width:100%;
-  min-height:calc(100vh - 110px);
+  min-height:auto;
 }
 .library .page-heading{flex-shrink:0;margin-bottom:22px}
 .library-stats{
@@ -61,11 +61,13 @@
 }
 .library .search input{width:min(210px,32vw);min-width:120px}
 .library-table-scroll{
-  flex:1 1 0;
-  min-height:200px;
+  flex:0 0 auto;
+  min-height:0;
   min-width:0;
   max-width:100%;
-  overflow:auto;
+  overflow-x:auto;
+  overflow-y:hidden;
+  height:auto;
   border:1px solid var(--line);
   border-radius:8px;
   background:#fff;

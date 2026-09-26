@@ -1,4 +1,6 @@
-export const WRITING_PHASES=['方向构思','技术方案与保护架构','说明书','权利要求书','申请文件整理'] as const;
+export const PROFESSIONAL_API_CONTRACT_VERSION = 1 as const;
+export { WRITING_PHASES } from './domain/professional-policy.ts';
+export type { WritingPhase } from './domain/professional-policy.ts';
 export type WorkFile={name:string;relativePath:string;hash?:string;role:string};
 export type ReviewSource={reports?:ProfessionalJob[];supersededAt?:string;id:string;caseId:string;processKey:string;title:string;business:'申请'|'答复'|'补正';at:string;text:string;amendmentText?:string;correctionContents?:import('./domain/correction.ts').CorrectionContent[];applicationParts?:import('./domain/application-parts.ts').ApplicationParts;amendmentBasis?:string;files:WorkFile[]};
 export type ProfessionalJob={id:string;caseId:string;processKey:string;kind:'writing'|'review';sourceId?:string;phase?:number;state:'running'|'completed'|'failed'|'stopped';at:string;endedAt?:string;error?:string;text?:string;documents?:Record<string,string>;tools:Array<{name:string;status:string;detail?:string}>;skillName:string;skillHash:string;artifactPath?:string};

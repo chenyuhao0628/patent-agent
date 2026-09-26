@@ -1,4 +1,5 @@
 import type { CaseDesign } from './designFlows.ts';
+import type { PriorArtState } from './prior-art.ts';
 import { currentWork, editableCurrent } from './lifecycle.ts';
 import type { CurrentWork } from './lifecycle.ts';
 export type Stage = 'materials' | 'strategy' | 'draft' | 'review' | 'final';
@@ -8,7 +9,7 @@ export type Discussion = { id: string; title: string; messages: Message[] };
 export type Version = { id: string; text: string; label: string; at: string };
 export type Material = { id: string; name: string; role: string; location: string; excerpt: string; ready: boolean; fileNo?:string; relativePath?:string };
 export type Round = {
-  priorArt?: import("../../desktop/prior-art.ts").PriorArtState;
+  priorArt?: PriorArtState;
   id: string; name: string; stage: Stage; confirmed: boolean; materials: Material[];
   strategy: string | null; draft: string; versions: Version[]; discussions: Discussion[];
   review: { versionId: string; finding: string; resolved: boolean } | null;

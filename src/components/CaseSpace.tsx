@@ -4,9 +4,10 @@ import { useEffect, useState } from 'react';
 import { InternalTransfer } from './InternalTransfer.tsx';
 import { CaseMetadata } from './CaseMetadata.tsx';
 import { ChevronRight, Clock3, FileText, MoreHorizontal } from 'lucide-react';
-import type { Action, Case, RemoteProcess } from '../domain/workflow.ts';
+import type { Case, RemoteProcess } from '../domain/workflow.ts';
 import { activeRound, currentWork, editableCurrent, internalTransferAvailable, isInternallyActiveProcess, processBusinessKind, workNames } from '../domain/lifecycle.ts';
 import { currentHandling, flowStatusSummary } from '../domain/handling.ts';
+import { DEFAULT_INTERNAL_TRANSFER_RECIPIENT } from '../domain/workflow-nodes.ts';
 import { hasOfficialOutcome, outcomeApplies, outcomeDetail, outcomeLabel, outcomeStatement, outcomeView } from '../domain/outcome.ts';
 import '../outcome.css';
 import { deadlineFieldLabel, deadlineFieldValue, deadlineView, processDeadlineView } from '../domain/deadlines.ts';
@@ -16,14 +17,13 @@ import { TransferWorkbench } from './TransferWorkbench.tsx';
 import { FormattedFormulaText } from './FormattedFormulaText.tsx';
 import { artifactsFor, initialDesign, reviewMatchesWriting } from '../domain/designFlows.ts';
 import { MaterialsView } from './MaterialsView.tsx';
-import { Workspace } from './Workspace.tsx';
 import { Modal, Note } from './Primitives.tsx';
 import { CaseHistory, CurrentCase, RemoteFlow, setCaseFlowCache } from './CurrentCase.tsx';
 import { agentProcessKey, desktop } from '../desktop.ts';
 
 export const caseTabs={overview:'概览',materials:'材料',discussion:'本案对话',reply:'答复',write:'撰写',review:'审查',history:'办理历史',outputs:'成果',flow:'贝思兰德流程',submit:'提交'};
 export type CaseTab=keyof typeof caseTabs;
-export function CaseSpace({requestedRoundId,item,tab,navigate,dispatch,updateCase,profileKey}:{requestedRoundId?:string;item:Case;tab:CaseTab;navigate:(t:CaseTab)=>void;dispatch:(roundId:string,a:Action)=>void;updateCase:(patch:Partial<Case>)=>void|Promise<void>;profileKey?:string}){
+export function CaseSpace({requestedRoundId,item,tab,navigate,updateCase,profileKey}:{requestedRoundId?:string;item:Case;tab:CaseTab;navigate:(t:CaseTab)=>void;updateCase:(patch:Partial<Case>)=>void|Promise<void>;profileKey?:string}){
   const current=currentWork(item),r=activeRound(item),design=item.design??initialDesign(),editable=editableCurrent(item),handling=currentHandling(item);
   const primary:CaseTab=current.kind==='correction'?'reply':['write','reply','review'].includes(current.kind)?current.kind as CaseTab:'overview';
   const childReview=current.kind==='write'&&design.review?.source==='writing';
@@ -109,7 +109,7 @@ export function CaseSpace({requestedRoundId,item,tab,navigate,dispatch,updateCas
     ? '本次提交已结束，文件与办理记录保留查看。'
     : !canTransfer
     ? '当前阶段不能内部转交。'
-    : '核对本次材料、表单和下一办理人（默认：杨佳），保存后转交内部流程。本程序仅办理内部流转，不直接递交官方。';
+    : `核对本次材料、表单和下一办理人（默认：${DEFAULT_INTERNAL_TRANSFER_RECIPIENT}），保存后转交内部流程。本程序仅办理内部流转，不直接递交官方。`;
   const updateDesign=(next:typeof design)=>{if(editable&&allowed)void updateCase({design:next});};
   const recentFiles=artifactsFor(item,design).slice(-3).reverse();
   return <div className={`case-space ${tab==='discussion'||tab==='reply'?'conversation-space':''} ${['reply','write','review','discussion'].includes(tab)?'focused-space':''}`}>
@@ -123,7 +123,13 @@ export function CaseSpace({requestedRoundId,item,tab,navigate,dispatch,updateCas
     {tab==='materials'&&(desktop?<CurrentCase item={item} update={updateCase} materialsOnly profileKey={profileKey} onRefresh={refreshWholeCase} refreshing={refreshing}/>:r?<MaterialsView key={r.id} item={{...item,rounds:[r]}} round={r} selectRound={()=>{}} change={next=>{if(editable)void updateCase({rounds:item.rounds.map(x=>x.id===r.id?next:x)});}}/>:<Note>当前阶段尚无通知书材料，可在办理历史中查看旧轮次。</Note>)}
     {(tab==='discussion'||tab==='reply')&&desktop&&profileKey&&<CurrentCase key={`${item.id}-discussion-${agentProcessKey(item)}`} item={item} update={updateCase} profileKey={profileKey} conversationOnly/>}
     {desktop&&profileKey&&(tab==='write'||tab==='review')&&<ProfessionalWork key={`${item.id}-${agentProcessKey(item)}-${tab}`} profileKey={profileKey} item={item} mode={tab==='write'?'writing':'review'} sourceId={requestedRoundId} navigate={navigate}/>}
-    {['reply','write','review'].includes(tab)&&!desktop&&(allowed?(tab==='reply'&&r?<Workspace key={r.id} item={item} round={r} dispatch={a=>{if(editable)dispatch(r.id,a);}}/>:tab==='write'?<WritingWorkbench item={item} design={design} update={updateDesign} openReview={()=>navigate('review')} openMaterials={()=>navigate('materials')} openOutputs={()=>navigate('outputs')}/>:<ReviewWorkbench item={item} design={design} update={updateDesign} openWriting={()=>{if(current.kind==='write'){updateDesign({...design,writing:{...design.writing,stage:design.review?.completed&&reviewMatchesWriting(design)?'final':'draft'}});navigate('write');}}} openMaterials={()=>navigate('materials')}/>):<section className="business-workspace"><h2>本案当前为{current.label??workNames[current.kind]}</h2><Note>本案不能同时开启其他主业务。历史工作内容仍保留。</Note><button onClick={()=>navigate(primary)}>返回当前阶段</button></section>)}
+    {['reply','write','review'].includes(tab)&&!desktop&&(tab==='reply'
+      ? <section className="business-workspace"><h2>答复办理</h2><Note>答复和补正统一使用桌面 Agent 工作流。浏览器预览只保留案件和历史查看，不提供第二套答复状态机。</Note></section>
+      : allowed
+        ? tab==='write'
+          ? <WritingWorkbench item={item} design={design} update={updateDesign} openReview={()=>navigate('review')} openMaterials={()=>navigate('materials')} openOutputs={()=>navigate('outputs')}/>
+          : <ReviewWorkbench item={item} design={design} update={updateDesign} openWriting={()=>{if(current.kind==='write'){updateDesign({...design,writing:{...design.writing,stage:design.review?.completed&&reviewMatchesWriting(design)?'final':'draft'}});navigate('write');}}} openMaterials={()=>navigate('materials')}/>
+        : <section className="business-workspace"><h2>本案当前为{current.label??workNames[current.kind]}</h2><Note>本案不能同时开启其他主业务。历史工作内容仍保留。</Note><button onClick={()=>navigate(primary)}>返回当前阶段</button></section>)}
     {tab==='history'&&<CaseHistory item={item}/>}
     {tab==='flow'&&<RemoteFlow item={item}/>}
     {tab==='submit'&&(desktop&&profileKey?<section className="business-workspace"><h2>提交</h2>{officialConclusion&&<p className="submission-complete">官方结论：{officialConclusion}。本案已有授权或驳回结论，当前不能内部转交。</p>}{!officialConclusion&&handling.officialWaiting&&<p className="submission-complete">已递交，等待官方处理结果，无需重复提交。历史文件可在成果和办理历史中查看。</p>}{!officialConclusion&&!handling.officialWaiting&&!canTransfer&&<p className="submission-complete">当前阶段不能内部转交。</p>}<p className="section-copy">{submitCopy}</p><InternalTransfer profileKey={profileKey} item={item} refreshSeq={refreshSeq} navigate={navigate}/></section>:<Note>请在桌面程序中使用贝思兰德内部提交。</Note>)}

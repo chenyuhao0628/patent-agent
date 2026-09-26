@@ -1,12 +1,13 @@
 import * as fs from 'node:fs/promises';
 import path from 'node:path';
 import mammoth from 'mammoth';
-import type { Case, Round } from '../src/domain/workflow.ts';
+import type { Case } from '../src/domain/workflow.ts';
+import type { PriorArtState } from '../src/domain/prior-art.ts';
 import { CaseFiles, digest, managedPath } from './files.ts';
 import { extractPdfPageRange } from './agent-document-reader.ts';
 import { normalizedPublication, PatsnapService, publicationNumbers } from './patsnap.ts';
 
-export type PriorArtState={checkedAt:string;noticeSignature:string;warning:string;items:Array<{number:string;status:'pending'|'downloaded'|'failed';message:string;relativePath?:string}>};
+export type { PriorArtState } from '../src/domain/prior-art.ts';
 export async function preparePriorArt(c:Case,files:CaseFiles,provider:PatsnapService,key:string,signal?:AbortSignal,manual?:string){
   const r=c.rounds.find(r=>r.id===c.current?.roundId||r.id==='proc-'+c.current?.processId);
   if(!r||!['reply','correction'].includes(c.current?.kind??''))return;

@@ -1,5 +1,5 @@
 import type { AgentJob, AgentProcessState, Discussion } from './agent.ts';
-import type { AgentCommand } from '../agent-api.ts';
+import type { AgentCommand } from './agent-command.ts';
 
 export function workflowMessageCommand(state: AgentProcessState, discussionId: string, text: string): AgentCommand {
   const discussion = state.discussions.find(d => d.id === discussionId);

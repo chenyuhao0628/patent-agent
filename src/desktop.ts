@@ -1,6 +1,7 @@
-export type AuthState={phase:'signed-out'|'verifying'|'authenticated'|'offline'|'expired'|'forbidden'|'unreadable';message:string;attempts:number;lastCheckedAt?:string;nextRetryAt?:string};
 import { discussionJobs } from './domain/conversation.ts';
-import type { Settings, Workspace, Case } from './domain/workflow.ts';
+import type { Case, Settings, Workspace } from './contracts/desktop-state.ts';
+import type { DesktopAPI } from './contracts/desktop-api.ts';
+import { DESKTOP_CONTRACT_VERSION } from './contracts/version.ts';
 import type { ModelAPI } from './model-api.ts';
 import type { AgentAPI, AgentCaseView } from './agent-api.ts';
 import type { AgentAction, AgentJob, AgentProcessState, MaterialEntry, NoticeClassification, ProcessAccess, ToolEvent, ToolKind } from './domain/agent.ts';
@@ -10,60 +11,23 @@ import {
 } from './domain/agent.ts';
 import { currentWork } from './domain/lifecycle.ts';
 
+export type {
+  Account,
+  AuthState,
+  DesktopState,
+  DocumentToolStatus,
+  FlowNode,
+  FlowView,
+  FolderOrganizationReport,
+  MigrationPhase,
+  MigrationPreview,
+  MigrationProgress,
+  MigrationState,
+  StorageState,
+  SyncState,
+} from './contracts/desktop-state.ts';
+export type { DesktopAPI } from './contracts/desktop-api.ts';
 export type { AgentAPI, AgentCaseView, AgentCommand, AgentTaskView } from './agent-api.ts';
-export type Account = {username:string;displayName:string;organization:string;origin:string;userId:string;status:'authenticated'|'expired'|'offline';remembered:boolean};
-export type SyncState = {running:boolean;lastAt?:string;message:string};
-export type StorageState={running:boolean;message:string;lastAt?:string;caseCount?:number};
-export type DocumentToolStatus={permissions:{commandsEnabled:boolean;downloadsEnabled:boolean};detectedTools:Array<{name:string;path:string;kind:'application'|'command';note:string}>;converter:string|null;vision:boolean;webEnabled:boolean;autoInstall:boolean;managed:{root:string;version:string;phase:'idle'|'downloading'|'installing'|'ready'|'error';downloaded:number;total:number;message:string}};
-export type MigrationPhase='idle'|'preview'|'copying'|'verifying'|'publishing'|'committing'|'done'|'failed';
-export type MigrationPreview={
-  id:string; profileKey:string; sourceRoot:string; destinationRoot:string; originalLibrary:string;
-  caseDirectoryCount:number; extraDirectoryCount:number; fileCount:number; directoryCount:number; byteCount:number; emptyNamespace:boolean;
-};
-export type MigrationProgress={
-  copiedFiles:number; verifiedFiles:number; totalFiles:number; copiedBytes:number; totalBytes:number;
-  currentPath:string; message:string;
-};
-export type MigrationState={
-  running:boolean; phase:MigrationPhase; canCancel:boolean; preview?:MigrationPreview; progress?:MigrationProgress;
-  message:string; error?:string;
-};
-export type FolderOrganizationReport={
-  renamedFolders:number;renamedFiles:number;skippedFiles:number;unknownPaths:string[];conflicts:string[];cases:number;message:string;
-};
-export type DesktopState = {
-  auth?:AuthState;profileKey:string;account:Account|null;workspace:Workspace;sync:SyncState;storage:StorageState;migration:MigrationState;version:string;dataDirectory:string};
-export type FlowNode={name:string;user:string;running:boolean;finished:boolean;start:string;end:string;stayHours?:number;type?:string;isCurrent?:boolean;sort?:number;serial?:number;total?:number};
-export type FlowView={at:string;currentProcessId?:string;processes:Case['remote'];nodes:FlowNode[];history:{name:string;created:string;finished:string}[];currentFlow?:{name:string;user:string;serial?:number;total?:number}};
-export type DesktopAPI={
-  diagnosticExport:()=>Promise<{canceled:boolean;path?:string;count?:number;droppedWrites?:number}>;
-  diagnosticReport:(input:{type:string;line?:number;column?:number})=>Promise<void>;
-  extensions:{test:(key:string,id:string)=>Promise<{tools:number}>,list:(key:string)=>Promise<import('../desktop/extensions.ts').Extension[]>,toggle:(key:string,id:string,value:boolean)=>Promise<import('../desktop/extensions.ts').Extension[]>,remove:(key:string,id:string)=>Promise<import('../desktop/extensions.ts').Extension[]>,saveMcp:(key:string,raw:string,id?:string)=>Promise<import('../desktop/extensions.ts').Extension[]>,saveSkill:(key:string,name:string,text:string,id?:string)=>Promise<import('../desktop/extensions.ts').Extension[]>,importSkill:(key:string)=>Promise<import('../desktop/extensions.ts').Extension[]>};
-  priorArt:{status:(key:string)=>Promise<{configured:boolean}>,save:(key:string,value:string)=>Promise<{configured:boolean}>,clear:(key:string)=>Promise<{configured:boolean}>,importLegacy:(key:string)=>Promise<{configured:boolean}>,test:(key:string)=>Promise<{configured:boolean}>,prepare:(key:string,id:string,value:string)=>Promise<DesktopState>};
-  verifyLogin?:()=>Promise<DesktopState>; bootstrap:()=>Promise<DesktopState>; login:(input:{origin:string;username:string;password:string;remember:boolean})=>Promise<DesktopState>; logout:()=>Promise<DesktopState>;
-  selectDirectory:(kind:'originalLibrary'|'workRoot')=>Promise<string|null>;
-  saveSettings:(key:string,settings:Settings)=>Promise<DesktopState>; saveWorkspace:(key:string,workspace:Workspace)=>Promise<void>;
-  refreshShared:(key:string)=>Promise<DesktopState>; sync:(source?:'manual'|'focus')=>Promise<DesktopState>; createCase:(input:{title:string;number:string;kind:'write'|'review'})=>Promise<DesktopState>;
-  caseInfo:(key:string,caseId:string)=>Promise<DesktopState>;
-  refreshCaseOutcomes:(key:string)=>Promise<DesktopState>;
-  refreshCaseOutcome:(key:string,caseId:string)=>Promise<DesktopState>;
-  selectCurrentProcess:(key:string,caseId:string,processId:string)=>Promise<DesktopState>;
-  flow:(caseId:string)=>Promise<FlowView>; openCaseDirectory:(caseId:string)=>Promise<void>;
-  findOriginals:(caseId:string)=>Promise<{id:string;name:string}[]>; copyOriginal:(caseId:string,id:string)=>Promise<DesktopState>;
-  openMaterial:(caseId:string,relativePath:string)=>Promise<void>;
-  previewWorkMigration:(key:string,destination:string)=>Promise<MigrationPreview>;
-  startWorkMigration:(key:string,previewId:string)=>Promise<DesktopState>;
-  cancelWorkMigration:()=>Promise<DesktopState>;
-  organizeWorkFolders:(key:string)=>Promise<FolderOrganizationReport>;
-  selectDshDirectory:()=>Promise<string|null>;
-  models:ModelAPI;
-  agent:AgentAPI;
-  transfer:import('./transfer-api.ts').TransferAPI;
-  professional:import('./professional-api.ts').ProfessionalAPI;
-  application:import('./application-api.ts').ApplicationAPI;
-  documentTools:{detect:()=>Promise<DocumentToolStatus>,status:()=>Promise<DocumentToolStatus>,selectConverter:()=>Promise<DocumentToolStatus>,installConverter:()=>Promise<DocumentToolStatus>,configure:(value:{webEnabled:boolean;autoInstall:boolean;commandsEnabled:boolean;downloadsEnabled:boolean})=>Promise<DocumentToolStatus>,openDirectory:()=>Promise<void>,removeConverter:()=>Promise<DocumentToolStatus>};
-  onState:(callback:(state:DesktopState)=>void)=>()=>void;
-};
 
 export type ServerFormFingerprint = {
   processKey: string;
@@ -315,4 +279,6 @@ export function reviewIssueSummary(view: AgentCaseView | undefined): string {
   return open ? `未处理问题 ${open} 项` : '复核问题已全部勾选处理';
 }
 declare global { interface Window { patentDesktop?:DesktopAPI } }
-export const desktop=window.patentDesktop;
+const injectedDesktop = window.patentDesktop;
+export const desktop = injectedDesktop?.contractVersion === DESKTOP_CONTRACT_VERSION ? injectedDesktop : undefined;
+export const desktopContractMismatch = !!injectedDesktop && injectedDesktop.contractVersion !== DESKTOP_CONTRACT_VERSION;

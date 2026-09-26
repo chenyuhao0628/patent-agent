@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
-import { desktop } from '../desktop.ts';
+import { desktop, desktopContractMismatch } from '../desktop.ts';
 import type { DesktopState } from '../desktop.ts';
 import { App } from '../App.tsx';
 export function DesktopRoot(){
+  if (desktopContractMismatch) {
+    return <div className="error-banner" role="alert">桌面接口版本不兼容，请重新启动应用。</div>;
+  }
   const [state,setState]=useState<DesktopState|null>(null),[error,setError]=useState('');
   useEffect(()=>{if(!desktop)return;void desktop.bootstrap().then(setState).catch(e=>setError(e.message));return desktop.onState(setState);},[]);
   if(!desktop)return <App/>;
