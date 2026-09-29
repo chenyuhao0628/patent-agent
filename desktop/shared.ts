@@ -1,7 +1,9 @@
+import { validAssociationIdentity, validCaseAssociations } from '../src/domain/case-record.ts';
 import * as fs from 'node:fs/promises';
 import path from 'node:path';
 import type { Dirent } from 'node:fs';
 import { randomUUID } from 'node:crypto';
+import { caseLinkMarker } from './case-link-publication.ts';
 import { isDeepStrictEqual } from 'node:util';
 import type { Case, CurrentFlowInfo, Material, RemoteProcess, Submission, SubmissionState } from '../src/domain/workflow.ts';
 import type { CurrentWork, WorkKind } from '../src/domain/lifecycle.ts';
@@ -100,13 +102,15 @@ export async function readSharedCases(workRoot:string,profile:string,existing:Ca
   const cases=structuredClone(existing),warnings:string[]=[];let count=0;
   const base=await managedPath(workRoot,path.posix.join('案件',profile));
   let entries:Dirent[];try{entries=await fs.readdir(base,{withFileTypes:true}) as Dirent[];}catch(e){if((e as NodeJS.ErrnoException).code==='ENOENT')return {cases,count,warnings};throw e;}
+  if(entries.some(e=>e.name===caseLinkMarker))throw new Error('共享目录的案件关联尚未完成，请在发起关联的电脑上刷新恢复；本次未导入部分状态。');
   if(entries.length>10000)throw new Error('案件目录超过 10,000 项，未进行不完整读取。');
-  const seen=new Set<string>();
+  const seen=new Set<string>(),observed:Array<{file:string;hash:string}>=[];
   for(const entry of entries){
     if(!entry.isDirectory()||entry.isSymbolicLink())continue;
     const directory=path.posix.join('案件',profile,entry.name);
     try{
-      const root=await managedPath(workRoot,directory),m=await jsonFile(await managedPath(root,'案件信息.json'));
+      const root=await managedPath(workRoot,directory),manifestFile=await managedPath(root,'案件信息.json'),manifestBytes=await bytesFile(manifestFile),m=object(JSON.parse(manifestBytes.toString('utf8')));
+      observed.push({file:manifestFile,hash:digest(manifestBytes)});
       if(![1,2,3].includes(Number(m.schema))||m.profile!==profile)throw new Error('案件信息不完整或账号不符');
       const domains=object(m.domains),identity=object(domains.identity),stage=object(domains.stage);
       if(Number(m.schema)===3)assertSharedDomains(m,domains);
@@ -130,6 +134,11 @@ export async function readSharedCases(workRoot:string,profile:string,existing:Ca
       const typeValue='type' in m?m.type:identity.type;
       const deadlineValue='deadline' in m?m.deadline:identity.deadline;
       const c:Case={...(old??{id,archived:false,tags:[],rounds:[]}),id,title,number:text(numberValue),type:text(typeValue)||old?.type||'未分类',deadline:source==='local'?(calendarDate(deadlineValue)||(text(deadlineValue)?'':'')):'',applicationNumber:text('applicationNumber' in m?m.applicationNumber:identity.applicationNumber)||undefined,companyName:'companyName' in m?text(m.companyName,2000):'companyName' in identity?text(identity.companyName,2000):old?.companyName,caseRemark:'caseRemark' in m?text(m.caseRemark,20000):'caseRemark' in identity?text(identity.caseRemark,20000):old?.caseRemark,caseInfoAt:'caseInfoAt' in m?text(m.caseInfoAt,100):'caseInfoAt' in identity?text(identity.caseInfoAt,100):old?.caseInfoAt,remoteClosure:readClosure(closureValue)??old?.remoteClosure,officialOutcome:readOfficialOutcome(outcomeValue)??old?.officialOutcome,directory,source,current:current(currentValue,old?.current)};
+      if(!validAssociationIdentity({...identity,id,source}))throw new Error('关联身份记录无效');
+      if(old?.association&&!isDeepStrictEqual(old.association,identity.association)||old?.linkedTo&&old.linkedTo!==identity.linkedTo)throw new Error('已确认的关联身份不能由旧索引覆盖');
+      if(typeof identity.linkedTo==='string'&&identity.linkedTo!==id){c.linkedTo=identity.linkedTo;c.archived=true;}
+      const association=object(identity.association);
+      if(['sourceCaseId','remoteCaseId','linkedAt','localProcessKey'].every(k=>typeof association[k]==='string'))c.association=association as NonNullable<Case['association']>;
       if(c.remoteClosure?.finished&&!old)c.archived=true;
       const stageChanged=!!old&&(old.current?.processId??old.current?.roundId??'local')!==(c.current?.processId??c.current?.roundId??'local');
       if(stageChanged){
@@ -180,6 +189,9 @@ export async function readSharedCases(workRoot:string,profile:string,existing:Ca
       if(index<0)cases.push(normalized);else cases[index]=normalized;count++;
     }catch{warnings.push(entry.name+'：记录缺失、不完整或有冲突，未替换本机记录。');}
   }
+  try{await fs.lstat(await managedPath(base,caseLinkMarker));throw new Error('读取期间开始了案件关联，未导入部分状态。');}catch(e){if((e as NodeJS.ErrnoException).code!=='ENOENT')throw e;}
+  for(const entry of observed)if(digest(await bytesFile(entry.file))!==entry.hash)throw new Error('读取期间案件索引已变化，请刷新重试。');
+  if(!validCaseAssociations(cases))throw new Error('关联双方案件尚未完整同步或身份冲突，本次未替换本机记录。');
   return {cases,count,warnings};
 }
 

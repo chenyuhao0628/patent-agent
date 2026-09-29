@@ -167,7 +167,7 @@ test('five writing confirmations preserve versions and create optional independe
   await f.host.command('local',f.id,{type:'confirm',jobId:job.id,decision:'采用该方向与保护架构'});
  }
  const ready=await f.host.getCase('local',f.id);assert.equal(ready.record.completed,true);assert.equal(ready.queue.length,1);assert.equal(ready.queue[0].archived,false);assert.equal(ready.queue[0].report,undefined);
- const source=ready.queue[0].source;assert.match(source.files[0].relativePath,/\.docx$/);assert.match(ready.record.jobs[0].artifactPath!,/\.md$/);assert.equal((await fs.readFile(await f.service.casePath(f.id,source.files[0].relativePath))).subarray(0,2).toString(),'PK');
+ const source=ready.queue[0].source;assert.match(source.files[0].relativePath,/\.docx$/);assert.match(ready.record.jobs[0].artifactPath!,/\.docx$/);assert.match(ready.record.jobs[0].rawArtifactPath!,/\.md$/);assert.equal((await fs.readFile(await f.service.casePath(f.id,source.files[0].relativePath))).subarray(0,2).toString(),'PK');
  await f.host.command('local',f.id,{type:'review',sourceId:source.id});const reviewed=await settled(f.host,f.id);assert.equal(reviewed.queue[0].report?.state,'completed');assert.deepEqual(f.inputs.at(-1)!.messages,[]);assert.equal(f.inputs.at(-1)!.action,'review');assert.match(f.inputs.at(-1)!.prompt.combined,/审查是可选项/);
  const archive=await f.service.casePath(f.id,'04_内部说明/transfer-qa.json');await atomicJSON(archive,{schema:1,view:{profileKey:'local',caseId:f.id,processId:source.processKey,phase:'submitted'}});
  assert.equal((await f.host.listReviews('local'))[0].archived,true);assert.equal(f.service.findCase(f.id).archived,false);
@@ -280,4 +280,39 @@ test('professional source writes reuse the main-process editable business bounda
  const source=(await f.host.listReviews('local'))[0];
  assert.equal(source.archived,true);
  await assert.rejects(f.host.command('local',f.id,{type:'review',sourceId:source.source.id}),/归档/);
+});
+
+test('stage preview reads exact DOCX and rejects tampered files or foreign version identities',async t=>{
+ const f=await fixture(t);await f.host.command('local',f.id,{type:'write',message:'test',materialIds:[]});
+ const view=await settled(f.host,f.id),job=view.record.jobs[0];
+ const preview=await f.host.previewDocument('local',f.id,job.processKey,job.id);
+ assert.equal(preview.relativePath,job.artifactPath);assert.equal(preview.hash,job.artifactHash);assert.ok(preview.blocks.length);
+ await assert.rejects(f.host.previewDocument('local',f.id,'other',job.id),/不属于/);
+ await fs.appendFile(await f.service.casePath(f.id,job.artifactPath!),'tampered');
+ await assert.rejects(f.host.previewDocument('local',f.id,job.processKey,job.id),/修改/);
+});
+test('explicit link continues local writing confirmations under remote process and preserves old history',async t=>{
+ const f=await fixture(t);await f.host.command('local',f.id,{type:'write',message:'test',materialIds:[]});
+ const view=await settled(f.host,f.id),job=view.record.jobs[0];await f.host.command('local',f.id,{type:'confirm',jobId:job.id,decision:'采用方向'});
+ await f.service.createCase({title:'远端合成案件',number:'REMOTE-LINK',kind:'write'});const remote=f.service.workspace.cases.find(c=>c.id!==f.id)!;
+ remote.source='baseland';remote.current={kind:'write',processId:'remote-proc',remoteStatus:0};remote.remote={caseId:'remote-case',syncedAt:'',processes:[{id:'remote-proc',name:'提出申请',status:0,node:'文件准备',undertaker:'本人',deadline:''}]};
+ const selected=f.service.caseLinkCandidates('local',f.id)[0];await f.service.linkCase('local',f.id,remote.id,selected.token);
+ const linked=await f.host.getCase('local',f.id);assert.equal(linked.processKey,'remote-proc');assert.equal(linked.record.phase,1);assert.equal(linked.record.confirmations[0].decision,'采用方向');
+ const preview=await f.host.previewDocument('local',f.id,'remote-proc',job.id);assert.equal(preview.relativePath,job.artifactPath);
+ const old=await f.host.history('local',f.id);assert.ok(old.jobs.some(j=>j.processKey==='local-write'));assert.ok(old.jobs.some(j=>j.processKey==='remote-proc'));
+  const reopenedService=new DesktopService(path.join(f.root,'data'),{available:()=>false,encrypt:()=>Buffer.alloc(0),decrypt:()=>''});await reopenedService.init(false);
+  const reopened=new ProfessionalHost(reopenedService,f.agent,f.host.models,f.host.run,path.resolve('resources'));t.after(()=>reopened.shutdown());
+  const restored=await reopened.getCase('local',f.id);assert.equal(restored.record.phase,1);assert.equal(restored.record.confirmations[0].decision,'采用方向');
+  assert.equal((await reopened.previewDocument('local',f.id,'remote-proc',job.id)).hash,preview.hash);
+});
+
+test('legacy Markdown stage converts once to an exact DOCX without replacing the original',async t=>{
+ const f=await fixture(t);await f.host.command('local',f.id,{type:'write',message:'test',materialIds:[]});
+ const view=await settled(f.host,f.id),job=view.record.jobs[0];await f.host.shutdown();
+ const file=path.join(f.root,'data/profiles/local/professional-work.json'),stored=JSON.parse(await fs.readFile(file,'utf8'));
+ const saved=stored.records[0].jobs[0];saved.artifactPath=job.rawArtifactPath;delete saved.artifactHash;delete saved.rawArtifactPath;await atomicJSON(file,stored);
+ const raw=await f.service.casePath(f.id,job.rawArtifactPath!),before=await fs.readFile(raw);
+ const reader=new ProfessionalHost(f.service,f.agent,f.host.models,f.host.run,path.resolve('resources'));t.after(()=>reader.shutdown());
+ const preview=await reader.previewDocument('local',f.id,job.processKey,job.id);assert.match(preview.relativePath,/\.docx$/);assert.ok(preview.hash);
+ assert.deepEqual(await fs.readFile(raw),before);assert.equal((await reader.previewDocument('local',f.id,job.processKey,job.id)).relativePath,preview.relativePath);
 });

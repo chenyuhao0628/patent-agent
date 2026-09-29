@@ -1,3 +1,7 @@
+import type { Material } from '../src/domain/workflow.ts';
+import { linkCases } from '../src/domain/case-link.ts';
+import { claimPublication, fileHash, parsePublication, publishCaseLink, releasePublication, type CaseLinkPublication } from './case-link-publication.ts';
+import type { CaseLinkCandidate } from '../src/domain/case-link.ts';
 import path from 'node:path';
 import { diagnostic, diagnosticError, withDiagnostics } from './diagnostics.ts';
 import { SyncCache } from './sync-cache.ts';
@@ -8,7 +12,7 @@ import { randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { applyRemoteClosure, applySubmissionToCurrent, assignCurrentProcess, BaselandClient, isInternallyActiveProcess, mergePersonalRows, officialDate, profileKey, rowStamp, shouldQueryOfficial, SUBMISSION_REFRESH_ERROR } from './baseland.ts';
 import { applyCaseDeadline, mergeRemoteProcess } from '../src/domain/deadlines.ts';
-import { atomicJSON, CaseFiles, digest, managedPath, processFolder, readJSON, safeName, validateRoots } from './files.ts';
+import { atomicCreate, atomicJSON, CaseFiles, digest, managedPath, processFolder, readBoundedFile, readJSON, safeName, validateRoots } from './files.ts';
 import { projectReplyView, projectProfessionalView, projectTransferView } from '../src/domain/case-view.ts';
 import { normalizeWorkspace, currentWork, editableCurrent, caseScopeFingerprint } from '../src/domain/lifecycle.ts';
 import { pauseRunning } from '../src/domain/workflow.ts';
@@ -18,6 +22,7 @@ import {
   caseRecordFromCase,
   caseRecordsFromStoredWorkspace,
   preserveRecordFields,
+  sharedCaseManifestFromCase,
   validLegacyCases,
   type CaseRecord,
   type StoredCaseWorkspace,
@@ -83,6 +88,22 @@ export async function mapLimit<T>(items:T[],limit:number,run:(item:T)=>Promise<v
   await Promise.all(Array.from({length:Math.min(limit,Math.max(items.length,1))},worker));
   if(failed)throw failure;
 }
+function attachmentExtension(content:Buffer):string|undefined{
+  const prefix=content.subarray(0,8);
+  if(prefix.toString().startsWith('%PDF-'))return '.pdf';
+  if(prefix.equals(Buffer.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a])))return '.png';
+  if(prefix[0]===0xff&&prefix[1]===0xd8&&prefix[2]===0xff)return '.jpg';
+  if(prefix.subarray(0,4).equals(Buffer.from([0x49,0x49,0x2a,0x00]))||prefix.subarray(0,4).equals(Buffer.from([0x4d,0x4d,0x00,0x2a])))return '.tif';
+  if(prefix.equals(Buffer.from([0xd0,0xcf,0x11,0xe0,0xa1,0xb1,0x1a,0xe1])))return '.doc';
+  if(prefix.subarray(0,2).toString()==='PK')return content.includes(Buffer.from('word/document.xml'))&&content.includes(Buffer.from('[Content_Types].xml'))?'.docx':'.zip';
+  const sample=content.subarray(0,4096);
+  if(sample.length&&!sample.includes(0)&&!sample.toString('utf8').includes('�'))return '.txt';
+  return undefined;
+}
+function attachmentName(fileNo:string,remoteName:string,existingName?:string,content?:Buffer):string{
+  const name=remoteName||existingName||`远端文件_${fileNo}`;
+  return path.extname(name)||!content?name:name+(attachmentExtension(content)??'');
+}
 function mergeSyncMaterials(base:Case|undefined,incoming:Case,latest:Case,next:Case){
   const merge=(before:Case['materials'],downloaded:Case['materials'],live:Case['materials'])=>{
     const result=new Map((live??[]).map(m=>[m.id,m]));
@@ -123,6 +144,9 @@ export class DesktopService {
   migrationState:MigrationState={running:false,phase:'idle',canCancel:false,message:''};
   migrationTestHook?:(phase:'beforeStaging'|'copying'|'verifying'|'beforePublish')=>void|Promise<void>;
   flowFileWrites=0;
+  private caseLinkBusy=false;
+  private caseLinkPending=false;
+  caseLinkTestHook?:(phase:'prepared'|'committed'|'draft'|'current'|'history')=>void|Promise<void>;
   private caseRevisions=new Map<string,number>();
   private snapshotVersion=0;
   private persistGate:Promise<unknown>=Promise.resolve();
@@ -360,10 +384,11 @@ export class DesktopService {
   }
   version='开发预览';
   state():DesktopState {return structuredClone({profileKey:this.key,snapshotVersion:++this.snapshotVersion,scopeVersion:this.generation,caseRevisions:Object.fromEntries(this.caseRevisions),account:this.account,auth:this.auth,workspace:this.workspace,sync:this.syncState,storage:this.storageState,migration:this.migrationState,version:this.version,dataDirectory:path.join(this.root,'profiles',this.key)});}
-  assertWritable(){if(this.profileStorageUnsafe)throw new Error('本机案件领域记录未通过安全校验，未写入；请先备份并修复原文件。');}
-  assertNotMigrating(writing=true){if(writing)this.assertWritable();if(this.migrationLock)throw new Error('正在迁移当前账号工作目录，无法进行该操作。');}
+  assertCaseLinkAvailable(){if(this.caseLinkBusy||this.caseLinkPending)throw new Error('案件关联正在发布或等待恢复，请刷新工作目录完成恢复后再操作。');}
+  assertWritable(){this.assertCaseLinkAvailable();if(this.profileStorageUnsafe)throw new Error('本机案件领域记录未通过安全校验，未写入；请先备份并修复原文件。');}
+  assertNotMigrating(writing=true){this.assertCaseLinkAvailable();if(writing)this.assertWritable();if(this.migrationLock)throw new Error('正在迁移当前账号工作目录，无法进行该操作。');}
   isWorkMigrationBusy(){return this.migrationLock||this.migrationQueued;}
-  assertMigrationNotAccepted(writing=true){if(writing)this.assertWritable();if(this.isWorkMigrationBusy())throw new Error('正在迁移当前账号工作目录，无法进行该操作。');}
+  assertMigrationNotAccepted(writing=true){this.assertCaseLinkAvailable();if(writing)this.assertWritable();if(this.isWorkMigrationBusy())throw new Error('正在迁移当前账号工作目录，无法进行该操作。');}
   markWorkMigrationQueued(){this.assertMigrationNotAccepted();this.migrationQueued=true;}
   clearWorkMigrationQueued(){this.migrationQueued=false;}
   abortWorkMigration(){this.migrationAbort?.abort();}
@@ -398,6 +423,7 @@ export class DesktopService {
     check();this.profileRecords.set(key,records);
   }
   async persist(guard:()=>void=()=>{}){
+    this.assertCaseLinkAvailable();
     if(this.profileStorageUnsafe)throw new Error('本机案件领域记录未通过安全校验，未写入；请先备份并修复原文件。');
     const key=this.key,generation=this.generation,workspace=structuredClone(this.workspace);
     await this.writeWorkspace(workspace,guard,key,generation);
@@ -497,10 +523,11 @@ export class DesktopService {
   }
   private async refreshSharedNow(key:string){
     const generation=this.generation;
-    this.assertKey(key);this.assertNotMigrating();if(this.syncState.running)throw new Error('正在同步贝思兰德，请完成后再读取工作目录。');
+    this.assertKey(key);if(this.caseLinkBusy||this.migrationLock||this.profileStorageUnsafe)throw new Error('当前正在关联、迁移或本机记录需要修复，不能读取工作目录。');if(this.syncState.running)throw new Error('正在同步贝思兰德，请完成后再读取工作目录。');
     this.storageState={...this.storageState,running:true,message:'正在读取工作目录中的案件与稿件…'};this.changed();
     try{
       const {workRoot}=await validateRoots(this.workspace.settings);if(!workRoot)throw new Error('请先选择总工作文件夹。');
+      await this.recoverCaseLink();
       const previous=this.workspace.cases;
       const result=await readSharedCases(workRoot,key,previous);this.assertKey(key);
       if(generation!==this.generation)return this.state();
@@ -608,7 +635,7 @@ export class DesktopService {
     this.assertWriteScope(key,scope);
     const before=this.workspace;
     const updated={...this.workspace,cases:this.workspace.cases.map(c=>{
-      if(scope?.caseId&&c.id!==scope.caseId)return c;
+      if(c.linkedTo||scope?.caseId&&c.id!==scope.caseId)return c;
       const changed=next.cases.find(x=>x.id===c.id);if(!changed)return c;
       return {...c,archived:changed.archived,tags:changed.tags,...(c.source==='local'?{title:changed.title,deadline:changed.deadline,current:changed.current}:{}),...(c.current?.processId===changed.current?.processId?{localDraft:changed.localDraft,localVersions:changed.localVersions,directory:changed.directory,sharedDraftHash:changed.sharedDraftHash}:{})};
     })};
@@ -629,6 +656,93 @@ export class DesktopService {
     const next={...this.workspace,cases:[...this.workspace.cases,c]};
     await this.writeWorkspace(next,check);check();this.workspace=next;this.changed();return this.state();
     });
+  }
+  private linkPublicationFile(){return path.join(path.dirname(this.profileFile()),'case-link-publication.json');}
+  private async finishCaseLink(p:CaseLinkPublication,guard:()=>void,testing=false){
+    if(!p.published){
+      await publishCaseLink(p,guard,testing?async i=>{await this.caseLinkTestHook?.((['draft','current','history'] as const)[i]);}:undefined);
+      await atomicJSON(this.linkPublicationFile(),{...p,published:true},guard);
+    }
+    await releasePublication(p,guard);guard();
+    await fs.unlink(this.linkPublicationFile());
+    this.caseLinkPending=false;
+  }
+  private async recoverCaseLink(){
+    let raw:unknown;
+    try{raw=JSON.parse((await readBoundedFile(this.linkPublicationFile(),20*1024*1024)).toString('utf8'));}
+    catch(e){if((e as NodeJS.ErrnoException).code==='ENOENT'){this.caseLinkPending=false;return;}this.caseLinkPending=true;throw e;}
+    this.caseLinkPending=true;
+    const p=parsePublication(raw,this.key,this.workspace.settings.workRoot!);
+    const scope={profileKey:this.key,scopeVersion:this.generation,root:this.workspace.settings.workRoot};
+    const guard=()=>this.assertScopeIdentity(scope);
+    const local=this.findCase(p.localId),remote=this.findCase(p.remoteId);
+    const expected=[`${local.directory}/02_工作稿/${digest(local.current?.processId??local.current?.roundId??'local').slice(0,10)}/工作稿.json`,`${local.directory}/案件信息.json`,`${remote.directory}/案件信息.json`];
+    const committed=local.association?.sourceCaseId===remote.id&&local.association.linkedAt===p.linkedAt&&remote.linkedTo===local.id;
+    if(committed){
+      if(p.entries.length!==expected.length||p.entries.some((e,i)=>e.relative!==expected[i]))throw new Error('关联恢复文件与双方案件目录不一致，未写入。');
+      await this.finishCaseLink(p,guard);
+    }else{
+      if(local.source!=='local'||local.association||local.linkedTo||remote.linkedTo)throw new Error('关联恢复记录与本机案件身份不一致，未覆盖。');
+      await releasePublication(p,guard);guard();await fs.unlink(this.linkPublicationFile());this.caseLinkPending=false;
+    }
+  }
+  private linkToken(local:Case,remote:Case){return digest(JSON.stringify([this.key,this.generation,this.workspace.settings.workRoot,local,remote]));}
+  caseLinkCandidates(key:string,localId:string):Array<CaseLinkCandidate&{token:string}>{
+    this.assertKey(key);this.assertMigrationNotAccepted();
+    const local=this.findCase(localId);
+    if(local.source!=='local'||local.remote||local.linkedTo||local.association||local.archived)throw new Error('当前案件不是可关联的本地案件。');
+    return this.workspace.cases.filter(c=>c.source==='baseland'&&c.remote&&!c.linkedTo&&!c.association&&!c.archived).map(c=>({id:c.id,number:c.number,title:c.title,remoteCaseId:c.remote!.caseId,processName:currentWork(c).label||c.remote!.processes.find(p=>p.id===currentWork(c).processId)?.name||'暂无当前流程',hasDraft:!!c.localDraft?.trim(),token:this.linkToken(local,c)}));
+  }
+  async linkCase(key:string,localId:string,remoteId:string,token:string){
+    const scope=this.captureScope(key,localId),remoteScope=this.captureScope(key,remoteId);
+    if(this.filesystemBusy()||this.loginBusy)throw new Error('案件正在同步或写入，请等待完成后重新关联。');
+    this.caseLinkBusy=true;
+    try{return await this.enqueuePersist(async()=>{
+      const check=()=>{
+        this.assertScopeIdentity(scope);this.assertScopeIdentity(remoteScope);
+        if(this.filesystemBusy())throw new Error('案件正在同步或写入，请等待完成后重新关联。');
+        if(this.linkToken(this.findCase(localId),this.findCase(remoteId))!==token)throw new Error('双方案件已变化，请重新核对后确认关联。');
+      };check();
+      const local=this.findCase(localId),remote=this.findCase(remoteId),root=(await validateRoots(this.workspace.settings)).workRoot;check();
+      if(!root||!local.directory||!remote.directory)throw new Error('双方案件目录尚未创建。');
+      const localDir=await managedPath(root,local.directory),remoteDir=await managedPath(root,remote.directory);
+      const linked=linkCases(local,remote,new Date().toISOString());
+      const originals=[local,remote].map(c=>`${c.directory}/02_工作稿/${digest(c.current?.processId??c.current?.roundId??'local').slice(0,10)}/工作稿.json`);
+      const sourceHashes=await Promise.all(originals.map(async rel=>fileHash(await managedPath(root,rel))));
+      for(const [i,c] of [local,remote].entries())if(sourceHashes[i]!== (c.sharedDraftHash??null))throw new Error('工作目录稿件已变化，请先刷新后重新关联。');
+      const manifests=[`${local.directory}/案件信息.json`,`${remote.directory}/案件信息.json`];
+      const manifestHashes=await Promise.all(manifests.map(async rel=>fileHash(await managedPath(root,rel))));
+      const copied=new Map<string,string>();
+      for(const m of [...(remote.materials??[]),...remote.rounds.flatMap(r=>r.materials)]){
+        if(!m.relativePath||copied.has(m.relativePath))continue;
+        const source=await managedPath(remoteDir,m.relativePath),bytes=await readBoundedFile(source,20*1024*1024);check();
+        const relative=`01_通知与材料/关联来源_${digest(remoteId).slice(0,12)}/${digest(m.relativePath).slice(0,12)}-${safeName(path.basename(source),80)}`;
+        const target=await managedPath(localDir,relative,true);
+        try{await atomicCreate(target,bytes,check);}catch(e){if((e as NodeJS.ErrnoException).code!=='EEXIST'||await fileHash(target)!==digest(bytes))throw e;}
+        copied.set(m.relativePath,relative);
+      }
+      const remap=(m:Material)=>({...m,id:`linked-${remoteId}-${m.id}`,relativePath:m.relativePath?copied.get(m.relativePath):undefined});
+      linked.current.materials=[...(local.materials??[]),...(remote.materials??[]).map(remap)];
+      linked.current.rounds=[...structuredClone(local.rounds),...remote.rounds.map(r=>({...structuredClone(r),materials:r.materials.map(remap)}))];
+      const draft=JSON.stringify({caseId:local.id,processId:linked.current.current?.processId,text:linked.current.localDraft??'',versions:linked.current.localVersions??[]},null,2);
+      const draftPath=`${local.directory}/02_工作稿/${digest(linked.current.current?.processId??linked.current.current?.roundId??'local').slice(0,10)}/工作稿.json`;
+      const priorDraft=await fileHash(await managedPath(root,draftPath));
+      if(priorDraft!==null&&priorDraft!==digest(draft)&&(draftPath!==originals[0]||priorDraft!==local.sharedDraftHash))throw new Error('目标流程已有其他稿件，未覆盖；请先核对工作目录。');
+      linked.current.sharedDraftHash=digest(draft);
+      const p:CaseLinkPublication={schema:1,profile:key,root,id:randomUUID(),localId,remoteId,linkedAt:linked.current.association!.linkedAt,entries:[
+        {relative:draftPath,beforeHash:priorDraft,content:draft},
+        ...[linked.current,linked.history].map((c,i)=>({relative:manifests[i],beforeHash:manifestHashes[i],content:JSON.stringify(sharedCaseManifestFromCase(c,key),null,2)})),
+      ]};
+      for(let i=0;i<originals.length;i++)if(await fileHash(await managedPath(root,originals[i]))!==sourceHashes[i])throw new Error('读取期间原稿已变化，未关联。');
+      check();await atomicJSON(this.linkPublicationFile(),p,check);this.caseLinkPending=true;
+      await claimPublication(p,check);await this.caseLinkTestHook?.('prepared');check();
+      const next={...this.workspace,cases:this.workspace.cases.map(c=>c.id===localId?linked.current:c.id===remoteId?linked.history:c)};
+      await this.writeWorkspace(next,check);check();
+      this.syncCaseRevisions(this.workspace.cases,next.cases);this.workspace=next;this.changed();
+      await this.caseLinkTestHook?.('committed');
+      await this.finishCaseLink(p,()=>this.assertScopeIdentity({...scope,caseId:undefined,processKey:undefined,caseRevision:undefined}),true);
+      return this.state();
+    });}finally{this.caseLinkBusy=false;}
   }
   findCase(id:string){const c=this.workspace.cases.find(c=>c.id===id);if(!c)throw new Error('当前账号没有该案件。');return c;}
   caseRecord(id:string){return preserveRecordFields(this.profileRecords.get(this.key)?.find(r=>r.identity.id===id),caseRecordFromCase(this.findCase(id)));}
@@ -744,7 +858,7 @@ export class DesktopService {
         check();
         await withDiagnostics({caseId:c.id},async()=>{
         const base=baseline.find(x=>x.id===c.id);
-        if(base?.source==='local')return;
+        if(base?.source==='local'||base?.linkedTo)return;
         let closure:Case['remoteClosure'];
         if(c.remote){
           const cacheKey=c.remote.caseId,cached=this.caseClosureCache.get(cacheKey);
@@ -765,28 +879,7 @@ export class DesktopService {
         }
         check();
         c.directory=await downloads.ensureCase(c);
-        if(c.remote)for(const p of c.remote.processes){
-          check();
-          const round=c.rounds.find(r=>r.id==='proc-'+p.id);
-          const cacheKey=this.fileListCacheKey(c,p,rowByProc.get(p.id));
-          const materials=round?.materials??c.materials??[];
-          if(!forceDetails&&c.current?.processId!==p.id&&materials.every(m=>m.ready)&&this.fileListCache.get(cacheKey)){diagnostic('sync','files_cache_hit',{processId:p.id});continue;}
-          this.fileListCache.delete(cacheKey);
-          let complete=true;
-          try{
-            const list=await withDiagnostics({processId:p.id},()=>client.files(p.id,controller.signal));check();
-            for(const f of list){
-              if(!f.FileNo||!f.FileName)continue;const id='file-'+String(f.FileNo),r=c.rounds.find(r=>r.id==='proc-'+p.id);
-              const existing=[...(c.materials??[]),...c.rounds.flatMap(r=>r.materials)].find(m=>m.id===id);
-              if(existing?.ready)continue;
-              const m={id,name:String(f.FileName),fileNo:String(f.FileNo),role:/通知|审查意见|补正/.test(f.FileName)?'通知书':'系统材料',location:p.name,excerpt:'',ready:false,relativePath:undefined as string|undefined};
-              try{const data=await client.download(m.fileNo,controller.signal);check();const saved=await downloads.writeMaterial(c,path.join('01_通知与材料',safeName(p.name,24)+'__'+digest(p.id).slice(0,8)),m.fileNo,m.name,data);m.relativePath=saved.relativePath;m.ready=true;}
-              catch(e){check();complete=false;failures.push(m.name+'：'+(e as Error).message);}
-              if(r)r.materials=[...r.materials.filter(x=>x.id!==id),m];else c.materials=[...(c.materials??[]).filter(x=>x.id!==id),m];
-            }
-            if(complete){check();this.fileListCache.set(cacheKey,{at:Date.now()});}
-          }catch(e){check();failures.push(c.number+' / '+p.name+'：'+(e as Error).message);}
-        }
+        await this.downloadKnownCaseMaterials(c,client,controller.signal,downloads,check,failures,{forceDetails,rowByProc});
         if(settings.originalLibrary&&!c.materials?.some(m=>m.role==='原始申请')){
           try{const choices=await downloads.findOriginals(c);check();if(choices.length===1){const saved=await downloads.copyOriginal(c,choices[0].id);c.materials=[...(c.materials??[]),{id:'original-'+digest(choices[0].id),name:choices[0].name,role:'原始申请',location:'原始申请文件库',excerpt:'',ready:true,relativePath:saved.relativePath}];}}
           catch(e){failures.push(c.number+'：'+(e as Error).message);}
@@ -839,6 +932,59 @@ export class DesktopService {
   private officialCacheKey(c:Case,processId:string){return `${c.remote?.caseId??c.id}\0${processId}`;}
   /** Non-current file-list cache: bind identity + status/stamp so旁路通知 is not stuck behind the 30m TTL. */
   private fileListCacheKey(c:Case,p:RemoteProcess,row?:Record<string,unknown>){return `${c.remote?.caseId??c.id}\0${p.id}\0${p.status}\0${rowStamp(row)}`;}
+  private async downloadKnownCaseMaterials(
+    c:Case,
+    client:BaselandClient,
+    signal:AbortSignal,
+    downloads:CaseFiles,
+    check:()=>void,
+    failures:string[],
+    options:{forceDetails:boolean;rowByProc?:Map<string,Record<string,unknown>>;cacheLists?:boolean},
+  ) {
+    if(!c.remote)return;
+    for(const p of c.remote.processes){
+      check();
+      const round=c.rounds.find(r=>r.id==='proc-'+p.id);
+      const cacheKey=this.fileListCacheKey(c,p,options.rowByProc?.get(p.id));
+      const materials=round?.materials??c.materials??[];
+      if(options.cacheLists!==false&&!options.forceDetails&&c.current?.processId!==p.id&&materials.every(m=>m.ready)&&this.fileListCache.get(cacheKey)){
+        diagnostic('sync','files_cache_hit',{processId:p.id});
+        continue;
+      }
+      if(options.cacheLists!==false)this.fileListCache.delete(cacheKey);
+      let complete=true;
+      try{
+        const list=await withDiagnostics({processId:p.id},()=>client.files(p.id,signal));check();
+        for(const f of list){
+          const fileNo=String(f.FileNo??'').trim(),remoteName=String(f.FileName??'').trim();
+          if(!fileNo)continue;
+          const id='file-'+fileNo,r=c.rounds.find(item=>item.id==='proc-'+p.id);
+          const existing=[...(c.materials??[]),...c.rounds.flatMap(item=>item.materials)].find(m=>m.id===id);
+          let name=attachmentName(fileNo,remoteName,existing?.name);
+          let role=/通知|审查意见|补正/.test(name)?'通知书':'系统材料';
+          if(existing?.ready){
+            const updated={...existing,name,fileNo,role,location:p.name};
+            c.materials=(c.materials??[]).map(m=>m.id===id?updated:m);
+            for(const item of c.rounds)item.materials=item.materials.map(m=>m.id===id?updated:m);
+            continue;
+          }
+          const m={id,name,fileNo,role,location:p.name,excerpt:'',ready:false,relativePath:undefined as string|undefined};
+          try{
+            const data=await client.download(m.fileNo,signal);check();
+            name=attachmentName(fileNo,remoteName,existing?.name,data);role=/通知|审查意见|补正/.test(name)?'通知书':'系统材料';
+            m.name=name;m.role=role;
+            const saved=await downloads.writeMaterial(c,path.join('01_通知与材料',safeName(p.name,24)+'__'+digest(p.id).slice(0,8)),m.fileNo,m.name,data);
+            m.relativePath=saved.relativePath;m.ready=true;
+          }catch(e){check();complete=false;failures.push(m.name+'：'+(e as Error).message);}
+          c.materials=(c.materials??[]).filter(x=>x.id!==id);
+          for(const item of c.rounds)item.materials=item.materials.filter(x=>x.id!==id);
+          if(r)r.materials=[...r.materials,m];
+          else c.materials=[...(c.materials??[]),m];
+        }
+        if(complete&&options.cacheLists!==false){check();this.fileListCache.set(cacheKey,{at:Date.now()});}
+      }catch(e){check();failures.push(c.number+' / '+p.name+'：'+(e as Error).message);}
+    }
+  }
   async refreshProcessOfficial(c:Case,p:RemoteProcess,client:BaselandClient,signal:AbortSignal,generation:number,force:boolean) {
     const key=this.officialCacheKey(c,p.id);
     const cached=this.submissionCache.get(key);
@@ -940,8 +1086,37 @@ export class DesktopService {
       return this.state();
     });
   }
+  private async refreshKnownCaseMaterials(key:string,id:string,check:()=>void){
+    this.assertKey(key);this.assertMigrationNotAccepted();
+    if(!this.client||this.account?.status!=='authenticated')throw new Error('请先登录贝思兰德。');
+    if(!this.workspace.settings.workRoot)throw new Error('请先选择总工作文件夹。');
+    const client=this.client,base=structuredClone(this.findCase(id)),revision=this.caseRevisionOf(id);
+    if(!base.remote)throw new Error('本案尚未关联贝思兰德。');
+    const scopedCheck=()=>{check();if(this.caseRevisionOf(id)!==revision)throw new Error('案件流程已变化，请重新刷新。');};
+    const working=structuredClone(base),controller=new AbortController(),failures:string[]=[];
+    const downloads=new CaseFiles(structuredClone(this.workspace.settings),key,false,scopedCheck);
+    await this.downloadKnownCaseMaterials(working,client,controller.signal,downloads,scopedCheck,failures,{forceDetails:true,cacheLists:false});
+    await this.enqueuePersist(async()=>{
+      scopedCheck();
+      const latest=this.findCase(id);
+      if(latest.remote?.caseId!==base.remote?.caseId)throw new Error('案件关联已变化，请重新刷新。');
+      const next=structuredClone(latest);
+      mergeSyncMaterials(base,working,latest,next);
+      next.directory=latest.directory??working.directory;
+      this.flowFileWrites++;
+      try{
+        await this.files(scopedCheck).ensureCase(next);scopedCheck();
+        this.workspace.cases=this.workspace.cases.map(c=>c.id===id?next:c);
+        await this.persist();
+        this.changed();
+      }finally{this.flowFileWrites--;}
+    });
+    if(failures.length)throw new Error(`材料刷新有 ${failures.length} 项待重试：${failures.slice(0,3).join('；')}`);
+  }
   private caseRefreshRequests=new Map<string,Promise<{state:DesktopState;flow:FlowView}>>();
   refreshCase(key:string,id:string):Promise<{state:DesktopState;flow:FlowView}> {
+    this.assertKey(key);this.assertMigrationNotAccepted();
+    if(this.syncState.running||this.syncPreparing)throw new Error('正在同步案件，请同步完成后再刷新本案。');
     const scope=this.captureScope(key),remoteCaseId=this.findCase(id).remote?.caseId;
     if(!remoteCaseId)throw new Error('本案尚未关联贝思兰德。');
     const tag=JSON.stringify([scope,id,remoteCaseId]);
@@ -955,8 +1130,8 @@ export class DesktopService {
     // and case identity, not to the lifetime of the old renderer page.
     const request=(async()=>{
       try{
-        await this.sync({source:'manual',full:true});check();
         const flow=await this.flow(id);check();
+        await this.refreshKnownCaseMaterials(key,id,check);check();
         await this.refreshCaseOutcome(key,id);check();
         const state=await this.caseInfo(key,id);check();
         return {state,flow};

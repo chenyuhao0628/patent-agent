@@ -1,3 +1,4 @@
+import { exportStageDocx, readStageDocx } from './stage-docx.ts';
 import fs from 'node:fs/promises';
 import {diagnostic,diagnosticStage,withDiagnostics} from './diagnostics.ts';
 import path from 'node:path';
@@ -68,7 +69,17 @@ export class ProfessionalHost {
     const c=this.service.professionalCase(id);if(processKey&&keyOf(c)!==processKey)throw new Error('当前案件流程已变化。');return c;
   }
   private liveValid(l:Live){try{this.service.assertScope(l.scope);this.guard(l.key,l.caseId,l.processKey);return !l.abort.signal.aborted&&!this.closed;}catch{return false;}}
-  private record(store:Store,c:CaseProfessionalView){let r=store.records.find(r=>r.caseId===c.identity.id&&r.processKey===keyOf(c));if(!r){r={caseId:c.identity.id,processKey:keyOf(c),phase:0,confirmations:[],jobs:[],sources:[],completed:false};store.records.push(r);}return r;}
+  private record(store:Store,c:CaseProfessionalView){
+    const processKey=keyOf(c);
+    let r=store.records.find(r=>r.caseId===c.identity.id&&r.processKey===processKey);
+    if(!r){
+      const association=c.identity.association;
+      const previous=association?.processId===processKey&&c.stage.kind==='write'?store.records.find(r=>r.caseId===c.identity.id&&r.processKey===association.localProcessKey):undefined;
+      r=previous?{...structuredClone(previous),processKey,jobs:previous.jobs.map(job=>({...structuredClone(job),processKey})),sources:previous.sources.map(source=>({...structuredClone(source),processKey,reports:source.reports?.map(job=>({...structuredClone(job),processKey}))}))}:{caseId:c.identity.id,processKey,phase:0,confirmations:[],jobs:[],sources:[],completed:false};
+      store.records.push(r);
+    }
+    return r;
+  }
   assertIdleForMigration(){if(this.active.size)throw new Error('请先停止撰写或个人审查任务，再迁移目录或更换文档组件。');}
   noteScopeChange(){for(const l of this.active.values())if(!this.liveValid(l)){l.abort.abort();l.handle?.abort();}}
   async shutdown(){this.closed=true;for(const l of this.active.values()){l.abort.abort();l.handle?.abort();}await Promise.all([...this.active.values()].map(l=>l.wait?.catch(()=>{})));await this.operations;}
@@ -109,7 +120,7 @@ export class ProfessionalHost {
     }
     this.service.assertKey(key);if(generation!==this.service.generation)throw new Error('账号已切换。');return items.sort((a,b)=>b.source.at.localeCompare(a.source.at));
   }
-  async getCase(key:string,id:string):Promise<ProfessionalCaseView>{return this.scoped(key,id,()=>this.view(key,id));}
+  async getCase(key:string,id:string):Promise<ProfessionalCaseView>{return this.scoped(key,id,async scope=>{const store=await this.store(key),count=store.records.length;const view=await this.view(key,id);if(store.records.length!==count)await this.persist(key,scope);return view;});}
   async history(key:string,id:string):Promise<import('../src/professional-api.ts').ProfessionalHistoryView>{return this.scoped(key,undefined,async()=>{
     this.service.assertKey(key);this.service.professionalCase(id);
     const generation=this.service.generation;
@@ -275,12 +286,28 @@ export class ProfessionalHost {
     const source=recordView(record).sources.filter(s=>s.id.startsWith('writing-')&&!s.supersededAt).at(-1);
     return source?.files[0]?structuredClone(source.files[0]):undefined;
   });}
+  async previewDocument(key:string,id:string,processKey:string,jobId:string){return this.scoped(key,id,async(scope)=>{
+    const c=this.guard(key,id),store=await this.store(key);
+    const job=store.records.find(r=>r.caseId===id&&r.processKey===processKey)?.jobs.find(j=>j.id===jobId&&j.caseId===id&&j.processKey===processKey);
+    if(!job||job.state!=='completed'||!job.text)throw new Error('指定阶段版本尚未完成或不属于本案。');
+    if(!job.artifactPath?.endsWith('.docx')){
+      const raw=job.artifactPath;
+      if(raw){const original=await readBoundedFile(await this.service.casePath(id,raw),20*1024*1024);this.service.assertScope(scope);if(original.toString('utf8')!==job.text)throw new Error('原阶段文本已修改，未用旧记录替换用户文件。');}
+      const bytes=await exportStageDocx(path.join(this.resources,'document-templates'),`${c.identity.title} · ${job.kind==='writing'?WRITING_PHASES[job.phase??0]:'独立审查报告'}`,job.text);
+      this.service.assertScope(scope);
+      job.artifactPath=await this.saveFile(scope,c,`阶段文档-${job.id}-${randomUUID()}.docx`,bytes);job.rawArtifactPath=raw;job.artifactHash=digest(bytes);await this.persist(key,scope);
+    }
+    const bytes=await readBoundedFile(await this.service.casePath(id,job.artifactPath),20*1024*1024);this.service.assertScope(scope);
+    if(!job.artifactHash||digest(bytes)!==job.artifactHash)throw new Error('阶段 Word 已被修改或缺少版本摘要，未显示不匹配的预览。请打开确切原文件核对。');
+    const blocks=await readStageDocx(bytes);this.service.assertScope(scope);
+    return {jobId,processKey,relativePath:job.artifactPath,hash:job.artifactHash,blocks};
+  });}
   async fileAllowed(key:string,id:string,relative:string){return this.scoped(key,id,async()=>{
     const store=await this.store(key);
     const sourceFile=(s:ReviewSource)=>s.files.some(f=>f.relativePath===relative)
-      ||reportsFor(s).some(job=>job.artifactPath===relative);
+      ||reportsFor(s).some(job=>(job.artifactPath===relative||job.rawArtifactPath===relative));
     if(materialList(this.service.professionalCase(id)).some(m=>m.relativePath===relative&&m.ready)
-      ||store.records.filter(r=>r.caseId===id).some(r=>r.jobs.some(j=>j.caseId===id&&j.processKey===r.processKey&&j.artifactPath===relative)
+      ||store.records.filter(r=>r.caseId===id).some(r=>r.jobs.some(j=>j.caseId===id&&j.processKey===r.processKey&&(j.artifactPath===relative||j.rawArtifactPath===relative))
         ||r.sources.some(s=>s.caseId===id&&s.processKey===r.processKey&&sourceFile(s))))return true;
     return (await this.agent.reviewSources(key,id)).some(s=>s.caseId===id&&sourceFile(s));
   });}
@@ -331,7 +358,11 @@ export class ProfessionalHost {
           this.service.assertScope(scope);
           const artifactPath=await this.saveFile(scope,c,`${kind==='writing'?WRITING_PHASES[job.phase!]: '独立审查报告'}-${runId}.md`,Buffer.from(result.text));
           this.service.assertScope(scope);
-          job.text=result.text;job.documents=result.documents;job.artifactPath=artifactPath;job.state='completed';
+          job.text=result.text;job.documents=result.documents;job.rawArtifactPath=artifactPath;
+          const word=await exportStageDocx(path.join(this.resources,'document-templates'),`${c.identity.title} · ${kind==='writing'?WRITING_PHASES[job.phase!]: '独立审查报告'}`,result.text);
+          this.service.assertScope(scope);
+          job.artifactPath=await this.saveFile(scope,c,`${kind==='writing'?WRITING_PHASES[job.phase!]: '独立审查报告'}-${runId}.docx`,word);
+          job.artifactHash=digest(word);job.state='completed';
         });
       }catch(e){job.state=controller.signal.aborted?'stopped':'failed';job.error=(e as Error).message;}
       finally{await this.serial(async()=>{if(job.state==='running')job.state='stopped';job.endedAt=new Date().toISOString();await this.persist(key);if(this.active.get(activeKey)===live)this.active.delete(activeKey);this.changed(key);});}

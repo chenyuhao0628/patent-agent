@@ -333,6 +333,16 @@ export function ipcSettings(value: unknown): Settings {
   return value as Settings;
 }
 
+export function ipcRemoteFileDeleteRef(value: unknown): import('../src/transfer-api.ts').RemoteFileDeleteRef {
+  const record=assertRecord(value,'远端文件删除请求无效。');
+  if(Object.keys(record).some(key=>!['fileNo','handId','fingerprint'].includes(key)))throw new Error('远端文件删除请求无效。');
+  const fileNo=assertString(record.fileNo,'远端文件编号',256);
+  const handId=assertString(record.handId,'递交实例编号',256);
+  const fingerprint=assertString(record.fingerprint,'材料版本',64);
+  if(!/^[a-f0-9]{64}$/.test(fingerprint)||fileNo==='0'||fileNo==='00000000-0000-0000-0000-000000000000')throw new Error('远端文件删除请求无效。');
+  return {fileNo,handId,fingerprint};
+}
+
 export function ipcTransferFilePreviewRef(value: unknown): TransferFilePreviewRef {
   const record = assertRecord(value, '文件预览请求无效。');
   for (const key of ['role', 'partCode', 'fileNo', 'name'] as const) {

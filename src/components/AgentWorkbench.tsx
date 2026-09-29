@@ -554,7 +554,7 @@ export function AgentWorkbench({
               draft={adopted}
               isCorrection={process.classification.noticeCategory === '补正通知书'}
               busy={busy || !formal}
-              externalArtifacts={view.artifacts.filter(a => a.externallyModified && a.text)}
+              externalArtifacts={view.artifacts.filter(a => a.externallyModified && a.versionId === adopted.id)}
               onDirtyChange={dirty => { setDraftDirty(dirty); if (!dirty) setFinalizeDirtyHint(''); }}
               onSave={async payload => {
                 const token=gen.current;
@@ -634,11 +634,11 @@ export function AgentWorkbench({
 }
 
 export function AgentArtifacts({ view, caseId }: { view: AgentCaseView; caseId: string }) {
-  const [selectedPreview, setSelectedPreview] = useState<AgentCaseView['artifacts'][number]>();
+  const [selectedPreview, setSelectedPreview] = useState<string>();
   const [selectedDraftPart, setSelectedDraftPart] = useState<string>('body');
   const [error, setError] = useState('');
   const sortedArtifacts = [...view.artifacts].sort((a, b) => b.at.localeCompare(a.at) || a.title.localeCompare(b.title, 'zh-CN'));
-  const preview = selectedPreview ?? sortedArtifacts.find(a => a.kind === 'final-word' || a.kind === 'final-correction-form') ?? sortedArtifacts[0];
+  const preview = sortedArtifacts.find(a => a.id === selectedPreview) ?? sortedArtifacts.find(a => a.kind === 'final-word' || a.kind === 'final-correction-form') ?? sortedArtifacts[0];
   
   const currentAdopted = view.process.drafts.find(item => item.id === view.process.currentDraftVersionId)
     ?? view.process.drafts.find(item => item.adoptStatus === 'adopted')
@@ -647,7 +647,7 @@ export function AgentArtifacts({ view, caseId }: { view: AgentCaseView; caseId: 
 
   const draft = view.process.drafts.find(item => item.id === preview?.versionId)
     ?? currentAdopted;
-  const text = preview ? (preview.text || artifactPreviewText(preview.kind, draft)) : undefined;
+  const text = preview ? (preview.extractionError ? undefined : preview.text ?? (/\.docx$/i.test(preview.relativePath) ? undefined : artifactPreviewText(preview.kind, draft))) : undefined;
 
   // Pre-finalization draft items
   const draftItems: Array<{ id: string; title: string; text?: string }> = [];
@@ -702,7 +702,7 @@ export function AgentArtifacts({ view, caseId }: { view: AgentCaseView; caseId: 
               className={`agent-artifact${preview?.id === item.id ? ' is-active' : ''}`}
               key={item.id}
               type="button"
-              onClick={() => { setSelectedPreview(item); setError(''); }}
+              onClick={() => { setSelectedPreview(item.id); setError(''); }}
             >
               {item.title}
               <small>
@@ -728,10 +728,12 @@ export function AgentArtifacts({ view, caseId }: { view: AgentCaseView; caseId: 
             </div>
             {preview.externallyModified && (
               <div className="inline-warning" style={{ margin: '8px 0', padding: '8px 12px', borderRadius: '6px' }}>
-                <b>⚠️ 检测到外部修改：</b>此文件已在外部被手动修改，下方预览已实时展示外部最新正文。
+                <b>⚠️ 检测到外部修改：</b>此文件已在外部被手动修改；请核对读取结果，原文件仍保留。
               </div>
             )}
-            {text ? (
+            {preview.extractionError ? (
+              <p className="agent-error" role="alert">{preview.extractionError} 未使用旧稿替代预览，请外部打开核对。</p>
+            ) : text ? (
               <FormattedFormulaText className="agent-preview" text={text} />
             ) : (
               <p className="muted">当前文件已保存至本案目录，可点击上方按钮在外部应用中打开。</p>

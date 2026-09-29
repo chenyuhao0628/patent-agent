@@ -11,8 +11,6 @@ import { readFrozenMaterial, MAX_MATERIAL_BYTES } from './agent-document-reader.
 import * as fs from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import JSZip from 'jszip';
-import { DOMParser } from '@xmldom/xmldom';
 import type { AgentAPI, AgentCaseView, AgentCommand, AgentTaskView, AgentPreparation } from '../src/agent-api.ts';
 import type { AgentAction, AgentProcessState, DraftVersion, JobArtifact, MaterialEntry } from '../src/domain/agent.ts';
 import {
@@ -45,7 +43,7 @@ import {
 } from '../src/domain/agent.ts';
 import type { CaseReplyView } from '../src/domain/case-view.ts';
 import type { ModelConfigPublic } from '../src/domain/models.ts';
-import { atomicCreate, atomicJSON, datedFolder, digest, managedPath, portable, processFolder, readJSON, readBoundedFile, safeName } from './files.ts';
+import { extractDocxParagraphs, atomicCreate, atomicJSON, datedFolder, digest, managedPath, portable, processFolder, readJSON, readBoundedFile, safeName } from './files.ts';
 import { parseAgentArtifact } from './agent-artifact.ts';
 import { buildAgentPrompt } from './agent-rules.ts';
 import type { DesktopService } from './service.ts';
@@ -603,33 +601,6 @@ export class AgentHost implements AgentAPI {
     return merged;
   }
 
-  private async extractDocxParagraphs(bytes: Buffer): Promise<string | undefined> {
-    try {
-      const zip = await JSZip.loadAsync(bytes);
-      const xml = await zip.file('word/document.xml')?.async('string');
-      if (!xml) return undefined;
-      const doc = new DOMParser().parseFromString(xml, 'application/xml');
-      const paragraphs = Array.from(doc.getElementsByTagNameNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main', 'p'));
-      const lines: string[] = [];
-      for (const p of paragraphs) {
-        const texts: string[] = [];
-        for (const child of Array.from(p.childNodes)) {
-          if (child.nodeType === 1) {
-            const el = child as Element;
-            if (el.localName === 'del') continue;
-            const textNodes = Array.from(el.getElementsByTagNameNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main', 't'));
-            for (const t of textNodes) texts.push(t.textContent ?? '');
-          }
-        }
-        lines.push(texts.join(''));
-      }
-      const result = lines.join('\n').trim();
-      return result || undefined;
-    } catch {
-      return undefined;
-    }
-  }
-
   private defaultClassification(c: CaseReplyView) {
     const kind = c.stage.current.kind;
     if (kind === 'reply' || kind === 'correction') return { status: 'unclassified' as const };
@@ -725,8 +696,10 @@ export class AgentHost implements AgentAPI {
           const hash = digest(fileBytes);
           const externallyModified = hash !== file.hash;
           let text: string | undefined;
-          if (file.relativePath.endsWith('.docx')) {
-            text = await this.extractDocxParagraphs(fileBytes);
+          let extractionError: string | undefined;
+          if (/\.docx$/i.test(file.relativePath)) {
+            try { text = await extractDocxParagraphs(fileBytes); }
+            catch (error) { extractionError = error instanceof Error ? error.message : 'Word 无法完整读取，已阻止载入。'; }
           } else if (file.relativePath.endsWith('.json')) {
             try { text = fileBytes.toString('utf8'); } catch {}
           }
@@ -739,6 +712,7 @@ export class AgentHost implements AgentAPI {
             versionId: file.versionId,
             externallyModified,
             text,
+            extractionError,
           });
         }
       } catch { /* skip unreadable or mismatched indexes */ }
@@ -914,6 +888,12 @@ export class AgentHost implements AgentAPI {
     let state = await this.ensureProcess(store, c,ticket);
     const scope = { caseId: c.identity.id, processKey: state.scope.processKey };
     if (processKeyOf(c) !== state.scope.processKey) throw new Error(STALE_SCOPE);
+    if (['updateDraft', 'applicationParts', 'correctionContents', 'finalize'].includes(command.type)) {
+      const artifacts = await this.artifactsOf(ticket.profileKey, c, state.scope.processKey);
+      this.assertTicket(ticket);
+      const blocked = artifacts.find(a => a.externallyModified && a.versionId === currentDraft(state)?.id && a.extractionError);
+      if (blocked) throw new Error('外部 Word 无法完整读取，已阻止保存或定稿；请保留原件并修复后刷新。' + blocked.extractionError);
+    }
     if (command.type === 'opened') { state = structuredClone(state); state.openedAt ??= new Date().toISOString(); }
     else if (command.type === 'clearConversation') {
       const d = state.discussions.find(d => d.id === command.discussionId);

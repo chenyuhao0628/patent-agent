@@ -12,7 +12,7 @@ export {
 
 export type WorkKind = 'write' | 'reply' | 'correction' | 'review' | 'waiting' | 'external' | 'needs-confirmation';
 export type CurrentWork = { kind: WorkKind; roundId?: string; processId?: string; label?: string; remoteStatus?: number; node?: string; party?: string; handler?: string };
-export type CaseLifecycleFacts = Pick<Case, 'current' | 'archived' | 'remote' | 'source' | 'remoteClosure' | 'officialOutcome'> & {
+export type CaseLifecycleFacts = Pick<Case, 'current' | 'archived' | 'remote' | 'source' | 'remoteClosure' | 'officialOutcome' | 'linkedTo'> & {
   rounds: Array<Pick<Round, 'id' | 'name' | 'stage' | 'job'>>;
   design?: { writing: { disclosure: string; finalVersionId: string | null }; review?: { source: string } | null };
 };
@@ -85,7 +85,7 @@ export function currentWork(c: CaseLifecycleFacts): CurrentWork {
 }
 export function activeRound(c:Case) { return c.rounds.find(r=>r.id===currentWork(c).roundId); }
 export function editableCurrent(c:CaseLifecycleFacts) {
-  if(c.remoteClosure?.finished||hasOfficialOutcome(c))return false;
+  if(c.linkedTo||c.remoteClosure?.finished||hasOfficialOutcome(c))return false;
   const w=currentWork(c),sub=processSubmission(c);
   if(isConfirmedOfficialSubmission(sub)||w.kind==='waiting')return false;
   const p=c.remote?.processes.find(p=>p.id===w.processId);
@@ -93,7 +93,7 @@ export function editableCurrent(c:CaseLifecycleFacts) {
   return !c.archived && ['write','reply','correction','review'].includes(w.kind) && (w.remoteStatus === undefined || w.remoteStatus===0 || ([200,300,400].includes(w.remoteStatus)&&p?.canEdit===true));
 }
 export function internalTransferAvailable(c:CaseLifecycleFacts){
-  if(c.remoteClosure?.finished||hasOfficialOutcome(c))return false;
+  if(c.linkedTo||c.remoteClosure?.finished||hasOfficialOutcome(c))return false;
   const w=currentWork(c),status=w.remoteStatus??c.remote?.processes.find(p=>p.id===w.processId)?.status;
   const p=c.remote?.processes.find(process=>process.id===w.processId);
   return c.source==='baseland'&&!c.archived&&!!w.processId&&['write','reply','correction'].includes(w.kind)&&!isConfirmedOfficialSubmission(processSubmission(c))&&p?.canEdit!==false&&[0,200,300,400].includes(status??-1);
@@ -171,10 +171,10 @@ export function caseStatus(c:CaseLifecycleFacts) {
 function applyProcessStage(next:Case,current:CurrentWork,process:RemoteProcess|undefined):void {
   const hasOtherActive=(next.remote?.processes??[]).some(x=>isInternallyActiveProcess(x)&&x.id!==process?.id);
   const kind=process?stageVerdict({status:process.status,submission:effectiveSubmission(process),needSendOfficial:process.needSendOfficial}):'none';
-  const stamped=process&&!hasOtherActive?stageCurrentFields(kind,process,current.label):undefined;
+  const stamped=process&&(kind==='none'||!hasOtherActive)?stampCurrentFromStageVerdict(current,process,kind):undefined;
   if(stamped){
     next.current={...current,...stamped};
-    next.rounds=withoutJobs(next.rounds);
+    next.rounds=kind==='none'?next.rounds.map(r=>r.id===next.current?.roundId?r:{...r,job:null}):withoutJobs(next.rounds);
   }else{
     next.current=current;
     const roundId=next.current.roundId;
@@ -185,10 +185,16 @@ function applyProcessStage(next:Case,current:CurrentWork,process:RemoteProcess|u
 /** Stamp Case.current from the shared stage verdict (used by sync/normalize). */
 export function stampCurrentFromStageVerdict(current:CurrentWork,process:RemoteProcess,kind=stageVerdict({status:process.status,submission:effectiveSubmission(process),needSendOfficial:process.needSendOfficial})):CurrentWork|undefined {
   const fields=stageCurrentFields(kind,process,current.label);
-  return fields?{...current,...fields}:undefined;
+  if(fields)return {...current,...fields};
+  if(kind==='none'&&current.processId===process.id&&isInternallyActiveProcess(process)&&['waiting','needs-confirmation'].includes(current.kind)){
+    return {...current,kind:processWorkKind(process.name),label:process.name,remoteStatus:process.status,
+      node:process.currentFlow?.name||process.node,handler:process.currentFlow?.user||process.undertaker,party:undefined};
+  }
+  return undefined;
 }
 
 export function normalizeCase(c:Case):Case {
+  if(c.linkedTo)return {...c,archived:true};
   const next={...c};
   if(next.remote?.processes)next.remote={...next.remote,processes:next.remote.processes.map(p=>({...mergeRemoteProcess(undefined,p),submission:effectiveSubmission(p)}))};
   const current=currentWork(next);

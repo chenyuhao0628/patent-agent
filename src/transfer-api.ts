@@ -16,6 +16,12 @@ export type TransferForm = {
   declarations: Record<string, boolean>;
 };
 export type TransferReview = { confirmedDraftId?: string; keepCodes: string[]; form: TransferForm; stepId: string; userId: string; remark: string };
+export type RemoteFileDeleteRef = { fileNo: string; handId: string; fingerprint: string };
+export type RemoteTransferFile = { fileNo: string; name: string; deleteRef?: RemoteFileDeleteRef; deleteDisabledReason?: string };
+export type RemoteFileDeletion = {
+  target: RemoteFileDeleteRef; name: string; kind: 'part' | 'mix' | 'reply'; formCode?: string;
+  preservationHash: string; requestedAt: string;
+};
 export type TransferView = {
   sourceDraft?: {id:string;at?:string;pending:boolean};
   sourceMode?: TransferSource; id: string; profileKey: string; caseId: string; caseNumber: string; caseTitle: string; processId: string; processName: string;
@@ -24,8 +30,11 @@ export type TransferView = {
   parts: PartComparison[]; review: TransferReview;
   steps: Array<{ id: string; name: string; users: Array<{ id: string; name: string }> }>;
   phase: 'draft' | 'saved' | 'submitted' | 'uncertain' | 'superseded';
-  results: string[]; error?: string; submissionAttempted?: boolean; submissionRetryable?: boolean; submissionFingerprint?: string; existingFileNames: string[]; at: string;
+  results: string[]; error?: string; submissionAttempted?: boolean; submissionRetryable?: boolean; submissionFingerprint?: string; existingFileNames: string[]; existingFiles?: RemoteTransferFile[]; at: string;
   revokedByUser?: boolean;
+  submissionTarget?: {handId:string;step:{id:string;name:string};user:{id:string;name:string}};
+  cleanupPending?: boolean; cleanupFileNos?: string[]; localReviewSaved?: boolean;
+  fileDeletion?: RemoteFileDeletion;
 };
 export type TransferFilePreviewRef = { role?: TransferFileRole; partCode?: string; fileNo?: string; name?: string };
 export type TransferFilePreviewResult = {
@@ -44,9 +53,10 @@ export type TransferAPI = {
   history(profileKey: string, caseId: string): Promise<TransferView[]>;
   inspect(profileKey: string, caseId: string): Promise<TransferView | null>;
   prepare(profileKey: string, caseId: string, sourceMode?: TransferSource): Promise<TransferView>;
-  pickFile(profileKey: string, id: string, role: TransferFileRole): Promise<TransferView>;
+  pickFile(profileKey: string, id: string, role: TransferFileRole): Promise<TransferView | null>;
   removeFile(profileKey: string, id: string, role: TransferFileRole): Promise<TransferView>;
   clearRemote(profileKey: string, id: string): Promise<TransferView>;
+  deleteRemoteFile(profileKey: string, id: string, target: RemoteFileDeleteRef): Promise<TransferView>;
   previewFile(profileKey: string, id: string, fileRef: TransferFilePreviewRef): Promise<TransferFilePreviewResult>;
   startHand(profileKey: string, id: string): Promise<TransferView>;
   saveLocalReview(profileKey: string, id: string, review: TransferReview): Promise<TransferView>;

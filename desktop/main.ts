@@ -15,6 +15,7 @@ import { ModelService } from './model-service.ts';
 import { handleModelIpc, ModelRequestRegistry, parseModelIpcRequest } from './model-ipc.ts';
 import { AgentHost } from './agent-host.ts';
 import { TransferHost } from './transfer-host.ts';
+import { selectedTransferFile } from '../src/app/transfer-ui-state.ts';
 import { configureDocumentConverter, findDocumentConverter } from './document-converter.ts';
 import { configureManagedTools, configureAutomaticInstall, ensureDocumentTool, managedToolsStatus, removeDocumentTool } from './managed-tools.ts';
 import { configureWebTools } from './agent-web.ts';
@@ -48,7 +49,7 @@ import {
   ipcSyncSource,
   ipcText,
   ipcTransferRole,
-  ipcTransferFilePreviewRef,
+  ipcTransferFilePreviewRef, ipcRemoteFileDeleteRef,
   ipcTransferReview,
   ipcTransferSource,
   ipcWorkspace,
@@ -303,6 +304,8 @@ app.whenReady().then(async()=>{
     return saved;
   },true,true);
   handle('saveWorkspace',ipcArgs(ipcProfileKey,ipcWorkspace,ipcDesktopScope),(key,w,scope)=>service.save(key,w,scope),true,true);
+  handle('caseLinkCandidates',ipcArgs(ipcProfileKey,ipcCaseId),(key,id)=>service.caseLinkCandidates(key,id));
+  handle('linkCase',ipcArgs(ipcProfileKey,ipcCaseId,ipcCaseId,ipcText('关联确认',128)),async(key,id,remoteId,token)=>{agentHost.assertIdleForMigration();professionalHost.assertIdleForMigration();return service.linkCase(key,id,remoteId,token);},true,true);
   handle('createCase',ipcArgs(ipcCreateCaseInput),(input)=>service.createCase(input),true,true);
   handle('refreshShared',ipcArgs(ipcProfileKey),(key)=>service.refreshShared(key),true,true);
   handle('sync',ipcArgs(ipcSyncSource),(source)=>{if(service.isWorkMigrationBusy())return service.state();return service.sync({source:source==='focus'?'focus':'manual'});});
@@ -340,6 +343,7 @@ app.whenReady().then(async()=>{
     return picked.canceled?professionalHost.getCase(profileKey,caseId):professionalHost.addReferences(profileKey,caseId,picked.filePaths);
   },true,true);
   handle('professionalRemoveReference',ipcArgs(ipcProfileKey,ipcCaseId,ipcMaterialId),(key,id,mid)=>professionalHost.removeReference(key,id,mid),true,true);
+  handle('professionalPreview',ipcArgs(ipcProfileKey,ipcCaseId,ipcText('阶段标识',256),ipcText('成果标识',256)),(key,id,processKey,jobId)=>professionalHost.previewDocument(key,id,processKey,jobId),true,true);
   handle('professionalOpen',ipcArgs(ipcProfileKey,ipcCaseId,ipcRelativePath),async(profileKey,caseId,relativePath)=>{
     const scope=service.captureScope(profileKey,caseId);
     return professionalHost.fileAllowed(profileKey,caseId,relativePath).then(async allowed=>{
@@ -378,9 +382,9 @@ app.whenReady().then(async()=>{
   handle('transferPickFile',ipcArgs(ipcProfileKey,ipcCaseId,ipcTransferRole),async(profileKey,caseId,fileRole)=>{
     const scope=transferHost.requestScope(profileKey,caseId);
     const selected=await dialog.showOpenDialog(window!,{title:fileRole==='baseline'?'选择本次修改所基于的完整申请文件':fileRole==='reply'?'选择本次定稿意见陈述书':'选择完整修改后的申请文件',filters:[{name:'Word 文档',extensions:['docx']}],properties:['openFile']});
-    service.assertScope(scope);
-    if(selected.canceled)return transferHost.refresh(profileKey,caseId);
-    return transferHost.addFile(profileKey,caseId,fileRole,selected.filePaths[0]);
+    const filePath=selectedTransferFile(selected,()=>service.assertScope(scope));
+    if(!filePath)return null;
+    return transferHost.addFile(profileKey,caseId,fileRole,filePath);
   },true,true);
   handle('transferStartHand',ipcArgs(ipcProfileKey,ipcCaseId),(key,id)=>transferHost.startHand(key,id),true,true);
   handle('transferSaveLocalReview',ipcArgs(ipcProfileKey,ipcCaseId,ipcTransferReview),(key,id,review)=>transferHost.saveLocalReview(key,id,review),true,true);
@@ -391,6 +395,7 @@ app.whenReady().then(async()=>{
   handle('transferRevoke',ipcArgs(ipcProfileKey,ipcCaseId),(key,id)=>transferHost.revoke(key,id),true,true);
   handle('transferRemoveFile',ipcArgs(ipcProfileKey,ipcCaseId,ipcTransferRole),(key,id,role)=>transferHost.removeFile(key,id,role),true,true);
   handle('transferClearRemote',ipcArgs(ipcProfileKey,ipcCaseId),(key,id)=>transferHost.clearRemote(key,id),true,true);
+  handle('transferDeleteRemoteFile',ipcArgs(ipcProfileKey,ipcCaseId,ipcRemoteFileDeleteRef),(key,id,target)=>transferHost.deleteRemoteFile(key,id,target),true,true);
   handle('transferPreviewFile',ipcArgs(ipcProfileKey,ipcCaseId,ipcTransferFilePreviewRef),(key,id,fileRef)=>transferHost.previewFile(key,id,fileRef),true,true);
   ipcMain.handle('desktop:model',async(event,method,profileKey,args,requestId)=>{
     if(event.sender!==window?.webContents||event.senderFrame!==window.webContents.mainFrame)throw new Error('不接受非应用窗口请求。');

@@ -177,7 +177,7 @@ export function RemoteFlow({caseView,profileKey,scopeVersion,caseRevision}:{case
       {sub?.refreshError&&<p className="flow-official-stale">{sub.refreshError}</p>}
       {sub?.checkedAt&&safeStamp(sub.checkedAt)&&<p className="flow-official-time">{sub.refreshError?'上次确认：':'确认时间：'}{safeStamp(sub.checkedAt)}</p>}
     </div>
-    {!flow&&<Note>当前显示本地已同步的流程与承办信息。如需查看最新流转节点进度图或全案流转历史，请点击顶栏【刷新本案】。</Note>}
+    {!flow&&<Note>当前显示本地已同步的流程与承办信息。点击顶栏【刷新本案】会重新读取本案流程、历史、附件清单、备注和官方结论，并只下载新增或待重试材料。</Note>}
     {flow&&<><h3>节点进度</h3>{progressCaption?<p className="muted">{progressCaption}</p>:null}
       {flow.nodes.length?<ol className="flow-stepper">{flow.nodes.map((n,i)=>{const cap=nodeCaption(n);const start=wallStamp(n.start);const end=wallStamp(n.end);return <li className={stepClass(n)} key={i}><span className="flow-dot" aria-hidden/><div className="flow-step-body"><b>{nodeTitle(n)}</b><p>{cap}{n.stayHours!==undefined?`${cap?' · ':''}停留 ${n.stayHours} 小时`:''}{start?`${cap||n.stayHours!==undefined?' · ':''}${start}`:''}{end?` → ${end}`:''}</p></div></li>;})}</ol>:<Note>系统未返回流转节点，待办案件可能尚未创建流转实例。</Note>}</>}
     <div className="flow-history"><details className="flow-details"><summary>内部流程与承办人</summary>

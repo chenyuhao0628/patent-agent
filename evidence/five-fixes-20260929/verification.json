@@ -1,0 +1,44 @@
+{
+  "date": "2026-09-29",
+  "gitHead": "a713fb131d398af4af321618ecb48e97211bdce6",
+  "scope": "uncommitted source; synthetic services and isolated Electron only",
+  "tests": {
+    "tests": 708,
+    "pass": 708,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 0,
+    "todo": 0
+  },
+  "productionBuild": "passed",
+  "versions": {
+    "package.json": "0.15.1",
+    "release/release-manifest.json": "0.15.1"
+  },
+  "isolatedDesktop": {
+    "linkPreserved": true,
+    "bothDraftsPreserved": true,
+    "pendingJournal": false,
+    "restartStagePreview": "observed",
+    "sourceHistoryReadOnly": "observed",
+    "testProcessExitCode": 0
+  },
+  "limits": [
+    "One renderer crash exitCode 5 observed earlier; root cause unresolved",
+    "Native Word pagination not validated",
+    "No real model or real service writes",
+    "No new installer, Windows verification, commit, push or release"
+  ],
+  "sourceSha256": {
+    "desktop/case-link-publication.ts": "d102af833b0d67e8f79dbd1d833a0e017ebca3bdc7f19b4840d15f90d75a89b0",
+    "desktop/service.ts": "1b1c6c701cd3e2f13151cb7deb746c7130b5d2102ba584bf810af540eadb2109",
+    "desktop/shared.ts": "cd101a11c1d469aa6de1ab6fe1e8c16b41e5b2d650ef3bebb16ffaf42fb3fd3e",
+    "desktop/stage-docx.ts": "1ef3c79eb4842c8cc70f13391cef05953b6170c368c0dc5753c382ed7d2c8f80",
+    "desktop/professional-host.ts": "0133549b16947bae443726eb414ed0f6abb933959085e3aeb817fbc467f9d3eb",
+    "desktop/transfer-host.ts": "40818e4f8920f562b73286df87cb0813e0c086082977769731023e3efab0dd56",
+    "desktop/case-link.test.ts": "017ec7cfb7e16c83b80554175f58f61ea8218619e9d811c7d7bb7334b8043897",
+    "desktop/transfer-host.test.ts": "10cb51e5bfa30679fefc5ca568452e10a2701a2898b26b260e1110cfdbfce05c",
+    "src/components/CaseLink.tsx": "b70dee93e56c06fe3404de0450f8ec1c86adc367fa0adbcef05dcae4f220f9f5",
+    "src/components/StageDocument.tsx": "c4c37adb877e9cd413d39cd7c76f18decaa1ab130cd103145a1995e8939dd962"
+  }
+}

@@ -6,7 +6,7 @@ import os from 'node:os';
 import { Server } from './test-support/transfer-server.ts';
 import { DesktopService } from './service.ts';
 import { TransferHost, pickTransferRecipient } from './transfer-host.ts';
-import { isRemoteTransferSaved } from './baseland-transfer.ts';
+import { isRemoteTransferSaved, remoteFiles, remoteApplicationMissing } from './baseland-transfer.ts';
 import type { AgentHost } from './agent-host.ts';
 import type { Case } from '../src/domain/workflow.ts';
 
@@ -132,6 +132,30 @@ test('unconfirmed transfer remains uncertain on reopen and can only recover thro
   await assert.rejects(reopened.submit(service.key,v.id),/先完成/);
   client.flowInfo.FlowUserName='杨佳';client.flowInfo.FlowUserId='user-1';v=await reopened.refresh(service.key,v.id);assert.equal(v.phase,'submitted');
   assert.equal(client.calls.filter(c=>c.endpoint.endsWith('SubmitHandFlow')).length,1);
+});
+
+test('interrupted transfer confirmation uses the immutable sent target after candidates change',async t=>{
+  const {service,client,host,agent,c,source}=await setup(t);
+  let v=await host.prepare(service.key,c.id);
+  v=await host.addFile(service.key,v.id,'reply',source);
+  v=await host.save(service.key,v.id,v.review);
+  client.badRecipient=true;
+  v=await host.submit(service.key,v.id);
+  assert.equal(v.phase,'uncertain');
+  assert.deepEqual(v.submissionTarget?.user,{id:'user-1',name:'杨佳'});
+
+  client.next='后来出现的候选流程';
+  client.nextUsers=[{value:'user-2',label:'其他办理人'}];
+  client.flowInfo={FlowNodeName:'下一内部流程',FlowUserName:'杨佳',CaseHandStepId:'step-1',FlowUserId:'user-1'};
+
+  const reopened=new TransferHost(service,agent);
+  v=await reopened.prepare(service.key,c.id);
+  v=await reopened.refresh(service.key,v.id);
+  assert.equal(v.phase,'submitted');
+  assert.equal(v.currentUser,'杨佳');
+  assert.deepEqual(v.submissionTarget?.user,{id:'user-1',name:'杨佳'});
+  assert.match(v.results.at(-1)!,/原发送目标.*未重复发送/);
+  assert.equal(client.calls.filter(call=>call.endpoint.endsWith('SubmitHandFlow')).length,1);
 });
 
 test('empty guid in post-transfer FlowUserId with matching FlowUserName confirms transfer',async t=>{
@@ -361,10 +385,11 @@ test('workbench automatically fetches pending draft after empty preparation and 
 });
 
 
-test('transfer-host has no hardcoded 杨佳 recipient default',async()=>{
-  const src=await fs.readFile(path.resolve('desktop/transfer-host.ts'),'utf8');
-  assert.equal(src.includes('杨佳'),false);
-  assert.match(src,/pickTransferRecipient/);
+test('recipient defaults to unique Yang Jia candidate without overriding valid preference or guessing ambiguous IDs',()=>{
+ const a={step:{id:'s1',name:'递交'},user:{id:'yang',name:'杨佳'}},b={step:a.step,user:{id:'other',name:'其他人'}};
+ assert.equal(pickTransferRecipient([a,b]),a);
+ assert.equal(pickTransferRecipient([a,b],{userId:'other'}),b);
+ assert.equal(pickTransferRecipient([a,{...a,user:{...a.user,id:'yang2'}}]),undefined);
 });
 
 test('pickTransferRecipient uses last preference, sole candidate, otherwise requires explicit choice',()=>{
@@ -377,7 +402,7 @@ test('pickTransferRecipient uses last preference, sole candidate, otherwise requ
   assert.equal(pickTransferRecipient([a,b],{userId:'u2'}),b);
   assert.equal(pickTransferRecipient([a,b],{userId:'missing'}),undefined);
   assert.equal(pickTransferRecipient([a,b,c],{userId:'u2',stepId:'s2'}),c);
-  assert.equal(pickTransferRecipient([a,b,c],{userId:'u2',stepId:'gone'}),b);
+  assert.equal(pickTransferRecipient([a,b,c],{userId:'u2',stepId:'gone'}),undefined);
   assert.equal(pickTransferRecipient([a,b],{userId:'',userName:'乙'}),b);
 });
 
@@ -426,6 +451,15 @@ test('successful save updates view.steps and resolves recipient',async t=>{
   assert.equal(v.steps.length,1);
   assert.equal(v.steps[0].users[0].name,'杨佳');
   assert.equal(v.review.userId,'u-1');
+});
+
+test('remote files are identified and deduplicated by immutable FileNo',()=>{
+  const rows=remoteFiles({
+    hand:{},handId:'h',cards:[],formCode:'100012',form:{File:{FileNo:'f-1',FileName:'表单名称.docx'}},instructions:null,notice:null,steps:[],fingerprint:'fp',
+    files:[{FileNo:'f-1',FileName:'列表名称.docx'},{FileNo:'f-2'},{FileNo:'00000000-0000-0000-0000-000000000000',FileName:'无效.docx'}],
+  } as any);
+  assert.deepEqual(rows.map(({fileNo,name})=>({fileNo,name})),[{fileNo:'f-1',name:'表单名称.docx'},{fileNo:'f-2',name:'远端文件_f-2'}]);
+  assert.ok(rows.every(file=>!file.deleteRef&&file.deleteDisabledReason),'缺少安全表单关联的记录仍可显示身份，但不能删除');
 });
 
 test('isRemoteTransferSaved validates contracts across reply, application, and correction routes',()=>{
@@ -666,8 +700,8 @@ test('inspect ignores stale empty local draft without files and rehydrates remot
   assert.equal(inspected?.existingFileNames.length>0,true);
 });
 
-test('refresh promotes draft phase to saved when remote materials and form already exist on server',async t=>{
-  const {service,client,host,c,source}=await setup(t);
+test('refresh preserves an edited draft even when remote materials already exist',async t=>{
+  const {service,host,c,source}=await setup(t);
   let v=await host.prepare(service.key,c.id);
   v=await host.addFile(service.key,v.id,'reply',source);
   v=await host.save(service.key,v.id,v.review);
@@ -676,11 +710,16 @@ test('refresh promotes draft phase to saved when remote materials and form alrea
   const session=(host as any).sessions.get(v.id);
   session.view.phase='draft';
   session.view.files=[];
+  session.view.localReviewSaved=true;
+  session.view.review.remark='保留本地转交备注';
+  session.view.review.keepCodes=['100001'];
 
   const refreshed=await host.refresh(service.key,v.id);
-  assert.equal(refreshed.phase,'saved');
+  assert.equal(refreshed.phase,'draft');
+  assert.equal(refreshed.review.remark,'保留本地转交备注');
+  assert.deepEqual(refreshed.review.keepCodes,['100001']);
   assert.equal(refreshed.existingFileNames.length>0,true);
-  assert.match(refreshed.results.at(-1)!,/已保存就绪/);
+  assert.match(refreshed.results.at(-1)!,/保留本地表单和五书选择/);
 });
 
 test('revoke sets revokedByUser flag and prevents refresh from auto-promoting to saved',async t=>{
@@ -740,13 +779,43 @@ test('clearRemote deletes remote files, resets form, and keeps draft state',asyn
   assert.equal(cleared.revokedByUser,true);
   assert.equal(cleared.existingFileNames.length,0);
   assert.equal(client.calls.some(call=>call.endpoint.endsWith('DeleteFormFile')),true);
-  assert.match(cleared.results.at(-1)!,/已成功物理删除贝思兰德系统内的远端上传文件/);
+  assert.match(cleared.results.at(-1)!,/回读确认当前递交实例的目标文件关联与补正条目清空/);
 
   // Cannot clear remote after submitted
   const resaved=await host.save(service.key,v.id,cleared.review);
   const submitted=await host.submit(service.key,resaved.id);
   assert.equal(submitted.phase,'submitted');
   await assert.rejects(host.clearRemote(service.key,v.id),/已内部转交/);
+});
+
+test('partial remote cleanup remains uncertain until readback confirms the original targets are cleared',async t=>{
+  const {service,client,host,c,source}=await setup(t);
+  let v=await host.prepare(service.key,c.id);
+  v=await host.addFile(service.key,v.id,'reply',source);
+  v=await host.save(service.key,v.id,v.review);
+  assert.equal(v.phase,'saved');
+
+  const request=client.request.bind(client);
+  client.request=async(endpoint,body,params)=>{
+    if(endpoint.endsWith('DeleteFormFile')&&params?.formCode==='100012')return 'Success';
+    if(endpoint.endsWith('UpdateFormOpinionStatement'))return 'Success';
+    return request(endpoint,body,params);
+  };
+  v=await host.clearRemote(service.key,v.id);
+  assert.equal(v.phase,'uncertain');
+  assert.equal(v.cleanupPending,true);
+  assert.equal(v.revokedByUser,true);
+  assert.match(v.error!,/清理未全部完成|仍保留目标文件/);
+  assert.match(v.results.at(-1)!,/不可内部转交/);
+  await assert.rejects(host.submit(service.key,v.id),/先完成文件与表单保存验收/);
+
+  client.request=request;
+  client.form=null;
+  v=await host.refresh(service.key,v.id);
+  assert.equal(v.phase,'draft');
+  assert.equal(v.cleanupPending,false);
+  assert.equal(v.cleanupFileNos,undefined);
+  assert.match(v.results.at(-1)!,/刷新已确认目标文件关联和补正条目清空/);
 });
 
 test('previewFile supports local file, remote download, and partCode preview',async t=>{
@@ -765,8 +834,81 @@ test('previewFile supports local file, remote download, and partCode preview',as
   assert.equal(partPreview.name,'权利要求书');
   assert.equal(partPreview.content,'1. 一种测试专利。');
 
-  // Preview by remote fileNo
-  (host as any).sessions.get(v.id).remote.files.push({FileNo:'remote-f1',FileName:'远端文件.docx'});
+  // Preview by immutable remote fileNo; a same-named local copy is never substituted.
+  client.download=async(fileNo:string)=>{
+    assert.ok(['remote-f1','remote-part'].includes(fileNo));
+    return fs.readFile(source);
+  };
+  const remote=(host as any).sessions.get(v.id).remote;
+  remote.files.push({FileNo:'remote-f1',FileName:'远端文件.docx'});
   const remotePreview=await host.previewFile(service.key,v.id,{fileNo:'remote-f1',name:'远端文件.docx'});
   assert.equal(remotePreview.name,'远端文件.docx');
+
+  remote.instructions={FormGroup:[{FormCode:100001,File:{FileNo:'remote-part',FileName:'权利要求书.docx'}}]};
+  const partFilePreview=await host.previewFile(service.key,v.id,{fileNo:'remote-part',name:'权利要求书.docx'});
+  assert.equal(partFilePreview.name,'权利要求书.docx');
+});
+
+ test('local Word transfer persists confirmed result after full-case permissions move away and return',async t=>{
+ const {service,client,host,c,source,agent}=await setup(t);
+ agent.getCase=async()=>{throw new Error('AI must not be read');};
+ let v=await host.prepare(service.key,c.id,false,'local');v=await host.addFile(service.key,v.id,'reply',source);v=await host.save(service.key,v.id,v.review);
+ const original=client.request.bind(client);client.request=async(...args)=>{const result=await original(...args);if(args[0].endsWith('SubmitHandFlow'))client.canEdit=false;return result;};
+ v=await host.submit(service.key,v.id);assert.equal(v.phase,'submitted');assert.equal(v.error,undefined);
+ assert.equal(c.remote!.processes[0].canEdit,false);assert.equal(c.current!.handler,'杨佳');
+ assert.ok(!v.results.some(x=>x.includes('刷新失败')));
+ client.canEdit=true;client.flowInfo={FlowNodeName:'文件准备',FlowUserName:'测试用户',CaseHandStepId:'initial',FlowUserId:'initial'};
+ await service.flow(c.id);const reopened=new TransferHost(service,agent);const returned=await reopened.inspect(service.key,c.id);
+ assert.ok(returned);assert.notEqual(returned.id,v.id);assert.equal(returned.phase,'saved');
+ assert.equal(c.current!.kind,'reply');assert.equal(c.current!.handler,'测试用户');
+ assert.equal(client.calls.filter(x=>x.endpoint.endsWith('SubmitHandFlow')).length,1);
+ assert.ok((await reopened.history(service.key,c.id)).some(x=>x.id===v.id&&x.submissionAttempted&&x.submissionTarget));
+ });
+ test('saved remote application can save edited local review without reupload',async t=>{
+ const {service,client,host,c}=await setup(t);c.current!.kind='write';c.remote!.processes[0].name='提出申请';
+ client.form={RequestInfo:{},SpecificationInfo:{AbstractDrawNumber:'1'}};
+ client.group=['100001','100002','100003','100004','100005'].map(FormCode=>({FormCode,File:{FileNo:'remote-'+FormCode}}));client.group.push({IsMixFile:true,File:{FileNo:'remote-mix'}});
+ let v=await host.prepare(service.key,c.id,false,'local');assert.equal(v.phase,'saved');v=await host.revoke(service.key,v.id);
+ v=await host.save(service.key,v.id,{...v.review,form:{...v.review.form,declarations:{...v.review.form.declarations,IsPublicAdvance:true}}});
+ assert.equal(v.phase,'saved',v.error);assert.equal(client.serial,0);assert.equal(client.form.RequestInfo.IsPublicAdvance,true);
+ });
+
+test('same-process return from waiting persists stage, node, handler and permissions after service reopen',async t=>{
+ const {root,service,client,c}=await setup(t);
+ c.current={kind:'waiting',processId:'proc-1',remoteStatus:500,node:'已转交',handler:'杨佳',party:'external'};
+ c.remote!.processes[0].status=500;c.remote!.processes[0].canEdit=false;
+ client.canEdit=true;client.flowInfo={FlowNodeName:'文件准备',FlowUserName:'测试用户',CaseHandStepId:'initial',FlowUserId:'initial'};
+ await service.flow(c.id);
+ assert.equal(c.current.kind,'reply');assert.equal(c.current.remoteStatus,400);assert.equal(c.current.node,'文件准备');assert.equal(c.current.handler,'测试用户');assert.equal(c.remote!.processes[0].canEdit,true);
+ const reopened=new DesktopService(root,{available:()=>false,encrypt:()=>Buffer.alloc(0),decrypt:()=>''});reopened.key=service.key;await reopened.init(false);
+ const restored=reopened.findCase(c.id);assert.equal(restored.current!.kind,'reply');assert.equal(restored.current!.processId,'proc-1');assert.equal(restored.current!.node,'文件准备');assert.equal(restored.current!.handler,'测试用户');assert.equal(restored.remote!.processes[0].canEdit,true);
+ assert.equal(reopened.transferCase(c.id).transfer.available,true);
+});
+
+test('interruption after superseding a returned transfer restores current remote files without resending',async t=>{
+ const {service,client,host,c,source,agent}=await setup(t);
+ let v=await host.prepare(service.key,c.id,false,'local');v=await host.addFile(service.key,v.id,'reply',source);v=await host.save(service.key,v.id,v.review);v=await host.submit(service.key,v.id);
+ client.flowInfo={FlowNodeName:'文件准备',FlowUserName:'测试用户',CaseHandStepId:'initial',FlowUserId:'initial'};
+ const persist=(host as any).persist.bind(host);(host as any).persist=async(s:any)=>{if(s.view.id!==v.id)throw new Error('interrupted returned journal');return persist(s);};
+ await assert.rejects(host.refresh(service.key,v.id),/interrupted returned journal/);
+ const reopened=new TransferHost(service,agent);const restored=await reopened.inspect(service.key,c.id,'local');
+ assert.ok(restored);assert.notEqual(restored.id,v.id);assert.equal(restored.phase,'saved');assert.equal(restored.sourceMode,'local');
+ const history=await reopened.history(service.key,c.id),original=history.find(x=>x.id===v.id)!;
+ assert.equal(original.phase,'superseded');assert.equal(original.submissionAttempted,true);assert.ok(original.submissionTarget);
+ assert.equal(client.calls.filter(x=>x.endpoint.endsWith('SubmitHandFlow')).length,1);
+});
+
+test('remote application completeness identifies each missing part, mix and XML without requiring reupload',async t=>{
+ const {service,client,host,c}=await setup(t);c.current!.kind='write';c.remote!.processes[0].name='提出申请';
+ client.form={RequestInfo:{},SpecificationInfo:{AbstractDrawNumber:'1'}};
+ client.group=['100001','100002','100003','100004','100005'].map(FormCode=>({FormCode,File:{FileNo:'remote-'+FormCode}}));client.group.push({IsMixFile:true,File:{FileNo:'remote-mix'}});
+ const v=await host.prepare(service.key,c.id,false,'local');
+ const remote=(host as any).sessions.get(v.id).remote;assert.deepEqual(remoteApplicationMissing(remote),[]);
+ for(const [i,name] of ['权利要求书','说明书','说明书附图','说明书摘要','摘要附图'].entries()){
+  const missing=structuredClone(remote);missing.instructions.FormGroup[i].File.FileNo='00000000-0000-0000-0000-000000000000';
+  assert.deepEqual(remoteApplicationMissing(missing),[name]);assert.equal(isRemoteTransferSaved(missing,'application'),false);
+ }
+ const mix=structuredClone(remote);mix.instructions.FormGroup=mix.instructions.FormGroup.filter((g:any)=>!g.IsMixFile);assert.deepEqual(remoteApplicationMissing(mix),['完整申请文件']);
+ const xml=structuredClone(remote);(xml.instructions.Setting??xml.instructions.InstructionsAndImageSetting??xml.instructions).IsUseXmlFormatHand=false;assert.deepEqual(remoteApplicationMissing(xml),['XML 递交设置']);
+ assert.equal(client.serial,0);
 });

@@ -34,6 +34,8 @@ export type CaseIdentityView = {
   source?: Case['source'];
   archived: boolean;
   hasDirectory: boolean;
+  association?: Case['association'];
+  linkedTo?: string;
 };
 
 export type CaseStageView = {
@@ -164,6 +166,7 @@ function projectCaseCore(record: CaseRecord):Pick<CaseWorkspaceView,'identity'|'
       applicationNumber: record.identity.applicationNumber, companyName: record.identity.companyName,
       tags: [...record.identity.tags], source: record.identity.source, archived: record.identity.archived,
       hasDirectory: !!record.storage.directory,
+      association: record.identity.association ? clone(record.identity.association) : undefined,linkedTo:record.identity.linkedTo,
     },
     stage: {
       current: clone(current), kind: current.kind,

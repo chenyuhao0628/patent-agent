@@ -34,6 +34,8 @@ export type CaseIdentityRecord = {
   tags: string[];
   source?: 'baseland' | 'local';
   archived: boolean;
+  linkedTo?: string;
+  association?: import('./case-link.ts').CaseAssociation;
 };
 
 export type CaseStageRecord = {
@@ -199,7 +201,7 @@ const CASE_KEYS = new Set([
   'officialOutcome', 'remoteClosure', 'companyName', 'caseRemark', 'caseInfoAt',
   'id', 'title', 'number', 'type', 'deadline', 'archived', 'tags', 'rounds',
   'design', 'current', 'source', 'materials', 'applicationNumber', 'directory',
-  'remote', 'localDraft', 'sharedDraftHash', 'localVersions',
+  'remote', 'localDraft', 'sharedDraftHash', 'localVersions', 'linkedTo', 'association',
 ]);
 
 function extensionsOf(item: Case): Record<string, unknown> | undefined {
@@ -268,6 +270,8 @@ export function caseRecordFromCase(item: Case): CaseRecord {
       tags: [...item.tags],
       source: item.source,
       archived: item.archived,
+      linkedTo: item.linkedTo,
+      association: item.association ? clone(item.association) : undefined,
     },
     stage: {
       current: clone(current),
@@ -342,6 +346,8 @@ export function caseFromRecord(record: CaseRecord, base?: Case): Case {
     tags: [...record.identity.tags],
     source: record.identity.source,
     archived: record.identity.archived,
+    linkedTo: record.identity.linkedTo,
+    association: record.identity.association ? clone(record.identity.association) : undefined,
     rounds,
     current,
     materials: clone(record.materials.common),
@@ -516,7 +522,7 @@ export function caseRecordsFromStoredWorkspace(value: unknown): CaseRecord[] | u
 function normalizeRecords(values: unknown[]): CaseRecord[] | undefined {
   const records = values.map(normalizeCaseRecord);
   if (!records.every((record): record is CaseRecord => !!record)) return undefined;
-  return new Set(records.map(record => record.identity.id)).size === records.length ? records : undefined;
+  return new Set(records.map(record => record.identity.id)).size === records.length && validCaseAssociations(records.map(record=>caseFromRecord(record))) ? records : undefined;
 }
 
 function objectOf(value: unknown): Record<string, unknown> | undefined {
@@ -600,11 +606,29 @@ function validDesign(value: unknown): boolean {
     && Array.isArray(design?.reviewHistory);
 }
 
+export function validAssociationIdentity(value:unknown):boolean {
+  const row=objectOf(value);if(!row)return false;
+  if(row.linkedTo!==undefined&&(typeof row.linkedTo!=='string'||!row.linkedTo||row.linkedTo===row.id||row.association!==undefined))return false;
+  if(row.association===undefined)return true;
+  const a=objectOf(row.association);
+  return !!a&&row.source==='baseland'&&['sourceCaseId','remoteCaseId','linkedAt','localProcessKey'].every(k=>typeof a[k]==='string'&&!!a[k])
+    &&a.sourceCaseId!==row.id&&Number.isFinite(Date.parse(a.linkedAt as string))&&(a.processId===undefined||typeof a.processId==='string');
+}
+
+export function validCaseAssociations(cases:Case[]):boolean {
+  return cases.every(c=>{
+    if(!validAssociationIdentity(c))return false;
+    if(c.association){const source=cases.find(other=>other.id===c.association!.sourceCaseId);if(!source||source.linkedTo!==c.id||source.remote?.caseId!==c.association.remoteCaseId||c.remote?.caseId!==c.association.remoteCaseId)return false;}
+    if(c.linkedTo){const target=cases.find(other=>other.id===c.linkedTo);if(!c.archived||target?.association?.sourceCaseId!==c.id||target.linkedTo)return false;}
+    return true;
+  });
+}
+
 export function validLegacyCases(value: unknown): value is Case[] {
   return Array.isArray(value) && new Set(value.map(v => objectOf(v)?.id)).size === value.length
     && value.every(v => {
       const c = objectOf(v);
-      return !!c && textFields(c, ['id', 'title', 'number', 'type', 'deadline']) && !!c.id
+      return !!c && validAssociationIdentity(c) && textFields(c, ['id', 'title', 'number', 'type', 'deadline']) && !!c.id
         && typeof c.archived === 'boolean' && Array.isArray(c.tags) && c.tags.every(stringOf)
         && Array.isArray(c.rounds) && c.rounds.every(validRecordRound)
         && (c.materials === undefined || Array.isArray(c.materials) && c.materials.every(validMaterial))
@@ -626,7 +650,7 @@ function normalizeCaseRecord(value: unknown): CaseRecord | undefined {
   const transfer = objectOf(raw.transfer);
   const storage = objectOf(raw.storage);
   if (!identity || !stage || !materials || !manuscripts || !outcome || !transfer || !storage) return undefined;
-  if (!stringOf(identity.id) || !identity.id || !stringOf(identity.title) || !stringOf(identity.number)
+  if (!validAssociationIdentity(identity) || !stringOf(identity.id) || !identity.id || !stringOf(identity.title) || !stringOf(identity.number)
     || !stringOf(identity.type) || !stringOf(identity.deadline)
     || !Array.isArray(identity.tags) || !identity.tags.every(stringOf)
     || typeof identity.archived !== 'boolean' || !validCurrent(stage.current) || !Array.isArray(stage.rounds)

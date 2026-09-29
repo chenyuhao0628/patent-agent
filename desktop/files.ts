@@ -3,6 +3,7 @@ import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import JSZip from 'jszip';
 import { DOMParser } from '@xmldom/xmldom';
+import { OFFICE_MATH_NS, readOfficeMath } from './office-math-reader.ts';
 import type { Case, Material, Settings } from '../src/domain/workflow.ts';
 import { sharedCaseManifestFromCase } from '../src/domain/case-record.ts';
 
@@ -68,10 +69,10 @@ export async function extractDocxContent(
   try {
     const zip = await JSZip.loadAsync(bytes);
     const xml = await zip.file('word/document.xml')?.async('string');
-    if (!xml) return { text: '', imagesCount: 0 };
+    if (!xml) throw new Error('Word 文件缺少 document.xml，已阻止载入。');
 
     const relxml = await zip.file('word/_rels/document.xml.rels')?.async('string');
-    const parser = new DOMParser();
+    const parser = new DOMParser({ errorHandler: { warning: message => { throw new Error(message); }, error: message => { throw new Error(message); }, fatalError: message => { throw new Error(message); } } });
     const rels = new Map<string, string>();
     if (relxml) {
       const relDoc = parser.parseFromString(relxml, 'application/xml');
@@ -117,7 +118,18 @@ export async function extractDocxContent(
 
     const doc = parser.parseFromString(xml, 'application/xml');
     const body = doc.getElementsByTagNameNS(W, 'body')[0];
-    if (!body) return { text: '', imagesCount };
+    if (!body) throw new Error('Word 文件缺少正文，已阻止载入。');
+    for (const el of Array.from(body.getElementsByTagName('*'))) {
+      if (['ins', 'del', 'moveFrom', 'moveTo', 'pPrChange', 'rPrChange', 'tblPrChange'].includes(el.localName)) {
+        throw new Error('Word 含未处理修订，无法确定应采用的正文版本，已阻止载入；请在 Word/WPS 中接受或拒绝修订后另存副本。');
+      }
+      if (['fldSimple', 'instrText', 'fldChar'].includes(el.localName)) {
+        throw new Error(`无法无损读取 Word 域代码或旧式公式（${el.nodeName}），已阻止载入；请在 Word 中核对。`);
+      }
+      if (['object', 'altChunk', 'AlternateContent', 'txbxContent', 'sym', 'footnoteReference', 'endnoteReference', 'chart', 'relIds'].includes(el.localName)) {
+        throw new Error(`无法无损读取 Word 对象（${el.nodeName}），已阻止载入；请在 Word 中核对。`);
+      }
+    }
 
     let imageCounter = 0;
     function renderParagraph(p: Element): string {
@@ -126,19 +138,31 @@ export async function extractDocxContent(
       function walk(node: Node) {
         if (node.nodeType === 1) {
           const el = node as Element;
-          if (el.localName === 'del') return;
+          if (el.namespaceURI === W && el.localName === 'del') return;
+          if (el.namespaceURI === OFFICE_MATH_NS) {
+            segments.push(readOfficeMath(el));
+            return;
+          }
+          if (el.namespaceURI === W && el.localName === 'tab') { segments.push('\t'); return; }
+          if (el.namespaceURI === W && el.localName === 'br') { segments.push('\n'); return; }
 
-          if (el.localName === 't') {
+          if (el.namespaceURI === W && el.localName === 't') {
             const t = el.textContent ?? '';
             if (t) segments.push(t);
             return;
           }
 
-          if (includeImages && (el.localName === 'drawing' || el.localName === 'pict')) {
+          if (el.namespaceURI === W && (el.localName === 'drawing' || el.localName === 'pict')) {
+            if (!includeImages) throw new Error('Word 含图片/对象，当前文本读取无法保留，已阻止载入。');
+            let rendered = false;
             const docPr = el.getElementsByTagNameNS('*', 'docPr')[0];
             const docName = docPr?.getAttribute('name') || docPr?.getAttribute('descr') || '';
 
             const allDescendants = Array.from(el.getElementsByTagName('*'));
+            const graphicData = allDescendants.filter(n => n.localName === 'graphicData');
+            if (graphicData.some(n => n.getAttribute('uri') !== 'http://schemas.openxmlformats.org/drawingml/2006/picture')) {
+              throw new Error('Word 含非图片绘图对象，已阻止有损载入。');
+            }
             for (const child of allDescendants) {
               const relId = child.getAttributeNS(R, 'embed')
                 || child.getAttributeNS(R, 'id')
@@ -149,19 +173,14 @@ export async function extractDocxContent(
 
               if (relId && imageCache.has(relId)) {
                 const val = imageCache.get(relId)!;
-                if (val === 'TOO_LARGE') {
-                  segments.push(`\n[附图过大，已略过预览]\n`);
-                } else if (val === 'LIMIT_REACHED') {
-                  segments.push(`\n[附图数量已达上限]\n`);
-                } else if (val === 'ERROR') {
-                  segments.push(`\n[附图解析失败]\n`);
-                } else {
-                  imageCounter++;
-                  const label = docName || `附图 ${imageCounter}`;
-                  segments.push(`\n\n![${label}](${val})\n\n`);
-                }
+                if (!val.startsWith('data:')) throw new Error('Word 图片无法完整读取（大小、数量限制或损坏），已阻止载入。');
+                rendered = true;
+                imageCounter++;
+                const label = docName || `附图 ${imageCounter}`;
+                segments.push(`\n\n![${label}](${val})\n\n`);
               }
             }
+            if (!rendered) throw new Error('Word 含不支持的图形或对象，已阻止载入。');
             return;
           }
 
@@ -180,35 +199,30 @@ export async function extractDocxContent(
     let currentSectionNodes: Element[] = [];
     const sections: Array<{ title: string; paragraphs: string[] }> = [];
 
+    let inheritedTitle = '';
+    const renderNodes = (nodes: Element[]) => nodes.flatMap(node => {
+      const ps = node.namespaceURI === W && node.localName === 'p' ? [node] : Array.from(node.getElementsByTagNameNS(W, 'p'));
+      if (node.namespaceURI === OFFICE_MATH_NS) return [readOfficeMath(node)];
+      return ps.map(renderParagraph).filter(Boolean);
+    });
     const finishSection = async (sectPr: Element) => {
       const refs = Array.from(sectPr.getElementsByTagNameNS(W, 'headerReference'));
       const headerId = (refs.find(r => r.getAttributeNS(W, 'type') === 'default') ?? refs[0])?.getAttributeNS(R, 'id')
         || refs[0]?.getAttribute('r:id');
       const headerPath = headerId && rels.get(headerId);
-      let title = '';
+      if (refs.length && !headerPath) throw new Error('Word 分节页眉关系缺失，无法可靠识别正文分节。');
+      let title = inheritedTitle;
       if (headerPath) {
         const resolvedHeader = resolveWordTarget(headerPath);
         const headerXml = await (zip.file(resolvedHeader) || zip.file('word/' + headerPath.replace(/^\.\//, '')) || zip.file(headerPath))?.async('string');
+        if (!headerXml) throw new Error('Word 分节页眉文件缺失，无法可靠识别正文分节。');
         if (headerXml) {
-          title = (parser.parseFromString(headerXml, 'application/xml').documentElement.textContent ?? '').replace(/\s/g, '');
+          title = Array.from(parser.parseFromString(headerXml, 'application/xml').getElementsByTagNameNS(W, 'p')).map(p => Array.from(p.getElementsByTagNameNS(W, 't')).map(t => t.textContent ?? '').join('')).join('');
         }
       }
 
-      const paras: string[] = [];
-      for (const node of currentSectionNodes) {
-        if (node.localName === 'p') {
-          const pText = renderParagraph(node);
-          if (pText) paras.push(pText);
-        } else {
-          const ps = Array.from(node.getElementsByTagNameNS(W, 'p'));
-          for (const p of ps) {
-            const pText = renderParagraph(p);
-            if (pText) paras.push(pText);
-          }
-        }
-      }
-
-      sections.push({ title, paragraphs: paras });
+      inheritedTitle = title;
+      sections.push({ title, paragraphs: renderNodes(currentSectionNodes) });
       currentSectionNodes = [];
     };
 
@@ -222,47 +236,42 @@ export async function extractDocxContent(
       }
     }
     if (currentSectionNodes.length > 0) {
-      const paras: string[] = [];
-      for (const node of currentSectionNodes) {
-        if (node.localName === 'p') {
-          const pText = renderParagraph(node);
-          if (pText) paras.push(pText);
-        } else {
-          const ps = Array.from(node.getElementsByTagNameNS(W, 'p'));
-          for (const p of ps) {
-            const pText = renderParagraph(p);
-            if (pText) paras.push(pText);
-          }
-        }
-      }
-      sections.push({ title: '', paragraphs: paras });
+      sections.push({ title: inheritedTitle, paragraphs: renderNodes(currentSectionNodes) });
     }
 
     const allParas = sections.flatMap(s => s.paragraphs);
     const fullText = allParas.join('\n\n').trim();
 
-    let parts: Array<{ code: string; name: string; content: string }> | undefined;
-    const hasFivePartTitle = sections.some(s => FIVE_PARTS_SPEC.some(p => s.title.includes(p.name) || p.name.includes(s.title)));
-    if (hasFivePartTitle) {
-      parts = FIVE_PARTS_SPEC.map(p => {
-        const matched = sections.find(s => s.title.includes(p.name) || p.name.includes(s.title));
-        return {
-          code: p.code,
-          name: p.name,
-          content: matched?.paragraphs.join('\n\n') || '（本部分无正文）',
-        };
-      });
+    // Exact normalized headings only; never match an empty or partial heading.
+    const canonicalTitle = (title: string) => {
+      const normalized = title.normalize('NFKC').replace(/\s/g, '').replace(/(?:\(续(?:页)?\)|[—-]?续页|[—-]续)$/, '');
+      return normalized === '摘要' ? '说明书摘要' : normalized;
+    };
+    const groups = new Map<string, { code: string; name: string; content: string }>();
+    let unknown = 0;
+    for (const section of sections) {
+      const spec = FIVE_PARTS_SPEC.find(p => p.name === canonicalTitle(section.title));
+      const content = section.paragraphs.join('\n\n');
+      if (spec) {
+        const previous = groups.get(spec.code);
+        groups.set(spec.code, { ...spec, content: [previous?.content, content].filter(Boolean).join('\n\n') });
+      } else if (content) {
+        const code = `unclassified-${++unknown}`;
+        groups.set(code, { code, name: section.title || '未识别正文', content });
+      }
     }
+    // If parts are shown instead of full text, include EVERY unclassified section.
+    const parts = groups.size ? [...groups.values()] : undefined;
 
     return { text: fullText, parts, imagesCount };
-  } catch {
-    return { text: '', imagesCount: 0 };
+  } catch (error) {
+    throw new Error(`Word 读取失败，未载入或替换任何稿件：${error instanceof Error ? error.message : '文件损坏或结构不受支持'}`);
   }
 }
 
-export async function extractDocxParagraphs(bytes: Buffer): Promise<string | undefined> {
+export async function extractDocxParagraphs(bytes: Buffer): Promise<string> {
   const res = await extractDocxContent(bytes);
-  return res.text || undefined;
+  return res.text;
 }
 const sharedMaterial=(m:Material)=>({id:m.id,name:m.name,role:m.role,location:m.location,fileNo:m.fileNo,relativePath:m.relativePath?portable(m.relativePath):undefined});
 export function safeName(value:string,max=36) {

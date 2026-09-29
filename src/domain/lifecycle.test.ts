@@ -313,3 +313,12 @@ test('A1 personalStatus/_status 500 + needSendOfficial:false is not officially s
   assert.match(caseStatus(c), /内部流程已结束/);
   assert.equal(c.current?.node, INTERNAL_ENDED_WAIT_LABEL);
 });
+
+ test('same process returned from ended state restores business without losing round or draft',()=>{
+ for(const status of [0,200,400]){
+  const c=remoteCase({}, {status,canEdit:true,submission:{state:'draft',source:'hand',checkedAt:'2026-09-29',message:'未递交官方'},currentFlow:{name:'文件准备',user:'本人'}});
+  c.current={...c.current!,kind:'needs-confirmation',remoteStatus:500,label:'旧等待',node:'旧结束'};
+  const restored=normalizeCase(c);assert.equal(restored.current!.kind,'reply');assert.equal(restored.current!.roundId,'proc-p1');assert.equal(restored.current!.node,'文件准备');
+  assert.equal(restored.localDraft,c.localDraft);assert.deepEqual(restored.rounds,c.rounds);assert.equal(editableCurrent(restored),true);assert.equal(internalTransferAvailable(restored),true);
+ }
+ });

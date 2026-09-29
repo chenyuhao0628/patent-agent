@@ -9,6 +9,8 @@ export class Server extends BaselandClient {
   constructor(){super('https://test.baselandtec.com');}
   override async request(endpoint:string,body?:any,params?:Record<string,string>){
     this.calls.push({endpoint,body:structuredClone(body),params});const ep=endpoint.split('/').at(-1);
+    if(ep==='GetCaseDetailProcList')return [{CaseProcId:'proc-1',CaseProcName:'第一次审查意见',StatusCode:400}];
+    if(ep==='GetProcFlowRecord'||ep==='GetCaseAllFlowHistoryInfo')return [];
     if(ep==='GetCaseHandSendInfo')return null;
     if(ep==='GetHandInfo')return {HandInfo:{CaseHandId:this.handId},IsPackageSendSuccess:false,IsReviewing:this.canEdit,CurrentFlowInfo:this.flowInfo};
     if(ep==='GetOfficialFormList')return [...FIVE_PARTS.map(p=>({Code:Number(p.code),FormName:p.name,IsSelect:this.group.some(g=>String(g.FormCode)===p.code)})),{Code:100012,FormName:'意见陈述书',IsSelect:!!this.form},{Code:100006,FormName:'补正书',IsSelect:!!this.form},{Code:120101,FormName:'实用新型请求书',IsSelect:!!this.form}];

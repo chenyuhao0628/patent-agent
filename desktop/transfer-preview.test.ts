@@ -236,7 +236,7 @@ test('extractDocxContent extracts FIVE_PARTS with drawings for 100003 说明书�
   assert.match(drawingsPart.content, /!\[附图 1 流程图\]\(data:image\/png;base64,/);
 });
 
-test('extractDocxContent handles oversized images gracefully', async () => {
+test('extractDocxContent rejects oversized images instead of loading a lossy draft', async () => {
   const zip = new JSZip();
   const relsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
@@ -273,9 +273,10 @@ test('extractDocxContent handles oversized images gracefully', async () => {
   zip.file('word/media/big.png', mockImage);
 
   const docxBytes = await zip.generateAsync({ type: 'nodebuffer' });
-  const result = await extractDocxContent(docxBytes, { maxImageBytes: 50 });
-
-  assert.match(result.text, /附图过大，已略过预览/);
+  await assert.rejects(
+    extractDocxContent(docxBytes, { maxImageBytes: 50 }),
+    /Word 图片无法完整读取.*已阻止载入/
+  );
 });
 
 test('previewFile supports standalone image file preview', async t => {

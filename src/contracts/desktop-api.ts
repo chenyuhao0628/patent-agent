@@ -20,6 +20,8 @@ export type DesktopCaseAPI = {
   refreshShared(key: string): Promise<DesktopState>;
   sync(source?: 'manual' | 'focus'): Promise<DesktopState>;
   refreshCase(key: string, caseId: string): Promise<{ state: DesktopState; flow: FlowView }>;
+  caseLinkCandidates(key:string,localId:string):Promise<Array<import('../domain/case-link.ts').CaseLinkCandidate&{token:string}>>;
+  linkCase(key:string,localId:string,remoteId:string,token:string):Promise<DesktopState>;
   createCase(input: { title: string; number: string; kind: 'write' | 'review' }): Promise<DesktopState>;
   caseInfo(key: string, caseId: string): Promise<DesktopState>;
   refreshCaseOutcomes(key: string): Promise<DesktopState>;

@@ -1,0 +1,15 @@
+
+📋 Document self-check report: /private/var/folders/hq/dbmwrsr53nq3r4kgtg843ph40000gn/T/patent-five-fixes-gui-iBT5nd/work/案件/local/QA-LOCAL-ONLY_合成夹持装置(本地先写)__0df2de557a/04_内部说明/验收阶段结果.docx
+
+  ✅ [blank-pages] No blank page issues detected
+  ✅ [cover-overflow] Cover section layout looks OK
+  ✅ [line-spacing] Line spacing uniform (line=default)
+  ✅ [image-overflow] All images within page width (0 images)
+  ✅ [font-fallback] All fonts are common system fonts (1 types)
+  ✅ [heading-levels] Heading levels continuous (4 headings)
+  ✅ [shading-type] No ShadingType.SOLID misuse found
+  ✅ [toc] No TOC needed
+  ✅ [image-aspect-ratio] All images have correct aspect ratio (0 images)
+
+  ──────────────────────────────────────────────────
+  Passed 9/9 | ❌ 0 errors | ⚠️ 0 warnings

@@ -7,12 +7,15 @@ import { DesktopService } from './service.ts';
 import { CaseFiles, atomicJSON, datedFolder, digest, processFolder } from './files.ts';
 import { selectCurrentProcess } from './baseland.ts';
 import { WAITING_OFFICIAL_LABEL } from '../src/domain/lifecycle.ts';
-import type { Case, RemoteProcess, Submission } from '../src/domain/workflow.ts';
+import type { Case, Material, RemoteProcess, Round, Submission } from '../src/domain/workflow.ts';
 
 const origin='https://fixture.baselandtec.com';
 function sent(at='2026-01-01T00:00:00.000Z'):Submission {return {state:'sent',source:'hand',checkedAt:at,message:'已递交，等待官方处理'};}
 function proc(partial:Partial<RemoteProcess>&Pick<RemoteProcess,'id'|'name'>):RemoteProcess {
   return {status:-1,node:'',undertaker:'',deadline:'',...partial};
+}
+function testRound(id:string,name:string,materials:Material[]=[]):Round {
+  return {id,name,stage:'materials',confirmed:false,materials,strategy:null,draft:'',versions:[],discussions:[],review:null,job:null,final:null,finalHistory:[]};
 }
 async function tempService(t:test.TestContext) {
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'patent-concurrency-'));
@@ -217,7 +220,7 @@ test('explicit outcome refresh invalidates a scope only when the business conclu
   await s.refreshCaseOutcomes(s.key);s.assertScope(concluded);
 });
 
-test('whole-case refresh completes after its own stage and outcome changes and joins duplicate requests',async t=>{
+test('case-scoped refresh completes after its own stage and outcome changes and joins duplicate requests',async t=>{
   const {root,work,vault}=await tempService(t),s=new DesktopService(path.join(root,'data'),vault);
   s.workspace.settings.workRoot=work;
   await s.createCase({title:'Whole refresh',number:'REFRESH',kind:'write'});
@@ -226,48 +229,171 @@ test('whole-case refresh completes after its own stage and outcome changes and j
   c.remote={caseId:'remote',syncedAt:'',processes:[
     proc({id:'p1',name:'提出申请',status:0}),proc({id:'p2',name:'审查意见答复',status:0}),
   ]};
+  await s.files().ensureCase(c);await s.persist();
   s.account={username:'a',displayName:'A',organization:'T',origin,userId:'u',status:'authenticated',remembered:false};
   const calls:string[]=[];
-  s.sync=async options=>{
-    assert.equal(options?.full,true);calls.push('sync');
-    await s.selectCurrentProcess(s.key,c.id,'p2');
-    return s.state();
-  };
+  s.sync=async()=>{throw new Error('case refresh must not query the full personal case list');};
   s.client={
     flow:async(item:Case)=>{
-      calls.push('flow');assert.equal(item.current?.processId,'p2');
+      calls.push('flow:'+item.current?.processId);assert.equal(item.current?.processId,'p1');
       return {at:'refreshed',currentProcessId:'p2',processes:structuredClone(item.remote),nodes:[],history:[]};
     },
+    files:async(processId:string)=>{calls.push('files:'+processId);return [];},
+    download:async()=>{throw new Error('empty attachment list must not download');},
     officialOutcome:async()=>{calls.push('outcome');return {state:'granted',checkedAt:'refreshed'};},
     caseInfo:async(item:Case)=>{
-      calls.push('info');assert.equal(item.current?.processId,'p2');
+      calls.push('info:'+item.current?.processId);assert.equal(item.current?.processId,'p2');
       return {at:'refreshed',processId:'p2',caseRemark:'Latest remark',closure:{finished:false,checkedAt:'refreshed'}};
     },
   } as never;
   const first=s.refreshCase(s.key,c.id);
   assert.equal(s.refreshCase(s.key,c.id),first);
   const result=await first;
-  assert.deepEqual(calls,['sync','flow','outcome','info']);
+  assert.deepEqual(calls,['flow:p1','files:p1','files:p2','outcome','info:p2']);
   assert.equal(result.state.workspace.cases[0].caseRemark,'Latest remark');
   assert.equal(result.state.workspace.cases[0].officialOutcome?.state,'granted');
   assert.equal(result.flow.currentProcessId,'p2');
 });
 
-test('whole-case refresh stops between steps after account, directory or case ownership changes',async t=>{
+test('case-scoped refresh downloads only new or unready FileNo materials and preserves unrelated cases',async t=>{
+  const {root,work,vault}=await tempService(t),s=new DesktopService(path.join(root,'data'),vault);
+  s.workspace.settings.workRoot=work;
+  await s.createCase({title:'Target case',number:'TARGET',kind:'write'});
+  await s.createCase({title:'Unrelated case',number:'OTHER',kind:'write'});
+  const target=s.workspace.cases.find(c=>c.number==='TARGET')!,other=s.workspace.cases.find(c=>c.number==='OTHER')!;
+  target.source='baseland';target.current={kind:'write',processId:'p1',remoteStatus:0};
+  target.remote={caseId:'remote-target',syncedAt:'before',processes:[proc({id:'p1',name:'审查意见答复',status:0})]};
+  target.rounds=[testRound('proc-p1','审查意见答复',[
+    {id:'file-ready',name:'旧显示名.pdf',fileNo:'ready',role:'系统材料',location:'旧流程名',excerpt:'',ready:true,relativePath:'01_通知与材料/ready.pdf'},
+    {id:'file-retry',name:'待重试.pdf',fileNo:'retry',role:'系统材料',location:'审查意见答复',excerpt:'',ready:false},
+  ])];
+  other.source='baseland';other.current={kind:'write',processId:'other-p',remoteStatus:0};
+  other.remote={caseId:'remote-other',syncedAt:'untouched',processes:[proc({id:'other-p',name:'其他流程',status:0})]};
+  await s.files().ensureCase(target);await s.files().ensureCase(other);await s.persist();
+  const otherBefore=structuredClone(other);
+  s.account={username:'a',displayName:'A',organization:'T',origin,userId:'u',status:'authenticated',remembered:false};
+  const fileCalls:string[]=[],downloads:string[]=[];
+  s.sync=async()=>{throw new Error('case refresh must not query the full personal case list');};
+  s.client={
+    flow:async(item:Case)=>({
+      at:'refreshed',currentProcessId:'p1',
+      processes:{...structuredClone(item.remote)!,processes:[
+        proc({id:'p1',name:'审查意见答复',status:0}),
+        proc({id:'unknown-personal-scope',name:'未知归属流程',status:0}),
+      ]},
+      nodes:[],history:[],
+    }),
+    files:async(processId:string)=>{
+      fileCalls.push(processId);
+      return [
+        {FileNo:'ready',FileName:'新显示名.pdf'},
+        {FileNo:'new',FileName:'新增通知书.pdf'},
+        {FileNo:'retry',FileName:'待重试.pdf'},
+        {FileNo:'nameless'},
+      ];
+    },
+    download:async(fileNo:string)=>{
+      downloads.push(fileNo);
+      if(fileNo==='ready')throw new Error('ready material must not redownload');
+      return Buffer.from(`%PDF-1.4\n${fileNo}\n%%EOF`);
+    },
+    officialOutcome:async()=>({state:'none',checkedAt:'refreshed'}),
+    caseInfo:async()=>({at:'refreshed',processId:'p1',caseRemark:'Latest',closure:{finished:false,checkedAt:'refreshed'}}),
+  } as never;
+  await s.refreshCase(s.key,target.id);
+  assert.deepEqual(fileCalls,['p1']);
+  assert.deepEqual(downloads,['new','retry','nameless']);
+  const updated=s.findCase(target.id),materials=[...(updated.materials??[]),...updated.rounds.flatMap(r=>r.materials)];
+  assert.equal(updated.remote?.processes.some(p=>p.id==='unknown-personal-scope'),false);
+  assert.equal(materials.find(m=>m.id==='file-ready')?.name,'新显示名.pdf');
+  assert.equal(materials.find(m=>m.id==='file-ready')?.relativePath,'01_通知与材料/ready.pdf');
+  assert.equal(materials.find(m=>m.id==='file-new')?.ready,true);
+  assert.match(materials.find(m=>m.id==='file-new')?.relativePath??'',/新增通知书/);
+  assert.equal(materials.find(m=>m.id==='file-retry')?.ready,true);
+  assert.equal(materials.find(m=>m.id==='file-nameless')?.ready,true);
+  assert.equal(materials.find(m=>m.id==='file-nameless')?.name,'远端文件_nameless.pdf');
+  assert.deepEqual(s.findCase(other.id),otherBefore);
+});
+
+test('case-scoped material refresh rejects process A-B-A before committing late results',async t=>{
+  const {root,work,vault}=await tempService(t),s=new DesktopService(path.join(root,'data'),vault);
+  s.workspace.settings.workRoot=work;
+  await s.createCase({title:'Process ABA',number:'ABA-MATERIAL',kind:'write'});
+  const c=s.workspace.cases[0];
+  c.source='baseland';c.current={kind:'write',processId:'p1',remoteStatus:0};
+  c.remote={caseId:'remote-aba',syncedAt:'',processes:[
+    proc({id:'p1',name:'提出申请',status:0}),proc({id:'p2',name:'审查意见答复',status:0}),
+  ]};
+  c.rounds=[testRound('proc-p1','提出申请'),testRound('proc-p2','审查意见答复')];
+  await s.files().ensureCase(c);await s.persist();
+  s.account={username:'a',displayName:'A',organization:'T',origin,userId:'u',status:'authenticated',remembered:false};
+  let announce!:()=>void,release!:()=>void,queriedAfterMaterials=false;
+  const started=new Promise<void>(resolve=>{announce=resolve;}),held=new Promise<void>(resolve=>{release=resolve;});
+  s.client={
+    flow:async(item:Case)=>({at:'refreshed',currentProcessId:'p1',processes:structuredClone(item.remote),nodes:[],history:[]}),
+    files:async(processId:string)=>{assert.equal(processId,'p1');announce();await held;return [];},
+    officialOutcome:async()=>{queriedAfterMaterials=true;return {state:'none',checkedAt:'late'};},
+    caseInfo:async()=>{queriedAfterMaterials=true;return {at:'late',processId:'p1',closure:{finished:false,checkedAt:'late'}};},
+  } as never;
+  const pending=s.refreshCase(s.key,c.id);
+  await started;
+  await s.selectCurrentProcess(s.key,c.id,'p2');
+  await s.selectCurrentProcess(s.key,c.id,'p1');
+  release();
+  await assert.rejects(pending,/案件流程已变化/);
+  assert.equal(queriedAfterMaterials,false);
+});
+
+test('case-scoped refresh persists failed FileNo and retries it on the next request',async t=>{
+  const {root,work,vault}=await tempService(t),s=new DesktopService(path.join(root,'data'),vault);
+  s.workspace.settings.workRoot=work;
+  await s.createCase({title:'Retry case',number:'RETRY',kind:'write'});
+  const c=s.workspace.cases[0];
+  c.source='baseland';c.current={kind:'write',processId:'p1',remoteStatus:0};
+  c.remote={caseId:'remote-retry',syncedAt:'',processes:[proc({id:'p1',name:'补正',status:0})]};
+  c.rounds=[testRound('proc-p1','补正')];
+  await s.files().ensureCase(c);await s.persist();
+  s.account={username:'a',displayName:'A',organization:'T',origin,userId:'u',status:'authenticated',remembered:false};
+  let attempts=0;
+  s.client={
+    flow:async(item:Case)=>({at:'refreshed',currentProcessId:'p1',processes:structuredClone(item.remote),nodes:[],history:[]}),
+    files:async()=>[{FileNo:'retry',FileName:'补正材料.pdf'}],
+    download:async()=>{
+      attempts++;
+      if(attempts===1)throw new Error('synthetic download failure');
+      return Buffer.from('%PDF-1.4\nretry\n%%EOF');
+    },
+    officialOutcome:async()=>({state:'none',checkedAt:'refreshed'}),
+    caseInfo:async()=>({at:'refreshed',processId:'p1',closure:{finished:false,checkedAt:'refreshed'}}),
+  } as never;
+  await assert.rejects(s.refreshCase(s.key,c.id),/材料刷新有 1 项待重试/);
+  assert.equal(s.findCase(c.id).rounds[0].materials.find(m=>m.id==='file-retry')?.ready,false);
+  await s.refreshCase(s.key,c.id);
+  assert.equal(attempts,2);
+  assert.equal(s.findCase(c.id).rounds[0].materials.find(m=>m.id==='file-retry')?.ready,true);
+});
+
+test('case-scoped refresh stops between steps after account, directory or case ownership changes',async t=>{
   const {root,work,vault}=await tempService(t);
   for(const change of ['account','root','case']){
     const s=new DesktopService(path.join(root,change),vault);
     s.workspace.settings.workRoot=work;
     await s.createCase({title:'Refresh boundary',number:change,kind:'write'});
     const c=s.workspace.cases[0];
-    c.source='baseland';c.remote={caseId:'remote',syncedAt:'',processes:[]};
+    c.source='baseland';c.current={kind:'write',processId:'p1',remoteStatus:0};
+    c.remote={caseId:'remote',syncedAt:'',processes:[proc({id:'p1',name:'提出申请',status:0})]};
+    s.account={username:'a',displayName:'A',organization:'T',origin,userId:'u',status:'authenticated',remembered:false};
     let release!:()=>void;
     const held=new Promise<void>(resolve=>{release=resolve;});
-    s.sync=async()=>{await held;return s.state();};
     let queried=false;
-    s.flow=async()=>{queried=true;throw new Error('Unexpected flow request');};
+    s.client={
+      flow:async()=>{await held;return {at:'late',currentProcessId:'p1',processes:structuredClone(c.remote),nodes:[],history:[]};},
+      files:async()=>{queried=true;return [];},
+      officialOutcome:async()=>{queried=true;return {state:'none',checkedAt:'late'};},
+      caseInfo:async()=>{queried=true;return {at:'late',processId:'p1',closure:{finished:false,checkedAt:'late'}};},
+    } as never;
     const pending=s.refreshCase(s.key,c.id);
-    const rejected=assert.rejects(pending,/作用域已变化|目录已变化|案件关联已变化/);
+    const rejected=assert.rejects(pending,/作用域已变化|目录已变化|案件关联已变化|重新查询/);
     if(change==='account')s.generation+=2;
     else if(change==='root')s.workspace.settings.workRoot+='-changed';
     else c.remote.caseId='other-case';

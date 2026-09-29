@@ -19,7 +19,7 @@ export function FinalizationDraftEditor({
   draft: DraftVersion;
   isCorrection: boolean;
   busy: boolean;
-  externalArtifacts?: Array<{ title: string; kind: string; text?: string; relativePath: string }>;
+  externalArtifacts?: Array<{ title: string; kind: string; text?: string; extractionError?: string; relativePath: string }>;
   onSave: (payload: {
     text?: string;
     amendmentText?: string;
@@ -130,7 +130,9 @@ export function FinalizationDraftEditor({
     setStatusMessage('已还原为当前版本原始内容。');
   };
 
+  const blockedArtifacts = (externalArtifacts ?? []).filter(a => a.extractionError);
   const handleSave = async () => {
+    if (blockedArtifacts.length) { setStatusMessage('外部 Word 无法完整读取，已阻止保存。请保留原件并修复后刷新。'); return; }
     setSaving(true);
     setStatusMessage('');
     try {
@@ -184,7 +186,7 @@ export function FinalizationDraftEditor({
           <button
             type="button"
             className="primary"
-            disabled={busy || saving || !dirty}
+            disabled={busy || saving || !dirty || blockedArtifacts.length > 0}
             onClick={() => void handleSave()}
           >
             <Save size={14} />
@@ -192,6 +194,8 @@ export function FinalizationDraftEditor({
           </button>
         </div>
       </div>
+
+      {blockedArtifacts.map(a => <p className="agent-error" role="alert" key={a.relativePath}>{a.title}：{a.extractionError} 已阻止载入和保存，未以旧稿替代外部修改。</p>)}
 
       <nav className="surface-switch finalization-nav" aria-label="定稿稿件切换">
         {tabs.map(t => (
@@ -220,7 +224,7 @@ export function FinalizationDraftEditor({
           : (appParts[activeTab] || '');
 
         const matching = (externalArtifacts || []).find(a => {
-          if (!a.text) return false;
+          if (a.extractionError || a.text === undefined) return false;
           if (activeTab === 'body' && (a.kind === 'final-word' || a.kind === 'body')) return true;
           if (activeTab === 'CLAIMS' && (a.kind === 'final-application-CLAIMS' || a.kind === 'final-amendment')) return true;
           if (activeTab === 'DESCRIPTION' && a.kind === 'final-application-DESCRIPTION') return true;
@@ -229,7 +233,7 @@ export function FinalizationDraftEditor({
           return false;
         });
 
-        if (!matching || !matching.text || matching.text.trim() === currentContent.trim()) return null;
+        if (!matching || matching.text === undefined || matching.text.trim() === currentContent.trim()) return null;
 
         return (
           <div className="inline-warning" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '8px 0', padding: '10px 14px', borderRadius: '6px' }}>

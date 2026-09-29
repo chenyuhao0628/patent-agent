@@ -97,6 +97,8 @@ export type DesktopIpcChannels = {
   refreshShared: { args: [string]; result: DesktopState };
   sync: { args: [source?: 'manual' | 'focus']; result: DesktopState };
   refreshCase: { args: [profileKey: string, caseId: string]; result: { state: DesktopState; flow: FlowView } };
+  caseLinkCandidates: { args: [profileKey:string,localId:string]; result:Array<import('../domain/case-link.ts').CaseLinkCandidate&{token:string}> };
+  linkCase: { args: [profileKey:string,localId:string,remoteId:string,token:string]; result:DesktopState };
   createCase: { args: [{ title: string; number: string; kind: 'write' | 'review' }]; result: DesktopState };
   flow: { args: [caseId: string]; result: FlowView };
   caseInfo: { args: [profileKey: string, caseId: string]; result: DesktopState };
@@ -121,6 +123,7 @@ export type DesktopIpcChannels = {
   professionalPick: { args: [profileKey: string, caseId: string]; result: ProfessionalCaseView };
   professionalPickReferences: { args: [profileKey: string, caseId: string]; result: ProfessionalCaseView };
   professionalRemoveReference: { args: [profileKey: string, caseId: string, materialId: string]; result: ProfessionalCaseView };
+  professionalPreview: { args:[profileKey:string,caseId:string,processKey:string,jobId:string]; result:import('../professional-api.ts').StageDocumentPreview };
   professionalOpen: { args: [profileKey: string, caseId: string, relativePath: string]; result: void };
   agentGetCase: { args: [profileKey: string, caseId: string]; result: AgentCaseView };
   agentHistory: { args: [profileKey: string, caseId: string]; result: AgentProcessState[] };
@@ -138,9 +141,10 @@ export type DesktopIpcChannels = {
   transferInspect: { args: [profileKey: string, caseId: string]; result: TransferView | null };
   transferHistory: { args: [profileKey: string, caseId: string]; result: TransferView[] };
   transferPrepare: { args: [profileKey: string, caseId: string, sourceMode?: TransferSource]; result: TransferView };
-  transferPickFile: { args: [profileKey: string, caseId: string, role: TransferFileRole]; result: TransferView };
+  transferPickFile: { args: [profileKey: string, caseId: string, role: TransferFileRole]; result: TransferView | null };
   transferRemoveFile: { args: [profileKey: string, caseId: string, role: TransferFileRole]; result: TransferView };
   transferClearRemote: { args: [profileKey: string, caseId: string]; result: TransferView };
+  transferDeleteRemoteFile: { args: [profileKey: string, caseId: string, target: import('../transfer-api.ts').RemoteFileDeleteRef]; result: TransferView };
   transferPreviewFile: { args: [profileKey: string, caseId: string, file: TransferFilePreviewRef]; result: TransferFilePreviewResult };
   transferStartHand: { args: [profileKey: string, caseId: string]; result: TransferView };
   transferSaveLocalReview: { args: [profileKey: string, caseId: string, review: TransferReview]; result: TransferView };

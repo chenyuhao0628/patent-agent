@@ -106,6 +106,8 @@ const api: DesktopAPI = {
   refreshShared: profileKey => call('refreshShared', profileKey),
   sync: source => call('sync', source),
   refreshCase: (profileKey, caseId) => call('refreshCase', profileKey, caseId),
+  caseLinkCandidates: (key,id)=>call('caseLinkCandidates',key,id),
+  linkCase: (key,id,remoteId,token)=>call('linkCase',key,id,remoteId,token),
   createCase: input => call('createCase', input),
   flow: caseId => call('flow', caseId),
   caseInfo: (profileKey, caseId) => call('caseInfo', profileKey, caseId),
@@ -159,6 +161,7 @@ const api: DesktopAPI = {
     pickFile: (profileKey, caseId, role) => call('transferPickFile', profileKey, caseId, role),
     removeFile: (profileKey, caseId, role) => call('transferRemoveFile', profileKey, caseId, role),
     clearRemote: (profileKey, caseId) => call('transferClearRemote', profileKey, caseId),
+    deleteRemoteFile: (profileKey, id, target) => call('transferDeleteRemoteFile', profileKey, id, target),
     previewFile: (profileKey, caseId, fileRef: TransferFilePreviewRef) =>
       call('transferPreviewFile', profileKey, caseId, fileRef),
     startHand: (profileKey, caseId) => call('transferStartHand', profileKey, caseId),
@@ -176,6 +179,7 @@ const api: DesktopAPI = {
     },
   },
   professional: {
+    previewDocument:(key,id,processKey,jobId)=>call('professionalPreview',key,id,processKey,jobId),
     pickReferences: (profileKey, caseId) => call('professionalPickReferences', profileKey, caseId),
     removeReference: (profileKey, caseId, materialId) => call('professionalRemoveReference', profileKey, caseId, materialId),
     getCase: (profileKey, caseId) => call('professionalGet', profileKey, caseId),

@@ -551,12 +551,10 @@ export function applySubmissionToCurrent(c:Case,p:RemoteProcess) {
     stampCurrentHandling(c);
     return;
   }
-  if(kind!=='none'){
-    const hasActiveMain=c.remote?.processes.some(x=>isInternallyActiveProcess(x)&&x.id!==p.id);
-    if(!hasActiveMain){
-      const stamped=stampCurrentFromStageVerdict(c.current,p,kind);
-      if(stamped)c.current=stamped;
-    }
+  const hasActiveMain=c.remote?.processes.some(x=>isInternallyActiveProcess(x)&&x.id!==p.id);
+  if(kind==='none'||!hasActiveMain){
+    const stamped=stampCurrentFromStageVerdict(c.current,p,kind);
+    if(stamped)c.current=stamped;
   }
   applyCaseDeadline(c);
   stampCurrentHandling(c);
@@ -566,7 +564,7 @@ export function mergePersonalRows(rows:Obj[],existing:Case[],at:string):Case[] {
   for(const row of rows){const id=clean(row.CaseId);if(!id||!row.CaseProcId)throw new Error('案件列表缺少案件或流程标识。');grouped.set(id,[...(grouped.get(id)??[]),row]);}
   const result=[...existing];
   for(const [id,group] of grouped){
-    const first=group[0],index=result.findIndex(c=>c.remote?.caseId===id),old=result[index];
+    const first=group[0],index=result.findIndex(c=>!c.linkedTo&&c.remote?.caseId===id),old=result[index];
     const processes:RemoteProcess[]=[...new Map(group.map(r=>[String(r.CaseProcId),processRow(r,old?.remote?.processes.find(p=>p.id===String(r.CaseProcId)))])).values()];
     const p=selectCurrentProcess(processes,group,old?.current?.processId);
     const internallyActive=processes.filter(isInternallyActiveProcess);

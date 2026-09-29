@@ -23,7 +23,7 @@ export function replyParagraphs(text: string, round: number): ExportParagraph[] 
   return result;
 }
 
-async function loadTemplate(root: string, kind: 'reply' | 'application') {
+export async function loadTemplate(root: string, kind: 'reply' | 'application') {
   const bytes = await fs.readFile(path.join(root, kind + '.docx'));
   const manifest = JSON.parse(await fs.readFile(path.join(root, 'manifest.json'), 'utf8'));
   if (manifest[kind]?.templateSha256 !== digest(bytes)) throw new Error('Word 模板校验失败，请重新安装应用。');
@@ -34,7 +34,7 @@ async function loadTemplate(root: string, kind: 'reply' | 'application') {
   return { zip, doc, body: doc.getElementsByTagNameNS(W, 'body')[0] };
 }
 
-function replaceParagraph(proto: XmlElement, text: string, heading = false) {
+export function replaceParagraph(proto: XmlElement, text: string, heading = false) {
   const p = proto.cloneNode(true) as XmlElement;
   const doc = p.ownerDocument!;
   let prop = p.getElementsByTagNameNS(W, 'pPr')[0];

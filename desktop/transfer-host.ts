@@ -12,16 +12,17 @@ import type { AgentHost } from './agent-host.ts';
 import { currentWork, internalTransferAvailable } from '../src/domain/lifecycle.ts';
 import { currentHandling } from '../src/domain/handling.ts';
 import { FIVE_PARTS } from '../src/transfer-api.ts';
-import type { TransferView, TransferFileRole, TransferReview, TransferRoute, TransferFilePreviewResult } from '../src/transfer-api.ts';
+import { DEFAULT_INTERNAL_TRANSFER_RECIPIENT } from '../src/domain/workflow-nodes.ts';
+import type { TransferView, TransferFileRole, TransferReview, TransferRoute, TransferFilePreviewResult, RemoteFileDeleteRef } from '../src/transfer-api.ts';
 import { compareApplication, applicationSections } from './application-diff.ts';
 import { inspectZipLimits, MAX_MATERIAL_BYTES } from './agent-document-reader.ts';
 import { atomicCreate, atomicJSON, digest, extractDocxContent, getImageMime, bufferToDataUrl, managedPath, safeName } from './files.ts';
-import { clearRemoteTransfer, defaultTransferForm, existingTransferParts, isRemoteTransferSaved, matchesNextFlow, readRemoteTransfer, rehydrateRemoteSavedView, remoteFileNames, saveRemoteTransfer, submitRemoteTransfer, validateReview } from './baseland-transfer.ts';
+import { deleteRemoteTransferFile, prepareRemoteFileDeletion, remoteFileDeletionResult, clearRemoteTransfer, isRemoteTransferCleared, remoteFiles, defaultTransferForm, existingTransferParts, isRemoteTransferSaved, matchesNextFlow, readRemoteTransfer, rehydrateRemoteSavedView, remoteFileNames, saveRemoteTransfer, submitRemoteTransfer, validateReview } from './baseland-transfer.ts';
 import type { RemoteTransfer } from './baseland-transfer.ts';
 type Session={view:TransferView;remote:RemoteTransfer|null;generation:number;root:string;scope:OperationScope;files:Partial<Record<TransferFileRole,{name:string;relativePath:string;hash:string}>>};
 export type TransferRecipientOption={step:{id:string;name:string};user:{id:string;name:string}};
 export type TransferRecipientPreference={userId:string;userName?:string;stepId?:string};
-/** Prefer last-selected preference still in the candidate list, else the sole candidate; otherwise leave unset for explicit UI choice. */
+/** Resolve only actual server candidates; ambiguous identities require explicit choice. */
 export function pickTransferRecipient(options:TransferRecipientOption[],preference?:TransferRecipientPreference|null):TransferRecipientOption|undefined{
   if(!options.length)return;
   if(preference?.userId){
@@ -29,7 +30,7 @@ export function pickTransferRecipient(options:TransferRecipientOption[],preferen
     if(matched.length===1)return matched[0];
     if(matched.length>1){
       const sameStep=preference.stepId?matched.find(o=>o.step.id===preference.stepId):undefined;
-      return sameStep??matched[0];
+      return sameStep;
     }
   }
   if(preference?.userName){
@@ -37,9 +38,11 @@ export function pickTransferRecipient(options:TransferRecipientOption[],preferen
     if(matched.length===1)return matched[0];
     if(matched.length>1){
       const sameStep=preference.stepId?matched.find(o=>o.step.id===preference.stepId):undefined;
-      return sameStep??matched[0];
+      return sameStep;
     }
   }
+  const preferred=options.filter(o=>o.user.name===DEFAULT_INTERNAL_TRANSFER_RECIPIENT);
+  if(preferred.length===1)return preferred[0];
   if(options.length===1)return options[0];
 }
 
@@ -47,7 +50,7 @@ export function pickTransferRecipient(options:TransferRecipientOption[],preferen
 export function disposableEmptyDraft(view:TransferView|undefined):boolean{
   if(!view||view.phase!=='draft')return false;
   if(view.files?.length)return false;
-  if(view.review?.form?.corrections?.length)return false;
+  if(view.fileDeletion||view.review?.form?.corrections?.length||view.localReviewSaved||view.revokedByUser||view.review?.remark?.trim())return false;
   return true;
 }
 
@@ -70,6 +73,7 @@ function validTransferHistory(value:unknown):value is TransferView{
     && !!v.id&&!!v.processId&&['application','reply','correction'].includes(v.route)
     && ['draft','saved','uncertain','submitted','superseded'].includes(v.phase)
     && Array.isArray(v.files)&&v.files.every(f=>f&&['application','baseline','reply'].includes(f.role)&&typeof f.name==='string'&&typeof f.hash==='string'&&typeof f.relativePath==='string'&&!path.isAbsolute(f.relativePath)&&!f.relativePath.replaceAll('\\','/').split('/').some(p=>p==='..'||p==='.'||!p))
+    && (!v.fileDeletion||(!!v.fileDeletion.target&&['fileNo','handId','fingerprint'].every(k=>typeof (v.fileDeletion!.target as unknown as Record<string,unknown>)[k]==='string'&&!!(v.fileDeletion!.target as unknown as Record<string,unknown>)[k])&&['part','mix','reply'].includes(v.fileDeletion.kind)&&typeof v.fileDeletion.preservationHash==='string'&&/^[a-f0-9]{64}$/.test(v.fileDeletion.preservationHash)&&typeof v.fileDeletion.name==='string'&&typeof v.fileDeletion.requestedAt==='string'&&(v.fileDeletion.kind==='mix'||typeof v.fileDeletion.formCode==='string')))
     && Array.isArray(v.steps)&&Array.isArray(v.parts)&&Array.isArray(v.results)&&v.results.every(r=>typeof r==='string')
     && !!v.review&&typeof v.review==='object'&&typeof v.review.remark==='string'&&typeof v.review.stepId==='string'&&typeof v.review.userId==='string'&&!!v.review.form&&Array.isArray(v.review.form.corrections);
 }
@@ -78,29 +82,41 @@ export class TransferHost {
   desktop:DesktopService;agent:AgentHost;private sessions=new Map<string,Session>();busy=false;
   private options:{templatesRoot?:string;applicationFile?:(key:string,id:string)=>Promise<WorkFile|undefined>;confirmName?:(details:{applicationName:string;caseName:string})=>Promise<boolean>};
   constructor(desktop:DesktopService,agent:AgentHost,options:{templatesRoot?:string;applicationFile?:(key:string,id:string)=>Promise<WorkFile|undefined>;confirmName?:(details:{applicationName:string;caseName:string})=>Promise<boolean>}={}){this.desktop=desktop;this.agent=agent;this.options=options;}
-  private guard(s:Session){
+  private guard(s:Session,observation=false){
     this.desktop.assertScope(s.scope);
     this.desktop.assertMigrationNotAccepted();this.desktop.assertKey(s.view.profileKey);
     const c=this.desktop.transferCase(s.view.caseId),work=c.stage.current;
-    if(this.desktop.generation!==s.generation||this.desktop.workspace.settings.workRoot!==s.root||work.processId!==s.view.processId||c.stage.officialWaiting||!c.transfer.available)throw new Error('账号、目录或案件当前流程已变化，请重新准备。');
+    if(this.desktop.generation!==s.generation||this.desktop.workspace.settings.workRoot!==s.root||work.processId!==s.view.processId||!observation&&(c.stage.officialWaiting||!c.transfer.available))throw new Error('账号、目录或案件当前流程已变化，请重新准备。');
     if(this.desktop.account?.status!=='authenticated'||!this.desktop.client)throw new Error('请先登录贝思兰德。');
   }
   private get(key:string,id:string){const s=this.sessions.get(id);if(!s||s.view.profileKey!==key)throw new Error('本次准备已过期，请重新读取。');this.guard(s);return s;}
   requestScope(key:string,id:string):OperationScope{return structuredClone(this.get(key,id).scope);}
-  private async persist(s:Session){this.guard(s);await atomicJSON(await this.desktop.casePath(s.view.caseId,`04_内部说明/transfer-${s.view.id}.json`),{schema:1,remoteFingerprint:s.remote?.fingerprint,view:s.view},()=>this.guard(s));}
-  private view(s:Session){this.guard(s);return structuredClone(s.view);}
+  private async persist(s:Session){this.guard(s,true);await atomicJSON(await this.desktop.casePath(s.view.caseId,`04_内部说明/transfer-${s.view.id}.json`),{schema:1,remoteFingerprint:s.remote?.fingerprint,view:s.view},()=>this.guard(s,true));}
+  private view(s:Session){this.guard(s,true);return structuredClone(s.view);}
+  private async syncCase(s:Session){
+    this.guard(s,true);
+    const identity=this.desktop.transferCase(s.view.caseId).identity,remoteCaseId=this.desktop.findCase(s.view.caseId).remote?.caseId;
+    try{await this.desktop.flow(s.view.caseId);}
+    catch(e){this.guard(s,true);s.view.results.push(`本次转交记录已保留，但全案流程刷新失败：${(e as Error).message}`);await this.persist(s);return this.view(s);}
+    this.desktop.assertScope({...s.scope,caseId:undefined,processKey:undefined,caseRevision:undefined});
+    const c=this.desktop.transferCase(s.view.caseId);
+    if(c.identity.source!==identity.source||this.desktop.findCase(s.view.caseId).remote?.caseId!==remoteCaseId||c.stage.current.processId!==s.view.processId)throw new Error('案件流程已切换，原转交结果已保留在历史记录中。');
+    s.scope=this.desktop.captureScope(s.view.profileKey,s.view.caseId);
+    await this.persist(s);
+    return this.view(s);
+  }
   private async exclusive<T>(fn:()=>Promise<T>):Promise<T>{
     if(this.busy)throw new Error('正在保存或转交，请等待本次操作完成。');this.busy=true;this.desktop.flowFileWrites++;
     try{return await fn();}finally{this.busy=false;this.desktop.flowFileWrites--;}
   }
-  async inspect(key:string,caseId:string):Promise<TransferView|null>{
+  async inspect(key:string,caseId:string,sourceMode:'workbench'|'local'='workbench'):Promise<TransferView|null>{
     const scope=this.desktop.captureScope(key,caseId);
     const c=this.desktop.transferCase(caseId),work=c.stage.current;
     if(c.identity.source!=='baseland'||!work.processId||!c.transfer.available||c.stage.officialWaiting)return null;
     const old=[...this.sessions.values()].filter(s=>s.view.profileKey===key&&s.view.caseId===caseId&&s.view.processId===work.processId&&s.view.phase!=='superseded').sort((a,b)=>b.view.at.localeCompare(a.view.at))[0];
     if(old){
       if(this.desktop.generation===old.generation&&this.desktop.workspace.settings.workRoot===old.root&&scope.caseRevision===old.scope.caseRevision){
-        if(!disposableEmptyDraft(old.view))return structuredClone(old.view);
+        if(!disposableEmptyDraft(old.view))return old.view.phase==='submitted'?this.refresh(key,old.view.id):structuredClone(old.view);
       }
     }
     const prior=(await this.journals(scope,caseId)).filter(data=>data.view.processId===work.processId&&data.view.phase!=='superseded');
@@ -114,7 +130,7 @@ export class TransferHost {
           s.files[f.role]={...f};
         }
       }
-      if(s.view.steps.length===0&&this.desktop.account?.status==='authenticated'&&this.desktop.client){
+      if(!s.view.submissionAttempted&&s.view.steps.length===0&&this.desktop.account?.status==='authenticated'&&this.desktop.client){
         const route:TransferRoute=work.kind==='write'?'application':work.kind==='reply'?'reply':work.kind==='correction'?'correction':null as any;
         if(route){
           try{
@@ -136,7 +152,7 @@ export class TransferHost {
         }
       }
       this.desktop.assertScope(scope);this.sessions.set(s.view.id,s);
-      return structuredClone(s.view);
+      return s.view.phase==='submitted'?this.refresh(key,s.view.id):structuredClone(s.view);
     }
     if(this.desktop.account?.status==='authenticated'&&this.desktop.client){
       const route:TransferRoute=work.kind==='write'?'application':work.kind==='reply'?'reply':work.kind==='correction'?'correction':null as any;
@@ -147,7 +163,7 @@ export class TransferHost {
             const options=r.steps.flatMap(step=>step.users.map(user=>({step,user})));
             const picked=pickTransferRecipient(options,this.desktop.workspace.settings.lastTransferRecipient);
             const view=rehydrateRemoteSavedView({
-              r,route,key,caseId,
+              r,route,key,caseId,sourceMode,
               caseNumber:c.identity.number,
               caseTitle:c.identity.title,
               processId:work.processId,
@@ -212,11 +228,18 @@ export class TransferHost {
     if(c.identity.source!=='baseland'||!work.processId||!c.transfer.available||c.stage.officialWaiting)throw new Error('本案当前没有可内部转交的贝思兰德办理流程。');
     const route:TransferRoute=work.kind==='write'?'application':work.kind==='reply'?'reply':work.kind==='correction'?'correction':(()=>{throw new Error('当前业务不适用申请、答复或补正提交。');})();
     const conflicting=[...this.sessions.values()].find(s=>s.view.profileKey===key&&s.view.caseId===caseId&&s.view.processId===work.processId&&(s.view.sourceMode??'workbench')!==sourceMode&&['saved','uncertain','submitted'].includes(s.view.phase));
+    if(conflicting&&conflicting.view.phase==='saved'&&!conflicting.view.files.length&&!conflicting.view.sourceDraft&&!conflicting.view.submissionAttempted&&!conflicting.view.localReviewSaved){this.guard(conflicting);conflicting.view.sourceMode=sourceMode;await this.persist(conflicting);return this.view(conflicting);}
     if(conflicting)throw new Error('本案另一提交来源已有保存或待核对方案，请先打开原方案核对，不能切换来源重复提交。');
     const old=[...this.sessions.values()].filter(s=>s.view.profileKey===key&&s.view.caseId===caseId&&s.view.processId===work.processId&&s.view.phase!=='superseded'&&(s.view.sourceMode??'workbench')===sourceMode).sort((a,b)=>b.view.at.localeCompare(a.view.at))[0];
-    if(old&&!ignorePrior){this.guard(old);if(disposableEmptyDraft(old.view)){old.view.phase='superseded';await this.persist(old);return this.prepare(key,caseId,true,sourceMode);}return this.view(old);}
+    if(old&&!ignorePrior){if(old.view.phase==='submitted')return this.refresh(key,old.view.id);this.guard(old);if(disposableEmptyDraft(old.view)){old.view.phase='superseded';await this.persist(old);return this.prepare(key,caseId,true,sourceMode);}return this.view(old);}
     const id=randomUUID(),s:Session={scope,generation:scope.scopeVersion,root:scope.root??'',remote:null,files:{},view:{id,sourceMode,profileKey:key,caseId,caseNumber:c.identity.number,caseTitle:c.identity.title,processId:work.processId,processName:c.transfer.processes.find(p=>p.id===work.processId)?.name??'',route,files:[],parts:[],review:{keepCodes:[],form:defaultTransferForm(null),stepId:'',userId:'',remark:''},steps:[],phase:'draft',results:[],existingFileNames:[],at:new Date().toISOString()}};
     this.guard(s);
+    if(!ignorePrior){
+      const restored=await this.inspect(key,caseId,sourceMode);this.guard(s);
+      if(restored&&restored.phase==='saved'&&!restored.files.length&&!restored.sourceDraft&&!restored.submissionAttempted&&!restored.localReviewSaved){const restoredSession=this.sessions.get(restored.id)!;restoredSession.view.sourceMode=sourceMode;await this.persist(restoredSession);return this.view(restoredSession);}
+      if(restored&&(restored.sourceMode??'workbench')===sourceMode)return restored;
+      if(restored&&['saved','uncertain','submitted'].includes(restored.phase))throw new Error('本案另一提交来源已有保存或待核对记录，请先打开原方案核对。');
+    }
     s.remote=await readRemoteTransfer(this.desktop.client!,work.processId,route);this.guard(s);this.assignRemote(s);
     const prior=(await this.journals(scope,caseId)).filter(data=>data.view.processId===work.processId&&data.view.route===route&&data.view.phase!=='superseded');
     if(prior.some(p=>(p.view.sourceMode??'workbench')!==sourceMode&&['saved','uncertain','submitted'].includes(p.view.phase)))throw new Error('本案另一提交来源已有保存或待核对记录，请先打开原方案核对。');
@@ -227,6 +250,7 @@ export class TransferHost {
       if(s.remote){
         s.view.steps=s.remote.steps;
         s.view.existingFileNames=remoteFileNames([...(s.remote.files||[]),...(s.remote.form?.File?[s.remote.form.File]:[])]);
+        s.view.existingFiles=remoteFiles(s.remote);
         if(!s.view.review.stepId||!s.view.review.userId){
           const options=s.remote.steps.flatMap(step=>step.users.map(user=>({step,user})));
           const picked=pickTransferRecipient(options,this.desktop.workspace.settings.lastTransferRecipient);
@@ -308,13 +332,13 @@ export class TransferHost {
     }
     await this.persist(s);return this.view(s);
   }
-  private assignRemote(s:Session){
+  private assignRemote(s:Session,preserveDraft=false){
     const r=s.remote;s.view.handId=r?.handId;s.view.currentNode=r?.hand.CurrentFlowInfo?.FlowNodeName;s.view.currentUser=r?.hand.CurrentFlowInfo?.FlowUserName;s.view.steps=r?.steps??[];
-    const rFiles=[...(r?.files??[]),...(r?.form?.File?[r.form.File]:[])];
-    s.view.existingFileNames=remoteFileNames(rFiles);
+    s.view.existingFileNames=remoteFiles(r).map(f=>f.name);
     s.view.canEditRemote=r? r.hand.IsReviewing===true:undefined;
-    s.view.review.form=defaultTransferForm(r);
-    if(!s.files.application){s.view.parts=existingTransferParts(r);s.view.review.keepCodes=s.view.parts.filter(p=>p.available).map(p=>p.code);}
+    s.view.existingFiles=remoteFiles(r);
+    if(!preserveDraft)s.view.review.form=defaultTransferForm(r);
+    if(!s.files.application){s.view.parts=existingTransferParts(r);if(!preserveDraft)s.view.review.keepCodes=s.view.parts.filter(p=>p.available).map(p=>p.code);}
     const options=s.view.steps.flatMap(step=>step.users.map(user=>({step,user})));
     const current=options.find(o=>o.step.id===s.view.review.stepId&&o.user.id===s.view.review.userId);
     const picked=current??pickTransferRecipient(options,this.desktop.workspace.settings.lastTransferRecipient);
@@ -372,7 +396,7 @@ export class TransferHost {
     return this.view(s);
   });}
   async reprepare(key:string,id:string){return this.exclusive(async()=>{
-    const old=this.get(key,id);if(old.view.phase==='submitted')throw new Error('已确认内部转交，不能重复准备同一提交。');
+    const old=this.get(key,id);if(old.view.fileDeletion)throw new Error('单份删除结果待核验，请先刷新材料；不能重新准备或重发删除。');if(old.view.phase==='submitted')throw new Error('已确认内部转交，不能重复准备同一提交。');
     const fresh=await readRemoteTransfer(this.desktop.client!,old.view.processId,old.view.route);this.guard(old);
     const target=old.view.steps.find(s=>s.id===old.view.review.stepId),user=target?.users.find(u=>u.id===old.view.review.userId);
     if(target?.name&&user?.name&&fresh?.hand.CurrentFlowInfo?.CaseHandStepId===target.id&&fresh?.hand.CurrentFlowInfo?.FlowUserId===user.id)throw new Error('已到达原方案的下一办理人，请刷新核对，不能重新提交。');
@@ -405,12 +429,13 @@ export class TransferHost {
       ...structuredClone(review),
       form:{...structuredClone(review.form),corrections:normalizeLocalCorrections(review.form.corrections)},
     };
+    s.view.localReviewSaved=true;
     s.view.at=new Date().toISOString();
     await this.persist(s);
     return this.view(s);
   });}
   async save(key:string,id:string,review:TransferReview){return this.exclusive(async()=>{
-    const s=this.get(key,id);if(s.view.phase!=='draft')throw new Error('本次方案不能重复保存，请先核对当前状态。');
+    const s=this.get(key,id);if(s.view.fileDeletion)throw new Error('单份删除结果待核验，请先刷新材料。');if(s.view.phase!=='draft')throw new Error('本次方案不能重复保存，请先核对当前状态。');
     if(!s.remote){s.remote=await readRemoteTransfer(this.desktop.client!,s.view.processId,s.view.route);this.guard(s);}
     if(!s.remote)throw new Error('未能读取到贝思兰德递交实例。');
     s.view.review=structuredClone(review);s.view.error=undefined;s.view.revokedByUser=undefined;
@@ -422,9 +447,9 @@ export class TransferHost {
     s.view.phase='uncertain';s.view.results.push('正在保存本次文件与业务表单；中断后需回读核对。');await this.persist(s);
     try{
       s.remote=await saveRemoteTransfer({client:this.desktop.client!,processId:s.view.processId,caseTitle:s.view.caseTitle,route:s.view.route,remote:s.remote,review:s.view.review,application,reply,confirmName:this.options.confirmName,guard:()=>this.guard(s),onWrite:()=>{wrote=true;},checkpoint:async message=>{s.view.results.push(message);await this.persist(s);}});
-      s.view.phase='saved';
+      s.view.phase='saved';s.view.cleanupPending=false;s.view.cleanupFileNos=undefined;
       s.view.at=new Date().toISOString();
-      s.view.existingFileNames=remoteFileNames(s.remote.files);
+      s.view.existingFileNames=remoteFileNames(s.remote.files);s.view.existingFiles=remoteFiles(s.remote);
       s.view.steps=s.remote.steps;
       if(!s.view.review.stepId||!s.view.review.userId){
         const options=s.remote.steps.flatMap(step=>step.users.map(user=>({step,user})));
@@ -442,6 +467,7 @@ export class TransferHost {
   });}
   async revoke(key:string,id:string){return this.exclusive(async()=>{
     const s=this.get(key,id);
+    if(s.view.fileDeletion)throw new Error('单份删除结果待核验，请先刷新材料；不能返回编辑或重复删除。');
     if(s.view.phase==='submitted')throw new Error('已确认内部转交，不能撤销。');
     if(s.view.phase!=='saved'&&s.view.phase!=='uncertain')throw new Error('当前状态无需撤销。');
     if(s.view.phase==='uncertain'&&s.view.submissionAttempted)throw new Error('本次内部转交请求已发送但结果未确认，必须先用【刷新本案】核对，不能撤销到草稿重复办理。');
@@ -456,7 +482,7 @@ export class TransferHost {
     if(interrupted&&this.desktop.account?.status==='authenticated'&&this.desktop.client){
       try{
         const r=await readRemoteTransfer(this.desktop.client,s.view.processId,s.view.route);this.guard(s);
-        if(r){s.remote=r;s.view.handId=r.handId;s.view.currentNode=r.hand.CurrentFlowInfo?.FlowNodeName;s.view.currentUser=r.hand.CurrentFlowInfo?.FlowUserName;s.view.canEditRemote=r.hand.IsReviewing===true;s.view.steps=r.steps;s.view.existingFileNames=remoteFileNames([...(r.files||[]),...(r.form?.File?[r.form.File]:[])]);}
+        if(r){s.remote=r;s.view.handId=r.handId;s.view.currentNode=r.hand.CurrentFlowInfo?.FlowNodeName;s.view.currentUser=r.hand.CurrentFlowInfo?.FlowUserName;s.view.canEditRemote=r.hand.IsReviewing===true;s.view.steps=r.steps;s.view.existingFileNames=remoteFileNames([...(r.files||[]),...(r.form?.File?[r.form.File]:[])]);s.view.existingFiles=remoteFiles(r);}
       }catch{}
     }
     s.view.results.push(interrupted?'已撤销本次未完成的保存，返回草稿编辑状态；已回读服务端当前材料，原表单与本地文件保留，可修改后重新保存。':'已撤销本次保存，返回草稿编辑状态；原表单与材料保留，可修改后重新保存。');
@@ -465,29 +491,60 @@ export class TransferHost {
   });}
   async clearRemote(key:string,id:string){return this.exclusive(async()=>{
     const s=this.get(key,id);
+    if(s.view.fileDeletion)throw new Error('单份删除结果待核验，请先刷新材料；不能改为整组清理。');
     if(s.view.phase==='submitted')throw new Error('已内部转交的案件不可清空服务端材料。');
     if(!s.remote){s.remote=await readRemoteTransfer(this.desktop.client!,s.view.processId,s.view.route);this.guard(s);}
     if(!s.remote)throw new Error('未能读取到贝思兰德递交实例。');
     if(s.remote.hand.IsReviewing!==true)throw new Error('当前流程节点无编辑或删除材料权限。');
-    s.view.results.push('正在清空贝思兰德系统内的远端材料与表单...');
+    if(s.view.submissionAttempted)throw new Error('转交请求结果尚未核验，不能清理材料。');
+    s.remote=await readRemoteTransfer(this.desktop.client!,s.view.processId,s.view.route);this.guard(s);
+    if(!s.remote||s.view.handId&&s.remote.handId!==s.view.handId)throw new Error('待清理递交实例已变化。');
+    s.view.handId=s.remote.handId;
+    const group=s.remote.instructions?.FormGroup??[];
+    s.view.cleanupFileNos=[...new Set([...(s.view.cleanupFileNos??[]),...group.map((g:any)=>String(g.File?.FileNo??'')),...(s.view.route==='reply'?[String(s.remote.form?.File?.FileNo??'')]:[])].filter(Boolean))];
+    s.view.phase='uncertain';s.view.cleanupPending=true;s.view.revokedByUser=true;
+    s.view.results.push('正在清理当前递交实例；中断或部分完成后必须回读核验。');
     await this.persist(s);
-    const cleared=await clearRemoteTransfer(this.desktop.client!,s.view.processId,s.view.route,()=>this.guard(s));
-    if(!cleared)throw new Error('未能获取清空后的远端递交实例。');
-    s.remote=cleared;
-    const rFiles=[...(cleared.files||[]),...(cleared.form?.File?[cleared.form.File]:[])];
-    s.view.existingFileNames=remoteFileNames(rFiles);
-    s.view.review.form=defaultTransferForm(cleared);
-    if(!s.files.application){
-      s.view.parts=existingTransferParts(cleared);
-      s.view.review.keepCodes=[];
-    }
-    s.view.phase='draft';
-    s.view.revokedByUser=true;
-    s.view.error=undefined;
-    s.view.results.push('已成功物理删除贝思兰德系统内的远端上传文件并重置表单；维持草稿状态。');
-    await this.persist(s);
-    return this.view(s);
+    try{
+      const cleared=await clearRemoteTransfer(this.desktop.client!,s.view.processId,s.view.route,()=>this.guard(s),{handId:s.remote.handId,fingerprint:s.remote.fingerprint});
+      if(!cleared||!isRemoteTransferCleared(cleared,s.view.route,s.view.cleanupFileNos))throw new Error('清理结果未完全核验。');
+      s.remote=cleared;this.assignRemote(s,true);s.view.phase='draft';s.view.cleanupPending=false;s.view.cleanupFileNos=undefined;s.view.error=undefined;
+      s.view.results.push('已回读确认当前递交实例的目标文件关联与补正条目清空；本地文件和草稿保留。');
+    }catch(e){this.guard(s);s.view.error=(e as Error).message;s.view.results.push('清理可能部分完成，尚未确认全部清空；请刷新核对，不可内部转交。');}
+    await this.persist(s);return this.view(s);
   });}
+  async deleteRemoteFile(key:string,id:string,target:RemoteFileDeleteRef){return this.exclusive(async()=>{
+    const s=this.get(key,id);
+    if(s.view.fileDeletion||s.view.cleanupPending||s.view.submissionAttempted||!['draft','saved'].includes(s.view.phase))throw new Error('当前状态不能删除远端文件，请先刷新核对待完成的操作。');
+    if(!target||!target.fileNo||target.handId!==s.view.handId)throw new Error('删除目标不属于当前递交实例。');
+    const listed=s.view.existingFiles?.find(f=>f.fileNo===target.fileNo)?.deleteRef;
+    if(!listed||listed.handId!==target.handId||listed.fingerprint!==target.fingerprint)throw new Error('删除目标已变化或尚未核验，请刷新材料后重新确认。');
+    const fresh=await readRemoteTransfer(this.desktop.client!,s.view.processId,s.view.route);this.guard(s);
+    if(!fresh)throw new Error('无法读取当前递交实例，未删除。');
+    const deletion=prepareRemoteFileDeletion(fresh,target),previousPhase=s.view.phase;
+    s.remote=fresh;s.view.fileDeletion=deletion;s.view.phase='uncertain';s.view.error=undefined;
+    s.view.at=new Date().toISOString();
+    s.view.results.push(`正在删除远端文件「${deletion.name}」的当前实例关联；中断后仅刷新核验，不自动重发。`);
+    await this.persist(s);
+    let wrote=false;
+    try{
+      s.remote=await deleteRemoteTransferFile({client:this.desktop.client!,processId:s.view.processId,route:s.view.route,deletion,guard:()=>this.guard(s),onWrite:()=>{wrote=true;}});
+      this.finishFileDeletion(s);
+    }catch(e){
+      this.guard(s);
+      if(!wrote){s.view.fileDeletion=undefined;s.view.phase=previousPhase;}
+      s.view.error=(e as Error).message;
+    }
+    await this.persist(s);return this.view(s);
+  });}
+  private finishFileDeletion(s:Session){
+    const deletion=s.view.fileDeletion!;
+    this.assignRemote(s,true);
+    if(deletion.kind==='part')s.view.review.keepCodes=s.view.review.keepCodes.filter(code=>code!==deletion.formCode);
+    s.view.fileDeletion=undefined;s.view.phase='draft';s.view.revokedByUser=true;s.view.localReviewSaved=true;s.view.error=undefined;
+    s.view.at=new Date().toISOString();
+    s.view.results.push(`已核验：仅移除「${deletion.name}」的远端关联，其他远端材料、业务表单、本地原件和草稿保留。请重新核对后保存；本地副本仍选中时，再次保存可能重新上传。`);
+  }
   private async generateFilePreview(name: string, bytes: Buffer, role?: TransferFileRole): Promise<TransferFilePreviewResult> {
     const ext = name.split('.').pop()?.toLowerCase();
     const isImageExt = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'].includes(ext || '');
@@ -571,13 +628,12 @@ export class TransferHost {
         if(!remote||s.view.handId&&remote.handId!==s.view.handId)throw new Error('递交实例已变化，请重新核对本次材料。');
         s.remote=remote;
       }
-      const candidates=[...s.remote.files,...(s.remote.form?.File?[s.remote.form.File]:[])];
-      const matches=candidates.filter(file=>
-        (!fileRef.fileNo||(file.FileNo||file.fileNo)===fileRef.fileNo)
-        &&(!fileRef.name||(file.FileName||file.name||file.fileName)===fileRef.name));
-      const numbers=[...new Set(matches.map(file=>file.FileNo||file.fileNo).filter(Boolean))];
+      const matches=remoteFiles(s.remote).filter(file=>
+        (!fileRef.fileNo||file.fileNo===fileRef.fileNo)
+        &&(!fileRef.name||file.name===fileRef.name));
+      const numbers=[...new Set(matches.map(file=>file.fileNo))];
       if(numbers.length!==1)throw new Error('指定的远端材料不属于本次流程或无法唯一确定。');
-      const file=matches[0],name=file.FileName||file.name||file.fileName||`远端文件_${numbers[0]}`;
+      const name=matches[0].name;
       this.guard(s);
       const bytes=await this.desktop.client!.download(numbers[0],AbortSignal.timeout(30000));
       this.guard(s);
@@ -601,7 +657,7 @@ export class TransferHost {
     return {name:'材料预览',content:'暂无可用内容预览'};
   }
   async submit(key:string,id:string,review?:TransferReview){return this.exclusive(async()=>{
-    const s=this.get(key,id);if(s.view.phase!=='saved')throw new Error('必须先完成文件与表单保存验收。');
+    const s=this.get(key,id);if(s.view.fileDeletion)throw new Error('单份删除结果待核验，不能内部转交。');if(s.view.phase!=='saved')throw new Error('必须先完成文件与表单保存验收。');
     if(review){
       if(review.stepId)s.view.review.stepId=review.stepId;
       if(review.userId)s.view.review.userId=review.userId;
@@ -613,42 +669,77 @@ export class TransferHost {
     if(!s.remote)throw new Error('未能读取到贝思兰德递交实例。');
     if(!isRemoteTransferSaved(s.remote,s.view.route))throw new Error('服务端递交材料已不完整或发生变化，请重新核对。');
     s.view.phase='uncertain';s.view.submissionAttempted=false;s.view.submissionRetryable=false;s.view.error=undefined;s.view.results.push('内部转交请求准备发送。');await this.persist(s);
-    try{const result=await submitRemoteTransfer(this.desktop.client!,s.view.processId,s.view.route,s.remote,s.view.review,()=>this.guard(s),async()=>{s.view.submissionAttempted=true;s.view.submissionFingerprint=s.remote!.fingerprint;await this.persist(s);});s.view.phase='submitted';s.view.currentNode=result.node;s.view.currentUser=result.user;await this.desktop.flow(s.view.caseId);this.guard(s);s.view.results.push(`内部转交已确认：${result.node} · ${result.user}。后续官方递交由接收人办理。`);}catch(e){s.view.error=(e as Error).message;s.view.submissionRetryable=e instanceof BaselandBusinessError&&['busy','prerequisite'].includes(e.kind);}
-    await this.persist(s);return this.view(s);
+    try{const result=await submitRemoteTransfer(this.desktop.client!,s.view.processId,s.view.route,s.remote,s.view.review,()=>this.guard(s),async target=>{s.view.submissionTarget=structuredClone(target);s.view.submissionAttempted=true;s.view.submissionFingerprint=s.remote!.fingerprint;await this.persist(s);});s.view.phase='submitted';s.view.currentNode=result.node;s.view.currentUser=result.user;s.view.at=new Date().toISOString();s.view.results.push(`内部转交已确认：${result.node} · ${result.user}。后续官方递交由接收人办理。`);}catch(e){s.view.error=(e as Error).message;s.view.submissionRetryable=e instanceof BaselandBusinessError&&['busy','prerequisite'].includes(e.kind);}
+    await this.persist(s);return this.syncCase(s);
   });}
   async refresh(key:string,id:string){return this.exclusive(async()=>{
-    const s=this.get(key,id),r=await readRemoteTransfer(this.desktop.client!,s.view.processId,s.view.route);this.guard(s);
+    const s=this.sessions.get(id);
+    if(!s||s.view.profileKey!==key)throw new Error('本次准备已过期，请重新读取。');
+    this.desktop.assertScope({...s.scope,caseId:undefined,processKey:undefined,caseRevision:undefined});
+    if(this.desktop.transferCase(s.view.caseId).stage.current.processId!==s.view.processId)throw new Error('案件当前流程已变化，请打开历史记录核对。');
+    s.scope=this.desktop.captureScope(key,s.view.caseId);this.guard(s,true);
+    if(s.view.phase==='uncertain'&&s.view.submissionAttempted){
+      if(!s.view.submissionTarget){
+        const step=s.view.steps.find(x=>x.id===s.view.review.stepId),user=step?.users.find(u=>u.id===s.view.review.userId);
+        if(step&&user&&s.view.handId){s.view.submissionTarget={handId:s.view.handId,step:{id:step.id,name:step.name},user:{id:user.id,name:user.name}};await this.persist(s);}
+      }
+      const target=s.view.submissionTarget;
+      const hand=await this.desktop.client!.request('/CaseInfo/GetHandInfo',undefined,{caseProcId:s.view.processId});this.guard(s,true);
+      if(target&&target.handId===s.view.handId&&matchesNextFlow(hand,target.handId,target.step,target.user)){
+        s.view.phase='submitted';s.view.error=undefined;s.view.currentNode=hand.CurrentFlowInfo?.FlowNodeName||target.step.name;s.view.currentUser=hand.CurrentFlowInfo?.FlowUserName||target.user.name;
+        s.view.results.push('刷新已确认同一递交实例的原发送目标；未重复发送转交请求。');await this.persist(s);return this.syncCase(s);
+      }
+      if(!s.view.submissionRetryable){
+        s.view.error=String(hand?.HandInfo?.CaseHandId??'')!==s.view.handId?'本次递交实例已变化，不能确认原转交结果。':'原转交目标尚未匹配，请继续核验，不要重复转交。';
+        await this.persist(s);return this.syncCase(s);
+      }
+    }
+    const r=await readRemoteTransfer(this.desktop.client!,s.view.processId,s.view.route);this.guard(s,true);
+    if(s.view.phase==='submitted'&&r&&r.handId===s.view.handId&&r.hand.IsReviewing===true&&s.view.submissionTarget&&!matchesNextFlow(r.hand,r.handId,s.view.submissionTarget.step,s.view.submissionTarget.user)){
+      s.view.phase='superseded';
+      s.view.results.push('原内部转交已确认；同一递交实例现已返回可办理节点，后续使用新的核对记录，原材料及发送目标保留。');
+      await this.persist(s);
+      const options=r.steps.flatMap(step=>step.users.map(user=>({step,user})));
+      const picked=pickTransferRecipient(options,this.desktop.workspace.settings.lastTransferRecipient);
+      const view=rehydrateRemoteSavedView({r,route:s.view.route,key,caseId:s.view.caseId,caseNumber:s.view.caseNumber,caseTitle:s.view.caseTitle,processId:s.view.processId,processName:s.view.processName,sourceMode:s.view.sourceMode,selectedRecipient:picked?{stepId:picked.step.id,userId:picked.user.id}:undefined});
+      view.phase=isRemoteTransferSaved(r,s.view.route)?'saved':'draft';
+      view.results=[`已核验退回后的当前材料；原转交记录 ${s.view.id} 保留，重新转交仍需手动确认。`];
+      const next:Session={...s,view,remote:r,files:{}};
+      this.sessions.set(view.id,next);await this.persist(next);return this.syncCase(next);
+    }
+    if(s.view.fileDeletion){
+      const deletion=s.view.fileDeletion;
+      if(r&&r.handId===deletion.target.handId){
+        s.remote=r;this.assignRemote(s,true);
+        const result=remoteFileDeletionResult(r,deletion);
+        if(result==='deleted')this.finishFileDeletion(s);
+        else if(result==='unchanged'){
+          s.view.fileDeletion=undefined;s.view.phase='draft';s.view.revokedByUser=true;s.view.localReviewSaved=true;s.view.error=undefined;
+          s.view.results.push('刷新确认远端文件、表单及流程均未改变，未确认删除生效；已返回草稿，若仍需删除请重新确认。未自动重发。');
+        }else{s.view.phase='uncertain';s.view.error='单份删除尚不能确认，或其他远端材料/表单也已变化；请在贝思兰德核对后刷新，不可重复删除或转交。';}
+      }else{s.view.phase='uncertain';s.view.error='删除请求对应的递交实例已变化，不能确认结果；请在贝思兰德核对。';}
+      await this.persist(s);return this.view(s);
+    }
+    if(s.view.cleanupPending){
+      if(r&&r.handId===s.view.handId){
+        s.remote=r;this.assignRemote(s,true);
+        if(isRemoteTransferCleared(r,s.view.route,s.view.cleanupFileNos)){s.view.cleanupPending=false;s.view.cleanupFileNos=undefined;s.view.phase='draft';s.view.revokedByUser=true;s.view.error=undefined;s.view.results.push('刷新已确认目标文件关联和补正条目清空；本地草稿保留。');}
+        else{s.view.phase='uncertain';s.view.error='远端清理尚未全部完成；本地草稿保留，请核对剩余材料。';}
+      }else{s.view.phase='uncertain';s.view.error='清理后的递交实例已变化，不能确认清理成功。';}
+      await this.persist(s);return this.syncCase(s);
+    }
     if(!r||s.view.phase!=='draft'&&r.handId!==s.view.handId){
       s.view.phase='uncertain';s.view.error='本次递交实例已变化，无法确认原方案结果。请在贝思兰德核对。';
     }else{
-      s.view.canEditRemote=r.hand.IsReviewing===true;s.view.currentNode=r.hand.CurrentFlowInfo?.FlowNodeName;s.view.currentUser=r.hand.CurrentFlowInfo?.FlowUserName;s.view.existingFileNames=remoteFileNames(r.files);s.view.steps=r.steps;
+      s.view.canEditRemote=r.hand.IsReviewing===true;s.view.currentNode=r.hand.CurrentFlowInfo?.FlowNodeName;s.view.currentUser=r.hand.CurrentFlowInfo?.FlowUserName;s.view.existingFileNames=remoteFileNames(r.files);s.view.existingFiles=remoteFiles(r);s.view.steps=r.steps;
       if(s.view.phase==='draft'){
         s.remote=r;
-        if(!s.view.revokedByUser && isRemoteTransferSaved(r,s.view.route)){
-          s.view.phase='saved';
-          s.view.at=new Date().toISOString();
-          const rFiles=[...(r.files||[]),...(r.form?.File?[r.form.File]:[])];
-          s.view.existingFileNames=remoteFileNames(rFiles);
-          s.view.steps=r.steps;
-          s.view.error=undefined;
-          s.view.results.push('刷新确认服务端文件与表单已保存就绪，可直接选择下一办理人并转交。');
-          const options=r.steps.flatMap(step=>step.users.map(user=>({step,user})));
-          const picked=pickTransferRecipient(options,this.desktop.workspace.settings.lastTransferRecipient);
-          if(!s.view.review.stepId&&picked){
-            s.view.review.stepId=picked.step.id;
-            s.view.review.userId=picked.user.id;
-          }
-          await this.persist(s);
-        }else{
-          this.assignRemote(s);
-          if(s.view.revokedByUser){
-            s.view.results.push('刷新已核对服务端最新材料与流程（维持撤销保存后的草稿编辑状态）。');
-          }
-        }
-      }
+         this.assignRemote(s,true);
+         s.view.results.push(s.view.revokedByUser?'已刷新远端材料与流程；维持撤销保存后的草稿编辑状态，本地表单和五书选择保留。':'已刷新远端材料与流程；保留本地表单和五书选择，仍待用户保存核验。');
+       }
       else if(s.view.phase==='uncertain'){
         if(s.view.submissionAttempted){
-          const step=s.view.steps.find(x=>x.id===s.view.review.stepId),user=step?.users.find(u=>u.id===s.view.review.userId);
+           const step=s.view.submissionTarget?.step,user=s.view.submissionTarget?.user;
           if(step&&user&&matchesNextFlow(r.hand,s.view.handId,step,user)){
             s.view.phase='submitted';s.view.error=undefined;
             s.view.currentNode=r.hand.CurrentFlowInfo?.FlowNodeName||step.name;
@@ -683,6 +774,6 @@ export class TransferHost {
         }
       }
     }
-    await this.persist(s);return this.view(s);
+    await this.persist(s);return this.syncCase(s);
   });}
 }

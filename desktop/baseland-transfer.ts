@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { FIVE_PARTS } from '../src/transfer-api.ts';
-import type { TransferRoute, TransferReview, TransferForm, TransferView } from '../src/transfer-api.ts';
+import type { TransferRoute, TransferReview, TransferForm, TransferView, RemoteTransferFile, RemoteFileDeleteRef, RemoteFileDeletion } from '../src/transfer-api.ts';
 import type { BaselandClient } from './baseland.ts';
 import { flag, combineOfficialSubmission, boolTri, sendStatusState } from './baseland.ts';
 import { assertWriteResult, businessCode } from './baseland-results.ts';
@@ -15,11 +15,91 @@ const isEmptyGuid=(v:unknown)=>{const s=clean(v);return !s||s==='00000000-0000-0
 const code=(v:unknown)=>id(v).padStart(6,'0');
 const names=(items:Obj[])=>items.map(f=>String(f.FileName||f.FormName||f.File?.FileName||'')).filter(Boolean);
 export const remoteFileNames=names;
+export function remoteFiles(r:RemoteTransfer|null):RemoteTransferFile[]{
+  const files=[...(r?.files??[]),...(r?.form?.File?[r.form.File]:[]),...list(r?.instructions?.FormGroup).map(g=>g.File).filter(Boolean)];
+  return [...new Map(files.map(f=>({fileNo:clean(f.FileNo??f.fileNo??f.File?.FileNo),name:clean(f.FileName??f.FormName??f.fileName??f.name??f.File?.FileName)})).filter(f=>!isEmptyGuid(f.fileNo)).map(f=>[f.fileNo,{...f,name:f.name||`远端文件_${f.fileNo}`}])).values()].map(file=>{
+    if(!r)return file;
+    try{
+      deletionAssociation(r,file.fileNo);
+      return {...file,deleteRef:{fileNo:file.fileNo,handId:r.handId,fingerprint:r.fingerprint}};
+    }catch(e){return {...file,deleteDisabledReason:(e as Error).message};}
+  });
+}
+function deletionAssociation(r:RemoteTransfer,fileNo:string):Pick<RemoteFileDeletion,'kind'|'formCode'>{
+  if(isEmptyGuid(fileNo))throw new Error('缺少有效远端文件编号，请刷新核对。');
+  const group=list(r.instructions?.FormGroup);
+  const matches=group.filter(g=>clean(g.File?.FileNo)===fileNo);
+  const reply=clean(r.form?.File?.FileNo)===fileNo;
+  if(matches.length+(reply?1:0)>1)throw new Error('此文件关联多个表单，不能安全地单独删除。');
+  if(reply){
+    if(code(r.formCode)!=='100012'||!r.form?.OpinionStatement)throw new Error('当前表单不支持安全的单份文件删除。');
+    if(group.some(g=>code(g.FormCode)==='100012'&&!isEmptyGuid(g.File?.FileNo)))throw new Error('意见陈述书关联不唯一，请先在贝思兰德核对。');
+    return {kind:'reply',formCode:'100012'};
+  }
+  const match=matches[0];
+  if(!match)throw new Error('未找到唯一且受支持的表单关联，请在贝思兰德核对；不会改用整组清理。');
+  if(flag(match.IsMixFile)){
+    if(group.filter(g=>flag(g.IsMixFile)&&!isEmptyGuid(g.File?.FileNo)).length!==1)throw new Error('完整申请文件关联不唯一，不能单独删除。');
+    return {kind:'mix'};
+  }
+  const formCode=code(match.FormCode);
+  if(!FIVE_PARTS.some(p=>p.code===formCode))throw new Error('当前材料类型不支持安全的单份删除。');
+  if(group.filter(g=>code(g.FormCode)===formCode&&!isEmptyGuid(g.File?.FileNo)).length!==1)throw new Error('同一表单关联了多个文件，不能扩大删除范围。');
+  return {kind:'part',formCode};
+}
+function deletionPreservationHash(r:RemoteTransfer,target:Pick<RemoteFileDeletion,'target'|'kind'|'formCode'>):string{
+  const fileNo=target.target.fileNo;
+  const form=structuredClone(r.form);
+  if(form&&target.kind==='reply')delete form.File;
+  const instructions=structuredClone(r.instructions);
+  if(instructions)instructions.FormGroup=list(instructions.FormGroup).filter(g=>!isEmptyGuid(g.File?.FileNo)&&clean(g.File?.FileNo)!==fileNo).sort((a,b)=>clean(a.File?.FileNo).localeCompare(clean(b.File?.FileNo)));
+  const files=remoteFiles(r).filter(f=>f.fileNo!==fileNo).map(({fileNo,name})=>({fileNo,name})).sort((a,b)=>a.fileNo.localeCompare(b.fileNo));
+  const cards=r.cards.filter(c=>!target.formCode||code(c.Code)!==target.formCode).map(c=>({code:code(c.Code),selected:flag(c.IsSelect)})).sort((a,b)=>a.code.localeCompare(b.code));
+  const stable=(value:any):any=>Array.isArray(value)?value.map(stable):value&&typeof value==='object'?Object.fromEntries(Object.keys(value).sort().map(key=>[key,stable(value[key])])):value;
+  return digest(JSON.stringify(stable({handId:r.handId,form,instructions,files,cards})));
+}
+export function prepareRemoteFileDeletion(r:RemoteTransfer,target:RemoteFileDeleteRef):RemoteFileDeletion{
+  if(target.handId!==r.handId||target.fingerprint!==r.fingerprint)throw new Error('文件、表单或递交实例已变化，请刷新材料列表后重新确认；未删除。');
+  if(!flag(r.hand.IsReviewing))throw new Error('当前账号不能编辑此节点，未删除文件。');
+  const file=remoteFiles(r).find(f=>f.fileNo===target.fileNo);
+  if(!file)throw new Error('目标文件已不在当前递交实例中，未删除其他材料。');
+  const association=deletionAssociation(r,target.fileNo);
+  const deletion={target:structuredClone(target),name:file.name,...association,preservationHash:'',requestedAt:new Date().toISOString()};
+  deletion.preservationHash=deletionPreservationHash(r,deletion);
+  return deletion;
+}
+export function remoteFileDeletionResult(r:RemoteTransfer,deletion:RemoteFileDeletion):'deleted'|'unchanged'|'uncertain'{
+  if(r.handId!==deletion.target.handId)return 'uncertain';
+  if(r.fingerprint===deletion.target.fingerprint)return 'unchanged';
+  if(remoteFiles(r).some(f=>f.fileNo===deletion.target.fileNo))return 'uncertain';
+  return deletionPreservationHash(r,deletion)===deletion.preservationHash?'deleted':'uncertain';
+}
+export async function deleteRemoteTransferFile(input:{client:BaselandClient;processId:string;route:TransferRoute;deletion:RemoteFileDeletion;guard:()=>void;onWrite:()=>void}):Promise<RemoteTransfer>{
+  const {client,processId,route,deletion,guard,onWrite}=input;
+  guard();const fresh=await readRemoteTransfer(client,processId,route);guard();
+  if(!fresh)throw new Error('未找到当前递交实例，未删除文件。');
+  const checked=prepareRemoteFileDeletion(fresh,deletion.target);
+  if(checked.kind!==deletion.kind||checked.formCode!==deletion.formCode||checked.preservationHash!==deletion.preservationHash)throw new Error('待删除的文件关联已变化，未删除。');
+  const params={caseHandId:fresh.handId};
+  // Updating only the file field preserves the opinion form; DeleteFormFile can remove the whole form.
+  const endpoint=deletion.kind==='reply'?'UpdateFormOpinionStatement':deletion.kind==='mix'?'DeleteFormInstructionsAndImageMixFile':'DeleteFormFile';
+  const body=deletion.kind==='reply'?{...fresh.form,CaseHandId:fresh.handId,FormCode:fresh.formCode,File:null}:undefined;
+  const query=deletion.kind==='reply'?undefined:deletion.kind==='mix'?params:{...params,formCode:deletion.formCode!};
+  guard();onWrite();const result=await client.request('/CaseInfo/'+endpoint,body,query);guard();assertWriteResult(endpoint,result);
+  const after=await readRemoteTransfer(client,processId,route);guard();
+  if(!after||remoteFileDeletionResult(after,deletion)!=='deleted')throw new Error('单份删除尚未通过回读核验，请刷新核对；不会自动重试或清理其他文件。');
+  return after;
+}
+function replyIdentity(r:RemoteTransfer):{FileNo:string;FileName:string}|undefined{
+  const file=r.form?.File;
+  if(!file||isEmptyGuid(file.FileNo))return;
+  return {FileNo:clean(file.FileNo),FileName:clean(file.FileName)};
+}
 const GET_FORM:Record<TransferRoute,string>={reply:'GetFormOpinionStatement',correction:'GetFormCorrection',application:'GetFormPatentRequestInfo'};
 const saveEndpoint=(route:TransferRoute,exists:boolean)=>route==='application'?(exists?'UpdateFormPatentRequestInfo':'InsertFromPatentRequestInfo'):(exists?'Update':'Insert')+(route==='reply'?'FormOpinionStatement':'FormCorrection');
 export const REQUEST_DECLARATIONS:Record<string,string>={IsApplySameDay:'同日申请',IsPublicAdvance:'请求提前公开',IsExhibition:'展览会公开声明',IsPublished:'学术或技术会议公开声明',IsPublicForCommonProfit:'公共利益目的公开声明',IsDisclosure:'他人未经同意泄露声明',IsGiveUpOn51Section:'放弃主动修改',IsRequestDelayReview1YearForUtility:'实用新型延迟审查一年'};
 
-export async function readRemoteTransfer(client:BaselandClient,processId:string,route:TransferRoute):Promise<RemoteTransfer|null>{
+export async function readRemoteTransfer(client:BaselandClient,processId:string,route:TransferRoute,options:{includeSteps?:boolean}={}):Promise<RemoteTransfer|null>{
   const q=(ep:string,params:Record<string,string>,kind:'data'|'list'='data')=>client.request('/CaseInfo/'+ep,undefined,params,undefined,kind);
   const hand=await q('GetHandInfo',{caseProcId:processId});
   const handId=id(hand?.HandInfo?.CaseHandId);
@@ -33,7 +113,7 @@ export async function readRemoteTransfer(client:BaselandClient,processId:string,
   const params={caseHandId:handId};
   const [original,middle,replacement,form,notice,files,rawSteps]=await Promise.all([
     q('GetOfficialFormList',{...params,fileType:'0'},'list'),q('GetOfficialFormList',{...params,fileType:'2'},'list'),q('GetOfficialFormList',{...params,fileType:'4'},'list'),
-    q(GET_FORM[route],params),q('GetCaseHandProcRelateNoticeInfo',params),q('GetCaseHandFileList',params,'list'),q('GetHandNextFlowList',{caseReviewDraftId:handId},'list'),
+    q(GET_FORM[route],params),q('GetCaseHandProcRelateNoticeInfo',params),q('GetCaseHandFileList',params,'list'),options.includeSteps===false?Promise.resolve([]):q('GetHandNextFlowList',{caseReviewDraftId:handId},'list'),
   ]);
   const cards=[...new Map([...list(original),...list(middle),...list(replacement)].map(c=>[code(c.Code),c])).values()];
   const target=cards.find(c=>route==='reply'?code(c.Code)==='100012':route==='correction'?code(c.Code)==='100006':['110101','120101'].includes(code(c.Code)));
@@ -59,8 +139,16 @@ function remoteFingerprint(r:Omit<RemoteTransfer,'fingerprint'>){
 }
 export function existingTransferParts(r:RemoteTransfer|null){
   const group=list(r?.instructions?.FormGroup);
-  if(!group.some(g=>g.File?.FileNo))return [];
-  return FIVE_PARTS.map(p=>{const available=group.some(g=>code(g.FormCode)===p.code&&g.File?.FileNo);return {...p,changed:null,available,reason:available?'服务端当前已有此部分；尚无修改比较，请核对是否保留。':'服务端当前没有此部分。'};});
+  if(!group.some(g=>!isEmptyGuid(g.File?.FileNo)))return [];
+  return FIVE_PARTS.map(p=>{const available=group.some(g=>code(g.FormCode)===p.code&&!isEmptyGuid(g.File?.FileNo));return {...p,changed:null,available,reason:available?'服务端当前已有此部分；尚无修改比较，请核对是否保留。':'服务端当前没有此部分。'};});
+}
+export function remoteApplicationMissing(r:RemoteTransfer):string[]{
+  const group=list(r.instructions?.FormGroup),parts=existingTransferParts(r);
+  const missing:string[]=FIVE_PARTS.filter(p=>!parts.some(found=>found.code===p.code&&found.available)).map(p=>p.name);
+  if(!group.some(g=>flag(g.IsMixFile)&&!isEmptyGuid(g.File?.FileNo)))missing.push('完整申请文件');
+  const setting=r.instructions?.Setting??r.instructions?.InstructionsAndImageSetting??r.instructions??{};
+  if(!flag(setting.IsUseXmlFormatHand))missing.push('XML 递交设置');
+  return missing;
 }
 export function defaultTransferForm(r:RemoteTransfer|null):TransferForm{
   const f=r?.form??{},notice=r?.notice??{},o=f.OpinionStatement??{},c=f.Correction??{};
@@ -73,7 +161,7 @@ export function isRemoteTransferSaved(r:RemoteTransfer|null,route:TransferRoute)
   if(route==='reply'){
     const card=cards.find(c=>code(c.Code)==='100012');
     if(!card||!flag(card.IsSelect))return false;
-    const hasWord=Boolean(r.form?.File?.FileNo||(r.form?.File?.FileName&&r.files.some(f=>/(意见陈述|陈述意见|答复|审查意见)/.test(String(f.FileName||f.FormName||''))))||r.files.some(f=>/(意见陈述|陈述意见|答复|审查意见)/.test(String(f.FileName||f.FormName||''))||String(f.FileName||f.FormName||'').toLowerCase().endsWith('.docx')));
+    const hasWord=!!replyIdentity(r);
     if(!hasWord)return false;
     const op=r.form?.OpinionStatement;
     const noticeDate=String(op?.NoticeDate||r.notice?.PostDate||'').slice(0,10);
@@ -86,13 +174,7 @@ export function isRemoteTransferSaved(r:RemoteTransfer|null,route:TransferRoute)
     const card=cards.find(c=>['110101','120101'].includes(code(c.Code)));
     if(!card||!flag(card.IsSelect))return false;
     if(!r.form?.RequestInfo)return false;
-    const parts=existingTransferParts(r);
-    if(parts.filter(p=>p.available).length!==5)return false;
-    const setting=r.instructions?.Setting??r.instructions?.InstructionsAndImageSetting??r.instructions??{};
-    if(!flag(setting.IsUseXmlFormatHand))return false;
-    const group=list(r.instructions?.FormGroup);
-    if(!group.some(g=>flag(g.IsMixFile)&&g.File?.FileNo))return false;
-    return true;
+    return remoteApplicationMissing(r).length===0;
   }
   if(route==='correction'){
     const card=cards.find(c=>code(c.Code)==='100006');
@@ -156,7 +238,7 @@ export function rehydrateRemoteSavedView(input:{
     steps:input.r.steps,
     phase:'saved',
     results:['已从贝思兰德云端同步已保存的递交材料与表单，无需重复上传，可直接选择下一办理人并转交。'],
-    existingFileNames:fileNames,
+    existingFileNames:remoteFiles(input.r).map(f=>f.name),existingFiles:remoteFiles(input.r),
     at:new Date().toISOString(),
   };
 }
@@ -169,10 +251,15 @@ export function validateReview(route:TransferRoute,r:RemoteTransfer,review:Trans
   if(!flag(r.hand.IsReviewing))throw new Error('当前账号不能编辑此递交节点。');
   if(!review||!Array.isArray(review.keepCodes)||!review.form)throw new Error('核对表单无效。');
   if(new Set(review.keepCodes).size!==review.keepCodes.length||review.keepCodes.some(c=>!FIVE_PARTS.some(p=>p.code===c)))throw new Error('五书选择无效。');
-  if(route==='application'&&(!hasApplication||review.keepCodes.length!==5))throw new Error('提出申请需要完整申请文件和五书。');
+  if(route==='application'){
+    if(review.keepCodes.length!==5)throw new Error('提出申请需要保留完整五书。');
+    if(!hasApplication){
+      const missing=remoteApplicationMissing(r);
+      if(missing.length)throw new Error(`服务端申请材料尚不完整，缺少：${missing.join('、')}。请选择完整申请 Word 或补齐远端材料。`);
+    }
+  }
   if(!hasApplication&&review.keepCodes.some(c=>!existingTransferParts(r).some(p=>p.code===c&&p.available)))throw new Error('所选部分既没有本次申请文件，也不在服务端当前材料中。');
-  const remoteHasReply=Boolean(r.form?.File?.FileNo||(r.form?.File?.FileName)||r.files.some(f=>/(意见陈述|陈述意见|答复|审查意见)/.test(String(f.FileName||f.FormName||''))||String(f.FileName||f.FormName||'').toLowerCase().endsWith('.docx')));
-  if(route==='reply'&&!hasReply&&!remoteHasReply)throw new Error('尚未选择意见陈述书 Word。');
+  if(route==='reply'&&!hasReply&&!replyIdentity(r))throw new Error('尚未选择可确认非空文件编号的意见陈述书 Word，请重新选择或核对远端表单。');
   const f=reviewedForm(route,r,review);
   if((route==='reply'||route==='correction'&&f.correctionReason===2)&&(!/^\d{4}-\d{2}-\d{2}$/.test(f.noticeDate)||!f.noticeName.trim()||!f.noticeNo.trim()))throw new Error(route==='correction'?'贝思兰德未提供完整关联通知信息，请刷新当前流程后重试。':'请核对通知书日期、名称和发文序号。');
   if(route==='correction'){
@@ -299,6 +386,8 @@ export async function saveRemoteTransfer(input:{client:BaselandClient;processId:
   await ensure(r.formCode);
   let replyFile: {FileNo:string;FileName:string}|undefined;
   if(input.reply){guard();input.onWrite();replyFile={FileNo:await client.uploadDocument(input.reply.name,input.reply.bytes),FileName:input.reply.name};guard();}
+  if(route==='reply'&&!replyFile)replyFile=replyIdentity(r);
+  if(route==='reply'&&(!replyFile||isEmptyGuid(replyFile.FileNo)))throw new Error('答复文件编号无效，未保存业务表单。');
   const payload=transferPayload(route,r,review,replyFile);
   const formExists=route==='application'?!!r.form?.RequestInfo:route==='reply'?!!r.form?.OpinionStatement:!!r.form?.Correction;
   await q(saveEndpoint(route,formExists),payload);
@@ -313,20 +402,20 @@ export function matchesNextFlow(hand:Obj|null|undefined,handId:string|undefined,
   if(!hand||!step||!user)return false;
   const cur=hand.CurrentFlowInfo as Obj|undefined;
   if(!cur)return false;
-  if(handId&&id(hand.HandInfo?.CaseHandId)&&id(hand.HandInfo?.CaseHandId)!==handId)return false;
+  if(!handId||id(hand.HandInfo?.CaseHandId)!==handId)return false;
   const stepMatched=(Boolean(step.id)&&id(cur.CaseHandStepId)===step.id)||(isEmptyGuid(cur.CaseHandStepId)&&Boolean(step.name)&&clean(cur.FlowNodeName)===clean(step.name));
   const userMatched=(Boolean(user.id)&&id(cur.FlowUserId)===user.id)||(isEmptyGuid(cur.FlowUserId)&&Boolean(user.name)&&clean(cur.FlowUserName)===clean(user.name));
   return Boolean(stepMatched&&userMatched);
 }
 
-export async function submitRemoteTransfer(client:BaselandClient,processId:string,route:TransferRoute,r:RemoteTransfer,review:TransferReview,guard:()=>void,onSend?:()=>Promise<void>){
+export async function submitRemoteTransfer(client:BaselandClient,processId:string,route:TransferRoute,r:RemoteTransfer,review:TransferReview,guard:()=>void,onSend?:(target:{handId:string;step:{id:string;name:string};user:{id:string;name:string}})=>Promise<void>){
   const fresh=await readRemoteTransfer(client,processId,route);guard();
   if(!fresh||fresh.fingerprint!==r.fingerprint)throw new Error('保存后服务端流程或材料已变化，请重新核对。');
   if(!flag(fresh.hand.IsReviewing))throw new Error('当前账号已不能办理此节点，请刷新流程。');
   const step=fresh.steps.find(s=>s.id===review.stepId),user=step?.users.find(u=>u.id===review.userId);
   if(!step||!user)throw new Error('下一办理人已不在候选列表中。');
   if(id(fresh.hand.CurrentFlowInfo?.CaseHandStepId)===step.id&&id(fresh.hand.CurrentFlowInfo?.FlowUserId)===user.id)throw new Error('当前已位于所选节点和办理人，请核对流程，不能重复转交。');
-  await onSend?.();guard();
+  await onSend?.({handId:fresh.handId,step:{id:step.id,name:step.name},user:{id:user.id,name:user.name}});guard();
   const result=await client.request('/CaseInfo/SubmitHandFlow',{CaseHandId:r.handId,IsOutSideSend:false,CaseHandStepId:step.id,NextFlowUserid:user.id,CCUserIdList:[],Remark:review.remark});guard();assertWriteResult('SubmitHandFlow',result);
   let hand=await client.request('/CaseInfo/GetHandInfo',undefined,{caseProcId:processId});guard();
   let matched=matchesNextFlow(hand,r.handId,step,user);
@@ -339,79 +428,39 @@ export async function submitRemoteTransfer(client:BaselandClient,processId:strin
   return {node:(hand?.CurrentFlowInfo?.FlowNodeName as string)||step.name,user:(hand?.CurrentFlowInfo?.FlowUserName as string)||user.name};
 }
 
+export function isRemoteTransferCleared(r:RemoteTransfer,route:TransferRoute,targetFileNos:string[]=[]):boolean{
+  if(list(r.instructions?.FormGroup).some(g=>!isEmptyGuid(g.File?.FileNo)))return false;
+  if(route==='reply'&&!isEmptyGuid(r.form?.File?.FileNo))return false;
+  if(route==='correction'&&list(r.form?.CorrectionContentList).length)return false;
+  return !remoteFiles(r).some(f=>targetFileNos.includes(f.fileNo));
+}
 export async function clearRemoteTransfer(
-  client: BaselandClient,
-  processId: string,
-  route: TransferRoute,
-  guard: () => void,
-): Promise<RemoteTransfer | null> {
-  guard();
-  const r = await readRemoteTransfer(client, processId, route);
-  guard();
-  if (!r || !r.handId) return null;
-  if (!flag(r.hand.IsReviewing)) throw new Error('当前账号不能编辑此递交节点，无法清空材料。');
-
-  const params = { caseHandId: r.handId };
-  const q = async (ep: string, body?: Obj, p?: Record<string, string>, kind: 'data' | 'list' = 'data') => {
-    guard();
-    const res = await client.request('/CaseInfo/' + ep, body, p, undefined, kind);
-    guard();
-    return res;
+  client:BaselandClient,processId:string,route:TransferRoute,guard:()=>void,
+  expected?:{handId:string;fingerprint:string},
+):Promise<RemoteTransfer|null>{
+  guard();const r=await readRemoteTransfer(client,processId,route);guard();
+  if(!r||!r.handId)throw new Error('无法确认待清理的递交实例。');
+  if(expected&&(r.handId!==expected.handId||r.fingerprint!==expected.fingerprint))throw new Error('待清理的递交实例或材料已变化，未继续删除。');
+  if(!flag(r.hand.IsReviewing))throw new Error('当前账号不能编辑此递交节点，无法清空材料。');
+  const params={caseHandId:r.handId};
+  const q=async(ep:string,body?:Obj,p?:Record<string,string>)=>{
+    guard();const result=await client.request('/CaseInfo/'+ep,body,p);guard();assertWriteResult(ep,result);
   };
-
-  // 1. Delete InstructionsAndImage mix file if exists
-  try {
-    await q('DeleteFormInstructionsAndImageMixFile', undefined, params);
-  } catch {}
-
-  // 2. Delete five parts if exist
-  if (r.instructions?.FormGroup) {
-    const group = list(r.instructions.FormGroup);
-    for (const g of group) {
-      if (g.File?.FileNo && g.FormCode) {
-        try {
-          await q('DeleteFormFile', undefined, { ...params, formCode: id(g.FormCode) });
-        } catch {}
-      }
-    }
+  const group=list(r.instructions?.FormGroup);
+  const targetFileNos=[...group.map(g=>clean(g.File?.FileNo)),...(route==='reply'?[clean(r.form?.File?.FileNo)]:[])].filter(n=>!isEmptyGuid(n));
+  if(group.some(g=>flag(g.IsMixFile)&&!isEmptyGuid(g.File?.FileNo)))await q('DeleteFormInstructionsAndImageMixFile',undefined,params);
+  for(const g of group){
+    if(!flag(g.IsMixFile)&&!isEmptyGuid(g.File?.FileNo)&&g.FormCode)await q('DeleteFormFile',undefined,{...params,formCode:id(g.FormCode)});
   }
-
-  // 3. If reply route, reset opinion statement form file or call DeleteFormFile
-  if (route === 'reply' && r.formCode) {
-    try {
-      await q('DeleteFormFile', undefined, { ...params, formCode: '100012' });
-    } catch {}
-    if (r.form?.OpinionStatement) {
-      try {
-        const payload = {
-          CaseHandId: r.handId,
-          FormCode: 100012,
-          File: null,
-          OpinionStatement: {
-            ...r.form.OpinionStatement,
-            OpinionStatementContentType: 0,
-          },
-        };
-        await q(saveEndpoint('reply', true), payload);
-      } catch {}
-    }
+  if(route==='reply'&&!isEmptyGuid(r.form?.File?.FileNo)){
+    await q('DeleteFormFile',undefined,{...params,formCode:'100012'});
+    if(r.form?.OpinionStatement)await q(saveEndpoint('reply',true),{CaseHandId:r.handId,FormCode:100012,File:null,OpinionStatement:{...r.form.OpinionStatement,OpinionStatementContentType:0}});
   }
-
-  // 4. If correction route, clear correction rows
-  if (route === 'correction' && r.form?.Correction) {
-    try {
-      const payload = {
-        CaseHandId: r.handId,
-        FormCode: 100006,
-        Correction: r.form.Correction,
-        CorrectionContentList: [],
-      };
-      await q(saveEndpoint('correction', true), payload);
-    } catch {}
+  if(route==='correction'&&r.form?.Correction&&list(r.form.CorrectionContentList).length){
+    await q(saveEndpoint('correction',true),{CaseHandId:r.handId,FormCode:100006,Correction:r.form.Correction,CorrectionContentList:[]});
   }
-
-  // Re-read remote transfer to verify
-  const after = await readRemoteTransfer(client, processId, route);
-  guard();
+  const after=await readRemoteTransfer(client,processId,route);guard();
+  if(!after||after.handId!==r.handId)throw new Error('清理后递交实例无法匹配，请刷新核对；不能认定清理成功。');
+  if(!isRemoteTransferCleared(after,route,targetFileNos))throw new Error('远端仍保留目标文件或补正条目，清理未全部完成，请刷新核对。');
   return after;
 }

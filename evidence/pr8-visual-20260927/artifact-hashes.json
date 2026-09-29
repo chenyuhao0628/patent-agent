@@ -1,0 +1,39 @@
+{
+  "date": "2026-09-27",
+  "productionAssets": [
+    {
+      "file": "index-CCgUDC2Y.css",
+      "sha256": "5c894bea8cdd769f4eff5e9c9e58befde729b72cbb69ffd42bb92cea8523a126"
+    },
+    {
+      "file": "index-DrKiNb3p.js",
+      "sha256": "1db45b6764b812d3a5e6198cda38c2a56eee454e69a9f8e1d4ad3e5562092795"
+    }
+  ],
+  "evidence": [
+    {
+      "file": "evidence/pr8-visual-20260927/library-desktop.png",
+      "sha256": "b59ea53d77cbff09e58b835fd4e544e19ad5fdb2b6f288a5b8a9c699fd60fdb7"
+    },
+    {
+      "file": "evidence/pr8-visual-20260927/refresh-busy-desktop.png",
+      "sha256": "c084a1f221e7b563c9582e1cdf8d3ce1f2ea37c04c0447bd10743119b2466a1c"
+    },
+    {
+      "file": "evidence/pr8-visual-20260927/materials-updated-desktop.png",
+      "sha256": "548e305731fdd4ff8f2543e83d360a83d5e8545bb5f9e88b8c23a4231d17e3c9"
+    },
+    {
+      "file": "evidence/pr8-visual-20260927/refresh-error-mobile.png",
+      "sha256": "82cae2087b2c2423865547721f6928bf1c56199cabcbfb2e16d0a26478dc0037"
+    },
+    {
+      "file": "evidence/pr8-visual-20260927/flow-mobile.png",
+      "sha256": "164bdce3dafb833570ab7c2ecce28a5e576f5aab340c4bf7af75da869c0f0a07"
+    },
+    {
+      "file": "evidence/pr8-visual-20260927/case-isolation-desktop.png",
+      "sha256": "16c0ef7021e3b75eee6d7a94964b6aca6f0c301c939e39ab44fae033ea9e449f"
+    }
+  ]
+}
