@@ -1,0 +1,53 @@
+{
+  "version": "0.15.2",
+  "builtAt": "2026-09-29T08:39:53.220Z",
+  "appId": "com.patentworkbench.desktop",
+  "productName": "专利工作台",
+  "files": [
+    {
+      "file": "专利工作台-0.15.2-macOS-arm64.app",
+      "platform": "mac-arm64",
+      "version": "0.15.2",
+      "sha256": "9552043ab619b7d14b1ee54e344aa10df3ac090f61892ae55cda2b1d22540b22",
+      "hashAlgorithm": "sha256-tree"
+    },
+    {
+      "file": "PatentWorkbench-0.15.2-macOS-arm64.pkg",
+      "platform": "mac-arm64-installer",
+      "version": "0.15.2",
+      "sha256": "13a8f8bab6f0995b9883a0480a0bc2e821b84a251d9dc9f95a7c081600e586f3",
+      "hashAlgorithm": "sha256"
+    },
+    {
+      "file": "PatentWorkbench-0.15.2-Windows-x64-Setup.exe",
+      "platform": "win-x64",
+      "version": "0.15.2",
+      "sha256": "40fc8c95e14ca769d7145c49b3fc37e24e9c33a310c85292637e336a91238ae8",
+      "hashAlgorithm": "sha256"
+    }
+  ],
+  "sourceCommit": "025500fa79f875e25f40a57623b865c28d1bfd22",
+  "verification": {
+    "automatedTests": {
+      "passed": 725,
+      "failed": 0,
+      "cancelled": 0,
+      "skipped": 0
+    },
+    "build": "passed (TypeScript, Vite, desktop bundles)",
+    "packageSelfCheck": "passed (both platforms; asar, runtime, resources, version)",
+    "artifactChecksums": "all three independently recalculated and matched",
+    "previousArtifacts": "0.14.0 and 0.15.1 preserved",
+    "unverified": [
+      "macOS and Windows installation of 0.15.2",
+      "real Baseland deletion/save/transfer",
+      "native Word pagination",
+      "unresolved earlier renderer crash"
+    ],
+    "releaseSigning": "unsigned; macOS not notarized"
+  },
+  "logs": {
+    "tests": "/tmp/patent-0.15.2-precommit-test.log",
+    "package": "/tmp/patent-0.15.2-package.log"
+  }
+}
