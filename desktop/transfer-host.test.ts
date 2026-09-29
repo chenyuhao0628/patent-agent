@@ -765,6 +765,72 @@ test('removeFile removes local prepared file and restores parts keepCodes',async
   await assert.rejects(host.removeFile(service.key,v.id,'reply'),/已保存或已转交/);
 });
 
+for(const mismatch of [false,true]){
+  test(`reused remote reply Word ${mismatch?'rejects a changed FileNo on readback':'saves edited form without reupload and survives reopen'}`,async t=>{
+    const {service,client,host,agent,c,source}=await setup(t);
+    let v=await host.prepare(service.key,c.id);
+    v=await host.addFile(service.key,v.id,'reply',source);
+    v=await host.save(service.key,v.id,v.review);
+    assert.equal(v.phase,'saved');
+    const originalFile=structuredClone(client.form.File),uploads=client.serial;
+    v=await host.revoke(service.key,v.id);
+    v=await host.removeFile(service.key,v.id,'reply');
+    assert.equal(v.files.length,0);
+    if(mismatch){
+      const request=client.request.bind(client);
+      client.request=async(endpoint,body,params)=>{
+        const result=await request(endpoint,body,params);
+        if(endpoint.endsWith('UpdateFormOpinionStatement'))client.badReadback=true;
+        return result;
+      };
+    }
+    const edited={...v.review,form:{...v.review.form,otherProof:true}};
+    v=await host.save(service.key,v.id,edited);
+    assert.equal(client.serial,uploads,'reusing the saved Word must not upload again');
+    assert.deepEqual(client.form.File,originalFile);
+    assert.equal(client.form.OpinionStatement.IsUseOtherProveFileHand,true);
+    assert.equal(v.phase,mismatch?'uncertain':'saved');
+    if(mismatch){
+      assert.match(v.error!,/业务表单回读不一致/);
+      await assert.rejects(host.submit(service.key,v.id),/先完成文件与表单保存验收/);
+    }else{
+      const reopened=await new TransferHost(service,agent).inspect(service.key,c.id);
+      assert.equal(reopened?.phase,'saved');
+      assert.equal(reopened?.review.form.otherProof,true);
+      assert.equal(reopened?.files.length,0);
+    }
+    assert.equal(client.calls.some(call=>call.endpoint.endsWith('SubmitHandFlow')),false);
+  });
+}
+
+test('remote cleanup write failure stays uncertain across reopen without repeating deletion',async t=>{
+  const {service,client,host,agent,c,source}=await setup(t);
+  let v=await host.prepare(service.key,c.id);
+  v=await host.addFile(service.key,v.id,'reply',source);
+  v=await host.save(service.key,v.id,v.review);
+  const originalFile=structuredClone(client.form.File);
+  const request=client.request.bind(client);
+  let deletes=0;
+  client.request=async(endpoint,body,params)=>{
+    if(endpoint.endsWith('DeleteFormFile')){deletes++;throw new Error('synthetic cleanup write failure');}
+    return request(endpoint,body,params);
+  };
+  v=await host.clearRemote(service.key,v.id);
+  assert.equal(v.phase,'uncertain');
+  assert.equal(v.cleanupPending,true);
+  assert.match(v.error!,/synthetic cleanup write failure/);
+  assert.deepEqual(client.form.File,originalFile);
+  const reopened=new TransferHost(service,agent);
+  const inspected=await reopened.inspect(service.key,c.id);
+  assert.equal(inspected?.phase,'uncertain');
+  v=await reopened.refresh(service.key,v.id);
+  assert.equal(v.phase,'uncertain');
+  assert.equal(v.cleanupPending,true);
+  await assert.rejects(reopened.submit(service.key,v.id),/先完成文件与表单保存验收/);
+  assert.equal(deletes,1,'recovery must only read, never retry the delete');
+  assert.deepEqual(client.form.File,originalFile);
+});
+
 test('clearRemote deletes remote files, resets form, and keeps draft state',async t=>{
   const {service,client,host,c,source}=await setup(t);
   let v=await host.prepare(service.key,c.id);

@@ -59,6 +59,20 @@ test('scope changes stop source replacement after the draft has been persisted',
   assert.equal(ran,false);
 });
 
+test('failed local review save leaves source and edited form untouched',async()=>{
+  const current=view();
+  const edited=review('未落盘的用户输入');
+  const before=structuredClone({current,edited});
+  await assert.rejects(runScopedTransferAction({
+    persist:()=>persistTransferReview('profile-1',current,edited,async()=>{throw new Error('synthetic disk failure');}),
+    isCurrent:()=>true,
+    run:async()=>assert.fail('source must not change after failed persistence'),
+    onPersisted:()=>assert.fail('failed save must not be acknowledged'),
+    onComplete:()=>assert.fail('cached input must not be cleared'),
+  }),/synthetic disk failure/);
+  assert.deepEqual({current,edited},before);
+});
+
 test('cached drafts are cloned and cannot be mutated through acknowledged view objects',()=>{
   const current=view();
   const edited=review('本地缓存');
