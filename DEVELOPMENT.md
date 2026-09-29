@@ -1,6 +1,6 @@
 # 开发与架构入口
 
-更新：2026-09-30。源码修复版 **0.15.3**；当前版本以 [package.json](package.json) 和 [安装清单](release/release-manifest.json) 为准，安装清单待本轮构建成功后更新。本文只导航技术规范，阶段状态与待办统一维护在 [EXEC_PLAN.md](EXEC_PLAN.md)。
+更新：2026-09-30。应用修复版 **0.15.3**；当前版本以 [package.json](package.json) 和 [安装清单](release/release-manifest.json) 为准。本文只导航技术规范，阶段状态与待办统一维护在 [EXEC_PLAN.md](EXEC_PLAN.md)。
 
 ## 架构分册
 

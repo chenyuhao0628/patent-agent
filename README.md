@@ -5,7 +5,7 @@
 ## 当前状态
 
 - 当前源码为修复版 **0.15.3**，包含撰写阅读区独立滚动、布局调整和 Windows 菜单移除；继承五项实测修复、远端单文件关联删除和材料界面统一。
-- 0.15.3 双平台安装包正在构建，成功后替换旧包并更新安装清单。统一面板注册仅完成可行性评估，尚未实施。
+- 0.15.3 双平台安装包已于 2026-09-30（北京时间）构建并通过摘要校验，旧版本包已清理。统一面板注册仅完成可行性评估，尚未实施。
 - 源码、自动化、真实服务、桌面 GUI 和安装验收分别记录；完整交付验收仍未完成。当前缺口见 [实施计划](EXEC_PLAN.md)，已完成记录见 [模块归档](docs/archive/README.md)。
 
 ## 文档入口
@@ -21,7 +21,7 @@
 
 ## 安装
 
-以 [当前安装清单](release/release-manifest.json) 为准，release 仅保留最新版本制品及清单：macOS Apple Silicon 使用 `.app` / `.pkg`，Windows x64 使用 NSIS `.exe`。构建与摘要证据见 [0.15.2 记录](evidence/release-0.15.2-20260929.json)。
+以 [当前安装清单](release/release-manifest.json) 为准，release 仅保留最新版本制品及清单：macOS Apple Silicon 使用 `.app` / `.pkg`，Windows x64 使用 NSIS `.exe`。构建与摘要证据见 [0.15.3 记录](evidence/release-0.15.3-20260930.json)。安装制品仅保存在本机，GitHub 同步源码、文档与证据。
 
 安装器使用固定应用标识并保留用户数据；Mac 安装至所选安装域的 Applications，Windows 保留安装路径和 AppData。账号、加密凭证和本机设置在应用数据目录；工作目录与原始申请库单独选择。当前包无发行签名、macOS 公证及在线自动更新。
 

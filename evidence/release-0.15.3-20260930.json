@@ -1,0 +1,112 @@
+{
+  "version": "0.15.3",
+  "builtAt": "2026-09-29T16:34:14.252Z",
+  "appId": "com.patentworkbench.desktop",
+  "productName": "专利工作台",
+  "files": [
+    {
+      "file": "专利工作台-0.15.3-macOS-arm64.app",
+      "platform": "mac-arm64",
+      "version": "0.15.3",
+      "sha256": "2f0f578e2607730c809fc28db1416285b6dadae48473840e5898af3ad382f456",
+      "hashAlgorithm": "sha256-tree"
+    },
+    {
+      "file": "PatentWorkbench-0.15.3-macOS-arm64.pkg",
+      "platform": "mac-arm64-installer",
+      "version": "0.15.3",
+      "sha256": "9e51456baaec3f77c19e5f383c31d59576b3c497eeb4abd5442ce6a5d722d2ad",
+      "hashAlgorithm": "sha256"
+    },
+    {
+      "file": "PatentWorkbench-0.15.3-Windows-x64-Setup.exe",
+      "platform": "win-x64",
+      "version": "0.15.3",
+      "sha256": "fc0b23709a8fef274b6f24cc9a2eb0b2ce1fb9162ac46adcfce7f88a2d1ef019",
+      "hashAlgorithm": "sha256"
+    }
+  ],
+  "sourceCommit": "d99da2193d56b09d6eab99ff8c9afe0f1d085cc7",
+  "verifiedAt": "2026-09-29T16:35:09.071Z",
+  "verification": {
+    "automatedTests": {
+      "tests": 729,
+      "pass": 729,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0
+    },
+    "build": "passed: TypeScript, Vite and desktop bundles",
+    "packageSelfCheck": "passed: macOS and Windows asar, runtime, templates, skills, identity and version",
+    "artifactChecksums": [
+      {
+        "file": "专利工作台-0.15.3-macOS-arm64.app",
+        "sha256": "2f0f578e2607730c809fc28db1416285b6dadae48473840e5898af3ad382f456",
+        "matched": true
+      },
+      {
+        "file": "PatentWorkbench-0.15.3-macOS-arm64.pkg",
+        "sha256": "9e51456baaec3f77c19e5f383c31d59576b3c497eeb4abd5442ce6a5d722d2ad",
+        "matched": true
+      },
+      {
+        "file": "PatentWorkbench-0.15.3-Windows-x64-Setup.exe",
+        "sha256": "fc0b23709a8fef274b6f24cc9a2eb0b2ce1fb9162ac46adcfce7f88a2d1ef019",
+        "matched": true
+      }
+    ],
+    "macPackagedMainMatchesBuild": true,
+    "releaseDirectory": [
+      "PatentWorkbench-0.15.3-Windows-x64-Setup.exe",
+      "PatentWorkbench-0.15.3-macOS-arm64.pkg",
+      "release-manifest.json",
+      "专利工作台-0.15.3-macOS-arm64.app"
+    ],
+    "oldArtifactsRemoved": true,
+    "stagingAndLockRemoved": true,
+    "releaseSigning": "no distribution signing; macOS not notarized",
+    "unverified": [
+      "0.15.3 macOS and Windows installation and native GUI",
+      "native Word pagination and layout",
+      "real model quality and Baseland write regression",
+      "earlier renderer native crash root cause"
+    ],
+    "documentationLinks": {
+      "markdownFiles": 35,
+      "localTargets": 186,
+      "missing": 0
+    },
+    "signingInspection": {
+      "macInstaller": "pkgutil: no signature",
+      "macApp": "codesign: ad hoc; no TeamIdentifier or sealed resources"
+    }
+  },
+  "delivery": {
+    "status": "source-pushed-and-verified",
+    "skipMarkers": [
+      "[skip ci]",
+      "[skip actions]"
+    ],
+    "pushTags": false,
+    "uploadArtifacts": false,
+    "githubRelease": false,
+    "actionsBefore": {
+      "workflowCount": 0,
+      "runCount": 0,
+      "enabled": true
+    },
+    "branch": "main",
+    "remoteSourceCommit": "d99da2193d56b09d6eab99ff8c9afe0f1d085cc7",
+    "sourcePushVerifiedAt": "2026-09-29T16:37:20.862Z",
+    "actionsAfterSourcePush": {
+      "workflowCount": 0,
+      "runCount": 0
+    },
+    "actionsSettingsChanged": false,
+    "documentationReceipt": "subsequent documentation commit with the same skip-CI markers"
+  },
+  "logs": {
+    "tests": "/tmp/patent-0.15.3-tests-20260930.log",
+    "package": "/tmp/patent-0.15.3-package-20260930.log"
+  }
+}
