@@ -13,3 +13,38 @@
 .writing-references{display:grid;gap:10px;min-width:0}.reference-row{display:grid;gap:7px;border-bottom:1px solid var(--line);padding:10px 0;overflow-wrap:anywhere}.reference-row .checkbox{align-items:flex-start}.reference-row .button-row{flex-wrap:wrap}
 
 .professional-result .section-heading{flex-wrap:wrap;gap:12px}.professional-result .section-heading select{max-width:100%}.transfer-source-confirm{padding:14px;margin:12px 0;background:#f5f3ff;border:1px solid #ded8f3;border-radius:8px}.transfer-source-confirm p{margin-bottom:8px}
+
+/* Keep writing controls outside the growing document and streaming output. */
+.professional-grid{--writing-body-height:clamp(360px,52dvh,640px);align-items:start}
+.professional-grid>.professional-writing-input,.professional-writing-result{min-height:0;min-width:0;display:flex;flex-direction:column;overflow:hidden}
+.professional-grid>.professional-writing-input{height:calc(var(--writing-body-height) + 300px);padding-inline:8px}
+.professional-input-scroll,.professional-stream-scroll{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable;overflow-wrap:anywhere}
+.professional-input-scroll{margin-right:-8px;padding-right:12px}
+.professional-input-scroll>.field{margin-top:0}
+.professional-input-scroll textarea{max-height:220px}
+.professional-input-scroll .professional-materials{max-height:none;overflow:visible}
+.professional-input-actions{display:grid;gap:10px;flex-shrink:0;padding-top:12px;border-top:1px solid var(--line)}
+.professional-input-actions button{white-space:normal}
+.professional-writing-result>.section-heading,.professional-writing-result>.professional-tool-history,.professional-confirmation{flex-shrink:0}
+.professional-writing-result>.section-heading{margin-bottom:8px;align-items:center}
+.professional-writing-result>.professional-tool-history{max-height:80px;overflow:auto;overscroll-behavior:contain}
+.professional-writing-result>.stage-word-preview{display:flex;flex-direction:column;flex:1;min-height:0}
+.professional-writing-result .stage-word-preview>.section-heading,.professional-writing-result .stage-word-preview>.muted{flex-shrink:0}
+.professional-writing-result .stage-word-preview>.section-heading{margin:8px 0}
+.professional-writing-result .stage-word-preview>.muted{margin:0;font-size:11px;line-height:1.6}
+.professional-writing-result .stage-word-page{flex:none;height:var(--writing-body-height);overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable;width:calc(100% - 16px);max-width:1160px;margin:12px auto 0;padding:28px clamp(16px,2.5vw,36px);font-size:15px;line-height:1.85}
+.professional-writing-result .stage-word-page>:first-child{margin-top:0}
+.professional-stream-scroll{flex:none;height:var(--writing-body-height);width:calc(100% - 16px);max-width:1160px;margin:12px auto 0;padding:28px clamp(16px,2.5vw,36px);font-size:15px;line-height:1.85}
+.professional-stream-scroll>.formatted-formula-text{font-size:inherit;line-height:inherit}
+.professional-writing-result .stage-word-page:focus-visible,.professional-stream-scroll:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.professional-confirmation{padding-top:12px;border-top:1px solid var(--line);margin-top:12px}
+.professional-confirmation>.field{max-width:none;margin:0 0 10px}
+.professional-confirmation textarea{resize:none;min-height:60px;max-height:90px}
+.professional-confirmation>button{white-space:normal;max-width:100%}
+@media(max-width:850px){
+  .professional-grid{grid-template-columns:minmax(0,1fr);--writing-body-height:clamp(320px,55dvh,520px)}
+  .professional-grid>.professional-writing-input{height:auto;max-height:640px}
+  .professional-input-scroll{max-height:380px}
+  .professional-writing-result{padding:16px}
+  .professional-writing-result .stage-word-page{padding:20px 16px}
+}
