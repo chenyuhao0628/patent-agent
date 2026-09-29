@@ -33,7 +33,7 @@
 
 ## 安装
 
-当前安装制品以 `release/release-manifest.json` 中的 `0.15.2` 为准；已有 `0.14.0` 和 `0.15.1` 制品及对应历史清单原样保留：
+当前安装制品以 `release/release-manifest.json` 中的 `0.15.2` 为准；2026-09-29 按用户最新要求清理旧版，`release/` 仅保留最新版本制品和当前清单：
 
 - macOS Apple Silicon：`.pkg` 或 `.app`
 - Windows x64：NSIS `.exe`
