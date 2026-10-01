@@ -12,3 +12,6 @@ release-staging/
 .package-release.lock
 resources/agent-runtime/
 .workbuddy/
+
+# 证据目录内的 esbuild 构建产物可重建
+evidence/ui-polish-20260930/bundle/

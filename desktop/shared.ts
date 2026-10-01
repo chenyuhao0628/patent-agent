@@ -201,6 +201,7 @@ function readOfficialOutcome(value:unknown):Case['officialOutcome']{
   if(!value||typeof value!=='object')return;
   const v=value as Record<string,unknown>;
   if(!['granted','rejected','none'].includes(String(v.state))||typeof v.checkedAt!=='string'||!v.checkedAt)return;
+  const ids=Array.isArray(v.concludedProcessIds)?v.concludedProcessIds.filter((x):x is string=>typeof x==='string'&&!!x).slice(0,64):undefined;
   return {
     state:v.state as NonNullable<Case['officialOutcome']>['state'],
     noticeName:text(v.noticeName,200)||undefined,
@@ -208,5 +209,6 @@ function readOfficialOutcome(value:unknown):Case['officialOutcome']{
     postDate:text(v.postDate,40)||undefined,
     checkedAt:v.checkedAt,
     ...(v.incomplete===true?{incomplete:true}:{}),
+    ...(ids?.length?{concludedProcessIds:ids}:{}),
   };
 }

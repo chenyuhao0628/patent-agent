@@ -1,0 +1,67 @@
+{
+  "ok": true,
+  "tab_id": 636651987,
+  "value": {
+    "actions": null,
+    "calls": [
+      {
+        "jobId": "stopped-write",
+        "type": "resume"
+      },
+      {
+        "type": "stop"
+      }
+    ],
+    "confirm": null,
+    "current": "当前：审查意见答复",
+    "document": null,
+    "headers": [],
+    "input": null,
+    "nav": [
+      "概览",
+      "材料",
+      "答复",
+      "稿件审查",
+      "办理历史",
+      "成果",
+      "贝思兰德流程"
+    ],
+    "overlay": false,
+    "pageOverflow": false,
+    "panels": [
+      {
+        "box": {
+          "clientHeight": 145,
+          "h": 147,
+          "overflowY": "visible",
+          "scrollHeight": 145,
+          "scrollTop": 0,
+          "w": 1344,
+          "x": 469,
+          "y": 416.8828125
+        },
+        "horizontalOverflow": false
+      },
+      {
+        "box": {
+          "clientHeight": 44,
+          "h": 46,
+          "overflowY": "visible",
+          "scrollHeight": 44,
+          "scrollTop": 0,
+          "w": 1344,
+          "x": 469,
+          "y": 575.8828125
+        },
+        "horizontalOverflow": false
+      }
+    ],
+    "title": "专利工作台 · UI 一致性验证",
+    "url": "http://127.0.0.1:4187/",
+    "viewport": {
+      "dpr": 1,
+      "height": 1080,
+      "width": 1920
+    }
+  }
+}

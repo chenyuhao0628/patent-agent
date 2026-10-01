@@ -1,0 +1,17 @@
+{
+  "ok": true,
+  "tab_id": 636651987,
+  "value": {
+    "calls": [
+      {
+        "jobId": "stopped-write",
+        "type": "resume"
+      },
+      {
+        "type": "stop"
+      }
+    ],
+    "caption": "当前任务 · 已停止 · 2026/9/30 10:46:47 · stopped-",
+    "stream": false
+  }
+}

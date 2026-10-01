@@ -1,0 +1,11 @@
+@vom 1
+@view 1905x1080
+@layers 2 focus=L1
+L1 modal cover=5%
+  dialog "历史内容 · 只读 历史审查意见答复 历史答复稿"
+    heading "历史内容 · 只读"
+      StaticText "历史内容 · 只读"
+    @e1 button "关闭"
+    StaticText "历史审查意见答复"
+    StaticText "历史答复稿"
+L2 page … occluded by L1 (~28 nodes, not actionable)

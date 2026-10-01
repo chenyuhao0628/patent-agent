@@ -26,7 +26,10 @@ export type CurrentFlowInfo = {name:string;user:string;serial?:number;total?:num
 export type RemoteProcess = {personalStatus?:number;canEdit?:boolean;procCode?:string;flowRemark?:string;officeNote?:string;procNote?:string;id:string;name:string;status:number;node:string;undertaker:string;deadline:string;officialDeadline?:string;officialDeadlineSource?:OfficialDeadlineSource;baselandDeadline?:string;internalDeadline?:string;handId?:string;submission?:Submission;currentFlow?:CurrentFlowInfo;needSendOfficial?:boolean};
 // 官方结论只来自贝思兰德官文清单判读：已授权（办理登记手续通知书/专利证书）、已驳回（驳回决定）、未见结果（清单里没有结论类官文）。
 // 字段缺失表示尚未判读；「未见结果」不等于官方未授权，界面必须保留这一区分。
-export type OfficialOutcome = {state:'granted'|'rejected'|'none';noticeName?:string;noticeTypeCode?:string;postDate?:string;checkedAt:string;incomplete?:boolean};
+export type OfficialOutcome = {state:'granted'|'rejected'|'none';noticeName?:string;noticeTypeCode?:string;postDate?:string;checkedAt:string;incomplete?:boolean;
+  /** 结论所属流程：判读当时已结束（或当前正在办理）的流程。之后出现的新流程（如驳回后的复审）不被结论锁住。 */
+  concludedProcessIds?:string[];
+};
 /** Flat compatibility shape for legacy sync, file adapters and renderer IPC. */
 export type Case = CaseIdentityRecord & CaseStorageRecord & {
   current?: CurrentWork;

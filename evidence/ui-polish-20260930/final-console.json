@@ -1,0 +1,124 @@
+{
+  "session_id": "grjd",
+  "run": {
+    "id": "dc8c3d0f8ac64",
+    "session_id": "grjd",
+    "tab_id": 636651987,
+    "name": "最终页面与历史回归",
+    "url": "http://127.0.0.1:4187/",
+    "started_at": 1790738081851.0,
+    "state": "capturing",
+    "requests": 7,
+    "operations": 3,
+    "errors": 1,
+    "dropped_requests": 0,
+    "dropped_operations": 0,
+    "dropped_console": 0,
+    "coverage": [
+      "from_start",
+      "task_tab",
+      "text_bodies_bounded",
+      "time_window_not_causality",
+      "page_main_frame",
+      "worker_targets_not_captured",
+      "manual_main_frame_only",
+      "initial_load_not_recorded"
+    ],
+    "next_since": 58,
+    "active_rules": 0,
+    "saved_at": 1790738176616.0,
+    "storage": {
+      "bytes": 88333,
+      "dropped": 0,
+      "pins": 0,
+      "requests": 7
+    },
+    "environment": {
+      "extension_version": "0.3.1",
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36"
+    }
+  },
+  "console": [
+    {
+      "id": "dc8c3d0f8ac64:c1",
+      "at": 1790738082030.0,
+      "level": "info",
+      "text": "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+      "count": 1,
+      "last_at": 1790738082030.0,
+      "stack": " http://127.0.0.1:4187/bundle/fixture.js:23474:54\nnode_modules/react-dom/cjs/react-dom-client.development.js http://127.0.0.1:4187/bundle/fixture.js:23548:7\n__require http://127.0.0.1:4187/bundle/fixture.js:17:52\nnode_modules/react-dom/client.js http://127.0.0.1:4187/bundle/fixture.js:23560:24\n__require http://127.0.0.1:4187/bundle/fixture.js:17:52\n http://127.0.0.1:4187/bundle/fixture.js:82768:29",
+      "source": "website",
+      "source_url": "http://127.0.0.1:4187/bundle/fixture.js"
+    },
+    {
+      "id": "dc8c3d0f8ac64:c2",
+      "at": 1790738082103.0,
+      "level": "log",
+      "text": "购物党隐私说明（键入disable_gwd_privacy()不再显示本声明）：",
+      "count": 1,
+      "last_at": 1790738082103.0,
+      "stack": " chrome-extension://jgphnjokjhjlcnnajmfjlacjnjkhleah/js/main.js:462:13",
+      "source": "extension",
+      "source_url": "chrome-extension://jgphnjokjhjlcnnajmfjlacjnjkhleah/js/main.js"
+    },
+    {
+      "id": "dc8c3d0f8ac64:c3",
+      "at": 1790738082103.0,
+      "level": "log",
+      "text": "    我们不会收集用户个人隐私信息，只会收集一些简单的产品交互行为，帮助改善产品，例如记录某个模块点击次数，更多信息请关注：",
+      "count": 1,
+      "last_at": 1790738082103.0,
+      "stack": " chrome-extension://jgphnjokjhjlcnnajmfjlacjnjkhleah/js/main.js:463:13",
+      "source": "extension",
+      "source_url": "chrome-extension://jgphnjokjhjlcnnajmfjlacjnjkhleah/js/main.js"
+    },
+    {
+      "id": "dc8c3d0f8ac64:c4",
+      "at": 1790738082103.0,
+      "level": "log",
+      "text": "隐私协议: https://www.gwdang.com/static_page/privacy_policy.html",
+      "count": 1,
+      "last_at": 1790738082103.0,
+      "stack": " chrome-extension://jgphnjokjhjlcnnajmfjlacjnjkhleah/js/main.js:464:13",
+      "source": "extension",
+      "source_url": "chrome-extension://jgphnjokjhjlcnnajmfjlacjnjkhleah/js/main.js"
+    },
+    {
+      "id": "dc8c3d0f8ac64:c5",
+      "at": 1790738082124.0,
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED",
+      "count": 1,
+      "last_at": 1790738082124.0,
+      "source": "extension",
+      "source_url": "chrome-extension://invalid/"
+    },
+    {
+      "id": "dc8c3d0f8ac64:c6",
+      "at": 1790738082308.0,
+      "level": "info",
+      "text": "%c2026-09-30T03:14:42.307Z %c[KISS-Translator] %c[INFO] color: gray; font-weight: lighter; color: #7c57e0; font-weight: bold; color: #4CAF50; font-weight: bold; Input Translator enabled.",
+      "count": 1,
+      "last_at": 1790738082308.0,
+      "stack": "_log chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:778794\ninfo chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:779360\nenable chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:1854131\nvP chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:1853544\nZG chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:2294237\nstart chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:2292233\n chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:2311916",
+      "source": "extension",
+      "source_url": "chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js"
+    },
+    {
+      "id": "dc8c3d0f8ac64:c7",
+      "at": 1790738082309.0,
+      "level": "info",
+      "text": "%c2026-09-30T03:14:42.308Z %c[KISS-Translator] %c[INFO] color: gray; font-weight: lighter; color: #7c57e0; font-weight: bold; color: #4CAF50; font-weight: bold; TranslatorManager started.",
+      "count": 1,
+      "last_at": 1790738082309.0,
+      "stack": "_log chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:778794\ninfo chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:779360\nstart chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:2292444\n chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:2311916",
+      "source": "extension",
+      "source_url": "chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js"
+    }
+  ],
+  "output": {
+    "budget": 65536,
+    "omitted": [],
+    "truncated": false
+  }
+}

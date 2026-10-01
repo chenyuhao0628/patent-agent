@@ -604,7 +604,7 @@ export class AgentHost implements AgentAPI {
           item.ready = false;
           continue;
         }
-        item.hash = digest(await fs.readFile(abs));
+        item.hash = digest(await readBoundedFile(abs, MAX_MATERIAL_BYTES));
       } catch {
         item.ready = false;
       }
@@ -700,7 +700,7 @@ export class AgentHost implements AgentAPI {
           await assertNoSymlinkAncestors(root, target);
           let fileBytes: Buffer;
           try {
-            fileBytes = await fs.readFile(target);
+            fileBytes = await readBoundedFile(target, MAX_MATERIAL_BYTES);
           } catch {
             continue;
           }
@@ -1501,7 +1501,7 @@ export class AgentHost implements AgentAPI {
       return portablePath;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
-      const existing = await fs.readFile(abs);
+      const existing = await readBoundedFile(abs, MAX_MATERIAL_BYTES);
       if (digest(existing) === digest(content)) return portablePath;
       throw new Error('已有成果不能覆盖。');
     }

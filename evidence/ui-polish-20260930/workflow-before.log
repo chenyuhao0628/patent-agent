@@ -1,0 +1,25 @@
+✖ returning to a writing step does not re-confirm results from the previous writing context (50.812833ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 298.161291
+
+✖ failing tests:
+
+test at desktop/professional-host.test.ts:376:1
+✖ returning to a writing step does not re-confirm results from the previous writing context (50.812833ms)
+  AssertionError [ERR_ASSERTION]: Missing expected rejection.
+      at async TestContext.<anonymous> (file:///Users/cyh/Documents/ChatGPT/patent-agent/desktop/professional-host.test.ts:384:2)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /阶段结果|当前版本/,
+    operator: 'rejects',
+    diff: 'simple'
+  }

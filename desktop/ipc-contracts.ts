@@ -439,6 +439,7 @@ export function ipcProfessionalCommand(value: unknown): ProfessionalCommand {
   } else if (type === 'confirm') {
     fieldString(record, 'jobId', '任务标识');
     if (typeof record.decision !== 'string' || record.decision.length > PROFESSIONAL_DECISION_MAX) throw new Error('确认意见无效。');
+    if (record.adoptEarlier !== undefined && typeof record.adoptEarlier !== 'boolean') throw new Error('采用旧稿确认标记无效。');
   } else if (type === 'restart' || type === 'start-at') {
     if (!Number.isInteger(record.phase) || Number(record.phase) < 0 || Number(record.phase) > 4) throw new Error('撰写阶段无效。');
   } else if (type === 'review') {

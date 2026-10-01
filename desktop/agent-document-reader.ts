@@ -8,16 +8,14 @@ import mammoth from 'mammoth';
 import JSZip from 'jszip';
 import { MCP_RESPONSE_MAX_BYTES } from './agent-broker.ts';
 import type { FrozenMaterial, McpContent, ReadMaterialCallback, ToolRange } from './agent-runner.ts';
-import { digest, readBoundedFile } from './files.ts';
+import { digest, readBoundedFile, inspectZipLimits, MAX_MATERIAL_BYTES } from './files.ts';
 import { renderPdfPage } from './document-visual.ts';
 import { convertOldDoc } from './document-converter.ts';
 
-export const MAX_MATERIAL_BYTES = 20 * 1024 * 1024;
+export { inspectZipLimits, MAX_MATERIAL_BYTES };
 export const MAX_IMAGE_BYTES = 600 * 1024;
 export const MAX_TEXT_CHARS = 40_000;
 export const MAX_TEXT_LINES = 1_000;
-export const MAX_ZIP_UNCOMPRESSED = 80 * 1024 * 1024;
-export const MAX_ZIP_ENTRIES = 4_096;
 export const MAX_PDF_PAGES = 2_000;
 export const MAX_PDF_PAGES_PER_READ = 20;
 const IMAGE_JSON_OVERHEAD = 16_384;
@@ -123,39 +121,6 @@ function magic(buffer: Buffer): string {
   if (buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'png';
   if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return 'jpeg';
   return 'text';
-}
-
-export function inspectZipLimits(buffer: Buffer): { entries: number; uncompressed: number } {
-  let eocd = -1;
-  const min = Math.max(0, buffer.length - 22 - 65535);
-  for (let i = buffer.length - 22; i >= min; i--) {
-    if (buffer[i] === 0x50 && buffer[i + 1] === 0x4b && buffer[i + 2] === 0x05 && buffer[i + 3] === 0x06) {
-      eocd = i;
-      break;
-    }
-  }
-  if (eocd < 0) throw new Error('DOCX 压缩包损坏，无法安全解压。');
-  const entries = buffer.readUInt16LE(eocd + 10);
-  const cdSize = buffer.readUInt32LE(eocd + 12);
-  const cdOffset = buffer.readUInt32LE(eocd + 16);
-  if (entries > MAX_ZIP_ENTRIES) throw new Error('DOCX 条目过多，已拒绝解压。');
-  if (cdOffset === 0xffffffff || cdSize === 0xffffffff) throw new Error('不支持 ZIP64 的过大 DOCX。');
-  if (cdOffset + cdSize > buffer.length) throw new Error('DOCX 压缩包损坏，无法安全解压。');
-  let cursor = cdOffset;
-  let uncompressed = 0;
-  for (let i = 0; i < entries; i++) {
-    if (cursor + 46 > buffer.length) throw new Error('DOCX 压缩包损坏，无法安全解压。');
-    if (buffer.readUInt32LE(cursor) !== 0x02014b50) throw new Error('DOCX 压缩包损坏，无法安全解压。');
-    const size = buffer.readUInt32LE(cursor + 24);
-    if (size === 0xffffffff) throw new Error('不支持 ZIP64 的过大 DOCX。');
-    uncompressed += size;
-    if (uncompressed > MAX_ZIP_UNCOMPRESSED) throw new Error('DOCX 解压后体积过大，已拒绝。');
-    const nameLen = buffer.readUInt16LE(cursor + 28);
-    const extraLen = buffer.readUInt16LE(cursor + 30);
-    const commentLen = buffer.readUInt16LE(cursor + 32);
-    cursor += 46 + nameLen + extraLen + commentLen;
-  }
-  return { entries, uncompressed };
 }
 
 function looksLikeDocx(buffer: Buffer): boolean {

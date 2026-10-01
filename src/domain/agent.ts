@@ -565,6 +565,8 @@ function archiveCurrentAnalysis(state: AgentProcessState): void {
   state.reviews.forEach(review => {
     review.invalidated = true;
   });
+  // 旧分析下形成或采用的稿件不再自动作为本轮当前稿；稿件版本全部保留，须由用户显式采用。
+  state.currentDraftVersionId = null;
   if (state.stage !== 'final' && state.stage !== 'draft') state.stage = 'materials';
 }
 
@@ -1193,6 +1195,8 @@ export function completeAgentJob(state: AgentProcessState, cmd: ScopeCommand & {
     };
     next.userSelectedStrategyId = null;
     next.userSelectedStrategyAt = undefined;
+    // 新一轮分析不沿用任何旧上下文稿件为当前稿，即使随后重选相同策略编号。
+    next.currentDraftVersionId = null;
     next.stage = 'strategy';
     endJob(next, cmd.runId, 'completed', at);
     appendAssistant(next, job.discussionId, cmd.assistantText?.trim() || '已完成本次意见拆解，并给出可供选择的策略。请选定策略后再起草。', at, cmd.runId);
@@ -1407,6 +1411,15 @@ export function finalizeBlocker(state: AgentProcessState): AgentFailure | null {
   const locked = checkReplyWrite(state);
   if (locked) return locked;
   if (activeJob(state)) return agentFail('JOB_RUNNING');
+  const hadAnalysis = state.analysisHistory.length > 0;
+  if (state.analysis) {
+    if (!state.userSelectedStrategyId) return agentFail('STRATEGY_NOT_SELECTED');
+    if (analysisBaselineStale(state)) {
+      return agentFail('MATERIALS_STALE', '材料或分类已变更，请重新分析后再定稿。');
+    }
+  } else if (hadAnalysis) {
+    return agentFail('MATERIALS_STALE', '材料或分类已变更，请重新分析后再定稿。');
+  }
   const draft = currentDraft(state);
   if (!draft) return agentFail('DRAFT_VERSION_REQUIRED', '没有有效稿件，不能定稿。');
   if (draft.applicationParts === undefined) {
@@ -1417,15 +1430,6 @@ export function finalizeBlocker(state: AgentProcessState): AgentFailure | null {
   }
   if (state.userSelectedStrategyId && draft.strategyId && draft.strategyId !== state.userSelectedStrategyId) {
     return agentFail('STRATEGY_INVALID', '当前稿件不属于用户选定的策略，请按新策略起草并复核。');
-  }
-  const hadAnalysis = state.analysisHistory.length > 0;
-  if (state.analysis) {
-    if (!state.userSelectedStrategyId) return agentFail('STRATEGY_NOT_SELECTED');
-    if (analysisBaselineStale(state)) {
-      return agentFail('MATERIALS_STALE', '材料或分类已变更，请重新分析后再定稿。');
-    }
-  } else if (hadAnalysis) {
-    return agentFail('MATERIALS_STALE', '材料或分类已变更，请重新分析后再定稿。');
   }
   // Independent review is optional; handmade drafts that never ran analysis can still finalize.
   return null;

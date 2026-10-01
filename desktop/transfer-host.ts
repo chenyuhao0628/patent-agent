@@ -16,7 +16,7 @@ import { DEFAULT_INTERNAL_TRANSFER_RECIPIENT } from '../src/domain/workflow-node
 import type { TransferView, TransferFileRole, TransferReview, TransferRoute, TransferFilePreviewResult, RemoteFileDeleteRef } from '../src/transfer-api.ts';
 import { compareApplication, applicationSections } from './application-diff.ts';
 import { inspectZipLimits, MAX_MATERIAL_BYTES } from './agent-document-reader.ts';
-import { atomicCreate, atomicJSON, digest, extractDocxContent, getImageMime, bufferToDataUrl, managedPath, safeName } from './files.ts';
+import { atomicCreate, atomicJSON, digest, extractDocxContent, getImageMime, bufferToDataUrl, managedPath, readBoundedFile, safeName } from './files.ts';
 import { deleteRemoteTransferFile, prepareRemoteFileDeletion, remoteFileDeletionResult, clearRemoteTransfer, isRemoteTransferCleared, remoteFiles, defaultTransferForm, existingTransferParts, isRemoteTransferSaved, matchesNextFlow, readRemoteTransfer, rehydrateRemoteSavedView, remoteFileNames, saveRemoteTransfer, submitRemoteTransfer, validateReview } from './baseland-transfer.ts';
 import type { RemoteTransfer } from './baseland-transfer.ts';
 type Session={view:TransferView;remote:RemoteTransfer|null;generation:number;root:string;scope:OperationScope;files:Partial<Record<TransferFileRole,{name:string;relativePath:string;hash:string}>>};
@@ -355,7 +355,8 @@ export class TransferHost {
   private async attach(s:Session,role:TransferFileRole,source:string){
     this.guard(s);if(role==='reply'&&s.view.route!=='reply')throw new Error('本业务通过表单字段保存补正内容，不能上传意见或补正说明文件。');if(s.view.phase!=='draft')throw new Error('已保存的提交方案不能直接改文件，请完成当前结果核对。');
     const stat=await fs.lstat(source);if(!stat.isFile()||stat.isSymbolicLink()||stat.size>MAX_MATERIAL_BYTES||!source.toLowerCase().endsWith('.docx'))throw new Error('请选择不超过 20 MB 的 DOCX 普通文件。');
-    const bytes=await fs.readFile(source);inspectZipLimits(bytes);this.guard(s);
+    let bytes:Buffer;try{bytes=await readBoundedFile(source,MAX_MATERIAL_BYTES);}catch{throw new Error('请选择不超过 20 MB 的 DOCX 普通文件。');}
+    inspectZipLimits(bytes);this.guard(s);
     const hash=digest(bytes),name=safeName(path.basename(source),90),relativePath=`03_定稿/内部提交准备/提交材料_${s.view.id}/${({application:'修改申请文件',baseline:'修改前申请文件',reply:'意见陈述书'} as const)[role]}-${hash.slice(0,8)}-${name}`;
     const target=await this.desktop.casePath(s.view.caseId,relativePath);await fs.mkdir(path.dirname(target),{recursive:true});
     try{await atomicCreate(target,bytes,()=>this.guard(s));}catch(e){if((e as NodeJS.ErrnoException).code!=='EEXIST'||digest(await fs.readFile(target))!==hash)throw e;}
@@ -368,7 +369,7 @@ export class TransferHost {
     s.view.review.keepCodes=after?(s.view.route==='application'?FIVE_PARTS.map(p=>p.code):s.view.parts.filter(p=>p.changed).map(p=>p.code)):[];
     if(s.view.sourceMode!=='local'&&s.view.route==='correction'&&!s.view.review.form.corrections.length)s.view.review.form.corrections=s.view.parts.filter(p=>p.changed&&p.before&&p.after).map((p,i)=>({ChangeId:randomUUID(),Sort:i,FileName:p.name,PositionInFile:'本次修改段落（请核对具体位置）',CorrectionBefore:p.before!,CorrectionAfter:p.after!}));
   }
-  private async bytes(s:Session,role:TransferFileRole){const f=s.files[role];if(!f)return;this.guard(s);const target=await this.desktop.casePath(s.view.caseId,f.relativePath);const st=await fs.lstat(target);if(st.isSymbolicLink()||!st.isFile()||st.size>MAX_MATERIAL_BYTES)throw new Error('本次文件副本不可用。');const bytes=await fs.readFile(target);this.guard(s);if(digest(bytes)!==f.hash)throw new Error('本次文件副本已经变化，请重新选择核对。');return {name:f.name,bytes};}
+  private async bytes(s:Session,role:TransferFileRole){const f=s.files[role];if(!f)return;this.guard(s);const target=await this.desktop.casePath(s.view.caseId,f.relativePath);const st=await fs.lstat(target);if(st.isSymbolicLink()||!st.isFile()||st.size>MAX_MATERIAL_BYTES)throw new Error('本次文件副本不可用。');let bytes:Buffer;try{bytes=await readBoundedFile(target,MAX_MATERIAL_BYTES);}catch{throw new Error('本次文件副本不可用。');}this.guard(s);if(digest(bytes)!==f.hash)throw new Error('本次文件副本已经变化，请重新选择核对。');return {name:f.name,bytes};}
   async addFile(key:string,id:string,role:TransferFileRole,source:string){return this.exclusive(async()=>{if(!['baseline','application','reply'].includes(role))throw new Error('文件用途无效。');const s=this.get(key,id);await this.attach(s,role,source);await this.persist(s);return this.view(s);});}
   async removeFile(key:string,id:string,role:TransferFileRole){return this.exclusive(async()=>{
     if(!['baseline','application','reply'].includes(role))throw new Error('文件用途无效。');

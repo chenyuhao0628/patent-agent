@@ -1,0 +1,139 @@
+{
+  "ok": true,
+  "tab_id": 636651987,
+  "value": {
+    "actions": {
+      "clientHeight": 241,
+      "h": 242,
+      "overflowY": "visible",
+      "scrollHeight": 241,
+      "scrollTop": 0,
+      "w": 238,
+      "x": 294,
+      "y": 905.6875
+    },
+    "calls": [
+      {
+        "phase": 2,
+        "type": "start-at"
+      },
+      {
+        "materialIds": [],
+        "message": "",
+        "type": "write"
+      },
+      {
+        "decision": "",
+        "jobId": "new-writing-0",
+        "type": "confirm"
+      },
+      {
+        "phase": 2,
+        "type": "restart"
+      }
+    ],
+    "caption": "正在查看所选完成稿 · 2026/9/30 09:00:00 · complete",
+    "confirm": {
+      "clientHeight": 153,
+      "h": 153.5,
+      "overflowY": "visible",
+      "scrollHeight": 153,
+      "scrollTop": 0,
+      "w": 769,
+      "x": 594,
+      "y": 1419.2734375
+    },
+    "current": "当前：专利撰写",
+    "document": {
+      "clientHeight": 466,
+      "h": 468,
+      "overflowY": "auto",
+      "scrollHeight": 3016,
+      "scrollTop": 0,
+      "w": 753,
+      "x": 602,
+      "y": 939.2734375
+    },
+    "headers": [
+      {
+        "clientHeight": 23,
+        "h": 22.5,
+        "overflowY": "visible",
+        "scrollHeight": 23,
+        "scrollTop": 0,
+        "w": 238,
+        "x": 294,
+        "y": 421.6875
+      },
+      {
+        "clientHeight": 23,
+        "h": 22.5,
+        "overflowY": "visible",
+        "scrollHeight": 23,
+        "scrollTop": 0,
+        "w": 120,
+        "x": 594,
+        "y": 421.6875
+      }
+    ],
+    "input": {
+      "clientHeight": 430,
+      "h": 429.5,
+      "overflowY": "auto",
+      "scrollHeight": 500,
+      "scrollTop": 0,
+      "w": 246,
+      "x": 294,
+      "y": 460.1875
+    },
+    "nav": [
+      "概览",
+      "材料",
+      "本案对话",
+      "撰写",
+      "稿件审查",
+      "办理历史",
+      "成果",
+      "贝思兰德流程"
+    ],
+    "overlay": false,
+    "pageOverflow": false,
+    "panels": [
+      {
+        "box": {
+          "clientHeight": 241,
+          "h": 243.1953125,
+          "overflowY": "visible",
+          "scrollHeight": 241,
+          "scrollTop": 0,
+          "w": 769,
+          "x": 594,
+          "y": 554.484375
+        },
+        "horizontalOverflow": false
+      },
+      {
+        "box": {
+          "clientHeight": 44,
+          "h": 46,
+          "overflowY": "visible",
+          "scrollHeight": 44,
+          "scrollTop": 0,
+          "w": 769,
+          "x": 594,
+          "y": 809.6796875
+        },
+        "horizontalOverflow": false
+      }
+    ],
+    "selected": "completed-write",
+    "title": "专利工作台 · UI 一致性验证",
+    "url": "http://127.0.0.1:4187/",
+    "version": "已明确选择较早完成稿，下面的正文、产物与依据均属于此版本。较新任务单独保留，可继续未完成任务。",
+    "viewport": {
+      "dpr": 2,
+      "height": 900,
+      "width": 1440
+    }
+  }
+}

@@ -51,6 +51,27 @@ export function effectiveSubmission(p:RemoteProcess):Submission|undefined {
 export function isConfirmedOfficialSubmission(sub?:Submission):boolean {
   return sub?.state==='sent'||sub?.state==='received';
 }
+/** 结论所属流程：判读结论时已结束的流程；若都识别不出（旧流程仍显示在办），退为判读当时的当前流程。 */
+export function concludedProcessIdsOf(c:CaseLifecycleFacts):string[] {
+  const processes=c.remote?.processes??[];
+  const finished=processes.filter(p=>!isInternallyActiveProcess(p)).map(p=>p.id);
+  const currentId=currentWork(c).processId;
+  return [...new Set(finished.length?finished:currentId?[currentId]:[])];
+}
+/** 官方结论只锁结论所属流程；之后出现的新内部流程继续可办。未记录所属流程的旧数据保持原口径（整案锁定）。 */
+export function outcomeLocksCurrent(c:CaseLifecycleFacts):boolean {
+  if(!hasOfficialOutcome(c))return false;
+  const ids=c.officialOutcome?.concludedProcessIds;
+  if(!ids?.length)return true;
+  const id=currentWork(c).processId;
+  return !id||ids.includes(id);
+}
+/** 落盘官方结论并记录结论所属流程；重复判读保留首次归属，不因后续同步改写。 */
+export function applyOfficialOutcomeVerdict(c:Case,value:NonNullable<Case['officialOutcome']>):void {
+  const concluded=value.state==='granted'||value.state==='rejected';
+  const ids=concluded?(c.officialOutcome?.concludedProcessIds?.length?c.officialOutcome.concludedProcessIds:concludedProcessIdsOf(c)):undefined;
+  c.officialOutcome=ids?.length?{...value,concludedProcessIds:ids}:value;
+}
 export function isAuxiliaryProcess(name:string):boolean {
   return /取得申请号|缴申请费|缴纳申请费|申请费/.test(name);
 }
@@ -85,7 +106,7 @@ export function currentWork(c: CaseLifecycleFacts): CurrentWork {
 }
 export function activeRound(c:Case) { return c.rounds.find(r=>r.id===currentWork(c).roundId); }
 export function editableCurrent(c:CaseLifecycleFacts) {
-  if(c.linkedTo||c.remoteClosure?.finished||hasOfficialOutcome(c))return false;
+  if(c.linkedTo||c.remoteClosure?.finished||outcomeLocksCurrent(c))return false;
   const w=currentWork(c),sub=processSubmission(c);
   if(isConfirmedOfficialSubmission(sub)||w.kind==='waiting')return false;
   const p=c.remote?.processes.find(p=>p.id===w.processId);
@@ -93,7 +114,7 @@ export function editableCurrent(c:CaseLifecycleFacts) {
   return !c.archived && ['write','reply','correction','review'].includes(w.kind) && (w.remoteStatus === undefined || w.remoteStatus===0 || ([200,300,400].includes(w.remoteStatus)&&p?.canEdit===true));
 }
 export function internalTransferAvailable(c:CaseLifecycleFacts){
-  if(c.linkedTo||c.remoteClosure?.finished||hasOfficialOutcome(c))return false;
+  if(c.linkedTo||c.remoteClosure?.finished||outcomeLocksCurrent(c))return false;
   const w=currentWork(c),status=w.remoteStatus??c.remote?.processes.find(p=>p.id===w.processId)?.status;
   const p=c.remote?.processes.find(process=>process.id===w.processId);
   return c.source==='baseland'&&!c.archived&&!!w.processId&&['write','reply','correction'].includes(w.kind)&&!isConfirmedOfficialSubmission(processSubmission(c))&&p?.canEdit!==false&&[0,200,300,400].includes(status??-1);

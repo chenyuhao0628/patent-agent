@@ -1,0 +1,898 @@
+{
+  "version": 1,
+  "saved_at": 1790738328315.0,
+  "run": {
+    "id": "dc8c3d0f8ac64",
+    "session_id": "grjd",
+    "tab_id": 636651987,
+    "name": "最终页面与历史回归",
+    "url": "http://127.0.0.1:4187/",
+    "started_at": 1790738081851.0,
+    "stopped_at": 1790738328293.0,
+    "state": "stopped",
+    "stop_reason": "requested",
+    "requests": 7,
+    "operations": 3,
+    "errors": 1,
+    "dropped_requests": 0,
+    "dropped_operations": 0,
+    "dropped_console": 0,
+    "coverage": [
+      "from_start",
+      "task_tab",
+      "text_bodies_bounded",
+      "time_window_not_causality",
+      "page_main_frame",
+      "worker_targets_not_captured",
+      "manual_main_frame_only",
+      "initial_load_not_recorded"
+    ],
+    "next_since": 68,
+    "active_rules": 0,
+    "saved_at": 1790738328300.0,
+    "storage": {
+      "bytes": 88333,
+      "dropped": 0,
+      "pins": 0,
+      "requests": 7
+    },
+    "environment": {
+      "extension_version": "0.3.1",
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36"
+    }
+  },
+  "requests": [
+    {
+      "id": "dc8c3d0f8ac64:n1",
+      "run_id": "dc8c3d0f8ac64",
+      "sequence": 61,
+      "started_at": 1790738081925.0,
+      "finished_at": 1790738081967.0,
+      "method": "GET",
+      "url": "http://127.0.0.1:4187/",
+      "integrity": {
+        "url": "complete",
+        "metadata": "complete",
+        "response_headers": "complete"
+      },
+      "state": "complete",
+      "resource_type": "Document",
+      "frame_id": "EC436FF47B466FFAC04E212E440331B3",
+      "loader_id": "97D4D64EAFF84EEF1FB6A44F1DF9BC2B",
+      "status": 200,
+      "mime_type": "text/html",
+      "duration_ms": 7.3,
+      "transfer_bytes": 104.0,
+      "decoded_bytes": 389.0,
+      "from_service_worker": false,
+      "initiator": "other",
+      "request_headers": {
+        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "zh-CN,zh;q=0.9",
+        "connection": "keep-alive",
+        "cookie": "[redacted]",
+        "dnt": "1",
+        "host": "127.0.0.1:4187",
+        "if-modified-since": "Wed, 30 Sep 2026 02:07:02 GMT",
+        "sec-ch-ua": "\"Google Chrome\";v=\"153\", \"Not_A Brand\";v=\"8\", \"Chromium\";v=\"153\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "sec-fetch-dest": "document",
+        "sec-fetch-mode": "navigate",
+        "sec-fetch-site": "cross-site",
+        "sec-fetch-user": "?1",
+        "upgrade-insecure-requests": "1",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36"
+      },
+      "response_headers": {
+        "date": "Wed, 30 Sep 2026 03:14:41 GMT",
+        "server": "SimpleHTTP/0.6 Python/3.14.7"
+      },
+      "timing": {
+        "connectEnd": 1.735,
+        "connectStart": 1.626,
+        "dnsEnd": 1.626,
+        "dnsStart": 1.61,
+        "proxyEnd": -1.0,
+        "proxyStart": -1.0,
+        "pushEnd": 0.0,
+        "pushStart": 0.0,
+        "receiveHeadersEnd": 3.364,
+        "receiveHeadersStart": 3.312,
+        "requestTime": 425391.042522,
+        "sendEnd": 1.869,
+        "sendStart": 1.797,
+        "sslEnd": -1.0,
+        "sslStart": -1.0,
+        "workerFetchStart": -1.0,
+        "workerReady": -1.0,
+        "workerRespondWithSettled": -1.0,
+        "workerStart": -1.0
+      },
+      "request_body": {
+        "state": "empty",
+        "replay_safe": true
+      },
+      "response_body": {
+        "state": "available",
+        "text": "<!doctype html><html lang=\"zh-CN\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>专利工作台 · UI 一致性验证</title><link rel=\"icon\" href=\"data:,\"><link rel=\"stylesheet\" href=\"/bundle/fixture.css\"></head><body style=\"overflow:auto\"><div id=\"root\"></div><script type=\"module\" src=\"/bundle/fixture.js\"></script></body></html>\n",
+        "chars": 368,
+        "redacted": false,
+        "replay_safe": true
+      },
+      "truncated": false
+    },
+    {
+      "id": "dc8c3d0f8ac64:n2",
+      "run_id": "dc8c3d0f8ac64",
+      "sequence": 62,
+      "started_at": 1790738081966.0,
+      "finished_at": 1790738082003.0,
+      "method": "GET",
+      "url": "http://127.0.0.1:4187/bundle/fixture.css",
+      "integrity": {
+        "url": "complete",
+        "metadata": "complete",
+        "response_headers": "complete"
+      },
+      "state": "complete",
+      "resource_type": "Stylesheet",
+      "frame_id": "EC436FF47B466FFAC04E212E440331B3",
+      "loader_id": "97D4D64EAFF84EEF1FB6A44F1DF9BC2B",
+      "status": 200,
+      "mime_type": "text/css",
+      "duration_ms": 29.87,
+      "transfer_bytes": 176967.0,
+      "decoded_bytes": 176779.0,
+      "from_service_worker": false,
+      "initiator": "parser",
+      "request_headers": {
+        "accept": "text/css,*/*;q=0.1",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "zh-CN,zh;q=0.9",
+        "connection": "keep-alive",
+        "cookie": "[redacted]",
+        "dnt": "1",
+        "host": "127.0.0.1:4187",
+        "if-modified-since": "Wed, 30 Sep 2026 02:46:47 GMT",
+        "referer": "http://127.0.0.1:4187/",
+        "sec-ch-ua": "\"Google Chrome\";v=\"153\", \"Not_A Brand\";v=\"8\", \"Chromium\";v=\"153\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "sec-fetch-dest": "style",
+        "sec-fetch-mode": "no-cors",
+        "sec-fetch-site": "same-origin",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36"
+      },
+      "response_headers": {
+        "content-length": "176779",
+        "content-type": "text/css",
+        "date": "Wed, 30 Sep 2026 03:14:41 GMT",
+        "last-modified": "Wed, 30 Sep 2026 03:14:41 GMT",
+        "server": "SimpleHTTP/0.6 Python/3.14.7"
+      },
+      "timing": {
+        "connectEnd": -1.0,
+        "connectStart": -1.0,
+        "dnsEnd": -1.0,
+        "dnsStart": -1.0,
+        "proxyEnd": -1.0,
+        "proxyStart": -1.0,
+        "pushEnd": 0.0,
+        "pushStart": 0.0,
+        "receiveHeadersEnd": 6.407,
+        "receiveHeadersStart": 6.378,
+        "requestTime": 425391.084402,
+        "sendEnd": 5.808,
+        "sendStart": 5.709,
+        "sslEnd": -1.0,
+        "sslStart": -1.0,
+        "workerFetchStart": -1.0,
+        "workerReady": -1.0,
+        "workerRespondWithSettled": -1.0,
+        "workerStart": -1.0
+      },
+      "request_body": {
+        "state": "empty",
+        "replay_safe": true
+      },
+      "response_body": {
+        "state": "truncated",
+        "reason": "body_limit",
+        "text": "/* src/styles.css */\n:root {\n  font-family:\n    Inter,\n    -apple-system,\n    BlinkMacSystemFont,\n    \"PingFang SC\",\n    \"Microsoft YaHei\",\n    sans-serif;\n  color: #232631;\n  background: #f6f7f9;\n  font-synthesis: none;\n  --accent:#625de8;\n  --muted:#808695;\n  --line:#e8e9ef;\n  --soft:#f0efff;\n  --ink:#232631;\n}\n* {\n  box-sizing: border-box;\n}\nbody {\n  margin: 0;\n}\nbutton,\ninput,\nselect,\ntextarea {\n  font: inherit;\n  font-size: 13px;\n}\nbutton,\na,\ninput,\nselect,\ntextarea {\n  -webkit-tap-highlight-color: transparent;\n}\nbutton {\n  display: inline-flex;\n  align-items: center;\n  justify-content: center;\n  gap: 7px;\n  padding: 9px 13px;\n  background: #fff;\n  color: var(--ink);\n  border: 1px solid #dde0e9;\n  border-radius: 7px;\n  cursor: pointer;\n  line-height: 1.4;\n  transition: background .15s, border-color .15s;\n}\nbutton:hover {\n  background: #f7f7fc;\n  border-color: #c6c5da;\n}\nbutton:disabled {\n  cursor: not-allowed;\n  opacity: .42;\n}\na {\n  color: inherit;\n  text-decoration: none;\n}\nbutton:focus-visible,\na:focus-visible {\n  outline: 3px solid #bdb9fb;\n  outline-offset: 3px;\n}\ninput:focus,\nselect:focus,\ntextarea:focus {\n  outline: 2px solid #bdb9fb;\n  outline-offset: 1px;\n}\ninput,\nselect,\ntextarea {\n  color: var(--ink);\n  background: #fff;\n  border: 1px solid #dce0e9;\n  border-radius: 7px;\n  padding: 10px 12px;\n  max-width: 100%;\n}\nselect {\n  padding-right: 25px;\n}\ninput[type=checkbox] {\n  accent-color: var(--accent);\n  width: 16px;\n  height: 16px;\n}\nh1,\nh2,\nh3,\nh4,\np {\n  margin: 0;\n}\nh1 {\n  font-size: 28px;\n  letter-spacing: -.6px;\n  line-height: 1.45;\n  font-weight: 650;\n}\nh2 {\n  font-size: 18px;\n  line-height: 1.5;\n  font-weight: 620;\n}\nh3 {\n  font-size: 18px;\n  line-height: 1.5;\n}\nh4 {\n  font-size: 15px;\n  font-weight: 600;\n}\np {\n  line-height: 1.8;\n}\nsmall {\n  font-size: 12px;\n}\nsvg {\n  flex-shrink: 0;\n  stroke-width: 1.65;\n}\nbutton.primary {\n  background: var(--accent);\n  border-color: var(--accent);\n  color: white;\n  box-shadow: 0 2px 3px #625de813;\n}\nbutton.primary:hover {\n  background: #534ed3;\n}\nbutton.icon-button {\n  padding: 7px;\n  background: transparent;\n  border-color: transparent;\n}\n.icon-button svg {\n  width: 19px;\n  height: 19px;\n}\n.text-button,\n.source-link {\n  border: 0;\n  background: transparent;\n  padding: 5px 0;\n  box-shadow: none !important;\n}\n.text-button {\n  color: var(--muted);\n  font-size: 12px;\n}\n.source-link {\n  color: var(--accent);\n  font-size: 12px;\n  text-align: left;\n  justify-content: flex-start;\n}\n.muted,\n.note {\n  color: var(--muted);\n  font-size: 12px;\n  line-height: 1.8;\n}\n.note {\n  margin: 20px 0 0;\n}\n.tag {\n  color: var(--accent);\n  background: #eeecff;\n  border-radius: 4px;\n  font-size: 11px;\n  padding: 3px 6px;\n  display: inline-flex;\n}\n.app-shell {\n  display: flex;\n  min-height: 100vh;\n}\n.global-sidebar {\n  width: 210px;\n  flex: 0 0 210px;\n  background: #f0f1f5;\n  padding: 24px 15px 18px;\n  position: fixed;\n  inset: 0 auto 0 0;\n  display: flex;\n  flex-direction: column;\n}\n.brand {\n  display: flex;\n  gap: 11px;\n  align-items: center;\n  margin: 3px 9px 34px;\n  font-size: 19px;\n  font-weight: 650;\n  letter-spacing: -.6px;\n}\n.brand svg {\n  color: var(--accent);\n  width: 25px;\n  height: 25px;\n}\n.nav-group-label {\n  color: #9298a7;\n  font-size: 11px;\n  letter-spacing: .5px;\n  margin: 0 13px 12px;\n}\n.business-label {\n  margin-top: 28px;\n  padding-top: 23px;\n  border-top: 1px solid #dedfe7;\n}\n.global-sidebar nav a,\n.sidebar-bottom a {\n  display: flex;\n  gap: 14px;\n  align-items: center;\n  padding: 11px 13px;\n  margin: 3px 0;\n  border-radius: 7px;\n  font-size: 13px;\n}\n.global-sidebar a:hover {\n  background: #e8e9f0;\n}\n.global-sidebar a.active {\n  background: #e5e3fb;\n  color: #5f58db;\n  font-weight: 550;\n}\n.global-sidebar nav svg,\n.sidebar-bottom svg {\n  width: 18px;\n  height: 18px;\n}\n.global-sidebar nav small {\n  margin-left: auto;\n  font-size: 11px;\n}\n.sidebar-bottom {\n  margin-top: auto;\n  font-size: 12px;\n}\n.sidebar-bottom > div {\n  display: flex;\n  gap: 13px;\n  align-items: center;\n  padding: 22px 13px 8px;\n}\n.sidebar-bottom > div svg {\n  background: #dddfe7;\n  border-radius: 50%;\n  padding: 5px;\n  width: 28px;\n  height: 28px;\n  color: #6d7485;\n}\n.app-shell > main {\n  margin-left: 210px;\n  width: calc(100% - 210px);\n  min-width: 0;\n}\n.topbar {\n  height: 57px;\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  padding: 0 30px;\n  font-size: 12px;\n  color: var(--muted);\n  gap: 10px;\n}\n.breadcrumbs {\n  display: flex;\n  gap: 10px;\n  align-items: center;\n  min-width: 0;\n}\n.breadcrumbs a:hover {\n  color: var(--accent);\n}\n.breadcrumbs svg {\n  width: 13px;\n  height: 13px;\n  color: #9ca2ae;\n}\n.breadcrumbs span:last-child {\n  color: #424859;\n}\n.prototype-note {\n  white-space: nowrap;\n  font-size: 11px;\n}\n.main-surface {\n  margin: 0 16px 16px 0;\n  background: #fff;\n  border: 1px solid #eeeff5;\n  border-radius: 12px;\n  min-height: calc(100vh - 74px);\n  overflow: hidden;\n  box-shadow: 0 2px 10px #222b4402;\n}\n.page-pad {\n  padding: 40px;\n}\n.page-heading {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 20px;\n  margin-bottom: 40px;\n}\n.page-heading p {\n  font-size: 13px;\n  color: var(--muted);\n  margin-top: 7px;\n}\n.page-heading > .primary {\n  align-self: center;\n}\n.library-toolbar {\n  display: flex;\n  align-items: center;\n  gap: 20px;\n  justify-content: space-between;\n  margin-bottom: 18px;\n}\n.filter-tabs {\n  display: flex;\n  gap: 7px;\n  flex-shrink: 0;\n}\n.filter-tabs button {\n  border: none;\n  color: #818695;\n  background: transparent;\n  font-size: 12px;\n  padding: 7px 10px;\n}\n.filter-tabs .selected {\n  color: #534bd8;\n  background: #efedff;\n}\n.table-tools {\n  display: flex;\n  gap: 8px;\n  align-items: center;\n}\n.search {\n  display: flex;\n  gap: 7px;\n  align-items: center;\n  color: #9499a6;\n}\n.search input {\n  width: 210px;\n  border: 0;\n  background: transparent;\n  padding: 7px 0;\n  font-size: 12px;\n  min-width: 0;\n}\n.table-heading,\n.case-table-row {\n  display: grid;\n  grid-template-columns: minmax(250px, 2.4fr) minmax(130px, 1.2fr) 95px 100px 18px;\n  gap: 16px;\n  align-items: center;\n  text-align: left;\n  width: 100%;\n}\n.table-heading {\n  color: #8e93a1;\n  font-size: 11px;\n  padding: 13px 14px;\n  background: #f8f9fc;\n  border-top: 1px solid var(--line);\n  border-bottom: 1px solid var(--line);\n}\n.case-table-row {\n  padding: 24px 14px;\n  border: 0;\n  border-bottom: 1px solid var(--line);\n  border-radius: 0;\n  font-size: 12px;\n  background: white;\n}\n.case-table-row:hover {\n  background: #fafaff;\n}\n.case-table-row > svg {\n  color: #9a9fac;\n}\n.case-cell {\n  display: flex;\n  gap: 14px;\n  align-items: center;\n}\n.case-cell > b,\n.case-cell b {\n  font-size: 14px;\n  font-weight: 550;\n}\n.case-cell small {\n  display: block;\n  font-size: 11px;\n  color: #9196a4;\n  margin-top: 7px;\n}\n.case-file {\n  color: #8e89e2;\n  background: #f1f0fc;\n  padding: 10px;\n  border-radius: 8px;\n  display: flex;\n}\n.round-cell {\n  color: #72798a;\n  font-size: 12px;\n}\n.deadline {\n  color: #737b8d;\n  font-size: 12px;\n  font-variant-numeric: tabular-nums;\n}\n.status {\n  display: inline-flex;\n  gap: 6px;\n  align-items: center;\n  font-size: 11px;\n  white-space: nowrap;\n}\n.status:before {\n  content: \"\";\n  width: 6px;\n  height: 6px;\n  border-radius: 50%;\n  background: #a9aebb;\n}\n.status-materials {\n  color: #a08045;\n}\n.status-materials:before {\n  background: #d3ac67;\n}\n.status-strategy {\n  color: #7470ce;\n}\n.status-strategy:before {\n  background: #9089e8;\n}\n.status-review {\n  color: #b0845f;\n}\n.status-draft {\n  color: #667eb1;\n}\n.status-final {\n  color: #518975;\n}\n.status-final:before {\n  background: #63a48b;\n}\n.table-foot {\n  display: flex;\n  justify-content: space-between;\n  color: #999eab;\n  font-size: 11px;\n  margin-top: 18px;\n}\n.quiet-banner {\n  background: #f7f7fc;\n  border: 1px solid var(--line);\n  border-radius: 8px;\n  padding: 13px 16px;\n  font-size: 12px;\n  color: #82879a;\n  margin: -18px 0 25px;\n}\n.case-space {\n  padding: 38px 40px;\n}\n.case-intro {\n  display: flex;\n  align-items: center;\n  gap: 22px;\n  margin-bottom: 27px;\n}\n.case-intro p {\n  color: var(--muted);\n  font-size: 12px;\n  margin-top: 5px;\n  display: flex;\n  gap: 10px;\n  align-items: center;\n  flex-wrap: wrap;\n}\n.case-emblem {\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  background: #f0eeff;\n  color: var(--accent);\n  width: 58px;\n  height: 58px;\n  border-radius: 10px;\n  flex-shrink: 0;\n}\n.case-emblem svg {\n  width: 28px;\n  height: 28px;\n}\n.case-intro .more {\n  margin-left: auto;\n  align-self: flex-start;\n}\n.case-tabs {\n  display: flex;\n  gap: 19px;\n  border-bottom: 1px solid var(--line);\n  margin-bottom: 32px;\n}\n.case-tabs button {\n  border: 0;\n  background: transparent;\n  border-bottom: 2px solid transparent;\n  border-radius: 0;\n  padding: 12px 10px 14px;\n  color: #666d7e;\n  font-size: 14px;\n  white-space: nowrap;\n}\n.case-tabs button.active {\n  color: var(--accent);\n  border-color: var(--accent);\n}\n.overview-grid {\n  display: grid;\n  grid-template-columns: minmax(0, 1.9fr) minmax(240px, 1fr);\n  gap: 34px;\n}\n.overview-grid > div > h2 {\n  margin-bottom: 17px;\n}\n.current-work {\n  border: 1px solid #bbb6ff;\n  background: #fbfaff;\n  border-radius: 8px;\n  padding: 21px 22px;\n}\n.current-work > p:first-child {\n  font-size: 12px;\n  color: #8c8ba1;\n}\n.current-work h3 {\n  font-size: 21px;\n  font-weight: 620;\n  margin-top: 13px;\n  margin-bottom: 7px;\n  letter-spacing: -.3px;\n}\n.current-work > p {\n  font-size: 13px;\n  color: #858a9a;\n}\n.current-work > div {\n  display: flex;\n  justify-content: space-between;\n  align-items: center;\n  margin-top: 24px;\n  gap: 10px;\n}\n.current-status {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n  color: var(--accent);\n  font-size: 12px;\n  background: #edeaff;\n  padding: 5px 9px;\n  border-radius: 20px;\n}\n.business-heading {\n  margin-top: 32px;\n}\n.business-links {\n  border-top: 1px solid var(--line);\n}\n.business-links button {\n  display: flex;\n  width: 100%;\n  justify-content: flex-start;\n  gap: 24px;\n  border: 0;\n  border-bottom: 1px solid var(--line);\n  border-radius: 0;\n  padding: 21px 14px;\n}\n.business-links button > svg:first-child {\n  width: 25px;\n  height: 25px;\n}\n.business-links button > svg:last-child {\n  margin-left: auto;\n  color: #949ba8;\n}\n.business-links span {\n  text-align: left;\n}\n.business-links b {\n  font-weight: 500;\n  font-size: 15px;\n}\n.business-links small {\n  display: block;\n  color: #8a91a2;\n  margin-top: 6px;\n  font-size: 12px;\n}\n.case-aside {\n  border-left: 1px solid var(--line);\n  padding-left: 30px;\n}\n.case-aside h2 {\n  margin-bottom: 15px;\n}\n.case-aside dl {\n  margin: 0 0 34px;\n  font-size: 12px;\n}\n.case-aside dl > div {\n  display: grid;\n  grid-template-columns: 88px 1fr;\n  gap: 12px;\n  padding: 14px 0;\n  border-bottom: 1px solid var(--line);\n  line-height: 1.5;\n}\n.case-aside dl > div:last-child {\n  border: 0;\n}\n.case-aside dt {\n  color: #9298a5;\n}\n.case-aside dd {\n  margin: 0;\n}\n.recent-file {\n  width: 100%;\n  justify-content: flex-start;\n  gap: 14px;\n  text-align: left;\n  padding: 18px 4px;\n  border: 0;\n  border-top: 1px solid var(--line);\n  border-radius: 0;\n  font-size: 12px;\n}\n.recent-file > span {\n  flex: 1;\n}\n.recent-file small {\n  display: block;\n  font-size: 11px;\n  color: #9399a7;\n  margin-top: 6px;\n}\n.recent-file > svg:last-child {\n  color: #9aa0ae;\n}\n.case-aside > .note {\n  border-top: 1px solid var(--line);\n  padding-top: 25px;\n  margin-top: 30px;\n}\n.focused-space {\n  padding: 26px 28px;\n}\n.focused-space .case-intro {\n  gap: 0;\n  margin-bottom: 13px;\n}\n.focused-space .case-intro h1 {\n  font-size: 22px;\n}\n.focused-space .case-emblem {\n  display: none;\n}\n.focused-space .case-intro p {\n  font-size: 11px;\n}\n.focused-space .case-tabs {\n  margin-bottom: 0;\n}\n.case-section {\n  padding-top: 4px;\n}\n.section-heading {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 12px;\n  margin-bottom: 20px;\n}\n.section-heading p {\n  margin-top: 6px;\n}\n.case-heading {\n  display: flex;\n  justify-content: space-between;\n  align-items: center;\n  gap: 15px;\n  padding: 16px 0;\n}\n.case-heading select {\n  font-size: 12px;\n  padding: 6px 10px;\n}\n.stepper {\n  display: flex;\n  margin: 2px 0 28px;\n  gap: 10px;\n}\n.stepper button {\n  flex: 1;\n  display: flex;\n  gap: 10px;\n  position: relative;\n  padding: 8px 0;\n  background: transparent;\n  border: 0;\n  color: #9da2b0;\n  font-size: 12px;\n  justify-content: flex-start;\n  white-space: nowrap;\n}\n.stepper button:disabled {\n  opacity: .65;\n}\n.stepper button:after {\n  content: \"\";\n  flex: 1;\n  height: 1px;\n  background: #dce0ea;\n  margin-left: 4px;\n}\n.stepper button:last-child:after {\n  display: none;\n}\n.stepper button > span {\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  width: 18px;\n  height: 18px;\n  border: 1px solid #9aa2b4;\n  border-radius: 50%;\n  flex-shrink: 0;\n}\n.stepper .current {\n  color: var(--accent);\n}\n.stepper .current > span {\n  border: 5px solid var(--accent);\n  outline: 1px solid var(--accent);\n  outline-offset: 3px;\n}\n.stepper .done > span {\n  color: white;\n  background: var(--accent);\n  border: 0;\n}\n.stepper .done:after {\n  background: #aba6ed;\n}\n.stepper .done {\n  color: #777b8b;\n}\n.material-list,\n.material-table {\n  border-top: 1px solid var(--line);\n}\n.material-row,\n.material-table button {\n  width: 100%;\n  display: flex;\n  gap: 17px;\n  justify-content: flex-start;\n  text-align: left;\n  padding: 19px 13px;\n  border: 0;\n  border-bottom: 1px solid var(--line);\n  border-radius: 0;\n}\n.material-row > span:first-of-type,\n.material-table button > span:first-of-type {\n  flex: 1;\n  font-size: 13px;\n}\n.material-row small,\n.material-table small {\n  display: block;\n  font-size: 11px;\n  color: var(--muted);\n  margin-top: 4px;\n}\n.material-table b {\n  font-weight: 500;\n}\n.ready {\n  display: flex;\n  gap: 6px;\n  align-items: center;\n  color: #729784;\n  font-size: 11px;\n}\n.material-row > svg:last-child,\n.material-table button > svg:last-child {\n  color: #a0a7b4;\n}\n.action-bar {\n  display: flex;\n  gap: 18px;\n  align-items: center;\n  justify-content: space-between;\n  margin-top: 28px;\n  border-top: 1px solid var(--line);\n  padding-top: 20px;\n}\n.checkbox {\n  display: flex;\n  align-items: center;\n  gap: 9px;\n  font-size: 12px;\n  line-height: 1.6;\n}\n.job-banner {\n  background: #f1efff;\n  border: 1px solid #dad6fd;\n  padding: 13px 16px;\n  border-radius: 8px;\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 15px;\n  margin: 0 0 25px;\n  font-size: 12px;\n}\n.job-banner > span {\n  display: flex;\n  gap: 8px;\n  align-items: center;\n}\n.job-banner i {\n  width: 7px;\n  height: 7px;\n  border-radius: 50%;\n  background: var(--accent);\n}\n.pulse {\n  animation: pulse 1.1s infinite alternate;\n}\n@keyframes pulse {\n  to {\n    opacity: .3;\n  }\n}\n.analysis-summary {\n  font-size: 13px;\n  color: #696f80;\n  max-width: 800px;\n}\n.strategies {\n  margin: 20px 0 30px;\n  border-top: 1px solid var(--line);\n}\n.strategy {\n  display: flex;\n  align-items: center;\n  gap: 23px;\n  border-bottom: 1px solid var(--line);\n  padding: 25px 10px;\n}\n.strategy-number {\n  color: #b5b2ce;\n  font-size: 21px;\n  font-weight: 300;\n  align-self: flex-start;\n}\n.strategy > div {\n  flex: 1;\n}\n.strategy p {\n  font-size: 12px;\n  color: #858b99;\n  margin: 8px 0;\n}\n.strategy > button {\n  font-size: 12px;\n  white-space: nowrap;\n}\n.discussion {\n  border: 1px solid var(--line);\n  border-radius: 9px;\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n  overflow: hidden;\n  background: white;\n}\n.discussion .section-heading {\n  padding: 13px 15px;\n  border-bottom: 1px solid var(--line);\n  margin: 0;\n}\n.discussion select {\n  border: 0;\n  background: transparent;\n  font-size: 12px;\n  padding: 4px 6px;\n  min-width: 0;\n}\n.messages {\n  flex: 1;\n  padding: 20px 16px;\n  min-height: 150px;\n  max-height: 440px;\n  overflow: auto;\n}\n.message {\n  font-size: 12px;\n  margin-bottom: 20px;\n}\n.message b {\n  font-size: 10px;\n  color: #8d93a2;\n  display: block;\n  font-weight: 500;\n  margin-bottom: 6px;\n}\n.message p {\n  background: #f5f6f9;\n  padding: 12px 14px;\n  border-radius: 8px;\n  white-space: pre-wrap;\n  line-height: 1.9;\n}\n.message.user {\n  margin-left: 25px;\n}\n.message.user p {\n  background: #eeecfd;\n  color: #625b91;\n}\n.composer {\n  margin: 14px;\n  border: 1px solid #e0e2ec;\n  border-radius: 8px;\n}\n.composer textarea {\n  border: 0;\n  resize: vertical;\n  min-height: 78px;\n  width: 100%;\n  padding: 12px;\n  font-size: 12px;\n  line-height: 1.7;\n  display: block;\n}\n.composer > div {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  padding: 2px 10px 6px;\n  gap: 8px;\n}\n.composer .muted {\n  font-size: 10px;\n}\n.editor-toolbar {\n  display: flex;\n  align-items: center;\n  gap: 8px;\n  padding: 12px 14px;\n  border-radius: 8px 8px 0 0;\n  background: #f5f6fa;\n  border: 1px solid var(--line);\n  margin-bottom: 0;\n}\n.editor-toolbar select {\n  border: 0;\n  background: transparent;\n  margin-right: auto;\n  font-size: 12px;\n}\n.editor-toolbar button {\n  font-size: 11px;\n  padding: 7px 10px;\n}\n.draft-layout {\n  display: grid;\n  grid-template-columns: minmax(0, 1.8fr) minmax(260px, 1fr);\n  gap: 14px;\n}\n.document-paper {\n  border: 1px solid var(--line);\n  border-top: 0;\n  background: white;\n  box-shadow: 0 4px 10px #23263103;\n  min-width: 0;\n}\n.document-title {\n  padding: 32px 20px 25px;\n  text-align: center;\n  margin: 0 30px;\n  border-bottom: 1px solid #dce0e9;\n}\n.document-title h3 {\n  font-family:\n    \"Songti SC\",\n    \"SimSun\",\n    serif;\n  font-size: 27px;\n  letter-spacing: 2px;\n  font-weight: 600;\n}\n.document-title span {\n  font-size: 11px;\n  color: #9298a8;\n  display: block;\n  margin-top: 12px;\n}\n.document-editor {\n  width: 100%;\n  min-height: 380px;\n  border: 0;\n  resize: vertical;\n  padding: 28px 30px;\n  font-size: 14px;\n  line-height: 2;\n  border-radius: 0;\n  display: block;\n}\n.document-editor:focus {\n  outline: 0;\n  box-shadow: inset 3px 0 #aca6f1;\n}\n.document-footer {\n  padding: 11px 18px;\n  border-top: 1px solid var(--line);\n  display: flex;\n  gap: 10px;\n  justify-content: space-between;\n  color: #969dab;\n  font-size: 10px;\n}\n.review-finding {\n  display: flex;\n  gap: 20px;\n  border-top: 1px solid var(--line);\n  border-bottom: 1px solid var(--line);\n  padding: 28px 10px;\n  margin-top: 25px;\n}\n.review-index {\n  color: #a1a0b9;\n  font-size: 23px;\n  font-weight: 300;\n}\n.review-finding p {\n  font-size: 13px;\n  margin: 10px 0;\n  color: #798193;\n}\n.review-finding .checkbox {\n  margin-top: 18px;\n}\n.final-heading {\n  display: flex;\n  gap: 17px;\n  align-items: center;\n  margin: 35px 0;\n}\n.final-heading p {\n  font-size: 12px;\n  color: #8b93a3;\n  margin-top: 7px;\n}\n.success-circle {\n  display: flex;\n  padding: 14px;\n  border-radius: 50%;\n  background: #edf7f2;\n  color: #74a98d;\n}\n.output-list > div {\n  display: flex;\n  gap: 14px;\n  padding: 20px 5px;\n  border-bottom: 1px solid var(--line);\n  font-size: 13px;\n}\n.output-list small {\n  margin-left: auto;\n  color: var(--muted);\n  font-size: 11px;\n}\n.future-heading {\n  display: flex;\n  justify-content: space-between;\n  align-items: center;\n  gap: 20px;\n  margin: 2px 0 28px;\n}\n.future-heading h2 {\n  font-size: 21px;\n}\n.future-heading p {\n  font-size: 12px;\n  color: var(--muted);\n  margin-top: 8px;\n}\n.preview-label {\n  font-size: 11px;\n  color: #8c86b7;\n  border: 1px solid #e6e2f4;\n  border-radius: 4px;\n  padding: 5px 8px;\n  white-space: nowrap;\n}\n.workflow-blueprint {\n  display: grid;\n  grid-template-columns: 176px 1fr;\n  gap: 30px;\n  border-top: 1px solid var(--line);\n  padding-top: 25px;\n  min-height: 400px;\n}\n.workflow-blueprint nav {\n  border-right: 1px solid var(--line);\n  padding-right: 18px;\n}\n.workflow-blueprint nav button {\n  display: flex;\n  width: 100%;\n  justify-content: flex-start;\n  gap: 15px;\n  border: 0;\n  padding: 13px 12px;\n  margin: 2px 0;\n  font-size: 12px;\n  color: #7d8495;\n}\n.workflow-blueprint nav button > span {\n  font-size: 10px;\n  color: #a8a4bc;\n  min-width: 14px;\n}\n.workflow-blueprint nav button.active {\n  background: #eeecff;\n  color: var(--accent);\n}\n.workflow-detail {\n  max-width: 740px;\n  padding: 12px 0;\n}\n.small-label {\n  font-size: 10px;\n  letter-spacing: 2px;\n  color: #b0acbf;\n}\n.workflow-detail h3 {\n  font-size: 25px;\n  margin-top: 10px;\n  margin-bottom: 12px;\n}\n.lead {\n  font-size: 13px;\n  color: #778092;\n  line-height: 1.9;\n  max-width: 620px;\n}\n.io-row {\n  padding: 25px 0 12px;\n  font-size: 13px;\n}\n.io-row > span {\n  font-size: 11px;\n  color: #9a9fae;\n  display: block;\n  margin-bottom: 10px;\n}\n.io-row > div {\n  display: flex;\n  align-items: center;\n  gap: 10px;\n}\n.io-row.output {\n  border-top: 1px solid var(--line);\n  margin-top: 20px;\n}\n.workflow-detail .action-bar {\n  margin-top: 20px;\n  flex-wrap: wrap;\n}\n.artifact-summary {\n  border-top: 1px solid var(--line);\n  margin-bottom: 42px;\n  padding-top: 10px;\n}\n.artifact-summary > button {\n  width: 100%;\n  justify-content: flex-start;\n  gap: 16px;\n  padding: 17px;\n  border: 0;\n  border-bottom: 1px solid var(--line);\n  border-radius: 0;\n  text-align: left;\n}\n.artifact-summary > button span {\n  flex: 1;\n}\n.artifact-summary small {\n  display: block;\n  color: var(--muted);\n  font-size: 11px;\n  margin-top: 6px;\n}\n.field {\n  display: flex;\n  flex-direction: column;\n  gap: 9px;\n  font-size: 12px;\n  margin: 20px 0;\n  max-width: 500px;\n  color: #6f7888;\n}\n.field small {\n  color: #9a9fab;\n  font-size: 11px;\n}\n.field input,\n.field select {\n  font-size: 13px;\n  color: var(--ink);\n  width: 100%;\n}\n.settings-page {\n  max-width: 850px;\n}\n.settings-page section {\n  border-top: 1px solid var(--line);\n  padding: 24px 0;\n}\n.settings-page section > p {\n  font-size: 13px;\n  color: #81899a;\n  margin-top: 12px;\n}\n.settings-page .note {\n  margin-top: 12px;\n}\n.task-row {\n  display: flex;\n  align-items: center;\n  gap: 14px;\n  border-top: 1px solid var(--line);\n  padding: 25px 0;\n  font-size: 13px;\n}\n.task-row > div {\n  flex: 1;\n}\n.task-row p {\n  font-size: 12px;\n  color: var(--muted);\n  margin-top: 8px;\n}\n.empty {\n  text-align: center;\n  padding: 75px 20px;\n  color: #b0b4bf;\n}\n.empty h2 {\n  font-size: 18px;\n  font-weight: 500;\n  color: #7c8393;\n}\n.empty p {\n  font-size: 12px;\n  margin-top: 12px;\n}\n.empty a {\n  color: var(--accent);\n}\ndialog {\n  border: 1px solid #e5e7ef;\n  border-radius: 13px;\n  width: 540px;\n  max-width: calc(100vw - 36px);\n  padding: 0;\n  box-shadow: 0 22px 80px #24223721;\n  color: var(--ink);\n}\ndialog::backdrop {\n  background: #20243642;\n  backdrop-filter: blur(3px);\n}\n.modal-head {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 15px;\n  padding: 20px 24px;\n  border-bottom: 1px solid var(--line);\n}\n.modal-head h2 {\n  font-size: 17px;\n}\n.modal-body {\n  padding: 24px;\n}\n.modal-body > p {\n  font-size: 13px;\n  color: #767e8e;\n}\n.modal-body h3 {\n  margin-top: 20px;\n}\n.modal-body .note {\n  margin-top: 16px;\n}\n.modal-body blockquote {\n  padding: 22px;\n  margin: 20px 0;\n  background: #f7f7fc;\n  border-left: 3px solid #c1bdec;\n  font-size: 14px;\n  line-height: 2;\n}\n.text-preview {\n  white-space: pre-wrap;\n  overflow-wrap: anywhere;\n  font-family: inherit;\n  font-size: 13px;\n  line-height: 1.9;\n}\n.choose-case button {\n  width: 100%;\n  justify-content: space-between;\n  padding: 14px;\n  border: 0;\n  border-bottom: 1px solid var(--line);\n  border-radius: 0;\n  text-align: left;\n}\n.toast {\n  position: fixed;\n  bottom: 20px;\n  left: 50%;\n  transform: translateX(-50%);\n  z-index: 8;\n  box-shadow: 0 5px 30px #23263117;\n  border: 1px solid var(--line);\n  padding: 13px 20px;\n  background: white;\n  border-radius: 9px;\n  display: flex;\n  gap: 18px;\n  font-size: 12px;\n  align-items: center;\n}\n.error-banner {\n  margin: 0 16px 10px 0;\n  padding: 12px 25px;\n  background: #fff0dc;\n  color: #906d30;\n  font-size: 12px;\n}\n.inline-form {\n  display: flex;\n  gap: 10px;\n}\n.trail {\n  display: flex;\n  align-items: center;\n  gap: 6px;\n}\n@media (min-width: 1440px) {\n  .global-sidebar {\n    width: 235px;\n    flex-basis: 235px;\n    padding: 28px 18px;\n  }\n  .app-shell > main {\n    margin-left: 235px;\n    width: calc(100% - 235px);\n  }\n  .case-space {\n    padding: 42px 46px;\n  }\n  .focused-space {\n    padding: 29px 30px;\n  }\n  .overview-grid {\n    gap: 40px;\n  }\n  .case-aside {\n    padding-left: 34px;\n  }\n  .current-work {\n    padding: 25px;\n  }\n  .current-work h3 {\n    font-size: 24px;\n  }\n  .case-intro h1 {\n    font-size: 30px;\n  }\n  .case-intro {\n    margin-bottom: 32px;\n  }\n  .case-tabs {\n    margin-bottom: 36px;\n  }\n  .business-links button {\n    padding: 25px 16px;\n  }\n  .document-editor {\n    min-height: 430px;\n  }\n}\n@media (max-width: 1150px) {\n  .global-sidebar {\n    width: 180px;\n    flex-basis: 180px;\n  }\n  .app-shell > main {\n    margin-left: 180px;\n    width: calc(100% - 180px);\n  }\n  .brand {\n    font-size: 16px;\n    gap: 8px;\n    margin-left: 3px;\n  }\n  .brand svg {\n    width: 21px;\n  }\n  .page-pad {\n    padding: 28px;\n  }\n  .case-space {\n    padding: 28px;\n  }\n  .overview-grid {\n    grid-template-columns: minmax(0, 1.7fr) minmax(205px, 1fr);\n    gap: 22px;\n  }\n  .case-aside {\n    padding-left: 20px;\n  }\n  .case-aside dl > div {\n    grid-template-columns: 70px 1fr;\n    font-size: 11px;\n    gap: 5px;\n  }\n  .current-work h3 {\n    font-size: 19px;\n  }\n  .case-tabs {\n    gap: 10px;\n  }\n  .case-intro h1 {\n    font-size: 24px;\n  }\n  .table-heading,\n  .case-table-row {\n    grid-template-columns: minmax(190px, 2fr) 120px 72px 83px 15px;\n    gap: 10px;\n  }\n  .case-cell {\n    gap: 10px;\n  }\n  .case-cell b {\n    font-size: 12px;\n  }\n  .search input {\n    width: 175px;\n  }\n  .library-toolbar {\n    align-items: flex-start;\n    flex-direction: column;\n    gap: 13px;\n  }\n  .draft-layout {\n    grid-template-columns: minmax(0, 1.5fr) minmax(230px, 1fr);\n  }\n  .document-editor {\n    padding: 23px 20px;\n    font-size: 13px;\n  }\n  .document-title {\n    margin: 0 20px;\n  }\n  .stepper button {\n    font-size: 11px;\n    gap: 7px;\n  }\n  .future-heading {\n    align-items: flex-start;\n  }\n}\n@media (max-width: 850px) {\n  .global-sidebar {\n    width: 62px;\n    flex-basis: 62px;\n    padding: 20px 8px;\n  }\n  .app-shell > main {\n    margin-left: 62px;\n    width: calc(100% - 62px);\n  }\n  .brand {\n    margin: 6px auto 32px;\n    justify-content: center;\n  }\n  .brand > span,\n  .nav-group-label,\n  .sidebar-bottom span,\n  .global-sidebar nav a > span {\n    display: none;\n  }\n  .global-sidebar nav a,\n  .sidebar-bottom a {\n    padding: 13px;\n    justify-content: center;\n  }\n  .global-sidebar nav > div:nth-child(3) {\n    margin-top: 24px;\n  }\n  .global-sidebar nav small {\n    position: absolute;\n    right: 4px;\n    background: #ddd9ff;\n    border-radius: 5px;\n  }\n  .sidebar-bottom > div {\n    padding: 18px 8px;\n  }\n  .topbar {\n    padding: 0 20px;\n  }\n  .overview-grid {\n    grid-template-columns: 1fr;\n  }\n  .case-aside {\n    display: grid;\n    grid-template-columns: 1fr 1fr;\n    column-gap: 30px;\n    border-left: 0;\n    border-top: 1px solid var(--line);\n    padding: 25px 0 0;\n  }\n  .case-aside dl {\n    grid-row: 2/5;\n    grid-column: 1;\n  }\n  .case-aside h2:nth-of-type(2) {\n    grid-column: 2;\n    grid-row: 1;\n  }\n  .case-aside .note {\n    grid-column: 1/-1;\n    margin-top: 10px;\n  }\n  .case-aside .recent-file {\n    grid-column: 2;\n  }\n  .case-space,\n  .page-pad {\n    padding: 28px;\n  }\n  .draft-layout {\n    grid-template-columns: 1fr;\n  }\n  .draft-layout .discussion {\n    min-height: 300px;\n    margin-top: 10px;\n  }\n  .document-editor {\n    min-height: 400px;\n  }\n  .editor-toolbar {\n    flex-wrap: wrap;\n  }\n  .case-table {\n    overflow: auto;\n  }\n  .table-heading,\n  .case-table-row {\n    min-width: 610px;\n  }\n  .workflow-blueprint {\n    grid-template-columns: 145px 1fr;\n    gap: 22px;\n  }\n  .workflow-blueprint nav {\n    padding-right: 12px;\n  }\n  .workflow-blueprint nav button {\n    gap: 9px;\n    padding: 12px 6px;\n  }\n  .prototype-note > span {\n    display: none;\n  }\n}\n@media (max-width: 540px) {\n  .global-sidebar {\n    width: 51px;\n    flex-basis: 51px;\n    padding: 14px 4px;\n  }\n  .app-shell > main {\n    margin-left: 51px;\n    width: calc(100% - 51px);\n  }\n  .global-sidebar nav a,\n  .sidebar-bottom a {\n    padding: 12px 9px;\n  }\n  .main-surface {\n    margin: 0 8px 8px 0;\n    min-height: calc(100vh - 62px);\n  }\n  .topbar {\n    height: 52px;\n    padding: 0 12px;\n  }\n  .breadcrumbs {\n    font-size: 10px;\n    gap: 4px;\n    overflow: hidden;\n    white-space: nowrap;\n  }\n  .prototype-note {\n    font-size: 9px;\n  }\n  .case-space,\n  .page-pad {\n    padding: 24px 18px;\n  }\n  .page-heading {\n    align-items: flex-start;\n    gap: 12px;\n    margin-bottom: 28px;\n  }\n  .page-heading h1 {\n    font-size: 23px;\n  }\n  .page-heading p {\n    font-size: 11px;\n  }\n  .page-heading > .primary {\n    font-size: 11px;\n    padding: 7px 8px;\n    white-space: nowrap;\n    align-self: flex-start;\n    margin-top: 8px;\n  }\n  .page-heading > .primary > svg {\n    display: none;\n  }\n  .case-intro {\n    gap: 12px;\n    align-items: flex-start;\n    margin-bottom: 16px;\n  }\n  .case-emblem {\n    width: 37px;\n    height: 37px;\n    border-radius: 7px;\n  }\n  .case-emblem svg {\n    width: 22px;\n  }\n  .case-intro h1 {\n    font-size: 20px;\n  }\n  .case-intro p {\n    font-size: 10px;\n    gap: 5px;\n  }\n  .case-intro .more {\n    padding: 2px;\n  }\n  .case-tabs {\n    overflow-x: auto;\n    gap: 13px;\n    margin-bottom: 25px;\n  }\n  .case-tabs button {\n    font-size: 12px;\n    padding: 12px 2px;\n  }\n  .overview-grid {\n    gap: 25px;\n  }\n  .current-work {\n    padding: 18px;\n  }\n  .current-work h3 {\n    font-size: 18px;\n  }\n  .current-work > p {\n    font-size: 12px;\n  }\n  .current-work > div {\n    flex-wrap: wrap;\n  }\n  .current-status {\n    font-size: 11px;\n  }\n  .current-work .primary {\n    font-size: 11px;\n    padding: 8px 11px;\n  }\n  .business-links button {\n    gap: 17px;\n    padding: 18px 4px;\n  }\n  .business-links b {\n    font-size: 14px;\n  }\n  .business-links small {\n    font-size: 11px;\n  }\n  .case-aside {\n    display: block;\n  }\n  .case-aside dl {\n    margin-bottom: 25px;\n  }\n  .case-aside dl > div {\n    grid-template-columns: 85px 1fr;\n    font-size: 12px;\n  }\n  .case-aside > h2 {\n    margin-top: 10px;\n  }\n  .case-aside .recent-file {\n    padding: 17px 2px;\n  }\n  .filter-tabs {\n    gap: 0;\n    flex-wrap: wrap;\n  }\n  .filter-tabs button {\n    padding: 6px 7px;\n    font-size: 11px;\n  }\n  .table-heading,\n  .case-table-row {\n    grid-template-columns: minmax(195px, 1fr) 75px 16px;\n    min-width: 0;\n    gap: 6px;\n  }\n  .table-heading > :nth-child(2),\n  .table-heading > :nth-child(4),\n  .case-table-row > .round-cell,\n  .case-table-row > .deadline {\n    display: none;\n  }\n  .case-cell {\n    gap: 8px;\n  }\n  .case-file {\n    display: none;\n  }\n  .case-cell b {\n    font-size: 12px;\n  }\n  .case-cell small {\n    font-size: 9px;\n  }\n  .case-table-row {\n    padding: 20px 5px;\n  }\n  .table-heading {\n    padding: 10px 5px;\n  }\n  .table-foot {\n    gap: 10px;\n    font-size: 10px;\n  }\n  .table-foot > span {\n    max-width: 145px;\n    text-align: right;\n  }\n  .case-heading {\n    padding: 14px 0;\n  }\n  .case-heading > span {\n    display: none;\n  }\n  .case-heading select {\n    width: 100%;\n  }\n  .stepper {\n    overflow-x: auto;\n    gap: 13px;\n    padding: 6px 4px;\n    margin-bottom: 20px;\n  }\n  .stepper button {\n    flex: 0 0 auto;\n    font-size: 10px;\n    gap: 7px;\n  }\n  .stepper button:after {\n    display: none;\n  }\n  .stepper button > span {\n    width: 14px;\n    height: 14px;\n  }\n  .stepper .current > span {\n    border-width: 4px;\n    outline-offset: 2px;\n  }\n  .section-heading {\n    align-items: flex-start;\n  }\n  .section-heading h3,\n  .section-heading h2 {\n    font-size: 16px;\n  }\n  .section-heading .muted {\n    font-size: 10px;\n  }\n  .material-row {\n    padding: 17px 0;\n    gap: 10px;\n  }\n  .material-row > span:first-of-type {\n    font-size: 11px;\n  }\n  .material-row > .ready {\n    font-size: 9px;\n  }\n  .material-row > svg:first-child {\n    width: 18px;\n  }\n  .material-row > svg:last-child {\n    display: none;\n  }\n  .action-bar {\n    gap: 13px;\n    flex-wrap: wrap;\n  }\n  .action-bar > button {\n    font-size: 12px;\n  }\n  .checkbox {\n    font-size: 11px;\n  }\n  .job-banner {\n    flex-wrap: wrap;\n    font-size: 11px;\n  }\n  .strategy {\n    flex-wrap: wrap;\n    gap: 15px;\n    padding: 22px 0;\n  }\n  .strategy-number {\n    font-size: 17px;\n  }\n  .strategy > div {\n    min-width: 80%;\n  }\n  .strategy > button {\n    margin-left: 29px;\n  }\n  .editor-toolbar {\n    padding: 10px 8px;\n    gap: 6px;\n  }\n  .editor-toolbar select {\n    width: 100%;\n  }\n  .editor-toolbar button {\n    font-size: 10px;\n    padding: 6px 7px;\n  }\n  .document-title {\n    padding: 25px 5px 20px;\n    margin: 0 18px;\n  }\n  .document-title h3 {\n    font-size: 24px;\n  }\n  .document-editor {\n    padding: 22px 18px;\n    min-height: 490px;\n    font-size: 12px;\n  }\n  .document-footer {\n    padding: 10px;\n    flex-wrap: wrap;\n    font-size: 9px;\n  }\n  .future-heading {\n    flex-direction: column;\n    gap: 12px;\n  }\n  .future-heading h2 {\n    font-size: 20px;\n  }\n  .workflow-blueprint {\n    display: block;\n    padding-top: 10px;\n  }\n  .workflow-blueprint nav {\n    display: flex;\n    overflow-x: auto;\n    border-right: 0;\n    border-bottom: 1px solid var(--line);\n    padding: 0 0 12px;\n    gap: 6px;\n  }\n  .workflow-blueprint nav button {\n    width: auto;\n    white-space: nowrap;\n    font-size: 11px;\n    padding: 8px;\n  }\n  .workflow-detail {\n    padding-top: 24px;\n  }\n  .workflow-detail h3 {\n    font-size: 23px;\n  }\n  .preview-label {\n    font-size: 10px;\n  }\n  .io-row {\n    font-size: 12px;\n  }\n  .future-work > .note {\n    font-size: 11px;\n  }\n  .task-row {\n    flex-wrap: wrap;\n  }\n  .task-row > div {\n    min-width: 100%;\n  }\n  .modal-body {\n    padding: 20px;\n  }\n  .modal-head {\n    padding: 17px 20px;\n  }\n  .output-list > div {\n    flex-wrap: wrap;\n  }\n  .output-list small {\n    margin-left: 34px;\n  }\n  .toast {\n    width: calc(100% - 36px);\n    font-size: 11px;\n    bottom: 12px;\n  }\n  .material-table button {\n    padding: 17px 0;\n    gap: 10px;\n  }\n  .material-table button > .muted {\n    display: none;\n  }\n}\n@media (prefers-reduced-motion: reduce) {\n  * {\n    animation: none !important;\n    transition: none !important;\n  }\n}\n@media (min-width: 1440px) {\n  .global-sidebar {\n    width: 248px;\n  }\n  .app-shell > main {\n    margin-left: 248px;\n    width: calc(100% - 248px);\n  }\n  .brand {\n    font-size: 22px;\n    margin-bottom: 40px;\n  }\n  .global-sidebar nav a,\n  .sidebar-bottom a {\n    font-size: 15px;\n    padding: 13px 14px;\n  }\n  .nav-group-label {\n    font-size: 13px;\n  }\n  .sidebar-bottom > div {\n    font-size: 14px;\n  }\n  .topbar {\n    height: 68px;\n    font-size: 14px;\n  }\n  .prototype-note {\n    font-size: 12px;\n  }\n  .main-surface {\n    min-height: calc(100vh - 86px);\n  }\n  .case-intro {\n    gap: 26px;\n  }\n  .case-emblem {\n    width: 72px;\n    height: 72px;\n  }\n  .case-emblem svg {\n    width: 33px;\n    height: 33px;\n  }\n  .case-intro h1 {\n    font-size: 32px;\n  }\n  .case-intro p {\n    font-size: 14px;\n  }\n  .case-intro .tag {\n    font-size: 12px;\n  }\n  .case-tabs {\n    gap: 23px;\n  }\n  .case-tabs button {\n    font-size: 17px;\n    padding-bottom: 16px;\n  }\n  .overview-grid h2 {\n    font-size: 21px;\n  }\n  .current-work h3 {\n    font-size: 26px;\n  }\n  .current-work > p {\n    font-size: 15px;\n  }\n  .current-work > p:first-child {\n    font-size: 14px;\n  }\n  .current-work > div {\n    margin-top: 22px;\n  }\n  .current-status {\n    font-size: 14px;\n  }\n  .current-work .primary {\n    font-size: 15px;\n    padding: 11px 17px;\n  }\n  .business-links b {\n    font-size: 17px;\n  }\n  .business-links small {\n    font-size: 14px;\n  }\n  .business-links button {\n    padding: 24px 15px;\n  }\n  .case-aside dl {\n    font-size: 14px;\n  }\n  .case-aside dl > div {\n    grid-template-columns: 100px 1fr;\n    padding: 15px 0;\n  }\n  .recent-file {\n    font-size: 14px;\n    padding: 20px 4px;\n  }\n  .recent-file small {\n    font-size: 12px;\n  }\n  .case-aside > .note {\n    font-size: 13px;\n  }\n  .case-cell b {\n    font-size: 16px;\n  }\n  .case-cell small,\n  .round-cell,\n  .deadline {\n    font-size: 13px;\n  }\n  .table-heading,\n  .filter-tabs button {\n    font-size: 13px;\n  }\n  .status {\n    font-size: 12px;\n  }\n  .search input {\n    font-size: 13px;\n    width: 230px;\n  }\n  .page-heading p {\n    font-size: 14px;\n  }\n  .focused-space .case-intro h1 {\n    font-size: 26px;\n  }\n  .focused-space .case-tabs button {\n    font-size: 15px;\n  }\n  .focused-space .case-intro p {\n    font-size: 12px;\n  }\n  .workspace .section-heading h3 {\n    font-size: 20px;\n  }\n  .stepper button {\n    font-size: 13px;\n  }\n  .material-row > span:first-of-type {\n    font-size: 15px;\n  }\n  .material-row small,\n  .ready {\n    font-size: 12px;\n  }\n  .material-row {\n    padding: 22px 14px;\n  }\n  .checkbox {\n    font-size: 14px;\n  }\n  .workspace .action-bar .primary {\n    font-size: 14px;\n  }\n  .document-title h3 {\n    font-size: 30px;\n  }\n  .document-editor {\n    font-size: 15px;\n    line-height: 2;\n  }\n  .discussion select {\n    font-size: 14px;\n  }\n  .message,\n  .composer textarea {\n    font-size: 13px;\n  }\n  .editor-toolbar button {\n    font-size: 12px;\n  }\n  .editor-toolbar select {\n    font-size: 13px;\n  }\n}\n@media (max-width: 540px) {\n  .table-heading,\n  .case-table-row {\n    grid-template-columns: minmax(0, 1fr) 70px 12px;\n  }\n  .status {\n    font-size: 10px;\n  }\n  .material-row small {\n    font-size: 10px;\n  }\n  .table-tools {\n    width: 100%;\n  }\n  .search {\n    min-width: 0;\n    flex: 1;\n  }\n  .search input {\n    width: 100%;\n    font-size: 11px;\n  }\n}\n.focused-space .case-heading {\n  padding: 9px 0;\n}\n.focused-space .stepper {\n  margin-bottom: 18px;\n}\n.draft-heading {\n  margin-bottom: 12px;\n}\n.focused-space .case-intro {\n  margin-bottom: 8px;\n}\n.focused-space .document-title {\n  padding: 26px 15px 22px;\n}\n.case-header-actions {\n  margin-left: auto;\n  display: flex;\n  align-items: center;\n  gap: 12px;\n  flex-shrink: 0;\n}\n.case-header-actions select {\n  font-size: 13px;\n}\n.case-intro > .case-header-actions {\n  flex: 0 0 auto;\n}\n.focused-space .case-tabs {\n  margin-bottom: 24px;\n}\n@media (max-width: 540px) {\n  .case-intro {\n    flex-wrap: wrap;\n  }\n  .case-header-actions {\n    gap: 6px;\n  }\n  .focused-space .case-intro > .case-header-actions {\n    width: 100%;\n    justify-content: space-between;\n    margin-left: 0;\n  }\n  .case-header-actions select {\n    font-size: 11px;\n  }\n  .focused-space .case-tabs {\n    margin-bottom: 20px;\n  }\n  .focused-space .document-title {\n    padding: 23px 5px 20px;\n  }\n}\n.internal-transfer {\n  margin-top: 28px;\n  padding-top: 24px;\n  border-top: 1px solid var(--line,#e2e5ea);\n}\n.surface-state {\n  display: flex;\n  align-items: center;\n  gap: 9px;\n  padding: 14px 16px;\n  margin: 14px 0;\n  border: 1px solid var(--line);\n  border-radius: 8px;\n  background: #f8f9fc;\n  color: #737b8d;\n  font-size: 12px;\n  line-height: 1.7;\n}\n.surface-state > span {\n  flex: 1;\n  min-width: 0;\n}\n.surface-state.is-error {\n  color: #986321;\n  background: #fff9ef;\n  border-color: #f0e1bb;\n}\n.surface-state.is-readonly {\n  color: #6f718b;\n  background: #f5f4fc;\n  border-color: #dedbf5;\n}\n.surface-state button {\n  padding: 5px 9px;\n  font-size: 11px;\n}\n.transfer-context {\n  display: flex;\n  gap: 18px;\n  flex-wrap: wrap;\n  padding: 12px 16px;\n  margin: 16px 0;\n  background: #f4f6fa;\n  border-radius: 10px;\n  font-size: 13px;\n}\n.transfer-status-summary {\n  display: flex;\n  align-items: flex-start;\n  justify-content: space-between;\n  gap: 20px;\n  padding: 15px 17px;\n  margin: 16px 0;\n  border: 1px solid #e2e4ed;\n  border-radius: 8px;\n  background: #f8f9fc;\n}\n.transfer-status-main {\n  min-width: 0;\n  flex: 1;\n}\n.transfer-status-main > span {\n  display: block;\n  color: #8c92a1;\n  font-size: 11px;\n  margin-bottom: 4px;\n}\n.transfer-status-main strong {\n  display: block;\n  color: #3f4654;\n  font-size: 14px;\n  font-weight: 600;\n}\n.transfer-status-main p {\n  margin-top: 5px;\n  color: #70798a;\n  font-size: 12px;\n  line-height: 1.7;\n}\n.transfer-status-summary dl {\n  display: grid;\n  grid-template-columns: repeat(3, minmax(80px, 1fr));\n  gap: 12px;\n  margin: 0;\n  min-width: 260px;\n}\n.transfer-status-summary dl > div {\n  padding-left: 12px;\n  border-left: 1px solid #e0e3eb;\n}\n.transfer-status-summary dt {\n  color: #8c92a1;\n  font-size: 10px;\n}\n.transfer-status-summary dd {\n  margin: 4px 0 0;\n  color: #4c5463;\n  font-size: 12px;\n  overflow-wrap: anywhere;\n}\n.transfer-status-summary.is-saved,\n.transfer-status-summary.is-submitted {\n  background: #f5faf7;\n  border-color: #d4eadb;\n}\n.transfer-status-summary.is-saved .transfer-status-main strong,\n.transfer-status-summary.is-submitted .transfer-status-main strong {\n  color: #2d7b4d;\n}\n.transfer-status-summary.is-uncertain {\n  background: #fffaf0;\n  border-color: #f0e1bb;\n}\n.transfer-status-summary.is-uncertain .transfer-status-main strong {\n  color: #9a6b27;\n}\n.transfer-files > div {\n  display: flex;\n  align-items: center;\n  gap: 12px;\n  padding: 16px;\n  border: 1px solid #e4e7ee;\n  border-radius: 10px;\n  margin: 10px 0;\n}\n.transfer-files > div > span {\n  flex: 1;\n  min-width: 0;\n}\n.transfer-files small {\n  display: block;\n  overflow-wrap: anywhere;\n  color: #68748a;\n  margin-top: 5px;\n}\n.transfer-parts > div,\n.correction-row {\n  padding: 16px;\n  border: 1px solid #e4e7ee;\n  border-radius: 10px;\n  margin: 10px 0;\n}\n.transfer-parts label {\n  display: flex;\n  align-items: center;\n  gap: 10px;\n}\n.transfer-parts label > span {\n  margin-left: auto;\n  font-size: 12px;\n}\n.transfer-parts p,\n.transfer-parts summary {\n  font-size: 13px;\n  color: #68748a;\n}\n.transfer-comparison {\n  display: grid;\n  grid-template-columns: 1fr 1fr;\n  gap: 16px;\n}\n.transfer-comparison pre {\n  white-space: pre-wrap;\n  overflow-wrap: anywhere;\n  max-height: 300px;\n  overflow: auto;\n  font: 13px/1.7 inherit;\n}\n.transfer-form .checkbox {\n  margin: 14px 0;\n}\n.transfer-results {\n  line-height: 1.9;\n  padding-left: 22px;\n}\n.text-warning {\n  color: #986321;\n}\n.transfer-existing-box {\n  padding: 14px 16px;\n  margin: 14px 0;\n  background: #f0f8f4;\n  border: 1px solid #c7e6d4;\n  border-radius: 10px;\n  font-size: 13px;\n}\n.transfer-existing-box.is-draft {\n  background: #f4f6fa;\n  border-color: #dbe1eb;\n}\n.transfer-existing-header {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  margin-bottom: 8px;\n  font-weight: 600;\n}\n.transfer-existing-badge {\n  font-size: 11px;\n  font-weight: 600;\n  padding: 2px 8px;\n  border-radius: 999px;\n  background: #2d8a54;\n  color: #fff;\n}\n.transfer-existing-badge.is-draft {\n  background: #68748a;\n  color: #fff;\n}\n.transfer-file-chips {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 8px;\n  margin: 8px 0;\n}\n.transfer-file-chip {\n  display: inline-flex;\n  align-items: center;\n  gap: 6px;\n  padding: 4px 10px;\n  background: #fff;\n  border: 1px solid #d4ddd7;\n  border-radius: 6px;\n  font-size: 12px;\n  color: #2c3a30;\n}\n.transfer-inspecting {\n  display: inline-flex;\n  align-items: center;\n  gap: 8px;\n  color: #68748a;\n  font-size: 12px;\n  padding: 7px 10px;\n}\n.transfer-saved-banner {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 18px;\n  flex-wrap: wrap;\n  padding: 16px 20px;\n  margin: 16px 0;\n  background: #eef8f2;\n  border: 1px solid #c2e5d0;\n  border-radius: 10px;\n  font-size: 13px;\n}\n.transfer-saved-banner h4 {\n  margin: 0 0 4px;\n  font-size: 15px;\n  color: #1e6b3e;\n  font-weight: 600;\n}\n.transfer-saved-banner p {\n  margin: 0;\n  font-size: 12px;\n  color: #416952;\n  line-height: 1.6;\n}\n.spin {\n  animation: spin 1s linear infinite;\n}\n@keyframes spin {\n  from {\n    transform: rotate(0deg);\n  }\n  to {\n    transform: rotate(360deg);\n  }\n}\n.formatted-formula-text {\n  white-space: pre-wrap;\n  overflow-wrap: anywhere;\n  font-family: inherit;\n  font-size: 13px;\n  line-height: 1.9;\n}\n.formula-text-line {\n  min-height: 1.2em;\n}\n.formula-inline-wrap {\n  display: inline-block;\n  vertical-align: middle;\n  margin: 0 2px;\n}\n.formula-block-wrap {\n  display: block;\n  margin: 12px 0;\n  text-align: center;\n  overflow-x: auto;\n}\n.formula-fallback {\n  font-family: monospace;\n  background: #f5f3ff;\n  color: #5548a8;\n  padding: 2px 4px;\n  border-radius: 4px;\n  font-size: 12px;\n}\n.preview-image-figure {\n  margin: 14px auto;\n  text-align: center;\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  max-width: 100%;\n}\n.preview-image-box {\n  background: var(--surface-muted,#f8fafc);\n  border: 1px solid var(--line,#e2e8f0);\n  border-radius: 8px;\n  padding: 8px;\n  display: inline-flex;\n  justify-content: center;\n  align-items: center;\n  max-width: 100%;\n  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);\n}\n.preview-image-content {\n  max-width: 100%;\n  max-height: 550px;\n  height: auto;\n  object-fit: contain;\n  border-radius: 4px;\n  cursor: zoom-in;\n  display: block;\n}\n.preview-image-content:hover {\n  opacity: 0.96;\n}\n.preview-image-caption {\n  margin-top: 6px;\n  font-size: 12px;\n  color: var(--muted,#64748b);\n  font-weight: 500;\n}\n.doc-preview-modal-body {\n  max-height: 72vh !important;\n  font-size: 13px;\n  line-height: 1.85;\n  padding: 18px;\n  background: var(--surface-muted,#f8fafc);\n  overflow-y: auto;\n}\n.image-lightbox-overlay {\n  position: fixed;\n  inset: 0;\n  background: rgba(15, 23, 42, 0.85);\n  backdrop-filter: blur(4px);\n  z-index: 9999;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  padding: 20px;\n}\n.image-lightbox-modal {\n  background: #1e293b;\n  color: #f8fafc;\n  border-radius: 8px;\n  max-width: 94vw;\n  max-height: 94vh;\n  display: flex;\n  flex-direction: column;\n  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);\n  overflow: hidden;\n}\n.image-lightbox-header {\n  display: flex;\n  justify-content: space-between;\n  align-items: center;\n  padding: 10px 16px;\n  border-bottom: 1px solid #334155;\n  font-size: 13px;\n  font-weight: 500;\n}\n.image-lightbox-title {\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n  max-width: 80vw;\n}\n.image-lightbox-close {\n  color: #94a3b8;\n  cursor: pointer;\n  background: transparent;\n  border: 0;\n  padding: 4px 8px;\n  font-size: 16px;\n}\n.image-lightbox-close:hover {\n  color: #fff;\n}\n.image-lightbox-body {\n  display: flex;\n  justify-content: center;\n  align-items: center;\n  padding: 12px;\n  overflow: auto;\n  max-width: 92vw;\n  max-height: 86vh;\n}\n.image-lightbox-body img {\n  max-width: 100%;\n  max-height: 82vh;\n  object-fit: contain;\n  border-radius: 4px;\n}\n@media (max-width: 850px) {\n  .transfer-status-summary {\n    flex-direction: column;\n  }\n  .transfer-status-summary dl {\n    width: 100%;\n    min-width: 0;\n  }\n}\n\n/* src/business.css */\n.business-workspace {\n  position: relative;\n}\n.business-title {\n  display: flex;\n  justify-content: space-between;\n  align-items: center;\n  gap: 20px;\n  margin: 2px 0 24px;\n}\n.business-title h2 {\n  font-size: 22px;\n}\n.business-title p {\n  font-size: 13px;\n  color: var(--muted);\n  margin-top: 6px;\n}\n.process-tabs {\n  display: flex;\n  border-bottom: 1px solid var(--line);\n  gap: 18px;\n  margin-bottom: 30px;\n  overflow-x: auto;\n}\n.process-tabs button {\n  border: 0;\n  border-bottom: 2px solid transparent;\n  border-radius: 0;\n  background: transparent;\n  padding: 12px 5px;\n  color: #878d9c;\n  white-space: nowrap;\n  font-size: 13px;\n}\n.process-tabs button > span {\n  font-size: 10px;\n  color: #a5a5b7;\n  margin-right: 4px;\n  font-variant-numeric: tabular-nums;\n}\n.process-tabs button.active {\n  color: var(--accent);\n  border-color: var(--accent);\n}\n.process-tabs button.active > span {\n  color: var(--accent);\n}\n.preparation-layout {\n  display: grid;\n  grid-template-columns: minmax(0, 1.9fr) minmax(230px, 1fr);\n  gap: 40px;\n  padding: 6px 0 20px;\n}\n.preparation-layout > div {\n  min-width: 0;\n}\n.preparation-layout h3 {\n  font-size: 19px;\n}\n.section-copy {\n  font-size: 13px;\n  color: var(--muted);\n  margin: 10px 0 24px;\n}\n.wide-field {\n  max-width: none;\n}\n.disclosure-editor {\n  min-height: 240px;\n  resize: vertical;\n  line-height: 1.9;\n  padding: 17px;\n}\n.context-aside {\n  border-left: 1px solid var(--line);\n  padding-left: 30px;\n  color: #737c8f;\n}\n.context-aside h3 {\n  font-size: 16px;\n  color: var(--ink);\n  margin-bottom: 20px;\n}\n.context-aside h4 {\n  font-size: 13px;\n  margin: 30px 0 13px;\n}\n.context-aside p,\n.context-aside li {\n  font-size: 13px;\n  line-height: 1.9;\n}\n.context-aside ul {\n  padding-left: 18px;\n}\n.context-aside li {\n  margin: 9px 0;\n}\n.context-file {\n  border: 0;\n  border-block: 1px solid var(--line);\n  border-radius: 0;\n  display: flex;\n  width: 100%;\n  text-align: left;\n  padding: 17px 0;\n  gap: 12px;\n}\n.context-file > span {\n  flex: 1;\n}\n.context-file small {\n  display: block;\n  font-size: 11px;\n  color: var(--muted);\n  margin-top: 7px;\n}\n.research-search {\n  display: flex;\n  align-items: center;\n  border: 1px solid #dce0e9;\n  border-radius: 8px;\n  padding: 5px 6px 5px 14px;\n  gap: 10px;\n  margin-bottom: 25px;\n}\n.research-search svg {\n  color: #9693b2;\n}\n.research-search input {\n  border: 0;\n  flex: 1;\n  min-width: 0;\n}\n.research-search button {\n  white-space: nowrap;\n  font-size: 12px;\n}\n.research-results > button {\n  width: 100%;\n  text-align: left;\n  justify-content: flex-start;\n  border: 0;\n  border-bottom: 1px solid var(--line);\n  border-radius: 0;\n  padding: 22px 0;\n  gap: 20px;\n}\n.research-results > button > span:nth-child(2) {\n  flex: 1;\n}\n.research-results b {\n  font-weight: 550;\n  font-size: 15px;\n}\n.research-results small {\n  display: block;\n  color: #979aac;\n  font-size: 11px;\n  margin-top: 8px;\n}\n.research-results p {\n  font-size: 12px;\n  color: #858c9c;\n  margin-top: 9px;\n}\n.source-number {\n  font-size: 17px;\n  font-weight: 350;\n  color: #9590c4;\n  align-self: flex-start;\n  margin-top: 2px;\n}\n.inline-empty {\n  padding: 44px 15px;\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 16px;\n  color: #959aad;\n  text-align: center;\n}\n.inline-empty p {\n  font-size: 13px;\n  max-width: 360px;\n}\n.inline-empty > svg {\n  color: #aaa5d5;\n  width: 28px;\n  height: 28px;\n}\n.plan-option {\n  width: 100%;\n  gap: 16px;\n  justify-content: flex-start;\n  text-align: left;\n  margin: 16px 0;\n  padding: 21px 20px;\n  border-color: var(--line);\n}\n.plan-option.selected {\n  background: #fbfaff;\n  border-color: #c1baff;\n}\n.plan-option > span:last-child {\n  flex: 1;\n}\n.plan-option b {\n  font-size: 15px;\n  font-weight: 550;\n}\n.plan-option p {\n  font-size: 13px;\n  color: #858b9c;\n  margin-top: 9px;\n  line-height: 1.8;\n}\n.choice-circle {\n  width: 18px;\n  height: 18px;\n  border: 1px solid #c3c6d2;\n  border-radius: 50%;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  align-self: flex-start;\n  margin-top: 2px;\n}\n.selected > .choice-circle {\n  background: var(--accent);\n  color: white;\n  border-color: var(--accent);\n}\n.application-toolbar {\n  display: flex;\n  justify-content: space-between;\n  align-items: center;\n  gap: 15px;\n  padding: 0 0 18px;\n}\n.application-toolbar > div {\n  display: flex;\n  align-items: center;\n  gap: 12px;\n  flex-wrap: wrap;\n}\n.application-toolbar h3 {\n  font-size: 18px;\n}\n.application-toolbar span {\n  font-size: 12px;\n  color: #9298a6;\n}\n.application-toolbar button,\n.application-toolbar select {\n  font-size: 12px;\n}\n.application-toolbar select {\n  padding: 8px 10px;\n}\n.application-editor {\n  display: grid;\n  grid-template-columns: 170px minmax(0, 1fr);\n  border: 1px solid var(--line);\n  border-radius: 9px;\n  overflow: hidden;\n}\n.application-editor > nav {\n  padding: 20px 13px;\n  background: #f8f9fc;\n  border-right: 1px solid var(--line);\n}\n.application-editor nav h4 {\n  font-size: 11px;\n  color: #979dac;\n  font-weight: 500;\n  margin: 0 10px 15px;\n}\n.application-editor nav button {\n  display: flex;\n  justify-content: flex-start;\n  text-align: left;\n  width: 100%;\n  border: 0;\n  background: transparent;\n  padding: 11px 10px;\n  margin: 3px 0;\n  color: #798195;\n  font-size: 12px;\n}\n.application-editor nav button.active {\n  background: #ece9fc;\n  color: var(--accent);\n}\n.application-editor nav button:last-child {\n  margin-top: 30px;\n  font-size: 11px;\n}\n.application-paper {\n  min-width: 0;\n}\n.application-paper-title {\n  padding: 32px 30px 24px;\n  text-align: center;\n  border-bottom: 1px solid var(--line);\n  margin: 0 35px;\n}\n.application-paper-title h3 {\n  font-family:\n    \"Songti SC\",\n    SimSun,\n    serif;\n  font-size: 27px;\n  font-weight: 600;\n}\n.application-paper-title > span {\n  display: block;\n  font-size: 11px;\n  color: #999eac;\n  margin-top: 12px;\n}\n.application-paper textarea {\n  width: 100%;\n  border: 0;\n  border-radius: 0;\n  resize: vertical;\n  min-height: 400px;\n  padding: 30px 40px;\n  font-size: 14px;\n  line-height: 2.05;\n  display: block;\n}\n.application-paper textarea:focus {\n  outline: 0;\n  box-shadow: inset 3px 0 #bbb5f7;\n}\n.application-paper footer,\n.source-document > footer {\n  display: flex;\n  justify-content: space-between;\n  gap: 10px;\n  border-top: 1px solid var(--line);\n  padding: 12px 18px;\n  color: #9c9fab;\n  font-size: 10px;\n}\n.review-bridge {\n  max-width: 850px;\n  margin: 0 auto;\n  padding: 45px 0 65px;\n  text-align: center;\n}\n.review-bridge > svg {\n  color: #8d86db;\n  margin-bottom: 22px;\n}\n.review-bridge h3 {\n  font-size: 23px;\n}\n.review-bridge > p {\n  color: #8a92a2;\n  font-size: 13px;\n  margin: 13px auto 25px;\n  max-width: 560px;\n}\n.review-bridge-meta {\n  display: flex;\n  justify-content: center;\n  gap: 24px;\n  margin: 28px 0;\n  color: #777e8f;\n  font-size: 13px;\n}\n.button-row {\n  display: flex;\n  gap: 10px;\n  flex-wrap: wrap;\n  justify-content: center;\n  margin-top: 22px;\n}\n.final-files {\n  margin: 22px 0;\n  border-top: 1px solid var(--line);\n}\n.final-files > div {\n  display: flex;\n  gap: 15px;\n  align-items: center;\n  padding: 19px 7px;\n  border-bottom: 1px solid var(--line);\n  font-size: 14px;\n}\n.final-files > div > span:nth-child(2) {\n  flex: 1;\n}\n.final-files small {\n  font-size: 11px;\n  color: #959cad;\n  margin-top: 7px;\n  display: block;\n}\n.writing-final {\n  max-width: 930px;\n}\n.source-choices {\n  margin: 24px 0 28px;\n}\n.source-choices > button {\n  display: flex;\n  width: 100%;\n  gap: 16px;\n  justify-content: flex-start;\n  text-align: left;\n  border: 0;\n  border-bottom: 1px solid var(--line);\n  border-radius: 0;\n  padding: 18px 15px;\n}\n.source-choices > button.selected {\n  background: #f5f3ff;\n  color: var(--accent);\n  border-radius: 7px;\n  border-color: transparent;\n}\n.source-choices > button > span {\n  flex: 1;\n}\n.source-choices b {\n  font-size: 14px;\n  font-weight: 550;\n}\n.source-choices small {\n  display: block;\n  font-size: 12px;\n  color: #969baa;\n  margin-top: 7px;\n}\n.select-files {\n  border-block: 1px solid var(--line);\n  margin: 20px 0;\n}\n.select-files label {\n  display: flex;\n  gap: 14px;\n  align-items: center;\n  border-bottom: 1px solid var(--line);\n  padding: 16px 8px;\n  cursor: pointer;\n  font-size: 13px;\n}\n.select-files label:last-child {\n  border: 0;\n}\n.select-files small {\n  display: block;\n  font-size: 11px;\n  color: #979fae;\n  margin-top: 6px;\n}\n.select-files svg {\n  color: #9a95bd;\n}\n.lock-review {\n  max-width: 750px;\n  padding: 16px 0 32px;\n}\n.lock-review > svg {\n  color: #8d86d8;\n  margin-bottom: 16px;\n}\n.lock-review > h3 {\n  font-size: 22px;\n}\n.lock-review > p {\n  font-size: 13px;\n  color: #959bac;\n  margin-top: 10px;\n}\n.inline-warning {\n  padding: 12px 16px;\n  background: #fff9e9;\n  border: 1px solid #eee2bf;\n  border-radius: 7px;\n  font-size: 12px;\n  color: #907748;\n  margin-bottom: 20px;\n}\n.review-desk {\n  display: grid;\n  grid-template-columns: minmax(0, 1.5fr) minmax(310px, 1fr);\n  gap: 15px;\n  align-items: stretch;\n}\n.source-document {\n  border: 1px solid var(--line);\n  border-radius: 8px;\n  overflow: hidden;\n  display: flex;\n  flex-direction: column;\n  min-width: 0;\n}\n.source-document-toolbar {\n  background: #f8f9fc;\n  border-bottom: 1px solid var(--line);\n  display: flex;\n  gap: 10px;\n  align-items: center;\n  padding: 11px 14px;\n  min-width: 0;\n}\n.source-document-toolbar select {\n  background: transparent;\n  border: 0;\n  font-size: 14px;\n  font-weight: 550;\n  min-width: 0;\n  max-width: 65%;\n  padding: 7px 12px 7px 0;\n}\n.source-document-toolbar > span {\n  font-size: 11px;\n  color: #969ca8;\n  margin-left: auto;\n}\n.source-document-toolbar .selected {\n  color: var(--accent);\n  background: #ebe8ff;\n}\n.review-paper {\n  padding: 32px 32px 36px;\n  flex: 1;\n  min-height: 520px;\n  font-family:\n    \"Songti SC\",\n    SimSun,\n    serif;\n}\n.review-paper h3 {\n  text-align: center;\n  font-size: 26px;\n  font-weight: 600;\n  margin: 4px 0 35px;\n}\n.review-paper p {\n  font-size: 15px;\n  line-height: 2.1;\n  margin: 22px 0;\n  white-space: pre-wrap;\n  overflow-wrap: anywhere;\n  position: relative;\n}\n.review-paper p.located:before {\n  content: \"\";\n  position: absolute;\n  left: -17px;\n  top: 4px;\n  bottom: 4px;\n  width: 3px;\n  background: #e8b65c;\n}\n.review-paper mark {\n  background: #fff1cd;\n  color: inherit;\n  border-radius: 2px;\n  box-decoration-break: clone;\n}\n.issue-inspector {\n  border: 1px solid var(--line);\n  border-radius: 8px;\n  padding: 21px 19px 17px;\n  min-width: 0;\n  display: flex;\n  flex-direction: column;\n}\n.inspector-heading {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  gap: 10px;\n  margin-bottom: 15px;\n}\n.inspector-heading h3 {\n  font-size: 17px;\n}\n.inspector-heading .filter-tabs {\n  gap: 2px;\n}\n.inspector-heading .filter-tabs button {\n  font-size: 11px;\n  padding: 6px 9px;\n}\n.issue-list {\n  border-bottom: 1px solid var(--line);\n  padding-bottom: 14px;\n}\n.issue-list > button {\n  width: 100%;\n  text-align: left;\n  gap: 12px;\n  justify-content: flex-start;\n  padding: 14px 9px;\n  border: 0;\n  border-radius: 5px;\n  background: transparent;\n  margin: 3px 0;\n}\n.issue-list > button.active {\n  background: #efecfd;\n  color: #534dba;\n}\n.issue-list > button > span {\n  color: #8b82bc;\n  font-size: 12px;\n  min-width: 19px;\n}\n.issue-list > button > b {\n  font-size: 13px;\n  line-height: 1.65;\n  font-weight: 500;\n  flex: 1;\n}\n.issue-list > button > svg {\n  color: #a49ec2;\n}\n.issue-category {\n  display: block;\n  font-size: 10px;\n  color: #989ba9;\n  margin: 18px 0;\n}\n.issue-detail h4 {\n  font-size: 13px;\n  font-weight: 600;\n  margin: 17px 0 10px;\n}\n.issue-detail blockquote {\n  margin: 0;\n  padding: 14px;\n  background: #f6f7fb;\n  border-radius: 6px;\n  color: #6d7588;\n  font-size: 12px;\n  line-height: 1.9;\n  overflow-wrap: anywhere;\n}\n.issue-detail blockquote small {\n  display: block;\n  font-size: 10px;\n  text-align: right;\n  margin-top: 9px;\n  color: #9ba0b0;\n}\n.issue-detail > p {\n  font-size: 12px;\n  color: #7b8396;\n  line-height: 1.95;\n}\n.inspector-actions {\n  display: flex;\n  flex-wrap: wrap;\n  gap: 9px;\n  margin: 25px 0 6px;\n}\n.inspector-actions button {\n  font-size: 12px;\n  flex: 1;\n  white-space: nowrap;\n}\n.inspector-footer {\n  margin-top: auto;\n  padding-top: 14px;\n}\n.inspector-footer .note {\n  font-size: 11px;\n  margin-top: 6px;\n}\n.disposition-note {\n  display: flex;\n  align-items: flex-start;\n  gap: 10px;\n  padding: 13px 0;\n  color: #6e8b7c;\n  font-size: 12px;\n  line-height: 1.8;\n}\n.disposition-note svg {\n  margin-top: 3px;\n}\n.conclusion-list {\n  border-top: 1px solid var(--line);\n}\n.conclusion-list button {\n  display: flex;\n  width: 100%;\n  gap: 23px;\n  padding: 20px 9px;\n  border: 0;\n  border-bottom: 1px solid var(--line);\n  border-radius: 0;\n  text-align: left;\n}\n.conclusion-list button > span:first-child {\n  font-size: 11px;\n  min-width: 70px;\n}\n.conclusion-list button > span:nth-child(2) {\n  flex: 1;\n}\n.conclusion-list b {\n  font-size: 14px;\n  font-weight: 550;\n}\n.conclusion-list small {\n  display: block;\n  font-size: 12px;\n  color: #8a92a2;\n  line-height: 1.8;\n  margin-top: 9px;\n  overflow-wrap: anywhere;\n}\n.success-text {\n  color: #5f9b80;\n}\n.warning {\n  color: #b08642;\n}\n.surface-switch {\n  display: flex;\n  gap: 22px;\n  border-bottom: 1px solid var(--line);\n  margin: 10px 0 30px;\n}\n.surface-switch button {\n  background: transparent;\n  border: 0;\n  border-bottom: 2px solid transparent;\n  border-radius: 0;\n  padding: 12px 3px;\n  font-size: 13px;\n  color: #8b90a1;\n}\n.surface-switch button.active {\n  color: var(--accent);\n  border-color: var(--accent);\n}\n.artifact-catalog {\n  border-top: 1px solid var(--line);\n}\n.artifact-catalog > button {\n  display: flex;\n  justify-content: flex-start;\n  gap: 17px;\n  width: 100%;\n  border: 0;\n  border-bottom: 1px solid var(--line);\n  border-radius: 0;\n  text-align: left;\n  padding: 21px 8px;\n}\n.artifact-catalog > button > span {\n  flex: 1;\n}\n.artifact-catalog b {\n  font-size: 14px;\n  font-weight: 550;\n}\n.artifact-catalog small {\n  display: block;\n  font-size: 11px;\n  color: #8f98aa;\n  margin-top: 8px;\n}\n.artifact-catalog svg {\n  color: #9b95bd;\n}\n.internal-records {\n  margin-top: 38px;\n}\n.internal-records > h3 {\n  font-size: 16px;\n  margin-bottom: 18px;\n}\n.well-empty {\n  text-align: center;\n  padding: 55px 25px;\n  color: #9ba1ae;\n}\n.well-empty > svg {\n  color: #a9a4d4;\n  margin-bottom: 19px;\n}\n.well-empty h3 {\n  color: #666e80;\n  font-size: 19px;\n}\n.well-empty p {\n  font-size: 13px;\n  margin: 10px auto 20px;\n  max-width: 420px;\n}\n.recipient-list {\n  border-top: 1px solid var(--line);\n}\n.recipient-list button {\n  width: 100%;\n  justify-content: flex-start;\n  gap: 15px;\n  text-align: left;\n  border: 0;\n  border-bottom: 1px solid var(--line);\n  border-radius: 0;\n  padding: 22px 12px;\n}\n.recipient-list .selected {\n  background: #f7f5ff;\n}\n.recipient-list button > span:nth-child(2) {\n  flex: 1;\n}\n.recipient-list b {\n  font-size: 14px;\n  font-weight: 550;\n}\n.recipient-list small {\n  display: block;\n  font-size: 12px;\n  color: #9a9fad;\n  margin-top: 7px;\n}\n.person-icon {\n  display: flex;\n  border-radius: 50%;\n  padding: 10px;\n  background: #ecebf4;\n  color: #9993b9;\n}\n.review-definition {\n  margin: 20px 0;\n}\n.review-definition > div {\n  display: grid;\n  grid-template-columns: 100px 1fr;\n  gap: 20px;\n  padding: 16px 0;\n  border-bottom: 1px solid var(--line);\n  font-size: 13px;\n  line-height: 1.8;\n}\n.review-definition dt {\n  color: #9097a5;\n}\n.review-definition dd {\n  margin: 0;\n  overflow-wrap: anywhere;\n}\n.review-definition small {\n  display: block;\n  font-size: 11px;\n  color: #9da2ae;\n  margin-top: 5px;\n}\n.compact-facts > div {\n  display: flex;\n  justify-content: space-between;\n  gap: 15px;\n  font-size: 12px;\n  margin: 22px 0;\n}\n.compact-facts dt {\n  color: #929aa7;\n}\n.compact-facts dd {\n  margin: 0;\n  color: #747b8a;\n}\n.receipt-list > div {\n  display: flex;\n  gap: 18px;\n  align-items: flex-start;\n  padding: 25px 0;\n  border-bottom: 1px solid var(--line);\n}\n.receipt-list > div > svg {\n  color: #7da890;\n  margin-top: 3px;\n}\n.receipt-list > div > div {\n  flex: 1;\n}\n.receipt-list h4 {\n  font-size: 14px;\n}\n.receipt-list p {\n  font-size: 13px;\n  color: #8591a1;\n  margin-top: 7px;\n}\n.receipt-list small {\n  display: block;\n  font-size: 11px;\n  color: #a0a6b4;\n  margin-top: 8px;\n}\n.receipt-list button {\n  font-size: 12px;\n}\n.receipt-success {\n  text-align: center;\n  padding: 12px 0;\n}\n.receipt-success svg {\n  color: #83ad99;\n  margin-bottom: 14px;\n}\n.receipt-success h3 {\n  font-size: 21px;\n}\n.receipt-success p {\n  font-size: 13px;\n  color: #85909e;\n  margin-top: 8px;\n}\n.receipt-steps {\n  display: flex;\n  flex-direction: column;\n  gap: 14px;\n  padding: 22px 5px;\n  font-size: 13px;\n  color: #768393;\n}\n.receipt-steps span {\n  display: flex;\n  align-items: center;\n  gap: 10px;\n}\n.receipt-steps svg {\n  color: #81ad94;\n}\n@media (min-width: 1440px) {\n  .review-desk {\n    grid-template-columns: minmax(0, 1.6fr) minmax(340px, 1fr);\n  }\n  .review-paper {\n    padding: 35px 37px;\n  }\n  .review-paper p {\n    font-size: 16px;\n  }\n  .review-paper h3 {\n    font-size: 28px;\n  }\n  .issue-inspector {\n    padding: 23px;\n  }\n  .issue-list > button > b {\n    font-size: 14px;\n  }\n  .issue-detail blockquote,\n  .issue-detail > p {\n    font-size: 13px;\n  }\n  .application-paper textarea {\n    font-size: 15px;\n    min-height: 430px;\n  }\n}\n@media (max-width: 1100px) {\n  .preparation-layout {\n    grid-template-columns: minmax(0, 1.8fr) minmax(210px, 1fr);\n    gap: 25px;\n  }\n  .context-aside {\n    padding-left: 22px;\n  }\n  .process-tabs {\n    gap: 12px;\n  }\n  .process-tabs button {\n    font-size: 12px;\n  }\n  .review-desk {\n    grid-template-columns: minmax(0, 1.35fr) minmax(260px, 1fr);\n    gap: 10px;\n  }\n  .review-paper {\n    padding: 27px 23px;\n  }\n  .review-paper p {\n    font-size: 13px;\n  }\n  .issue-inspector {\n    padding: 18px 14px;\n  }\n  .inspector-heading {\n    flex-wrap: wrap;\n  }\n  .inspector-actions {\n    flex-direction: column;\n  }\n  .application-toolbar {\n    align-items: flex-start;\n  }\n  .application-toolbar > div:last-child {\n    justify-content: flex-end;\n  }\n  .application-editor {\n    grid-template-columns: 145px minmax(0, 1fr);\n  }\n  .application-paper textarea {\n    padding: 25px;\n  }\n  .business-title h2 {\n    font-size: 20px;\n  }\n}\n@media (max-width: 850px) {\n  .preparation-layout {\n    grid-template-columns: 1fr;\n  }\n  .context-aside {\n    border-left: 0;\n    border-top: 1px solid var(--line);\n    padding: 25px 0 0;\n  }\n  .review-desk {\n    grid-template-columns: 1fr;\n  }\n  .review-paper {\n    min-height: 350px;\n  }\n  .issue-inspector {\n    margin-top: 10px;\n  }\n  .inspector-heading {\n    flex-wrap: nowrap;\n  }\n  .inspector-actions {\n    flex-direction: row;\n  }\n  .application-toolbar {\n    flex-direction: column;\n  }\n  .application-toolbar > div:last-child {\n    justify-content: flex-start;\n  }\n  .process-tabs {\n    gap: 12px;\n  }\n  .business-title {\n    align-items: flex-start;\n  }\n  .business-title p {\n    font-size: 12px;\n  }\n}\n@media (max-width: 540px) {\n  .business-title {\n    flex-direction: column;\n    gap: 12px;\n    margin-bottom: 16px;\n  }\n  .business-title p {\n    font-size: 11px;\n  }\n  .business-title h2 {\n    font-size: 20px;\n  }\n  .process-tabs {\n    gap: 13px;\n    margin-bottom: 22px;\n  }\n  .process-tabs button {\n    font-size: 11px;\n    padding: 10px 0;\n    gap: 3px;\n  }\n  .process-tabs button > span {\n    ",
+        "chars": 65536,
+        "redacted": true,
+        "replay_safe": false
+      },
+      "truncated": false
+    },
+    {
+      "id": "dc8c3d0f8ac64:n3",
+      "run_id": "dc8c3d0f8ac64",
+      "sequence": 63,
+      "started_at": 1790738081967.0,
+      "finished_at": 1790738082008.0,
+      "method": "GET",
+      "url": "http://127.0.0.1:4187/bundle/fixture.js",
+      "integrity": {
+        "url": "complete",
+        "metadata": "complete",
+        "response_headers": "complete"
+      },
+      "state": "complete",
+      "resource_type": "Script",
+      "frame_id": "EC436FF47B466FFAC04E212E440331B3",
+      "loader_id": "97D4D64EAFF84EEF1FB6A44F1DF9BC2B",
+      "status": 200,
+      "mime_type": "text/javascript",
+      "duration_ms": 51.68,
+      "transfer_bytes": 3609438.0,
+      "decoded_bytes": 3609242.0,
+      "from_service_worker": false,
+      "initiator": "parser",
+      "request_headers": {
+        "accept": "*/*",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "zh-CN,zh;q=0.9",
+        "connection": "keep-alive",
+        "cookie": "[redacted]",
+        "dnt": "1",
+        "host": "127.0.0.1:4187",
+        "if-modified-since": "Wed, 30 Sep 2026 02:46:47 GMT",
+        "origin": "http://127.0.0.1:4187",
+        "referer": "http://127.0.0.1:4187/",
+        "sec-ch-ua": "\"Google Chrome\";v=\"153\", \"Not_A Brand\";v=\"8\", \"Chromium\";v=\"153\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"macOS\"",
+        "sec-fetch-dest": "script",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-site": "same-origin",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36"
+      },
+      "response_headers": {
+        "content-length": "3609242",
+        "content-type": "text/javascript",
+        "date": "Wed, 30 Sep 2026 03:14:41 GMT",
+        "last-modified": "Wed, 30 Sep 2026 03:14:41 GMT",
+        "server": "SimpleHTTP/0.6 Python/3.14.7"
+      },
+      "timing": {
+        "connectEnd": -1.0,
+        "connectStart": -1.0,
+        "dnsEnd": -1.0,
+        "dnsStart": -1.0,
+        "proxyEnd": -1.0,
+        "proxyStart": -1.0,
+        "pushEnd": 0.0,
+        "pushStart": 0.0,
+        "receiveHeadersEnd": 5.683,
+        "receiveHeadersStart": 5.665,
+        "requestTime": 425391.085225,
+        "sendEnd": 5.191,
+        "sendStart": 5.15,
+        "sslEnd": -1.0,
+        "sslStart": -1.0,
+        "workerFetchStart": -1.0,
+        "workerReady": -1.0,
+        "workerRespondWithSettled": -1.0,
+        "workerStart": -1.0
+      },
+      "request_body": {
+        "state": "empty",
+        "replay_safe": true
+      },
+      "response_body": {
+        "state": "omitted",
+        "reason": "body_limit"
+      },
+      "truncated": false
+    },
+    {
+      "id": "dc8c3d0f8ac64:n4",
+      "run_id": "dc8c3d0f8ac64",
+      "sequence": 64,
+      "started_at": 1790738082096.0,
+      "finished_at": 1790738082128.0,
+      "method": "GET",
+      "url": "chrome-extension://jgphnjokjhjlcnnajmfjlacjnjkhleah/js/btype.js",
+      "integrity": {
+        "url": "complete",
+        "metadata": "complete",
+        "response_headers": "complete"
+      },
+      "state": "complete",
+      "resource_type": "Script",
+      "frame_id": "EC436FF47B466FFAC04E212E440331B3",
+      "loader_id": "97D4D64EAFF84EEF1FB6A44F1DF9BC2B",
+      "status": 200,
+      "mime_type": "text/javascript",
+      "duration_ms": 1.18,
+      "transfer_bytes": 6107.0,
+      "decoded_bytes": 6107.0,
+      "from_service_worker": false,
+      "initiator": "renderDom chrome-extension://jgphnjokjhjlcnnajmfjlacjnjkhleah/js/main.js:258",
+      "request_headers": {
+        "dnt": "1",
+        "referer": "http://127.0.0.1:4187/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36"
+      },
+      "response_headers": {
+        "access-control-allow-origin": "*",
+        "cache-control": "no-cache",
+        "content-security-policy": "script-src 'self';",
+        "content-type": "text/javascript",
+        "cross-origin-resource-policy": "cross-origin",
+        "etag": "\"VyM+oJj3uyEY1zs6Edr7qVsfrj4=\"",
+        "last-modified": "Fri, 26 Jun 2026 06:34:01 GMT"
+      },
+      "request_body": {
+        "state": "empty",
+        "replay_safe": true
+      },
+      "response_body": {
+        "state": "available",
+        "text": "(function() {\n  var chromeType = navigator.userAgent.toLowerCase();\n  var bType = '';\n\n  function getBrowserType() {\n    if (\"ActiveXObject\" in window) {\n      bType = 'ie';\n    } else if (chromeType.indexOf('firefox') > -1) {\n      bType = \"firefox\";\n    } else if (chromeType.indexOf('opera') > -1 || chromeType.indexOf('opr') > -1) {\n      bType = \"opera\";\n    } else if (chromeType.indexOf('safari') > -1 && chromeType.indexOf('chrome') == -1) {\n      bType = \"safari\";\n    } else if (chromeType.indexOf('chrome') > -1) {\n      var check360 = checkChromeWeight();\n      if (chromeType.indexOf('qqbrowser') > -1) {\n        bType = \"qq\";\n      } else if (chromeType.indexOf('maxthon') > -1) {\n        bType = \"maxthon\";\n      } else if (chromeType.indexOf('bidubrowser') > -1) {\n        bType = 'baidu';\n      } else if (chromeType.indexOf('ubrowser') > -1) {\n        bType = 'uc';\n      } else if (chromeType.indexOf('lbbrowser') > -1) {\n        bType = 'liebao';\n      } else if (chromeType.indexOf('taobrowser') > -1) {\n        bType = 'taobao';\n      } else if (chromeType.indexOf('2345explorer') > -1) {\n        bType = '2345';\n      } else if (chromeType.indexOf('coolnovo') > -1) {\n        bType = 'fengshu';\n      } else if (chromeType.indexOf('greenbrowser') > -1) {\n        bType = 'gb';\n      } else if (check360 === \"Chrome\") {\n        bType = 'chrome';\n      } else if (check360 === \"360SE\") {\n        bType = '360se';\n      } else if (check360 === \"360EE\") {\n        bType = '360ee';\n      } else if (chromeType.indexOf('se') > -1) {\n        bType = 'sogou';\n      }\n    }\n    return bType;\n  }\n\n  var chrome_weight = {\n    \"result\": \"Chrome\",\n    \"details\": {\n      \"Chrome\": 5,\n      \"Chromium\": 0,\n      \"_360SE\": 0,\n      \"_360EE\": 0\n    },\n    \"sorted\": [\"Chrome\", \"360SE\", \"360EE\", \"Chromium\"],\n    \"exec\": function(results) {\n      var details = {\n        \"Chrome\": 5,\n        \"Chromium\": 0,\n        \"_360SE\": 0,\n        \"_360EE\": 0\n      }\n      var _ua = window.navigator.userAgent;\n      if ((/Chrome\\/([\\d.])+\\sSafari\\/([\\d.])+$/).test(_ua)) {\n        if (window.navigator.platform == \"Win32\") {\n          if (!window.clientInformation.languages) {\n            details._360SE += 8;\n          }\n          if ((/zh/i).test(navigator.language)) {\n            details._360SE += 3;\n            details._360EE += 3;\n          }\n          if (window.clientInformation.languages) {\n            var lang_len = window.clientInformation.languages.length;\n            if (lang_len >= 3) {\n              details.Chrome += 10;\n              details.Chromium += 6;\n            } else if (lang_len == 2) {\n              details.Chrome += 3;\n              details.Chromium += 6;\n              details._360EE += 6;\n            } else if (lang_len == 1) {\n              details.Chrome += 4;\n              details.Chromium += 4;\n            }\n          }\n          for (var i in window.navigator.plugins) {\n            if (window.navigator.plugins[i].filename == \"np-mswmp.dll\") {\n              details._360SE += 20;\n              details._360EE += 20;\n            }\n          }\n          if (window.chrome.webstore && Object.keys(window.chrome.webstore).length <= 1) {\n            details._360SE += 7;\n          } else if (window.chrome.webstore && Object.keys(window.chrome.webstore).length == 2) {\n            details._360SE += 4;\n            details.Chromium += 3;\n          }\n\n          if (window.navigator.plugins.length >= 30) {\n            details._360EE += 7;\n            details._360SE += 7;\n            details.Chrome += 7;\n          } else if (window.navigator.plugins.length < 30 && window.navigator.plugins.length > 10) {\n            details._360EE += 3;\n            details._360SE += 3;\n            details.Chrome += 3;\n          } else if (window.navigator.plugins.length <= 10) {\n            details.Chromium += 6;\n          }\n\n        } else {\n          details._360SE -= 50;\n          details._360EE -= 50;\n          if ((/Linux/i).test(window.navigator.userAgent)) {\n            details.Chromium += 5;\n          }\n\n        }\n        var found = 0;\n        var respdf;\n        for (var i in window.navigator.plugins) {\n          if (!!(respdf = (/^(.+) PDF Viewer$/).exec(window.navigator.plugins[i].name))) {\n            //console.log(respdf[1]);\n            if (respdf[1] == \"Chrome\") {\n              details.Chrome += 6;\n              details._360SE += 6;\n              found = 1;\n              break;\n            }\n            if (respdf[1] == \"Chromium\") {\n              details.Chromium += 10;\n              details._360EE += 6;\n              found = 1;\n              break;\n            }\n          }\n        }\n        if (!found) {\n          details.Chromium += 9;\n        }\n\n      }\n      var chrome_result = new Object;\n      chrome_result['Chrome'] = details.Chrome;\n      chrome_result['Chromium'] = details.Chromium;\n      chrome_result['360SE'] = details._360SE;\n      chrome_result['360EE'] = details._360EE;\n      var sortable = [];\n      for (var value in chrome_result)\n        sortable.push([value, chrome_result[value]])\n      sortable.sort(function(a, b) {\n        return b[1] - a[1]\n      });\n      this.sorted = sortable;\n      this.details = details;\n      this.result = sortable[0][0];\n      if (results == \"result\") {\n        return sortable[0][0];\n      } else if (results == \"details\") {\n        return chrome_result;\n      } else if (results == \"sorted\") {\n        return sortable;\n      }\n    }\n  }\n\n  function checkChromeWeight() {\n    var _ua = window.navigator.userAgent;\n    chrome_weight.exec();\n    if ((/Chrome\\/([\\d.])+\\sSafari\\/([\\d.])+$/).test(_ua)) {\n      return chrome_weight.result;\n    }\n  }\n\n  function connect(t) {\n    document.addEventListener('gwd_extension', function(e) {\n      if (e.detail.type === 'get_btype') {\n        var evt = document.createEvent('CustomEvent')\n        evt.initCustomEvent('gwd_content', true, true, {\n          type: 'get_btype',\n          value: t\n        })\n        document.dispatchEvent(evt)\n      }\n    })\n  }\n\n  function init() {\n    var type = getBrowserType();\n    connect(type)\n  }\n  init()\n})();",
+        "chars": 6107,
+        "redacted": false,
+        "replay_safe": true
+      },
+      "truncated": false
+    },
+    {
+      "id": "dc8c3d0f8ac64:n5",
+      "run_id": "dc8c3d0f8ac64",
+      "sequence": 65,
+      "started_at": 1790738082096.0,
+      "finished_at": 1790738082148.0,
+      "method": "GET",
+      "url": "chrome-extension://jgphnjokjhjlcnnajmfjlacjnjkhleah/js/chrome.js",
+      "integrity": {
+        "url": "complete",
+        "metadata": "complete",
+        "response_headers": "complete"
+      },
+      "state": "complete",
+      "resource_type": "Script",
+      "frame_id": "EC436FF47B466FFAC04E212E440331B3",
+      "loader_id": "97D4D64EAFF84EEF1FB6A44F1DF9BC2B",
+      "status": 200,
+      "mime_type": "text/javascript",
+      "duration_ms": 34.57,
+      "transfer_bytes": 4846580.0,
+      "decoded_bytes": 4846580.0,
+      "from_service_worker": false,
+      "initiator": "loadScript chrome-extension://jgphnjokjhjlcnnajmfjlacjnjkhleah/js/main.js:15",
+      "request_headers": {
+        "dnt": "1",
+        "referer": "http://127.0.0.1:4187/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36"
+      },
+      "response_headers": {
+        "access-control-allow-origin": "*",
+        "cache-control": "no-cache",
+        "content-security-policy": "script-src 'self';",
+        "content-type": "text/javascript",
+        "cross-origin-resource-policy": "cross-origin",
+        "etag": "\"ifqOC/HoW1cDGkeaPEQadJNYW60=\"",
+        "last-modified": "Fri, 26 Jun 2026 06:34:01 GMT"
+      },
+      "request_body": {
+        "state": "empty",
+        "replay_safe": true
+      },
+      "response_body": {
+        "state": "omitted",
+        "reason": "body_limit"
+      },
+      "truncated": false
+    },
+    {
+      "id": "dc8c3d0f8ac64:n6",
+      "run_id": "dc8c3d0f8ac64",
+      "sequence": 66,
+      "started_at": 1790738082103.0,
+      "finished_at": 1790738082124.0,
+      "method": "GET",
+      "url": "chrome-extension://invalid/",
+      "integrity": {
+        "url": "complete",
+        "metadata": "complete"
+      },
+      "state": "failed",
+      "resource_type": "Fetch",
+      "frame_id": "EC436FF47B466FFAC04E212E440331B3",
+      "loader_id": "97D4D64EAFF84EEF1FB6A44F1DF9BC2B",
+      "error": "net::ERR_FAILED",
+      "duration_ms": 21.67,
+      "initiator": "D chrome-extension://hhcmgoofomhgciiibhipgmgkgnoenaoi/content-scripts/content.js:2",
+      "request_headers": {
+        "dnt": "1",
+        "referer": "http://127.0.0.1:4187/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36"
+      },
+      "request_body": {
+        "state": "empty",
+        "replay_safe": true
+      },
+      "response_body": {
+        "state": "unavailable",
+        "reason": "request_failed"
+      },
+      "truncated": false
+    },
+    {
+      "id": "dc8c3d0f8ac64:n7",
+      "run_id": "dc8c3d0f8ac64",
+      "sequence": 67,
+      "started_at": 1790738082142.0,
+      "finished_at": 1790738082142.0,
+      "method": "GET",
+      "url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAYAAADDPmHLAABXpUlEQVR42q39eZBlV37fB35+59z7ltyzMrMqqwr71miggeba4tDWNFtsik2K2igCkmhzZiK02NKIksa0JJLhGRC2JXtmFFSEI+yIkUYa2WHZIbRESnKYkknK3Vya3Q00gMbaAHrDVmtWZuXy9nvP+c0f5y7n3veyUGgKHdVV+fIt991zzm/9fr8/4ffxnz71lOHRp0WexIVHLPvvf/FOff3ffL+Mrv5BM7v5PeTje7LZ4E6ygeDC00QVAQwCaPEHBEGrfxefUT5HBCmfKqDFe0RPrK9LwsMqhNeU71E9R2DutVr/XH8MihQPa+Mzqg9AwzVK+UxtXI5UD0l4Ty3eWRQ0POZFQRQviqogkmjaWxFJV2466b6l6drL6eadX5Q7Hv/S2kf/zNfws/AZT2B55ikVedp/p2so39HCqwqffdLIk591AHt7X7tgXvzHPy6Hb/8pxgc/0HfDjR4TfD4jzzIylyMi9UeWKydS3bTqhpf/qB6p/z++tfV91WrFpNow8dcTRBUVjV/V3GxSvkW5uxbdmmhjSvFclfqd6jWtP13rzVjvH62uq9omouF7lz+HH7AipGmCTZZw0mWk3bHrn3nJr9/1L8x9P/TM5sN//NvlRvilR57Sp5/+8BvhQ28AfeYJWy789df+2YPJt3/jP+HgW396U/c3mZ4wmeXkalTEeBUjxe0VQVEtbrG2LsKU31uKZTbFbdL5u7pgUbRxoKW8f4u/ZLwop62zhDWQ6Mg3T7fUKxybHUBEm5tQOeUD4q+lxb8l+pzqFKioqqoTgzNLnQR6qxzpmaGu3/O/5Be//5d3PvEfPddem3/nGyCcejHyJO6bqusb/+Zn/4a58dZf3civrI4Gx+QqOZIIiJHiTMn8t4dFFjkylRIfycg6N06hanRq6zdVqQ5P9MUK86xaWQhdcG0SXYRqw8agmMoGVRu0OtYa2arI9LfsVv1dtP7+UtshLa3VwuWprlhBVdR5IyRLy8sc2R3n1u75H/MHfuK/OPfYT35TwaCqIqL/zjaAPvWUkcK87H3+v/qj3Stf+eXV2TsPjI4P8JjcI1Ykcsl6yoqf8mNsFGltgPI46imbKXLFjYW4re9VnNjK5Muia299msRRQetD565BWhtNIzMfNsB3eiY9ooL3grcry0sMeheP8nPf8/Tmp//u30MznnnmCfvkbViDD/y08o3eUu2e+V9/9u+t3Hj9L9nhZSYuz1VMWHjVufho8S6+9WJURlDqXaKRT/wgS/KdBDT6nfrD1qbTufMahzz1b7R8jXoQE72+dBzmlvdK5+6qAC5PcEl/fZfDlY/+q8njf+0vnH/gu67rM89YefJJ9x1vgNKnfPvVz+2uvf73/6czwzc/NTi86TRJRcCUNlv19m7e7Z5QiV2A6od+g3CotRHytV9XZwinvO2pD0aZgbSeqotvsRRBY2X9JcowCusmt/XF2m65sREUn7nV5ZXkePmhbxzf++M/decP/LmX9HNPJfKpp/MPvQHKxX/nlV+5f+WVf/xrZwZvPHQyyjJsmtbRrX6oBW7/XpEQNGm5GMWNCCFjcwEr/18H6pXr0DJaqt9fVKs7pJj5mzdnnm99sVL4+xBrfCe25tZu8HZe88H7X8BrvtQxyWj1oYPjiz/6xy9+6q/87q02gTnN7MuTn3XXXvmV+9de/R8+v3b8+kPH4yzHpmnpL6Xy2vUfiY9X488pJ6P4VkaJzD7gFfzpy7PI5McxhDSScMOioFzwdTlApB2FlMlL9JCe7tTkNkyfnuZ75JTnmyrNbD5TbrlZxEgyzJzrHr15Zv39f/1rl37zl/+gfOrpXJ95wt6WBdCnnjI8/bQeHb67mf/az31h8/jlhwfTPBdjk2Dx5TZ3bBmSa73NdFGEoJyWM83XbQrLsMB063zpqLIWcTwR5+VN/zx/zjQu5Ki2vkJkuOcCgfZ9KL+AXxSFLq5k0SooRO9Xu5w5MxW7B9ez3k7XHj",
+      "integrity": {
+        "url": "truncated",
+        "metadata": "complete",
+        "response_headers": "complete"
+      },
+      "state": "complete",
+      "resource_type": "Image",
+      "frame_id": "EC436FF47B466FFAC04E212E440331B3",
+      "loader_id": "97D4D64EAFF84EEF1FB6A44F1DF9BC2B",
+      "status": 200,
+      "mime_type": "image/png",
+      "duration_ms": 0.04,
+      "transfer_bytes": 0.0,
+      "decoded_bytes": 22494.0,
+      "from_cache": true,
+      "from_service_worker": false,
+      "initiator": "parser",
+      "request_headers": {
+        "dnt": "1",
+        "referer": "http://127.0.0.1:4187/",
+        "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36"
+      },
+      "response_headers": {
+        "content-type": "image/png"
+      },
+      "request_body": {
+        "state": "empty",
+        "replay_safe": true
+      },
+      "response_body": {
+        "state": "omitted",
+        "reason": "non_text"
+      },
+      "truncated": true
+    }
+  ],
+  "operations": [
+    {
+      "id": "dc8c3d0f8ac64:a1",
+      "run_id": "dc8c3d0f8ac64",
+      "sequence": 52,
+      "method": "tool.navigate",
+      "source": "agent",
+      "started_at": 1790738081900.0,
+      "finished_at": 1790738082289.0,
+      "window_end": 1790738083789.0,
+      "state": "completed",
+      "before": {
+        "at": 1790738081898.0,
+        "state": "available",
+        "url": "http://127.0.0.1:4187/",
+        "title": "专利工作台 · UI 一致性验证",
+        "text": "",
+        "truncated": false,
+        "fields": [],
+        "fields_partial": false,
+        "navigation": "navigate"
+      },
+      "after": {
+        "at": 1790738082991.0,
+        "state": "available",
+        "url": "http://127.0.0.1:4187/",
+        "title": "专利工作台 · UI 一致性验证",
+        "text": "专利工作台\n工作空间\n案件管理\n本案对话\n内部审查\n设置\n合成验证环境 · 真实案件组件\n一种可调节夹持装置\nQA-2026-001\n·\n发明\n当前：\n专利撰写\n概览\n材料\n本案对话\n撰写\n稿件审查\n办理历史\n成果\n贝思兰德流程\n专利撰写\n按现有材料选择起点，确认采用的成果后进入下一步骤。\n1\n方向构思\n未逐步确认\n2\n技术方案与保护架构\n未逐步确认\n3\n说明书\n未逐步确认\n4\n权利要求书\n未逐步确认\n5\n申请文件整理\n当前步骤\n本阶段输入\n补充要求或修改意见\n本案参考材料（已选\n0\n）\n技术交底、图纸或参考专利。添加后保存到本案，只有勾选材料会供本次撰写读取。\n添加参考材料\n每次最多 12 份，每份 20MB；Word、PDF、TXT、Markdown、PNG、JPEG。\n暂无材料，请点击“添加参考材料”；也可以只输入文字构思。\n移出列表保留原文件和历史任务副本；添加成功不代表 AI 已完成读取。\n继续未完成任务\n生成申请文件整理\n返回补充 / 修改\n查看阶段历史\n申请文件整理\n结果\n当前任务 · 已停止\n·\n2026/9/30 11:14:42\n·\nstopped-\n本次任务产物\n待补齐 4 项\n已保存\n本阶段正文、摘要\n待补齐\n摘要附图说明、权利要求书、说明书、附图清单\n待核对\n1\n项提示\n详见本次任务依据\n已恢复摘要匹配的分项内容，完成前仍按当前规则核对。\n1\n项外部操作结果尚未确认。记录已保留，续办时先核对，不自动重复执行。\n续办资料与文件摘要\n分项检查点\nartifact-checkpoint.json\nabc123abc123abc123abc123abc123abc123abc123abc123abc123abc123\n已核对并复用\n转换材料/夹持组件_结构关系与定位方式_用于核对长文件名换行_不可自动覆盖原稿.txt\ndddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\nexecute_command\nop1\n结果不明\n已保存内容供续办使用；通过检查不等于论证、Word 版式或递交已验收。\n本次任务依据\n待核对 1 项\n这里展示实际读取范围、用户要求来源和引用检查。检查通过不代表论证或 Word 版式已验收；提示事项不新增定稿或提交门槛。\n材料阅读范围\n夹持装置技术交底与附图说明（合成验证材料，非真实案件）.pdf\n部分范围已返回\n1–8 页\n/ 共 12 页\n· 版本\naaaaaaaaaaaa\n引用核对\n引用 01\n·\n原文匹配\n夹持装置技术交底\n· 3 页\n· 对应 权利要求 1",
+        "truncated": true,
+        "fields": [],
+        "fields_partial": true,
+        "navigation": "navigate"
+      },
+      "observations": [
+        {
+          "at": 1790738082991.0,
+          "state": "available",
+          "url": "http://127.0.0.1:4187/",
+          "title": "专利工作台 · UI 一致性验证",
+          "text": "专利工作台\n工作空间\n案件管理\n本案对话\n内部审查\n设置\n合成验证环境 · 真实案件组件\n一种可调节夹持装置\nQA-2026-001\n·\n发明\n当前：\n专利撰写\n概览\n材料\n本案对话\n撰写\n稿件审查\n办理历史\n成果\n贝思兰德流程\n专利撰写\n按现有材料选择起点，确认采用的成果后进入下一步骤。\n1\n方向构思\n未逐步确认\n2\n技术方案与保护架构\n未逐步确认\n3\n说明书\n未逐步确认\n4\n权利要求书\n未逐步确认\n5\n申请文件整理\n当前步骤\n本阶段输入\n补充要求或修改意见\n本案参考材料（已选\n0\n）\n技术交底、图纸或参考专利。添加后保存到本案，只有勾选材料会供本次撰写读取。\n添加参考材料\n每次最多 12 份，每份 20MB；Word、PDF、TXT、Markdown、PNG、JPEG。\n暂无材料，请点击“添加参考材料”；也可以只输入文字构思。\n移出列表保留原文件和历史任务副本；添加成功不代表 AI 已完成读取。\n继续未完成任务\n生成申请文件整理\n返回补充 / 修改\n查看阶段历史\n申请文件整理\n结果\n当前任务 · 已停止\n·\n2026/9/30 11:14:42\n·\nstopped-\n本次任务产物\n待补齐 4 项\n已保存\n本阶段正文、摘要\n待补齐\n摘要附图说明、权利要求书、说明书、附图清单\n待核对\n1\n项提示\n详见本次任务依据\n已恢复摘要匹配的分项内容，完成前仍按当前规则核对。\n1\n项外部操作结果尚未确认。记录已保留，续办时先核对，不自动重复执行。\n续办资料与文件摘要\n分项检查点\nartifact-checkpoint.json\nabc123abc123abc123abc123abc123abc123abc123abc123abc123abc123\n已核对并复用\n转换材料/夹持组件_结构关系与定位方式_用于核对长文件名换行_不可自动覆盖原稿.txt\ndddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\nexecute_command\nop1\n结果不明\n已保存内容供续办使用；通过检查不等于论证、Word 版式或递交已验收。\n本次任务依据\n待核对 1 项\n这里展示实际读取范围、用户要求来源和引用检查。检查通过不代表论证或 Word 版式已验收；提示事项不新增定稿或提交门槛。\n材料阅读范围\n夹持装置技术交底与附图说明（合成验证材料，非真实案件）.pdf\n部分范围已返回\n1–8 页\n/ 共 12 页\n· 版本\naaaaaaaaaaaa\n引用核对\n引用 01\n·\n原文匹配\n夹持装置技术交底\n· 3 页\n· 对应 权利要求 1",
+          "truncated": true,
+          "fields": [],
+          "fields_partial": true,
+          "navigation": "navigate"
+        }
+      ],
+      "observation_end": 1790738097289.0,
+      "request_ids": [
+        "dc8c3d0f8ac64:n1",
+        "dc8c3d0f8ac64:n2",
+        "dc8c3d0f8ac64:n3",
+        "dc8c3d0f8ac64:n4",
+        "dc8c3d0f8ac64:n5",
+        "dc8c3d0f8ac64:n6",
+        "dc8c3d0f8ac64:n7"
+      ],
+      "console_ids": [
+        "dc8c3d0f8ac64:c1",
+        "dc8c3d0f8ac64:c2",
+        "dc8c3d0f8ac64:c3",
+        "dc8c3d0f8ac64:c4",
+        "dc8c3d0f8ac64:c5",
+        "dc8c3d0f8ac64:c6",
+        "dc8c3d0f8ac64:c7"
+      ],
+      "truncated": false
+    },
+    {
+      "id": "dc8c3d0f8ac64:a2",
+      "run_id": "dc8c3d0f8ac64",
+      "sequence": 56,
+      "method": "tool.click",
+      "target": "办理历史",
+      "source": "agent",
+      "started_at": 1790738174648.0,
+      "finished_at": 1790738174802.0,
+      "window_end": 1790738176302.0,
+      "state": "completed",
+      "before": {
+        "at": 1790738174615.0,
+        "state": "available",
+        "url": "http://127.0.0.1:4187/",
+        "title": "专利工作台 · UI 一致性验证",
+        "text": "专利工作台\n工作空间\n案件管理\n本案对话\n内部审查\n设置\n合成验证环境 · 真实案件组件\n一种可调节夹持装置\nQA-2026-001\n·\n发明\n当前：\n专利撰写\n概览\n材料\n本案对话\n撰写\n稿件审查\n办理历史\n成果\n贝思兰德流程\n专利撰写\n按现有材料选择起点，确认采用的成果后进入下一步骤。\n1\n方向构思\n未逐步确认\n2\n技术方案与保护架构\n未逐步确认\n3\n说明书\n未逐步确认\n4\n权利要求书\n未逐步确认\n5\n申请文件整理\n当前步骤\n本阶段输入\n补充要求或修改意见\n本案参考材料（已选\n0\n）\n技术交底、图纸或参考专利。添加后保存到本案，只有勾选材料会供本次撰写读取。\n添加参考材料\n每次最多 12 份，每份 20MB；Word、PDF、TXT、Markdown、PNG、JPEG。\n暂无材料，请点击“添加参考材料”；也可以只输入文字构思。\n移出列表保留原文件和历史任务副本；添加成功不代表 AI 已完成读取。\n继续未完成任务\n生成申请文件整理\n返回补充 / 修改\n查看阶段历史\n申请文件整理\n结果\n当前任务 · 已停止\n·\n2026/9/30 11:14:42\n·\nstopped-\n本次任务产物\n待补齐 4 项\n已保存\n本阶段正文、摘要\n待补齐\n摘要附图说明、权利要求书、说明书、附图清单\n待核对\n1\n项提示\n详见本次任务依据\n已恢复摘要匹配的分项内容，完成前仍按当前规则核对。\n1\n项外部操作结果尚未确认。记录已保留，续办时先核对，不自动重复执行。\n续办资料与文件摘要\n分项检查点\nartifact-checkpoint.json\nabc123abc123abc123abc123abc123abc123abc123abc123abc123abc123\n已核对并复用\n转换材料/夹持组件_结构关系与定位方式_用于核对长文件名换行_不可自动覆盖原稿.txt\ndddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\nexecute_command\nop1\n结果不明\n已保存内容供续办使用；通过检查不等于论证、Word 版式或递交已验收。\n本次任务依据\n待核对 1 项\n这里展示实际读取范围、用户要求来源和引用检查。检查通过不代表论证或 Word 版式已验收；提示事项不新增定稿或提交门槛。\n材料阅读范围\n夹持装置技术交底与附图说明（合成验证材料，非真实案件）.pdf\n部分范围已返回\n1–8 页\n/ 共 12 页\n· 版本\naaaaaaaaaaaa\n引用核对\n引用 01\n·\n原文匹配\n夹持装置技术交底\n· 3 页\n· 对应 权利要求 1",
+        "truncated": true,
+        "fields": [],
+        "fields_partial": true,
+        "navigation": "navigate"
+      },
+      "after": {
+        "at": 1790738175502.0,
+        "state": "available",
+        "url": "http://127.0.0.1:4187/",
+        "title": "专利工作台 · UI 一致性验证",
+        "text": "专利工作台\n工作空间\n案件管理\n本案对话\n内部审查\n设置\n合成验证环境 · 真实案件组件\n一种可调节夹持装置\nQA-2026-001\n·\n发明\n当前：\n专利撰写\n概览\n材料\n本案对话\n撰写\n稿件审查\n办理历史\n成果\n贝思兰德流程\n办理历史\n历史审查意见答复\n历史轮次 · 只读\n定位\n合成完成稿\n申请成果 · 2026/9/30 11:14:42 · 只读\n定位\n专利撰写任务\n2026/9/30 09:00:00 · 已完成 · 只读\n定位\n专利撰写任务\n2026/9/30 11:14:42 · 已停止 · 只读\n定位\n独立审查任务\n2026/9/30 11:14:42 · 已停止 · 只读\n定位",
+        "truncated": false,
+        "fields": [],
+        "fields_partial": true,
+        "navigation": "navigate"
+      },
+      "observations": [
+        {
+          "at": 1790738175502.0,
+          "state": "available",
+          "url": "http://127.0.0.1:4187/",
+          "title": "专利工作台 · UI 一致性验证",
+          "text": "专利工作台\n工作空间\n案件管理\n本案对话\n内部审查\n设置\n合成验证环境 · 真实案件组件\n一种可调节夹持装置\nQA-2026-001\n·\n发明\n当前：\n专利撰写\n概览\n材料\n本案对话\n撰写\n稿件审查\n办理历史\n成果\n贝思兰德流程\n办理历史\n历史审查意见答复\n历史轮次 · 只读\n定位\n合成完成稿\n申请成果 · 2026/9/30 11:14:42 · 只读\n定位\n专利撰写任务\n2026/9/30 09:00:00 · 已完成 · 只读\n定位\n专利撰写任务\n2026/9/30 11:14:42 · 已停止 · 只读\n定位\n独立审查任务\n2026/9/30 11:14:42 · 已停止 · 只读\n定位",
+          "truncated": false,
+          "fields": [],
+          "fields_partial": true,
+          "navigation": "navigate"
+        }
+      ],
+      "observation_end": 1790738189802.0,
+      "request_ids": [],
+      "console_ids": [],
+      "truncated": false
+    },
+    {
+      "id": "dc8c3d0f8ac64:a3",
+      "run_id": "dc8c3d0f8ac64",
+      "sequence": 68,
+      "method": "tool.click",
+      "target": "历史审查意见答复 历史轮次 · 只读",
+      "source": "agent",
+      "started_at": 1790738327863.0,
+      "finished_at": 1790738328050.0,
+      "window_end": 1790738328293.0,
+      "state": "completed",
+      "before": {
+        "at": 1790738327839.0,
+        "state": "available",
+        "url": "http://127.0.0.1:4187/",
+        "title": "专利工作台 · UI 一致性验证",
+        "text": "专利工作台\n工作空间\n案件管理\n本案对话\n内部审查\n设置\n合成验证环境 · 真实案件组件\n一种可调节夹持装置\nQA-2026-001\n·\n发明\n当前：\n专利撰写\n概览\n材料\n本案对话\n撰写\n稿件审查\n办理历史\n成果\n贝思兰德流程\n办理历史\n历史审查意见答复\n历史轮次 · 只读\n定位\n合成完成稿\n申请成果 · 2026/9/30 11:14:42 · 只读\n定位\n专利撰写任务\n2026/9/30 09:00:00 · 已完成 · 只读\n定位\n专利撰写任务\n2026/9/30 11:14:42 · 已停止 · 只读\n定位\n独立审查任务\n2026/9/30 11:14:42 · 已停止 · 只读\n定位",
+        "truncated": false,
+        "fields": [],
+        "fields_partial": true,
+        "navigation": "navigate"
+      },
+      "observation_end": 1790738343050.0,
+      "request_ids": [],
+      "console_ids": [],
+      "truncated": false
+    }
+  ],
+  "console": [
+    {
+      "id": "dc8c3d0f8ac64:c1",
+      "at": 1790738082030.0,
+      "level": "info",
+      "text": "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+      "count": 1,
+      "last_at": 1790738082030.0,
+      "stack": " http://127.0.0.1:4187/bundle/fixture.js:23474:54\nnode_modules/react-dom/cjs/react-dom-client.development.js http://127.0.0.1:4187/bundle/fixture.js:23548:7\n__require http://127.0.0.1:4187/bundle/fixture.js:17:52\nnode_modules/react-dom/client.js http://127.0.0.1:4187/bundle/fixture.js:23560:24\n__require http://127.0.0.1:4187/bundle/fixture.js:17:52\n http://127.0.0.1:4187/bundle/fixture.js:82768:29",
+      "source": "website",
+      "source_url": "http://127.0.0.1:4187/bundle/fixture.js"
+    },
+    {
+      "id": "dc8c3d0f8ac64:c2",
+      "at": 1790738082103.0,
+      "level": "log",
+      "text": "购物党隐私说明（键入disable_gwd_privacy()不再显示本声明）：",
+      "count": 1,
+      "last_at": 1790738082103.0,
+      "stack": " chrome-extension://jgphnjokjhjlcnnajmfjlacjnjkhleah/js/main.js:462:13",
+      "source": "extension",
+      "source_url": "chrome-extension://jgphnjokjhjlcnnajmfjlacjnjkhleah/js/main.js"
+    },
+    {
+      "id": "dc8c3d0f8ac64:c3",
+      "at": 1790738082103.0,
+      "level": "log",
+      "text": "    我们不会收集用户个人隐私信息，只会收集一些简单的产品交互行为，帮助改善产品，例如记录某个模块点击次数，更多信息请关注：",
+      "count": 1,
+      "last_at": 1790738082103.0,
+      "stack": " chrome-extension://jgphnjokjhjlcnnajmfjlacjnjkhleah/js/main.js:463:13",
+      "source": "extension",
+      "source_url": "chrome-extension://jgphnjokjhjlcnnajmfjlacjnjkhleah/js/main.js"
+    },
+    {
+      "id": "dc8c3d0f8ac64:c4",
+      "at": 1790738082103.0,
+      "level": "log",
+      "text": "隐私协议: https://www.gwdang.com/static_page/privacy_policy.html",
+      "count": 1,
+      "last_at": 1790738082103.0,
+      "stack": " chrome-extension://jgphnjokjhjlcnnajmfjlacjnjkhleah/js/main.js:464:13",
+      "source": "extension",
+      "source_url": "chrome-extension://jgphnjokjhjlcnnajmfjlacjnjkhleah/js/main.js"
+    },
+    {
+      "id": "dc8c3d0f8ac64:c5",
+      "at": 1790738082124.0,
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED",
+      "count": 1,
+      "last_at": 1790738082124.0,
+      "source": "extension",
+      "source_url": "chrome-extension://invalid/"
+    },
+    {
+      "id": "dc8c3d0f8ac64:c6",
+      "at": 1790738082308.0,
+      "level": "info",
+      "text": "%c2026-09-30T03:14:42.307Z %c[KISS-Translator] %c[INFO] color: gray; font-weight: lighter; color: #7c57e0; font-weight: bold; color: #4CAF50; font-weight: bold; Input Translator enabled.",
+      "count": 1,
+      "last_at": 1790738082308.0,
+      "stack": "_log chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:778794\ninfo chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:779360\nenable chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:1854131\nvP chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:1853544\nZG chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:2294237\nstart chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:2292233\n chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:2311916",
+      "source": "extension",
+      "source_url": "chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js"
+    },
+    {
+      "id": "dc8c3d0f8ac64:c7",
+      "at": 1790738082309.0,
+      "level": "info",
+      "text": "%c2026-09-30T03:14:42.308Z %c[KISS-Translator] %c[INFO] color: gray; font-weight: lighter; color: #7c57e0; font-weight: bold; color: #4CAF50; font-weight: bold; TranslatorManager started.",
+      "count": 1,
+      "last_at": 1790738082309.0,
+      "stack": "_log chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:778794\ninfo chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:779360\nstart chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:2292444\n chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:2311916",
+      "source": "extension",
+      "source_url": "chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js"
+    }
+  ],
+  "pages": [
+    {
+      "at": 1790738081887.0,
+      "state": "available",
+      "url": "http://127.0.0.1:4187/",
+      "title": "专利工作台 · UI 一致性验证",
+      "text": "",
+      "truncated": false,
+      "fields": [],
+      "fields_partial": false
+    },
+    {
+      "at": 1790738082286.0,
+      "state": "available",
+      "url": "http://127.0.0.1:4187/",
+      "title": "专利工作台 · UI 一致性验证",
+      "text": "专利工作台\n工作空间\n案件管理\n本案对话\n内部审查\n设置\n合成验证环境 · 真实案件组件\n一种可调节夹持装置\nQA-2026-001\n·\n发明\n当前：\n专利撰写\n概览\n材料\n本案对话\n撰写\n稿件审查\n办理历史\n成果\n贝思兰德流程\n专利撰写\n按现有材料选择起点，确认采用的成果后进入下一步骤。\n1\n方向构思\n未逐步确认\n2\n技术方案与保护架构\n未逐步确认\n3\n说明书\n未逐步确认\n4\n权利要求书\n未逐步确认\n5\n申请文件整理\n当前步骤\n本阶段输入\n补充要求或修改意见\n本案参考材料（已选\n0\n）\n技术交底、图纸或参考专利。添加后保存到本案，只有勾选材料会供本次撰写读取。\n添加参考材料\n每次最多 12 份，每份 20MB；Word、PDF、TXT、Markdown、PNG、JPEG。\n暂无材料，请点击“添加参考材料”；也可以只输入文字构思。\n移出列表保留原文件和历史任务副本；添加成功不代表 AI 已完成读取。\n继续未完成任务\n生成申请文件整理\n返回补充 / 修改\n查看阶段历史\n申请文件整理\n结果\n当前任务 · 已停止\n·\n2026/9/30 11:14:42\n·\nstopped-\n本次任务产物\n待补齐 4 项\n已保存\n本阶段正文、摘要\n待补齐\n摘要附图说明、权利要求书、说明书、附图清单\n待核对\n1\n项提示\n详见本次任务依据\n已恢复摘要匹配的分项内容，完成前仍按当前规则核对。\n1\n项外部操作结果尚未确认。记录已保留，续办时先核对，不自动重复执行。\n续办资料与文件摘要\n分项检查点\nartifact-checkpoint.json\nabc123abc123abc123abc123abc123abc123abc123abc123abc123abc123\n已核对并复用\n转换材料/夹持组件_结构关系与定位方式_用于核对长文件名换行_不可自动覆盖原稿.txt\ndddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\nexecute_command\nop1\n结果不明\n已保存内容供续办使用；通过检查不等于论证、Word 版式或递交已验收。\n本次任务依据\n待核对 1 项\n这里展示实际读取范围、用户要求来源和引用检查。检查通过不代表论证或 Word 版式已验收；提示事项不新增定稿或提交门槛。\n材料阅读范围\n夹持装置技术交底与附图说明（合成验证材料，非真实案件）.pdf\n部分范围已返回\n1–8 页\n/ 共 12 页\n· 版本\naaaaaaaaaaaa\n引用核对\n引用 01\n·\n原文匹配\n夹持装置技术交底\n· 3 页\n· 对应 权利要求 1",
+      "truncated": true,
+      "fields": [],
+      "fields_partial": true,
+      "navigation": "navigate"
+    }
+  ],
+  "rules": [],
+  "replays": [],
+  "performance": [
+    {
+      "id": "dc8c3d0f8ac64:p1",
+      "document_key": "1790736407182.5:0",
+      "sequence": 2,
+      "time_origin": 1790736407182.5,
+      "started_at": 1790738081876.2,
+      "observed_at": 1790738081886.0,
+      "url": "http://127.0.0.1:4187/",
+      "navigation": "navigate",
+      "state": "interrupted",
+      "early": false,
+      "scope": "main_frame",
+      "visibility": [
+        {
+          "at": 1790738081876.2,
+          "state": "visible"
+        }
+      ],
+      "visibility_truncated": false,
+      "metrics": {
+        "cls": {
+          "value": 0.03549779465476557,
+          "state": "partial",
+          "reasons": [
+            "started_late"
+          ]
+        },
+        "dom_content_loaded_ms": {
+          "value": 194.89999997615817,
+          "state": "available",
+          "reasons": []
+        },
+        "fcp_ms": {
+          "value": 252.0,
+          "state": "partial",
+          "reasons": [
+            "started_late"
+          ]
+        },
+        "lcp_ms": {
+          "value": 46400.0,
+          "state": "partial",
+          "reasons": [
+            "started_late"
+          ]
+        },
+        "load_ms": {
+          "value": 318.39999997615814,
+          "state": "available",
+          "reasons": []
+        },
+        "long_task_count": {
+          "value": 1.0,
+          "state": "partial",
+          "reasons": [
+            "started_late"
+          ]
+        },
+        "long_task_max_ms": {
+          "value": 75.0,
+          "state": "partial",
+          "reasons": [
+            "started_late"
+          ]
+        },
+        "long_task_total_ms": {
+          "value": 75.0,
+          "state": "partial",
+          "reasons": [
+            "started_late"
+          ]
+        },
+        "ttfb_ms": {
+          "value": 12.899999976158142,
+          "state": "available",
+          "reasons": []
+        }
+      },
+      "long_tasks": [
+        {
+          "at": 1790736407302.2,
+          "duration_ms": 75.0
+        }
+      ],
+      "long_tasks_truncated": false,
+      "coverage": [
+        "main_frame_only",
+        "started_late",
+        "visibility_before_capture_unknown",
+        "navigation_checkpoint_missing"
+      ]
+    },
+    {
+      "id": "dc8c3d0f8ac64:p2",
+      "document_key": "1790738081922.2:0",
+      "sequence": 59,
+      "time_origin": 1790738081922.2,
+      "started_at": 1790738081922.2,
+      "observed_at": 1790738328292.0,
+      "url": "http://127.0.0.1:4187/",
+      "navigation": "navigate",
+      "state": "completed",
+      "early": true,
+      "scope": "main_frame",
+      "visibility": [
+        {
+          "at": 1790738081922.2,
+          "state": "visible"
+        }
+      ],
+      "visibility_truncated": false,
+      "metrics": {
+        "cls": {
+          "value": 0.0,
+          "state": "partial",
+          "reasons": [
+            "capture_stopped_before_final"
+          ]
+        },
+        "dom_content_loaded_ms": {
+          "value": 154.29999995231628,
+          "state": "available",
+          "reasons": []
+        },
+        "fcp_ms": {
+          "value": 208.0,
+          "state": "available",
+          "reasons": []
+        },
+        "lcp_ms": {
+          "value": 240.0,
+          "state": "available",
+          "reasons": []
+        },
+        "load_ms": {
+          "value": 364.0999999642372,
+          "state": "available",
+          "reasons": []
+        },
+        "long_task_count": {
+          "value": 3.0,
+          "state": "available",
+          "reasons": []
+        },
+        "long_task_max_ms": {
+          "value": 103.0,
+          "state": "available",
+          "reasons": []
+        },
+        "long_task_total_ms": {
+          "value": 270.0,
+          "state": "available",
+          "reasons": []
+        },
+        "ttfb_ms": {
+          "value": 8.699999988079071,
+          "state": "available",
+          "reasons": []
+        }
+      },
+      "long_tasks": [
+        {
+          "at": 1790738327925.1,
+          "duration_ms": 103.0
+        },
+        {
+          "at": 1790738082178.0,
+          "duration_ms": 96.0
+        },
+        {
+          "at": 1790738082005.2,
+          "duration_ms": 71.0
+        }
+      ],
+      "long_tasks_truncated": false,
+      "coverage": [
+        "main_frame_only"
+      ]
+    }
+  ]
+}

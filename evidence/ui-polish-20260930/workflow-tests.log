@@ -1,0 +1,39 @@
+✔ writing validates before exit and persists source memory and nonblocking quality (37.28475ms)
+✔ new reply reviews remain visible when the same source already has a personal review snapshot (28.482875ms)
+✔ professional history reads sources and jobs across prior process records (4.179209ms)
+✔ full sync that only updates observation metadata preserves a running writing task (24.222ms)
+✔ historical attachments and reports stay permitted without reappearing in the editable current queue (21.67825ms)
+✔ professional history keeps source reports and jobs without a source (3.547417ms)
+✔ professional queued mutations reject account and process ABA before reading or writing sources (7.595542ms)
+✔ damaged professional storage reports an error and never overwrites the original (3.732166ms)
+✔ professional views, queue, tasks and file permissions reject cross-case/process report identities (3.60825ms)
+✔ five writing confirmations preserve versions and create optional independent review; submitting archives without review (82.458542ms)
+✔ no read evidence cannot complete; completion contract and phase input are enforced (11.015042ms)
+✔ switching account stops professional run; no late artifact goes into the case (9.956875ms)
+✔ identical manual drafts in different cases cannot collapse into one review item; changed source is rejected (9.815875ms)
+✔ five-stage confirmations cannot continue after the case moves to official waiting (10.179917ms)
+✔ global queue preserves each review attempt and archived reports after restart (28.184458ms)
+✔ writing references copy same-name originals separately, isolate cases, feed selected snapshots and retain removed files (17.334ms)
+✔ writing reference import rejects invalid batches, account changes and active jobs (12.2795ms)
+✔ review source writes are blocked for archived, closed and official-waiting cases (2.917958ms)
+✔ review history becomes readonly when the current business is external (3.621084ms)
+✔ professional source writes reuse the main-process editable business boundary (6.777792ms)
+✔ stage preview reads exact DOCX and rejects tampered files or foreign version identities (11.859167ms)
+✔ explicit link continues local writing confirmations under remote process and preserves old history (20.030958ms)
+✔ legacy Markdown stage converts once to an exact DOCX without replacing the original (15.837125ms)
+✔ stopped writing resumes frozen requirements across reopening and persists progress without late overwrite (18.754333ms)
+✔ review resumes only the same current source and writing restart invalidates previous continuation (28.932167ms)
+✔ resume detects externally changed selected material without losing checkpoint or starting another model (20.234166ms)
+✔ returning to a writing step does not re-confirm results from the previous writing context (32.221042ms)
+✔ material-based entry starts at the chosen step without inventing earlier confirmations (11.139542ms)
+✔ an explicitly selected earlier finished version is adopted without deleting later attempts (16.858334ms)
+✔ writing selection keeps compatible legacy work but rejects previous contexts after a return (0.905375ms)
+✔ starting-point selection is available only before current results or confirmations (0.076792ms)
+ℹ tests 31
+ℹ suites 0
+ℹ pass 31
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 720.224583

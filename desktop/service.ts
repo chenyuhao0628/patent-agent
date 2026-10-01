@@ -14,7 +14,7 @@ import { applyRemoteClosure, applySubmissionToCurrent, assignCurrentProcess, Bas
 import { applyCaseDeadline, mergeRemoteProcess } from '../src/domain/deadlines.ts';
 import { atomicCreate, atomicJSON, CaseFiles, digest, managedPath, processFolder, readBoundedFile, readJSON, safeName, validateRoots } from './files.ts';
 import { projectReplyView, projectProfessionalView, projectTransferView } from '../src/domain/case-view.ts';
-import { normalizeWorkspace, currentWork, editableCurrent, caseScopeFingerprint } from '../src/domain/lifecycle.ts';
+import { normalizeWorkspace, currentWork, editableCurrent, caseScopeFingerprint, applyOfficialOutcomeVerdict } from '../src/domain/lifecycle.ts';
 import { pauseRunning } from '../src/domain/workflow.ts';
 import type { Case, CurrentFlowInfo, RemoteProcess, Settings, Submission, Workspace } from '../src/domain/workflow.ts';
 import {
@@ -869,7 +869,7 @@ export class DesktopService {
         }
         // 官方授权/驳回结论与案件数据同一次同步判读；失败保留上次结论，绝不写入「未授权」。
         if(c.remote&&!c.archived&&!c.remoteClosure?.finished&&!outcomeSettled(c)){
-          try{c.officialOutcome=await client.officialOutcome(c,controller.signal);check();}
+          try{applyOfficialOutcomeVerdict(c,await client.officialOutcome(c,controller.signal));check();}
           catch(e){check();outcomeFailures.push(c.number+' / 案件状态判读：'+(e as Error).message);}
         }
         const currentProc=c.remote?.processes.find(p=>p.id===c.current?.processId);
@@ -1238,7 +1238,7 @@ export class DesktopService {
         const value=results.get(c.id);
         if(value&&c.remote){
           const previous=caseScopeFingerprint(c);
-          c.officialOutcome=value;
+          applyOfficialOutcomeVerdict(c,value);
           this.updateCaseRevision(c,previous);
         }
       }
@@ -1262,7 +1262,7 @@ export class DesktopService {
       const latest=this.findCase(id);
       if(generation!==this.generation||latest.remote?.caseId!==caseId)throw new Error('案件或账号已变化，请重新判读。');
       const previous=caseScopeFingerprint(latest);
-      latest.officialOutcome=value;
+      applyOfficialOutcomeVerdict(latest,value);
       this.updateCaseRevision(latest,previous);
       await this.files().ensureCase(latest);
       await this.persist();
@@ -1292,7 +1292,7 @@ export class DesktopService {
         const value=results.get(c.id);
         if(value&&c.remote){
           const previous=caseScopeFingerprint(c);
-          c.officialOutcome=value;
+          applyOfficialOutcomeVerdict(c,value);
           this.updateCaseRevision(c,previous);
           await this.files().ensureCase(c);
         }

@@ -1,0 +1,121 @@
+{
+  "evidence": "release-0.19.0-20261001",
+  "date": "2026-10-01",
+  "version": "0.19.0",
+  "sourceVersionNote": "0.19.0 包含复审修复（H1/M1/M2）与已确认口径实现（M3/M4）；测试 773/773、tsc 与生产构建通过",
+  "builtAt": "2026-10-01T03:30:46.894Z",
+  "appId": "com.patentworkbench.desktop",
+  "productName": "专利工作台",
+  "artifacts": [
+    {
+      "file": "专利工作台-0.19.0-macOS-arm64.app",
+      "platform": "mac-arm64",
+      "version": "0.19.0",
+      "sha256": "8d6e5c0f422c14a003220709ca2050eab6c1d2bdc14af304580e287ea1319fa8",
+      "hashAlgorithm": "sha256-tree"
+    },
+    {
+      "file": "PatentWorkbench-0.19.0-macOS-arm64.pkg",
+      "platform": "mac-arm64-installer",
+      "version": "0.19.0",
+      "sha256": "156e51cbe2759d58833049d48bdcb830a7834c9a819f3866f1ce615127d44bd6",
+      "hashAlgorithm": "sha256"
+    },
+    {
+      "file": "PatentWorkbench-0.19.0-Windows-x64-Setup.exe",
+      "platform": "win-x64",
+      "version": "0.19.0",
+      "sha256": "2537ee5468918c38ef1db3e68f2b77f46916a365163847da2e998d999d51cb7b",
+      "hashAlgorithm": "sha256"
+    }
+  ],
+  "verification": {
+    "manifestHashesRecomputed": "全部一致（HASH-OK）",
+    "bundledMainMatchesBuild": true,
+    "bundledPreloadMatchesBuild": true,
+    "asarPackageVersion": "0.19.0",
+    "macInfoPlist": {
+      "CFBundleIdentifier": "com.patentworkbench.desktop",
+      "CFBundleShortVersionString": "0.19.0",
+      "CFBundleExecutable": "专利工作台"
+    },
+    "scriptInternalChecks": "verifyAsarPayload / verifyMacApp / verifyMz / verifyBundledRuntime 全部通过（打包输出“校验暂存产物…”）"
+  },
+  "packagingProcess": "打包脚本默认清理 release/ 旧制品；沿用历史做法，打包前将 0.15.3–0.18.0 十二项移至 /tmp/patent-release-backup-20261001/ 并记录摘要，打包后原样放回并复核",
+  "retainedOldArtifacts": [
+    {
+      "file": "PatentWorkbench-0.15.3-Windows-x64-Setup.exe",
+      "kind": "file",
+      "sha256": "fc0b23709a8fef274b6f24cc9a2eb0b2ce1fb9162ac46adcfce7f88a2d1ef019",
+      "unchanged": true
+    },
+    {
+      "file": "PatentWorkbench-0.15.3-macOS-arm64.pkg",
+      "kind": "file",
+      "sha256": "9e51456baaec3f77c19e5f383c31d59576b3c497eeb4abd5442ce6a5d722d2ad",
+      "unchanged": true
+    },
+    {
+      "file": "PatentWorkbench-0.16.0-Windows-x64-Setup.exe",
+      "kind": "file",
+      "sha256": "de2ad0f4b438d5bdfe15362b0cf89731d3d1019c360106615c003ed565048442",
+      "unchanged": true
+    },
+    {
+      "file": "PatentWorkbench-0.16.0-macOS-arm64.pkg",
+      "kind": "file",
+      "sha256": "76ca71a45361dd6e3990388d0b26a4a05d5ae0d1cc49e87451a76192fba01699",
+      "unchanged": true
+    },
+    {
+      "file": "PatentWorkbench-0.17.0-Windows-x64-Setup.exe",
+      "kind": "file",
+      "sha256": "55d52abf3d2b3810c5cb3098e2eea1fd01a8ccc2d487e68bad9581af23263e9d",
+      "unchanged": true
+    },
+    {
+      "file": "PatentWorkbench-0.17.0-macOS-arm64.pkg",
+      "kind": "file",
+      "sha256": "fb1f54e95f9e339204fa03b1149195bb43538976b897590691afbcb62f25543a",
+      "unchanged": true
+    },
+    {
+      "file": "PatentWorkbench-0.18.0-Windows-x64-Setup.exe",
+      "kind": "file",
+      "sha256": "7daa0457ec4e60e8a5c4a223d706ebec89a908ea59ff7cadb292737246cf9044",
+      "unchanged": true
+    },
+    {
+      "file": "PatentWorkbench-0.18.0-macOS-arm64.pkg",
+      "kind": "file",
+      "sha256": "7dd696698a63dac209f33d91a2ae4d18d9296591c2b62599cd7a83bc1ed64709",
+      "unchanged": true
+    },
+    {
+      "file": "专利工作台-0.15.3-macOS-arm64.app",
+      "kind": "dir-tree",
+      "sha256": "2f0f578e2607730c809fc28db1416285b6dadae48473840e5898af3ad382f456",
+      "unchanged": true
+    },
+    {
+      "file": "专利工作台-0.16.0-macOS-arm64.app",
+      "kind": "dir-tree",
+      "sha256": "7854d375f95614c24aef3614359ed1fe7bb7b85bce27a1bd314573fb367d6684",
+      "unchanged": true
+    },
+    {
+      "file": "专利工作台-0.17.0-macOS-arm64.app",
+      "kind": "dir-tree",
+      "sha256": "d1d81cd8706f16c635aad12ef21e84f54e756a6cd2834f22cbfd7e7c2fd43897",
+      "unchanged": true
+    },
+    {
+      "file": "专利工作台-0.18.0-macOS-arm64.app",
+      "kind": "dir-tree",
+      "sha256": "c8a2c1174d3aeb1422de96f73794fb8a21c6d90d32c72f15631c9db6ac0ba733",
+      "unchanged": true
+    }
+  ],
+  "uiVerification": "evidence/ui-adopt-0.19.0-20261001/（真实组件 + 合成数据，1440×900 / 1920×1080 / 1280×800 精确 CSS 视口）",
+  "boundaries": "未签名、未公证、未覆盖安装、未真实业务写入、未提交或推送；Windows 实机安装由用户执行；macOS 安装与启动验收另行记录"
+}

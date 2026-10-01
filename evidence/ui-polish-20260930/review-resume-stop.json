@@ -1,0 +1,44 @@
+{
+  "ok": true,
+  "tab_id": 636651987,
+  "value": {
+    "buttons": [
+      {
+        "disabled": false,
+        "text": "选择外部完成稿"
+      },
+      {
+        "disabled": false,
+        "text": "查看输入版本"
+      },
+      {
+        "disabled": false,
+        "text": "继续未完成审查"
+      },
+      {
+        "disabled": false,
+        "text": "开始独立 AI 审查"
+      }
+    ],
+    "calls": [
+      {
+        "jobId": "stopped-write",
+        "type": "resume"
+      },
+      {
+        "type": "stop"
+      },
+      {
+        "navigation": "review"
+      },
+      {
+        "jobId": "stopped-review",
+        "type": "resume"
+      },
+      {
+        "type": "stop"
+      }
+    ],
+    "stream": false
+  }
+}

@@ -11,6 +11,7 @@ import {
   editableCurrent,
   internalTransferAvailable,
   isInternallyActiveProcess,
+  outcomeLocksCurrent,
   workModule,
   type CurrentWork,
   type CaseLifecycleFacts,
@@ -76,6 +77,8 @@ export type CaseOfficialOutcomeView = {
   applies: boolean;
   view: OutcomeView;
   concluded: boolean;
+  /** 结论是否锁住当前办理流程；驳回后出现的复审等新流程不被锁住。 */
+  locksCurrent: boolean;
   result?: Readonly<OfficialOutcome>;
   closure?: Readonly<{ finished: boolean; checkedAt: string }>;
 };
@@ -177,6 +180,7 @@ function projectCaseCore(record: CaseRecord):Pick<CaseWorkspaceView,'identity'|'
     },
     officialOutcome: {
       applies: outcomeApplies, view: outcome, concluded: outcomeApplies && (outcome === 'granted' || outcome === 'rejected'),
+      locksCurrent: outcomeLocksCurrent(item),
       result: record.outcome.official ? clone(record.outcome.official) : undefined,
       closure: record.outcome.closure ? clone(record.outcome.closure) : undefined,
     },

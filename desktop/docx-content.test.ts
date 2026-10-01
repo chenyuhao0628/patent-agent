@@ -104,6 +104,18 @@ test('invalid ZIP, absent body and malformed XML reject explicitly', async () =>
   }
 });
 
+test('decompression bombs are rejected before any entry is inflated', async () => {
+  const bomb = new JSZip();
+  bomb.file('word/document.xml', 'a'.repeat(84 * 1024 * 1024));
+  const bytes = await bomb.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
+  assert.ok(bytes.length < 20 * 1024 * 1024, '炸弹压缩后应小于材料上限');
+  await assert.rejects(extractDocxContent(bytes), /解压后体积过大/);
+  await assert.rejects(extractDocxParagraphs(bytes), /解压后体积过大/);
+  const many = new JSZip();
+  for (let i = 0; i < 4_097; i++) many.file(`word/m${i}.xml`, '<w:p/>');
+  await assert.rejects(extractDocxContent(await many.generateAsync({ type: 'nodebuffer' })), /条目过多/);
+});
+
 test('exact canonical headings distinguish abstract, description and unknown partial headings', async () => {
   const result = await extractDocxContent(await docx(
     section('摘要内容', 'a') + section('说明内容', 'd') + section('不能当说明书', 'u'),

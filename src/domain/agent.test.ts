@@ -704,6 +704,25 @@ test('分类或材料变更使旧分析复核失效；相同确认不重置；�
   assert.equal(readonlyPick.state.materialsConfirmed, false);
 });
 
+test('重新分析后旧稿不自动作为当前稿；同编号重选策略也不找回，显式采用才回到当前稿', () => {
+  const live = adopted();
+  const oldDraftId = live.currentDraftVersionId!;
+  const oldText = live.drafts.find(item => item.id === oldDraftId)!.text;
+  const restarted = unwrap(startAgentJob(live, { ...scope, action: 'analysis', discussionId: live.mainDiscussionId }));
+  const done = unwrap(completeAgentJob(readFormal(restarted.state), { ...scope, runId: restarted.state.activeRunId!, artifact: analysisArtifact }));
+  assert.equal(done.state.currentDraftVersionId, null);
+  assert.equal(done.state.drafts.some(item => item.id === oldDraftId), true);
+  const chosen = unwrap(selectStrategy(done.state, { ...scope, strategyId: 's2' }));
+  assert.equal(chosen.state.currentDraftVersionId, null);
+  const premature = finalizeProcess(chosen.state, scope);
+  assert.equal(premature.ok, false);
+  if (!premature.ok) assert.equal(premature.code, 'DRAFT_VERSION_REQUIRED');
+  const readopted = unwrap(adoptDraft(chosen.state, { ...scope, versionId: oldDraftId }));
+  assert.equal(readopted.state.currentDraftVersionId, oldDraftId);
+  assert.equal(readopted.state.drafts.find(item => item.id === oldDraftId)!.text, oldText);
+  assert.equal(finalizeProcess(readopted.state, scope).ok, true);
+});
+
 test('正式分析/复核不能仅凭模型自述完成，必须有当次材料的成功 read', () => {
   const ready = confirmed();
   const started = unwrap(startAgentJob(ready, { ...scope, action: 'analysis', discussionId: ready.mainDiscussionId }));

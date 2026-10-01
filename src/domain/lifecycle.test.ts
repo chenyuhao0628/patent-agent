@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { seedWorkspace, updateRound } from './workflow.ts';
 import type { Case, RemoteProcess } from './workflow.ts';
-import { caseScopeFingerprint, caseStatus, currentWork, editableCurrent, effectiveSubmission, historyRecords, internalTransferAvailable, isConfirmedOfficialSubmission, INTERNAL_ENDED_WAIT_LABEL, normalizeCase, normalizeWorkspace, processSubmission, WAITING_OFFICIAL_LABEL, workModule } from './lifecycle.ts';
+import { caseScopeFingerprint, caseStatus, currentWork, editableCurrent, effectiveSubmission, historyRecords, internalTransferAvailable, isConfirmedOfficialSubmission, applyOfficialOutcomeVerdict, concludedProcessIdsOf, outcomeLocksCurrent, INTERNAL_ENDED_WAIT_LABEL, normalizeCase, normalizeWorkspace, processSubmission, WAITING_OFFICIAL_LABEL, workModule } from './lifecycle.ts';
 import { currentHandling } from './handling.ts';
 import { libraryStatus } from './library.ts';
 import { initialDesign } from './designFlows.ts';
@@ -78,6 +78,51 @@ test('official outcomes and case closure block editing and transfer without dele
   assert.equal(editableCurrent(closed),false);
   assert.equal(internalTransferAvailable(closed),false);
   assert.equal(editableCurrent({...c,officialOutcome:{state:'none',checkedAt:'2026-09-26'}}),true);
+});
+
+test('official conclusion locks only its own process; a later active process (复审) stays workable',()=>{
+  const base=remoteCase({}, {submission:undefined});
+  const ended={...structuredClone(base),officialOutcome:{state:'rejected' as const,checkedAt:'2026-09-26',concludedProcessIds:['p1']}};
+  assert.equal(outcomeLocksCurrent(ended),true);
+  assert.equal(editableCurrent(ended),false);
+  assert.equal(internalTransferAvailable(ended),false);
+  const retrial=structuredClone(ended);
+  retrial.remote!.processes=[
+    {...retrial.remote!.processes[0],submission:{state:'sent' as const,source:'hand' as const,checkedAt:'2026-09-20T00:00:00.000Z',message:'已递交'}},
+    {id:'p2',name:'复审请求',status:0,node:'内部',undertaker:'本人',deadline:''},
+  ];
+  retrial.current={kind:'reply',processId:'p2',roundId:'proc-p2',label:'复审请求'};
+  assert.equal(outcomeLocksCurrent(retrial),false);
+  assert.equal(editableCurrent(retrial),true);
+  assert.equal(internalTransferAvailable(retrial),true);
+  const back: Case = {...structuredClone(retrial),current:{kind:'reply',processId:'p1',roundId:'proc-p1',label:'第一次审查意见答复'}};
+  assert.equal(outcomeLocksCurrent(back),true);
+  assert.equal(editableCurrent(back),false);
+  assert.equal(internalTransferAvailable(back),false);
+  // 旧数据未记录结论所属流程时保持原口径：整案只读。
+  const legacy: Case = {...structuredClone(base),officialOutcome:{state:'rejected',checkedAt:'2026-09-26'},
+    remote:retrial.remote,current:{kind:'reply',processId:'p2',roundId:'proc-p2',label:'复审请求'}};
+  assert.equal(outcomeLocksCurrent(legacy),true);
+  assert.equal(editableCurrent(legacy),false);
+});
+
+test('conclusion ownership stamps finished proceedings and survives re-judgement',()=>{
+  const submitted=remoteCase();
+  assert.deepEqual(concludedProcessIdsOf(submitted),['p1']);
+  const stale=remoteCase({}, {submission:undefined});
+  assert.deepEqual(concludedProcessIdsOf(stale),['p1']);
+  const withRetrial=structuredClone(submitted);
+  withRetrial.remote!.processes=[...withRetrial.remote!.processes,{id:'p2',name:'复审请求',status:0,node:'内部',undertaker:'本人',deadline:''}];
+  withRetrial.current={kind:'reply',processId:'p2',roundId:'proc-p2',label:'复审请求'};
+  assert.deepEqual(concludedProcessIdsOf(withRetrial),['p1']);
+  const c=structuredClone(submitted);
+  applyOfficialOutcomeVerdict(c,{state:'rejected',checkedAt:'2026-09-26'});
+  assert.deepEqual(c.officialOutcome?.concludedProcessIds,['p1']);
+  applyOfficialOutcomeVerdict(c,{state:'granted',checkedAt:'2026-10-01'});
+  assert.deepEqual(c.officialOutcome?.concludedProcessIds,['p1']);
+  const none=structuredClone(submitted);
+  applyOfficialOutcomeVerdict(none,{state:'none',checkedAt:'2026-09-26'});
+  assert.equal(none.officialOutcome?.concludedProcessIds,undefined);
 });
 
 test('confirmed sent and receipt change current kind to waiting and keep process, round and draft', () => {

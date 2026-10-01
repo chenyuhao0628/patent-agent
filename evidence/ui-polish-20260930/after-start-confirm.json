@@ -1,0 +1,44 @@
+{
+  "ok": true,
+  "tab_id": 636651987,
+  "value": {
+    "calls": [
+      {
+        "phase": 2,
+        "type": "start-at"
+      },
+      {
+        "materialIds": [],
+        "message": "",
+        "type": "write"
+      },
+      {
+        "decision": "",
+        "jobId": "new-writing-0",
+        "type": "confirm"
+      }
+    ],
+    "steps": [
+      {
+        "classes": "",
+        "text": "1方向构思未逐步确认"
+      },
+      {
+        "classes": "",
+        "text": "2技术方案与保护架构未逐步确认"
+      },
+      {
+        "classes": "done",
+        "text": "说明书已确认"
+      },
+      {
+        "classes": "current",
+        "text": "4权利要求书当前步骤"
+      },
+      {
+        "classes": "",
+        "text": "5申请文件整理待办理"
+      }
+    ]
+  }
+}

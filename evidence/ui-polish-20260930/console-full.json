@@ -1,0 +1,297 @@
+{
+  "session_id": "grjd",
+  "run": {
+    "id": "d9e099451d359",
+    "session_id": "grjd",
+    "tab_id": 636651987,
+    "name": "实际案件流程与UI核对",
+    "url": "http://127.0.0.1:4187/",
+    "started_at": 1790735318270.0,
+    "state": "capturing",
+    "requests": 21,
+    "operations": 58,
+    "errors": 4,
+    "dropped_requests": 0,
+    "dropped_operations": 0,
+    "dropped_console": 0,
+    "coverage": [
+      "from_start",
+      "task_tab",
+      "text_bodies_bounded",
+      "time_window_not_causality",
+      "page_main_frame",
+      "worker_targets_not_captured",
+      "manual_main_frame_only"
+    ],
+    "next_since": 339,
+    "active_rules": 0,
+    "saved_at": 1790737464502.0,
+    "storage": {
+      "bytes": 265027,
+      "dropped": 0,
+      "pins": 0,
+      "requests": 21
+    },
+    "environment": {
+      "extension_version": "0.3.1",
+      "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36"
+    }
+  },
+  "console": [
+    {
+      "id": "d9e099451d359:c1",
+      "at": 1790735318585.0,
+      "level": "info",
+      "text": "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+      "count": 1,
+      "last_at": 1790735318585.0,
+      "stack": " http://127.0.0.1:4187/bundle/fixture.js:23474:54\nnode_modules/react-dom/cjs/react-dom-client.development.js http://127.0.0.1:4187/bundle/fixture.js:23548:7\n__require http://127.0.0.1:4187/bundle/fixture.js:17:52\nnode_modules/react-dom/client.js http://127.0.0.1:4187/bundle/fixture.js:23560:24\n__require http://127.0.0.1:4187/bundle/fixture.js:17:52\n http://127.0.0.1:4187/bundle/fixture.js:82751:29",
+      "source": "website",
+      "source_url": "http://127.0.0.1:4187/bundle/fixture.js"
+    },
+    {
+      "id": "d9e099451d359:c2",
+      "at": 1790735318734.0,
+      "level": "log",
+      "text": "购物党隐私说明（键入disable_gwd_privacy()不再显示本声明）：",
+      "count": 1,
+      "last_at": 1790735318734.0,
+      "stack": " chrome-extension://jgphnjokjhjlcnnajmfjlacjnjkhleah/js/main.js:462:13",
+      "source": "extension",
+      "source_url": "chrome-extension://jgphnjokjhjlcnnajmfjlacjnjkhleah/js/main.js"
+    },
+    {
+      "id": "d9e099451d359:c3",
+      "at": 1790735318734.0,
+      "level": "log",
+      "text": "    我们不会收集用户个人隐私信息，只会收集一些简单的产品交互行为，帮助改善产品，例如记录某个模块点击次数，更多信息请关注：",
+      "count": 1,
+      "last_at": 1790735318734.0,
+      "stack": " chrome-extension://jgphnjokjhjlcnnajmfjlacjnjkhleah/js/main.js:463:13",
+      "source": "extension",
+      "source_url": "chrome-extension://jgphnjokjhjlcnnajmfjlacjnjkhleah/js/main.js"
+    },
+    {
+      "id": "d9e099451d359:c4",
+      "at": 1790735318735.0,
+      "level": "log",
+      "text": "隐私协议: https://www.gwdang.com/static_page/privacy_policy.html",
+      "count": 1,
+      "last_at": 1790735318735.0,
+      "stack": " chrome-extension://jgphnjokjhjlcnnajmfjlacjnjkhleah/js/main.js:464:13",
+      "source": "extension",
+      "source_url": "chrome-extension://jgphnjokjhjlcnnajmfjlacjnjkhleah/js/main.js"
+    },
+    {
+      "id": "d9e099451d359:c5",
+      "at": 1790735318773.0,
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED",
+      "count": 1,
+      "last_at": 1790735318773.0,
+      "source": "extension",
+      "source_url": "chrome-extension://invalid/"
+    },
+    {
+      "id": "d9e099451d359:c6",
+      "at": 1790735318961.0,
+      "level": "info",
+      "text": "%c2026-09-30T02:28:38.960Z %c[KISS-Translator] %c[INFO] color: gray; font-weight: lighter; color: #7c57e0; font-weight: bold; color: #4CAF50; font-weight: bold; Input Translator enabled.",
+      "count": 1,
+      "last_at": 1790735318961.0,
+      "stack": "_log chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:778794\ninfo chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:779360\nenable chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:1854131\nvP chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:1853544\nZG chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:2294237\nstart chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:2292233\n chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:2311916",
+      "source": "extension",
+      "source_url": "chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js"
+    },
+    {
+      "id": "d9e099451d359:c7",
+      "at": 1790735318961.0,
+      "level": "info",
+      "text": "%c2026-09-30T02:28:38.961Z %c[KISS-Translator] %c[INFO] color: gray; font-weight: lighter; color: #7c57e0; font-weight: bold; color: #4CAF50; font-weight: bold; TranslatorManager started.",
+      "count": 1,
+      "last_at": 1790735318961.0,
+      "stack": "_log chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:778794\ninfo chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:779360\nstart chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:2292444\n chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:2311916",
+      "source": "extension",
+      "source_url": "chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js"
+    },
+    {
+      "id": "d9e099451d359:c8",
+      "at": 1790735678756.0,
+      "level": "info",
+      "text": "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+      "count": 1,
+      "last_at": 1790735678756.0,
+      "stack": " http://127.0.0.1:4187/bundle/fixture.js:23474:54\nnode_modules/react-dom/cjs/react-dom-client.development.js http://127.0.0.1:4187/bundle/fixture.js:23548:7\n__require http://127.0.0.1:4187/bundle/fixture.js:17:52\nnode_modules/react-dom/client.js http://127.0.0.1:4187/bundle/fixture.js:23560:24\n__require http://127.0.0.1:4187/bundle/fixture.js:17:52\n http://127.0.0.1:4187/bundle/fixture.js:82751:29",
+      "source": "website",
+      "source_url": "http://127.0.0.1:4187/bundle/fixture.js"
+    },
+    {
+      "id": "d9e099451d359:c9",
+      "at": 1790735678822.0,
+      "level": "log",
+      "text": "购物党隐私说明（键入disable_gwd_privacy()不再显示本声明）：",
+      "count": 1,
+      "last_at": 1790735678822.0,
+      "stack": " chrome-extension://jgphnjokjhjlcnnajmfjlacjnjkhleah/js/main.js:462:13",
+      "source": "extension",
+      "source_url": "chrome-extension://jgphnjokjhjlcnnajmfjlacjnjkhleah/js/main.js"
+    },
+    {
+      "id": "d9e099451d359:c10",
+      "at": 1790735678822.0,
+      "level": "log",
+      "text": "    我们不会收集用户个人隐私信息，只会收集一些简单的产品交互行为，帮助改善产品，例如记录某个模块点击次数，更多信息请关注：",
+      "count": 1,
+      "last_at": 1790735678822.0,
+      "stack": " chrome-extension://jgphnjokjhjlcnnajmfjlacjnjkhleah/js/main.js:463:13",
+      "source": "extension",
+      "source_url": "chrome-extension://jgphnjokjhjlcnnajmfjlacjnjkhleah/js/main.js"
+    },
+    {
+      "id": "d9e099451d359:c11",
+      "at": 1790735678822.0,
+      "level": "log",
+      "text": "隐私协议: https://www.gwdang.com/static_page/privacy_policy.html",
+      "count": 1,
+      "last_at": 1790735678822.0,
+      "stack": " chrome-extension://jgphnjokjhjlcnnajmfjlacjnjkhleah/js/main.js:464:13",
+      "source": "extension",
+      "source_url": "chrome-extension://jgphnjokjhjlcnnajmfjlacjnjkhleah/js/main.js"
+    },
+    {
+      "id": "d9e099451d359:c12",
+      "at": 1790735678857.0,
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED",
+      "count": 1,
+      "last_at": 1790735678857.0,
+      "source": "extension",
+      "source_url": "chrome-extension://invalid/"
+    },
+    {
+      "id": "d9e099451d359:c13",
+      "at": 1790735678947.0,
+      "level": "info",
+      "text": "%c2026-09-30T02:34:38.946Z %c[KISS-Translator] %c[INFO] color: gray; font-weight: lighter; color: #7c57e0; font-weight: bold; color: #4CAF50; font-weight: bold; Input Translator enabled.",
+      "count": 1,
+      "last_at": 1790735678947.0,
+      "stack": "_log chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:778794\ninfo chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:779360\nenable chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:1854131\nvP chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:1853544\nZG chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:2294237\nstart chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:2292233\n chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:2311916",
+      "source": "extension",
+      "source_url": "chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js"
+    },
+    {
+      "id": "d9e099451d359:c14",
+      "at": 1790735678947.0,
+      "level": "info",
+      "text": "%c2026-09-30T02:34:38.947Z %c[KISS-Translator] %c[INFO] color: gray; font-weight: lighter; color: #7c57e0; font-weight: bold; color: #4CAF50; font-weight: bold; TranslatorManager started.",
+      "count": 1,
+      "last_at": 1790735678947.0,
+      "stack": "_log chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:778794\ninfo chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:779360\nstart chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:2292444\n chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:2311916",
+      "source": "extension",
+      "source_url": "chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js"
+    },
+    {
+      "id": "d9e099451d359:c15",
+      "at": 1790736407329.0,
+      "level": "info",
+      "text": "%cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold",
+      "count": 1,
+      "last_at": 1790736407329.0,
+      "stack": " http://127.0.0.1:4187/bundle/fixture.js:23474:54\nnode_modules/react-dom/cjs/react-dom-client.development.js http://127.0.0.1:4187/bundle/fixture.js:23548:7\n__require http://127.0.0.1:4187/bundle/fixture.js:17:52\nnode_modules/react-dom/client.js http://127.0.0.1:4187/bundle/fixture.js:23560:24\n__require http://127.0.0.1:4187/bundle/fixture.js:17:52\n http://127.0.0.1:4187/bundle/fixture.js:82768:29",
+      "source": "website",
+      "source_url": "http://127.0.0.1:4187/bundle/fixture.js"
+    },
+    {
+      "id": "d9e099451d359:c16",
+      "at": 1790736407397.0,
+      "level": "log",
+      "text": "购物党隐私说明（键入disable_gwd_privacy()不再显示本声明）：",
+      "count": 1,
+      "last_at": 1790736407397.0,
+      "stack": " chrome-extension://jgphnjokjhjlcnnajmfjlacjnjkhleah/js/main.js:462:13",
+      "source": "extension",
+      "source_url": "chrome-extension://jgphnjokjhjlcnnajmfjlacjnjkhleah/js/main.js"
+    },
+    {
+      "id": "d9e099451d359:c17",
+      "at": 1790736407398.0,
+      "level": "log",
+      "text": "    我们不会收集用户个人隐私信息，只会收集一些简单的产品交互行为，帮助改善产品，例如记录某个模块点击次数，更多信息请关注：",
+      "count": 1,
+      "last_at": 1790736407398.0,
+      "stack": " chrome-extension://jgphnjokjhjlcnnajmfjlacjnjkhleah/js/main.js:463:13",
+      "source": "extension",
+      "source_url": "chrome-extension://jgphnjokjhjlcnnajmfjlacjnjkhleah/js/main.js"
+    },
+    {
+      "id": "d9e099451d359:c18",
+      "at": 1790736407398.0,
+      "level": "log",
+      "text": "隐私协议: https://www.gwdang.com/static_page/privacy_policy.html",
+      "count": 1,
+      "last_at": 1790736407398.0,
+      "stack": " chrome-extension://jgphnjokjhjlcnnajmfjlacjnjkhleah/js/main.js:464:13",
+      "source": "extension",
+      "source_url": "chrome-extension://jgphnjokjhjlcnnajmfjlacjnjkhleah/js/main.js"
+    },
+    {
+      "id": "d9e099451d359:c19",
+      "at": 1790736407404.0,
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED",
+      "count": 1,
+      "last_at": 1790736407404.0,
+      "source": "extension",
+      "source_url": "chrome-extension://invalid/"
+    },
+    {
+      "id": "d9e099451d359:c20",
+      "at": 1790736407518.0,
+      "level": "info",
+      "text": "%c2026-09-30T02:46:47.517Z %c[KISS-Translator] %c[INFO] color: gray; font-weight: lighter; color: #7c57e0; font-weight: bold; color: #4CAF50; font-weight: bold; Input Translator enabled.",
+      "count": 1,
+      "last_at": 1790736407518.0,
+      "stack": "_log chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:778794\ninfo chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:779360\nenable chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:1854131\nvP chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:1853544\nZG chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:2294237\nstart chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:2292233\n chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:2311916",
+      "source": "extension",
+      "source_url": "chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js"
+    },
+    {
+      "id": "d9e099451d359:c21",
+      "at": 1790736407518.0,
+      "level": "info",
+      "text": "%c2026-09-30T02:46:47.518Z %c[KISS-Translator] %c[INFO] color: gray; font-weight: lighter; color: #7c57e0; font-weight: bold; color: #4CAF50; font-weight: bold; TranslatorManager started.",
+      "count": 1,
+      "last_at": 1790736407518.0,
+      "stack": "_log chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:778794\ninfo chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:779360\nstart chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:2292444\n chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js:2:2311916",
+      "source": "extension",
+      "source_url": "chrome-extension://bdiifdefkgmcblbcghdlonllpjhhjgof/content.js"
+    },
+    {
+      "id": "d9e099451d359:c22",
+      "at": 1790737462871.0,
+      "level": "error",
+      "text": "TypeError: desktop.professional.history is not a function",
+      "count": 1,
+      "last_at": 1790737462871.0,
+      "stack": " http://127.0.0.1:4187/bundle/fixture.js:81661:37\nreact_stack_bottom_frame http://127.0.0.1:4187/bundle/fixture.js:21626:20\nrunWithFiberInDEV http://127.0.0.1:4187/bundle/fixture.js:2442:72\ncommitHookEffectListMount http://127.0.0.1:4187/bundle/fixture.js:11082:163\ncommitHookPassiveMountEffects http://127.0.0.1:4187/bundle/fixture.js:11136:60\ncommitPassiveMountOnFiber http://127.0.0.1:4187/bundle/fixture.js:13340:29\nrecursivelyTraversePassiveMountEffects http://127.0.0.1:4187/bundle/fixture.js:13308:61\ncommitPassiveMountOnFiber http://127.0.0.1:4187/bundle/fixture.js:13516:13\nrecursivelyTraversePassiveMountEffects http://127.0.0.1:4187/bundle/fixture.js:13308:61\ncommitPassiveMountOnFiber http://127.0.0.1:4187/bundle/fixture.js:13333:13\nrecursivelyTraversePassiveMountEffects http://127.0.0.1:4187/bundle/fixture.js:13308:61\ncommitPassiveMountOnFiber http://127.0.0.1:4187/bundle/fixture.js:13516:13\nrecursivelyTraversePassiveMountEffects http://127.0.0.1:4187/bundle/fixture.js:13308:61\ncommitPassiveMountOnFiber http://127.0.0.1:4187/bundle/fixture.js:13516:13\nrecursivelyTraversePassiveMountEffects http://127.0.0.1:4187/bundle/fixture.js:13308:61\ncommitPassiveMountOnFiber http://127.0.0.1:4187/bundle/fixture.js:13516:13\nrecursivelyTraversePassiveMountEffects http://127.0.0.1:4187/bundle/fixture.js:13308:61\ncommitPassiveMountOnFiber http://127.0.0.1:4187/bundle/fixture.js:13333:13\nrecursivelyTraversePassiveMountEffects http://127.0.0.1:4187/bundle/fixture.js:13308:61\ncommitPassiveMountOnFiber http://127.0.0.1:4187/bundle/fixture.js:13366:13",
+      "source": "website",
+      "source_url": "http://127.0.0.1:4187/bundle/fixture.js"
+    },
+    {
+      "id": "d9e099451d359:c23",
+      "at": 1790737462872.0,
+      "level": "warning",
+      "text": "%s\n\n%s\n An error occurred in the <CaseHistory> component. Consider adding an error boundary to your tree to customize error handling behavior.\nVisit https://react.dev/link/error-boundaries to learn more about error boundaries.",
+      "count": 1,
+      "last_at": 1790737462872.0,
+      "stack": "defaultOnUncaughtError http://127.0.0.1:4187/bundle/fixture.js:8550:17\nlogUncaughtError http://127.0.0.1:4187/bundle/fixture.js:8604:13\nrunWithFiberInDEV http://127.0.0.1:4187/bundle/fixture.js:2442:72\nlane.callback http://127.0.0.1:4187/bundle/fixture.js:8632:11\ncallCallback http://127.0.0.1:4187/bundle/fixture.js:7051:18\ncommitCallbacks http://127.0.0.1:4187/bundle/fixture.js:7063:13\nrunWithFiberInDEV http://127.0.0.1:4187/bundle/fixture.js:2444:15\ncommitLayoutEffectOnFiber http://127.0.0.1:4187/bundle/fixture.js:12060:17\nflushLayoutEffects http://127.0.0.1:4187/bundle/fixture.js:15372:120\ncommitRoot http://127.0.0.1:4187/bundle/fixture.js:15219:39\ncompleteRoot http://127.0.0.1:4187/bundle/fixture.js:15150:11\ncompleteRootWhenReady http://127.0.0.1:4187/bundle/fixture.js:14365:9\nperformWorkOnRoot http://127.0.0.1:4187/bundle/fixture.js:14295:17\nperformSyncWorkOnRoot http://127.0.0.1:4187/bundle/fixture.js:15960:9\nflushSyncWorkAcrossRoots_impl http://127.0.0.1:4187/bundle/fixture.js:15857:122\nprocessRootScheduleInMicrotask http://127.0.0.1:4187/bundle/fixture.js:15880:106\n http://127.0.0.1:4187/bundle/fixture.js:15974:15",
+      "source": "website",
+      "source_url": "http://127.0.0.1:4187/bundle/fixture.js"
+    }
+  ],
+  "output": {
+    "budget": 65536,
+    "omitted": [],
+    "truncated": false
+  }
+}

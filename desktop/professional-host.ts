@@ -89,7 +89,7 @@ export class ProfessionalHost {
     if(source.supersededAt)return '已有后续稿件版本';
     if(c.identity.archived)return '案件已归档';
     if(c.officialOutcome.closure?.finished)return '案件已结案';
-    if(c.officialOutcome.concluded)return '已有官方结论';
+    if(c.officialOutcome.locksCurrent)return '已有官方结论';
     if(keyOfView(view)!==source.processKey)return '已进入后续办理流程';
     if(view.stage.officialWaiting)return '已递交，等待官方处理结果';
     if(!['write','reply','correction','review'].includes(view.stage.kind))return '当前业务不可继续审查';
@@ -197,8 +197,17 @@ export class ProfessionalHost {
       await this.start(scope,key,c,record,old.kind,old.input??'',old.recovery.files,source,old);
     }else if(command.type==='confirm'){
       if(!professionalWritingEditableForView(viewOf(c)))throw new Error('当前流程已不允许确认撰写结果。');
-      const job=currentWritingJobs(record,this.recoveryContext(c,record,'writing')).find(j=>j.id===command.jobId&&j.state==='completed');
-      if(!job||job.id!==command.jobId||record.completed)throw new Error('阶段结果已变化，请核对当前版本。');
+      const contextHash=this.recoveryContext(c,record,'writing');
+      let job=currentWritingJobs(record,contextHash).find(j=>j.id===command.jobId&&j.state==='completed');
+      if(!job&&command.adoptEarlier===true){
+        const earlier=record.jobs.find(j=>j.id===command.jobId&&j.kind==='writing'&&j.caseId===id&&j.processKey===record.processKey&&j.phase===record.phase&&j.state==='completed');
+        if(earlier){
+          // 显式采用退回前的完成稿：按当前上下文新建采用记录并继续确认；原任务记录完整保留，不做静默沿用。
+          job={...structuredClone(earlier),id:randomUUID(),at:new Date().toISOString(),adoptedFromJobId:earlier.id,recovery:{files:structuredClone(earlier.recovery?.files??[]),contextHash}};
+          record.jobs.push(job);
+        }
+      }
+      if(!job||record.completed)throw new Error('阶段结果已变化，请核对当前版本。');
       if(typeof command.decision!=='string'||command.decision.length>PROFESSIONAL_DECISION_MAX||record.phase<2&&!command.decision.trim())throw new Error('请明确所选方向或保护架构，再确认本阶段。');
       const confirmation={jobId:job.id,phase:record.phase,decision:command.decision.trim(),at:new Date().toISOString()};
       if(record.phase<4)record.phase++;
@@ -220,7 +229,7 @@ export class ProfessionalHost {
     }else if(command.type==='ready-manual'){
       const caseView=viewOf(c);
       const draft=caseView.manuscripts.localDraft;
-      if(!professionalWorkEditableForView(caseView)||c.officialOutcome.concluded||!draft?.trim()||!['write','reply','correction'].includes(caseView.stage.kind))throw new Error('本案没有可列入审查的当前工作稿。');
+      if(!professionalWorkEditableForView(caseView)||c.officialOutcome.locksCurrent||!draft?.trim()||!['write','reply','correction'].includes(caseView.stage.kind))throw new Error('本案没有可列入审查的当前工作稿。');
       const hash=digest(draft),sourceId='manual-'+digest(c.identity.id+'\0'+record.processKey+'\0'+hash);
       if(!record.sources.some(s=>s.id===sourceId))record.sources.push({id:sourceId,caseId:id,processKey:record.processKey,title:'已完成的人工工作稿',business:caseView.stage.kind==='write'?'申请':caseView.stage.kind==='correction'?'补正':'答复',at:new Date().toISOString(),text:draft,files:[]});
       await this.persist(key,scope);
@@ -247,13 +256,14 @@ export class ProfessionalHost {
   }
   async addFiles(key:string,id:string,paths:string[]):Promise<ProfessionalCaseView>{return this.scoped(key,id,async(scope)=>{
     const c=this.guard(key,id),processKey=keyOf(c),root=this.service.workspace.settings.workRoot,generation=this.service.generation,record=this.record(await this.store(key),c);
-    if(!professionalWorkEditableForView(viewOf(c))||c.officialOutcome.concluded)throw new Error('当前案件仅可查看，不能新增独立审查稿件。');
+    if(!professionalWorkEditableForView(viewOf(c))||c.officialOutcome.locksCurrent)throw new Error('当前案件仅可查看，不能新增独立审查稿件。');
     if(this.active.has(this.activeKey(key,id)))throw new Error('请先停止本案任务再选择完成稿。');
     if(!paths.length||paths.length>12)throw new Error('每次可选择 1–12 份完成稿。');
     const files:WorkFile[]=[];
     for(const source of paths){
       const stat=await fs.lstat(source);if(!stat.isFile()||stat.isSymbolicLink()||stat.size>20*1024*1024||!['.doc','.docx','.pdf','.txt','.md','.png','.jpg','.jpeg'].includes(path.extname(source).toLowerCase()))throw new Error('请选择 20MB 以内的文档或图像文件。');
-      const bytes=await fs.readFile(source);this.guard(key,id,processKey);if(root!==this.service.workspace.settings.workRoot||generation!==this.service.generation)throw new Error('账号或目录已变化。');
+      let bytes:Buffer;try{bytes=await readBoundedFile(source,20*1024*1024);}catch{throw new Error('请选择 20MB 以内的文档或图像文件。');}
+      this.guard(key,id,processKey);if(root!==this.service.workspace.settings.workRoot||generation!==this.service.generation)throw new Error('账号或目录已变化。');
       const rel=await this.saveFile(scope,c,`${randomUUID()}-${path.basename(source)}`,bytes);files.push({name:path.basename(source),role:'当前完成稿',relativePath:rel,hash:digest(bytes)});
     }
     const kind=viewOf(c).stage.kind;
@@ -267,7 +277,8 @@ export class ProfessionalHost {
     for(const source of paths){
       const stat=await fs.lstat(source),name=path.basename(source);
       if(!stat.isFile()||stat.isSymbolicLink()||stat.size>20*1024*1024||!['.doc','.docx','.pdf','.txt','.md','.png','.jpg','.jpeg'].includes(path.extname(name).toLowerCase()))throw new Error(`${name}：请选择 20MB 以内的 Word、PDF、文本或 PNG/JPEG 文件。`);
-      const bytes=await fs.readFile(source);if(!bytes.length||bytes.length>20*1024*1024)throw new Error(`${name}：文件为空或超过 20MB。`);
+      let bytes:Buffer;try{bytes=await readBoundedFile(source,20*1024*1024);}catch{throw new Error(`${name}：请选择 20MB 以内的 Word、PDF、文本或 PNG/JPEG 文件。`);}
+      if(!bytes.length)throw new Error(`${name}：文件为空或超过 20MB。`);
       prepared.push({name,bytes});
     }
     this.service.flowFileWrites++;

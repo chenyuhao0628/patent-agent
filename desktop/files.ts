@@ -10,6 +10,44 @@ import { sharedCaseManifestFromCase } from '../src/domain/case-record.ts';
 export const digest=(s:string|Buffer)=>createHash('sha256').update(s).digest('hex');
 export const portable=(s:string)=>s.replaceAll('\\','/');
 
+export const MAX_MATERIAL_BYTES = 20 * 1024 * 1024;
+export const MAX_ZIP_UNCOMPRESSED = 80 * 1024 * 1024;
+export const MAX_ZIP_ENTRIES = 4_096;
+
+/** Refuse decompression bombs before any entry is inflated, from the central directory sizes. */
+export function inspectZipLimits(buffer: Buffer): { entries: number; uncompressed: number } {
+  let eocd = -1;
+  const min = Math.max(0, buffer.length - 22 - 65535);
+  for (let i = buffer.length - 22; i >= min; i--) {
+    if (buffer[i] === 0x50 && buffer[i + 1] === 0x4b && buffer[i + 2] === 0x05 && buffer[i + 3] === 0x06) {
+      eocd = i;
+      break;
+    }
+  }
+  if (eocd < 0) throw new Error('DOCX 压缩包损坏，无法安全解压。');
+  const entries = buffer.readUInt16LE(eocd + 10);
+  const cdSize = buffer.readUInt32LE(eocd + 12);
+  const cdOffset = buffer.readUInt32LE(eocd + 16);
+  if (entries > MAX_ZIP_ENTRIES) throw new Error('DOCX 条目过多，已拒绝解压。');
+  if (cdOffset === 0xffffffff || cdSize === 0xffffffff) throw new Error('不支持 ZIP64 的过大 DOCX。');
+  if (cdOffset + cdSize > buffer.length) throw new Error('DOCX 压缩包损坏，无法安全解压。');
+  let cursor = cdOffset;
+  let uncompressed = 0;
+  for (let i = 0; i < entries; i++) {
+    if (cursor + 46 > buffer.length) throw new Error('DOCX 压缩包损坏，无法安全解压。');
+    if (buffer.readUInt32LE(cursor) !== 0x02014b50) throw new Error('DOCX 压缩包损坏，无法安全解压。');
+    const size = buffer.readUInt32LE(cursor + 24);
+    if (size === 0xffffffff) throw new Error('不支持 ZIP64 的过大 DOCX。');
+    uncompressed += size;
+    if (uncompressed > MAX_ZIP_UNCOMPRESSED) throw new Error('DOCX 解压后体积过大，已拒绝。');
+    const nameLength = buffer.readUInt16LE(cursor + 28);
+    const extraLength = buffer.readUInt16LE(cursor + 30);
+    const commentLength = buffer.readUInt16LE(cursor + 32);
+    cursor += 46 + nameLength + extraLength + commentLength;
+  }
+  return { entries, uncompressed };
+}
+
 const W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 const R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
 
@@ -67,6 +105,7 @@ export async function extractDocxContent(
   const includeImages = options?.includeImages ?? true;
 
   try {
+    inspectZipLimits(bytes);
     const zip = await JSZip.loadAsync(bytes);
     const xml = await zip.file('word/document.xml')?.async('string');
     if (!xml) throw new Error('Word 文件缺少 document.xml，已阻止载入。');
@@ -472,6 +511,6 @@ export class CaseFiles {
     const candidates=await this.findOriginals(c);
     if(!candidates.some(x=>x.id===id))throw new Error('该文件不属于本案匹配结果。');
     const source=await managedPath((await validateRoots(this.settings)).originalLibrary,id);
-    return this.writeMaterial(c,'00_原始申请',id,path.basename(id),await fs.readFile(source));
+    return this.writeMaterial(c,'00_原始申请',id,path.basename(id),await readBoundedFile(source,MAX_MATERIAL_BYTES));
   }
 }

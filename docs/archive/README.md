@@ -10,7 +10,7 @@
 | 案件同步与单案刷新 | [同步档案](sync.md)、[#8 视觉证据](../../evidence/pr8-visual-20260927/README.md) | 源码、合成自动化与浏览器；不替代真实服务 |
 | 内部转交、材料删除与预览 | [流转档案](internal-transfer.md) | PR 修复、单文件删除与材料 UI 已实现；真实删除及修复版写入待复验 |
 | 撰写、阶段文档与案件关联 | [撰写档案](writing-review.md)、[五项修复证据](../../evidence/five-fixes-20260929/README.md) | 五项修复进入 0.15.2；有隔离 macOS 主路径证据，Word 分页与完整桌面稳定性未验收 |
-| 阅读区与 Windows 菜单 | [源码修复记录](writing-review.md#已完成源码修复撰写阅读区与-windows-菜单) | 源码与合成验证已完成，尚未提交 / 打包，Windows 原生待验 |
+| 阅读区与 Windows 菜单 | [源码修复记录](writing-review.md#已完成源码修复撰写阅读区与-windows-菜单) | 源码、合成验证与打包已完成（0.15.3，构建源码 d99da21 已推送），Windows 原生待验 |
 | 模型后台选择 | [后台对照证据](../../evidence/BACKEND-COMPARISON.md) | 2026-09-12 用户采用 OpenCode；当时文本读写与重开证据不替代完整模型验收 |
 | 答复、补正与独立审查 | [平台与历史实现](platform.md)、[后台对照](../../evidence/BACKEND-COMPARISON.md) | 现有实现与规则持续有效；需求见 [答复与定稿](../requirements/reply-finalization.md)、[撰写与审查](../requirements/writing-review.md)，不额外宣称完整质量验收 |
 | 构建、PR 核对与源码推送 | [交付档案](releases.md)、[0.15.2 构建证据](../../evidence/release-0.15.2-20260929.json) | 0.15.2 制品生成与摘要核验、源码推送已完成；无远端安装包发布 |

@@ -1,0 +1,6 @@
+@vom 1
+@view 1905x1080
+@layers 1 focus=L1
+L1 page
+  RootWebArea "专利工作台 · UI 一致性验证"
+    @e1 button "翻译 [has-submenu]"

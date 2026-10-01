@@ -418,3 +418,21 @@ test('an explicitly selected earlier finished version is adopted without deletin
  assert.equal(confirmed.record.jobs[1].id,second.id);assert.equal(confirmed.record.jobs[1].state,'completed');
  assert.match(f.inputs[1].prompt.task,/第二版/);
 });
+
+test('after going back an earlier finished version adopts only explicitly and creates a current record',async t=>{
+ const f=await fixture(t);
+ await f.host.command('local',f.id,{type:'write',message:'第一版',materialIds:[]});
+ const first=(await settled(f.host,f.id)).record.jobs.at(-1)!;
+ await f.host.command('local',f.id,{type:'restart',phase:0});
+ await assert.rejects(f.host.command('local',f.id,{type:'confirm',jobId:first.id,decision:'误用旧稿'}),/阶段结果|当前版本/);
+ const adopted=await f.host.command('local',f.id,{type:'confirm',jobId:first.id,decision:'明确采用退回前版本',adoptEarlier:true});
+ assert.equal(adopted.record.phase,1);
+ assert.equal(adopted.record.confirmations.at(-1)!.decision,'明确采用退回前版本');
+ const fresh=adopted.record.jobs.filter(j=>j.adoptedFromJobId===first.id);
+ assert.equal(fresh.length,1);
+ assert.notEqual(fresh[0].id,first.id);
+ assert.equal(fresh[0].text,first.text);
+ assert.equal(adopted.record.confirmations.at(-1)!.jobId,fresh[0].id);
+ assert.equal(adopted.record.jobs.some(j=>j.id===first.id),true);
+ assert.equal(fresh[0].phase,0);
+});
