@@ -4,7 +4,10 @@ import { fileURLToPath } from 'node:url';
 import JSZip from 'jszip';
 import { extractDocxContent, extractDocxParagraphs } from './files.ts';
 import { exportApplicationParts } from './document-export.ts';
+import { exportStageDocx, readStageDocx } from './stage-docx.ts';
+import { readOfficeMath } from './office-math-reader.ts';
 import { latexToOmml, splitTextAndFormulas } from './math-omml.ts';
+import { DOMParser } from '@xmldom/xmldom';
 
 const W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 const M = 'http://schemas.openxmlformats.org/officeDocument/2006/math';
@@ -74,8 +77,8 @@ test('nested fraction/root/script and literal math characters are not flattened 
 });
 
 for (const [name, xml] of [
-  ['matrix', math(`<m:m><m:mr><m:e>${run('x')}</m:e></m:mr></m:m>`)],
-  ['nary operator', math(`<m:nary><m:e>${run('x')}</m:e></m:nary>`)],
+  ['matrix with semantic column separators', math(`<m:m><m:mPr><m:mcs><m:mc><m:mcPr><m:count m:val="1"/><m:sepChr m:val="|"/></m:mcPr></m:mc></m:mcs></m:mPr><m:mr><m:e>${run('x')}</m:e></m:mr></m:m>`)],
+  ['nary operator with hidden nonempty limit', math(`<m:nary><m:naryPr><m:subHide m:val="on"/></m:naryPr><m:sub>${run('i')}</m:sub><m:e>${run('x')}</m:e></m:nary>`)],
   ['unknown fraction style', math(fraction.replace('<m:f>', '<m:f><m:fPr><m:type m:val="skw"/></m:fPr>'))],
   ['missing denominator', math(`<m:f><m:num>${run('x')}</m:num></m:f>`)],
   ['empty formula', math('')],
@@ -114,6 +117,30 @@ test('decompression bombs are rejected before any entry is inflated', async () =
   const many = new JSZip();
   for (let i = 0; i < 4_097; i++) many.file(`word/m${i}.xml`, '<w:p/>');
   await assert.rejects(extractDocxContent(await many.generateAsync({ type: 'nodebuffer' })), /条目过多/);
+});
+
+test('generated OMML for operator runs survives lossless reading and stage Word export', async () => {
+  for (const [latex, display] of [['P=F/S', false], ['v=s/t', false], ['R=U/I', false], ['\\Delta x', false], ['P = \\frac{F}{S}', true]] as const) {
+    const omml = latexToOmml(latex, display);
+    assert.ok(omml && omml.includes('<m:oMath'));
+    assert.equal(omml!.includes('m:val="undefined"'), false, latex);
+    const doc = new DOMParser().parseFromString(omml!, 'application/xml');
+    const round = readOfficeMath(doc.documentElement);
+    assert.match(round, /^\$|^\$\$/);
+  }
+  const templates = fileURLToPath(new URL('../resources/document-templates', import.meta.url));
+  const bytes = await exportStageDocx(templates, '公式导出验收', '行内公式 $P=F/S$ 与行间公式：\n\n$$P = \\frac{F}{S}$$\n\n求和 $\\sum_{i=1}^{n} x_i$，向量 $\\vec{F}$，上划线 $\\overline{AB}$。');
+  const blocks = await readStageDocx(bytes);
+  const texts = blocks.map(b => b.kind === 'paragraph' ? b.content.map(c => c.text).join('') : '[table]').join('\n');
+  assert.match(texts, /行内公式/);
+  assert.match(texts, /\\frac\{F\}\{S\}|\\text\{\/\}/);
+  assert.match(texts, /\\sum/);
+  assert.match(texts, /\\vec\{F\}/);
+  // n-ary / accent / matrix 读回为语义 LaTeX，矩阵不退回空稿
+  const matrixOmml = latexToOmml('\\begin{cases} 1 & x>0 \\\\ 0 & x\\le 0 \\end{cases}', true)!;
+  const matrixText = await extractDocxParagraphs(await docx(para(matrixOmml)));
+  assert.match(matrixText, /\\begin\{matrix\}/);
+  assert.match(matrixText, /x>0/);
 });
 
 test('exact canonical headings distinguish abstract, description and unknown partial headings', async () => {

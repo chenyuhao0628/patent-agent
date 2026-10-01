@@ -1,6 +1,6 @@
 # 开发与架构入口
 
-更新：2026-10-01。源码与安装制品版本 **0.19.0**；以 [安装清单](release/release-manifest.json) 为准。本文只导航技术规范，阶段状态与待办统一维护在 [EXEC_PLAN.md](EXEC_PLAN.md)。
+更新：2026-10-01。源码与安装制品版本 **0.19.1**；以 [安装清单](release/release-manifest.json) 为准。本文只导航技术规范，阶段状态与待办统一维护在 [EXEC_PLAN.md](EXEC_PLAN.md)。
 
 ## 架构分册
 

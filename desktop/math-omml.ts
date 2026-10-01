@@ -124,11 +124,14 @@ export function latexToOmml(latex: string, display = false): string | null {
     const cleanMathml = match[0].replace(/<annotation[\s\S]*?<\/annotation>/g, '');
     const omml = mml2omml(cleanMathml);
     if (!omml || !omml.includes('<m:oMath')) return null;
+    // mathml2omml 会为部分运算符 run 写出 <m:sty m:val="undefined"/>；无损回读按未知样式失败关闭。
+    // 这里只删除非法样式节点，p/i/b/bi 的真实样式保留。
+    const repaired = omml.replace(/<m:sty\b[^>]*\/>/g, tag => /m:val="(?:p|i|b|bi)"/.test(tag) ? tag : '');
 
     if (display) {
-      return `<m:oMathPara xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">${omml}</m:oMathPara>`;
+      return `<m:oMathPara xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">${repaired}</m:oMathPara>`;
     }
-    return omml;
+    return repaired;
   } catch {
     return null;
   }
