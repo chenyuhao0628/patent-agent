@@ -710,7 +710,7 @@ test('incremental progress continues beyond two turns and stops only after repea
      if(prompts<=4){
        const cfg=JSON.parse(await fs.readFile(path.join(root,'xdg-config','opencode','opencode.json'),'utf8'));
        const mcp=cfg.mcp.case_tools;
-       await fetch(mcp.url,{method:'POST',headers:{...mcp.headers,'Content-Type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:prompts,method:'tools/call',params:{name:'write_artifact',arguments:{name:'result.json',mode:'merge',content:{kind:'draft',body:'progress-'+prompts}}}})});
+       await fetch(mcp.url,{method:'POST',headers:{...mcp.headers,'Content-Type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:prompts,method:'tools/call',params:{name:'write_artifact',arguments:{name:'result.json',mode:'merge',content:{kind:'draft',...([{body:'正文'},{amendmentText:'建议修改'},{amendmentBasis:'来源依据'},{reviewNotes:'内部说明'}][prompts-1])}}}})});
      }
    }
    return fetch(input,init);
@@ -719,4 +719,17 @@ test('incremental progress continues beyond two turns and stops only after repea
  const result=await runner.run({runtime:runtime('http://127.0.0.1:9/v1'),runId:'repair-progress',discussionId:'repair-progress',localRunDirectory:root,materials:[],productPrompt:'test',publicMessages:[],artifactExpect:{kind:'draft',strategyId:'s'},deadlineMs:15000,onEvent:e=>events.push(e)});
  assert.equal(result.error?.code,'artifact_repair_exhausted');assert.equal(prompts,6);
  assert.equal(events.filter(e=>e.type==='activity'&&e.stepId?.startsWith('artifact-repair-')).length,5);
+});
+
+test('rewriting the same field cannot prolong automatic repair indefinitely', {timeout:15000},async()=>{
+ const root=await tmpDir('repair-churn');const bin=await writeFakeOpenCode(root);let prompts=0;
+ const fetchImpl:typeof fetch=async(input,init)=>{
+   if(String(input).includes('/prompt_async')){
+     prompts++;const cfg=JSON.parse(await fs.readFile(path.join(root,'xdg-config','opencode','opencode.json'),'utf8')),mcp=cfg.mcp.case_tools;
+     await fetch(mcp.url,{method:'POST',headers:{...mcp.headers,'Content-Type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:prompts,method:'tools/call',params:{name:'write_artifact',arguments:{name:'result.json',mode:'merge',content:{kind:'draft',body:'反复改写 '+prompts}}}})});
+   }return fetch(input,init);
+ };
+ const runner=new OpenCodeRunner({binaryPath:bin,fetchImpl});
+ const result=await runner.run({runtime:runtime('http://127.0.0.1:9/v1'),runId:'repair-churn',discussionId:'repair-churn',localRunDirectory:root,materials:[],productPrompt:'test',publicMessages:[],artifactExpect:{kind:'draft'},deadlineMs:10000,onEvent:()=>{}});
+ assert.equal(result.error?.code,'artifact_repair_exhausted');assert.equal(prompts,3);assert.match(await fs.readFile(path.join(root,'outputs/artifact-checkpoint.json'),'utf8'),/反复改写 3/);
 });

@@ -1,10 +1,11 @@
+import { professionalTaskMemory, taskMemoryView } from '../src/domain/task-memory.ts';
 import { exportStageDocx, readStageDocx } from './stage-docx.ts';
 import fs from 'node:fs/promises';
 import {diagnostic,diagnosticStage,withDiagnostics} from './diagnostics.ts';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { Material } from '../src/domain/workflow.ts';
-import { professionalWorkEditableForView, professionalWritingEditableForView } from '../src/domain/professional-policy.ts';
+import { currentWritingJobs, canChooseWritingStart, professionalWorkEditableForView, professionalWritingEditableForView } from '../src/domain/professional-policy.ts';
 import type { CaseProfessionalView } from '../src/domain/case-view.ts';
 import { WRITING_PHASES } from '../src/professional-api.ts';
 import { PROFESSIONAL_DECISION_MAX, PROFESSIONAL_WRITE_MESSAGE_MAX } from '../src/professional-api.ts';
@@ -149,7 +150,7 @@ export class ProfessionalHost {
   private async view(key:string,id:string):Promise<ProfessionalCaseView>{
     const c=this.guard(key,id),caseView=viewOf(c),processKey=keyOfView(caseView),store=await this.store(key),record=this.record(store,c);
     const queue=(await this.queue(key)).filter(q=>q.source.caseId===id&&q.source.processKey===processKey);this.guard(key,id,processKey);
-    return {profileKey:key,caseId:id,processKey,record:recordView(record),materials:caseView.materials.current.map(m=>({id:m.id,name:m.name,role:m.role,ready:m.ready,removable:m.id.startsWith('reference-'),relativePath:m.relativePath})),queue,busy:this.active.has(this.activeKey(key,id)),partial:this.active.get(this.activeKey(key,id))?.partial};
+    return {profileKey:key,caseId:id,processKey,writingContextHash:this.recoveryContext(c,record,'writing'),record:recordView(record),materials:caseView.materials.current.map(m=>({id:m.id,name:m.name,role:m.role,ready:m.ready,removable:m.id.startsWith('reference-'),relativePath:m.relativePath})),queue,busy:this.active.has(this.activeKey(key,id)),partial:this.active.get(this.activeKey(key,id))?.partial};
   }
   async command(key:string,id:string,command:ProfessionalCommand):Promise<ProfessionalCaseView>{
     const queued=Date.now();
@@ -158,7 +159,13 @@ export class ProfessionalHost {
     const c=this.guard(key,id),store=await this.store(key);this.service.assertScope(scope);const record=this.record(store,c);
     if(command.type==='stop'){const activeKey=this.activeKey(key,id),live=this.active.get(activeKey);live?.abort.abort();live?.handle?.abort();if(live&&live.job.state!=='running'){await this.persist(key,scope);if(this.active.get(activeKey)===live)this.active.delete(activeKey);}return this.view(key,id);}
     if(this.active.has(this.activeKey(key,id)))throw new Error('本案有撰写或审查任务在运行。');
-    if(command.type==='write'){
+    if(command.type==='start-at'){
+      if(!professionalWritingEditableForView(viewOf(c))||!canChooseWritingStart(record,this.recoveryContext(c,record,'writing'))||!Number.isInteger(command.phase)||command.phase<0||command.phase>=WRITING_PHASES.length)throw new Error('已有本轮成果，请先返回修改或保留版本开始新一轮，再调整撰写起点。');
+      if(record.phase!==command.phase||!record.entry){
+        record.revision=randomUUID();record.phase=command.phase;record.entry={phase:command.phase,at:new Date().toISOString()};
+        await this.persist(key,scope);
+      }
+    }else if(command.type==='write'){
       if(!professionalWritingEditableForView(viewOf(c))||record.completed)throw new Error('当前案件不能启动该撰写阶段。');
       if(typeof command.message!=='string'||command.message.length>PROFESSIONAL_WRITE_MESSAGE_MAX||!Array.isArray(command.materialIds))throw new Error('撰写输入无效。');
       if(record.phase===0&&!command.message.trim()&&!c.identity.title.trim())throw new Error('请提供名称或技术交底。');
@@ -172,9 +179,25 @@ export class ProfessionalHost {
       if(!item||item.archived)throw new Error('该稿件已归档或不属于本案待审查材料。');
       if(!record.sources.some(s=>s.id===item.source.id))record.sources.push(structuredClone(item.source));
       await this.start(scope,key,c,record,'review','',item.source.files,item.source);
+    }else if(command.type==='resume'){
+      const old=record.jobs.find(j=>j.id===command.jobId&&j.caseId===id&&j.processKey===record.processKey);
+      if(!old||!['stopped','failed'].includes(old.state))throw new Error('只能继续本案当前流程的未完成任务。');
+      if(!old.recovery)throw new Error('旧任务缺少冻结续办资料；原记录保留，请按当前要求重新生成。');
+      let source:ReviewSource|undefined;
+      if(old.kind==='writing'){
+        if(!professionalWritingEditableForView(viewOf(c))||record.completed||old.phase!==record.phase)throw new Error('撰写阶段已变化，请在当前阶段生成。');
+      }else{
+        const item=(await this.queue(key)).find(q=>q.source.id===old.sourceId&&q.source.caseId===id&&q.source.processKey===record.processKey);
+        this.service.assertScope(scope);
+        if(!item||item.archived)throw new Error('原审查稿件已归档或变化，请选择当前版本。');
+        source=item.source;
+      }
+      const latest=record.jobs.filter(j=>j.kind===old.kind&&(old.kind==='writing'?j.phase===record.phase:j.sourceId===old.sourceId)).at(-1);
+      if(latest?.id!==old.id||old.recovery.contextHash!==this.recoveryContext(c,record,old.kind,source))throw new Error('已有新要求或版本，原任务保留，请按当前要求生成。');
+      await this.start(scope,key,c,record,old.kind,old.input??'',old.recovery.files,source,old);
     }else if(command.type==='confirm'){
       if(!professionalWritingEditableForView(viewOf(c)))throw new Error('当前流程已不允许确认撰写结果。');
-      const job=record.jobs.filter(j=>j.kind==='writing'&&j.phase===record.phase&&j.state==='completed').at(-1);
+      const job=currentWritingJobs(record,this.recoveryContext(c,record,'writing')).find(j=>j.id===command.jobId&&j.state==='completed');
       if(!job||job.id!==command.jobId||record.completed)throw new Error('阶段结果已变化，请核对当前版本。');
       if(typeof command.decision!=='string'||command.decision.length>PROFESSIONAL_DECISION_MAX||record.phase<2&&!command.decision.trim())throw new Error('请明确所选方向或保护架构，再确认本阶段。');
       const confirmation={jobId:job.id,phase:record.phase,decision:command.decision.trim(),at:new Date().toISOString()};
@@ -193,7 +216,7 @@ export class ProfessionalHost {
       await this.persist(key,scope);
     }else if(command.type==='restart'){
       if(!professionalWritingEditableForView(viewOf(c))||!Number.isInteger(command.phase)||command.phase<0||command.phase>record.phase)throw new Error('不能回到指定阶段。');
-      record.phase=command.phase;record.completed=false;record.confirmations=record.confirmations.filter(x=>x.phase<command.phase);await this.persist(key,scope);
+      record.revision=randomUUID();record.phase=command.phase;record.completed=false;if(command.phase===0)record.entry=undefined;record.confirmations=record.confirmations.filter(x=>x.phase<command.phase);await this.persist(key,scope);
     }else if(command.type==='ready-manual'){
       const caseView=viewOf(c);
       const draft=caseView.manuscripts.localDraft;
@@ -311,8 +334,11 @@ export class ProfessionalHost {
         ||r.sources.some(s=>s.caseId===id&&s.processKey===r.processKey&&sourceFile(s))))return true;
     return (await this.agent.reviewSources(key,id)).some(s=>s.caseId===id&&sourceFile(s));
   });}
+  private recoveryContext(c:CaseProfessionalView,record:ProfessionalRecord,kind:'writing'|'review',source?:ReviewSource){
+    return digest(JSON.stringify([c.identity.id,c.identity.title,c.identity.type,record.processKey,kind,kind==='writing'?[record.phase,record.revision,record.confirmations]:source&&[source.id,source.text,source.amendmentText,source.applicationParts,source.correctionContents,source.amendmentBasis,source.files]]));
+  }
   beforeWriting?:(key:string,id:string)=>Promise<void>;
-  private async start(scope:OperationScope,key:string,c:CaseProfessionalView,record:ProfessionalRecord,kind:'writing'|'review',message:string,files:WorkFile[],source?:ReviewSource){
+  private async start(scope:OperationScope,key:string,c:CaseProfessionalView,record:ProfessionalRecord,kind:'writing'|'review',message:string,files:WorkFile[],source?:ReviewSource,resume?:ProfessionalJob){
     this.service.assertScope(scope);
     const generation=scope.scopeVersion,root=scope.root;
     if(!root)throw new Error('请先设置工作目录。');
@@ -328,21 +354,39 @@ export class ProfessionalHost {
       const snapshotPath=path.join(snapshotDir,`${i}${path.extname(f.name)}`);await atomicCreate(snapshotPath,bytes,()=>this.service.assertScope(scope));materials.push({id:`m${i}`,name:f.name,role:f.role,relativePath:`${i}${path.extname(f.name)}`,snapshotPath,hash});
     }});
     this.service.assertScope(scope);
-    const job:ProfessionalJob={id:runId,caseId:c.identity.id,processKey:record.processKey,kind,sourceId:source?.id,phase:kind==='writing'?record.phase:undefined,state:'running',at:new Date().toISOString(),tools:[],skillName:skill.name,skillHash:skill.manifestHash};record.jobs.push(job);
+    const job:ProfessionalJob={id:runId,caseId:c.identity.id,processKey:record.processKey,kind,sourceId:source?.id,phase:kind==='writing'?record.phase:undefined,state:'running',at:new Date().toISOString(),tools:[],skillName:skill.name,skillHash:skill.manifestHash};
+    job.resumeFromRunId=resume?.id;
+    job.recovery={files:files.map((f,i)=>({...f,hash:materials[i].hash})),contextHash:this.recoveryContext(c,record,kind,source)};
+    job.input=kind==='writing'?message:undefined;
+    const memory=professionalTaskMemory(record,{runId,kind,message,source});
+    job.memory=taskMemoryView(memory);
+    await atomicJSON(path.join(snapshotDir,'task-memory.json'),memory,()=>this.service.assertScope(scope));
+    record.jobs.push(job);
     const activeKey=this.activeKey(key,c.identity.id);
     const live:Live={key,generation,root,scope,caseId:c.identity.id,processKey:record.processKey,job,abort:controller,partial:'',source};this.active.set(activeKey,live);try{await this.persist(key,scope);}catch(e){if(this.active.get(activeKey)===live)this.active.delete(activeKey);record.jobs=record.jobs.filter(j=>j.id!==runId);throw e;}
     const confirmed=record.confirmations.map(cf=>({stage:WRITING_PHASES[cf.phase],decision:cf.decision,text:record.jobs.find(j=>j.id===cf.jobId)?.text}));
+    const entryContext=record.entry?'用户按已有材料选择从「'+WRITING_PHASES[record.entry.phase]+'」开始。未逐步确认的前序内容仅以实际读取材料和用户原话为依据，不得声称已确认；缺失之处列出具体待补充项，不重复无必要的方向构思。':'';
     const contract=kind==='review'?'{"kind":"review","text":"完整审查报告（含来源版本、具体位置、P0-P3问题、适用矩阵、检查范围和未完成项）"}':record.phase===4?'{"kind":"writing","text":"整理说明和需要核验的附图 / 内部记录","documents":{"ABSTRACT":"摘要","ABSTRACT_IMAGE":"已核对的摘要附图说明或未提供标记","CLAIMS":"权利要求书","DESCRIPTION":"说明书","DRAWINGS":"附图清单，未提供真实图像时明确标记"}}':'{"kind":"writing","text":"当前阶段完整结果、建议和待用户确认项"}';
-    const task=[SKILL_ADAPTER,`本案名称：${c.identity.title}；专利类型：${c.identity.type}。`,`当前任务：${kind==='writing'?WRITING_PHASES[record.phase]:'递交前个人独立审查'}。`,kind==='writing'?`只执行当前阶段。前序已确认内容：${JSON.stringify(confirmed)}\n用户本次要求：${message}`:`程序阶段：${source?.business==='申请'?'pre-filing（申请准备）':'post-filing（答复或补正）'}。业务：${source?.business}。仅审查此冻结版本，不注入或索取主讨论。`,
+    const task=[SKILL_ADAPTER,kind==='writing'?entryContext:'',`本案名称：${c.identity.title}；专利类型：${c.identity.type}。`,`当前任务：${kind==='writing'?WRITING_PHASES[record.phase]:'递交前个人独立审查'}。`,kind==='writing'?`只执行当前阶段。前序已确认内容：${JSON.stringify(confirmed)}\n用户本次要求：${message}`:`程序阶段：${source?.business==='申请'?'pre-filing（申请准备）':'post-filing（答复或补正）'}。业务：${source?.business}。仅审查此冻结版本，不注入或索取主讨论。`,
       `启用的标准技能：${skill.name}。必须调用 read_skill 阅读 ${kind==='writing'?'draft':'review'}/SKILL.md，并读取本阶段所需参考。资源目录：${skill.resources.map(r=>r.path).join('、')}`,
       `材料清单：${JSON.stringify(materials.map(({snapshotPath,...m})=>m))}。逐项调用 read_material 读取；按返回的范围续读，图像和扫描页需视觉核对。${source?.text?'必须调用 read_draft 阅读冻结完成稿。':''}`,
       '不可声称运行了没有实际执行的脚本；工具以本次实际开放权限为准，检索或命令未实际执行时须如实注明，不能声称完成。附图未提供时不能生成虚假图像占位并声称完成。',
       '公式格式规范：说明书、权利要求或实施例中出现的计算公式、参数关系与数学推导，必须采用标准 LaTeX 格式（行内公式使用 $公式$，独立行间公式使用 $$公式$$，例如 $$P = \\frac{F}{S}$$）。严禁使用难以阅读的纯文本 ASCII 字符拼凑公式，以保证公式结构和排版在阅读预览和 Word 导出中均符合标准规范。',
-      `最终必须用 write_artifact 写入 result.json，JSON 格式：${contract}`].join('\n\n');
+      `可随时用 write_artifact 的 mode=merge 保存 text 或 documents 子项；未齐内容保存为检查点，先 inspect_artifact 查看已保存字段再补齐。最终必须用 write_artifact 写入 result.json，JSON 格式：${contract}`].join('\n\n');
     live.wait=(async()=>{
       try{
-        live.handle=await this.run({runId,caseId:c.identity.id,processKey:record.processKey,action:kind==='review'?'review':'discuss',discussionId:runId,snapshotDir,outputDir,prompt:{rules:skill.main,task,combined:`${skill.main}\n\n${task}`},skillResources:skill.resources,materials,draft:source?.text?{id:source.id,text:source.text,amendmentText:source.amendmentText,applicationParts:source.applicationParts,correctionContents:source.correctionContents,amendmentBasis:source.amendmentBasis}:undefined,messages:[],runtime,signal:controller.signal,onEvent:event=>{
-          if(!this.liveValid(live))return;
+        live.handle=await this.run({taskContract:{kind,professional:true,phase:job.phase},resumeFromRunId:resume?.id,artifactScope:job.recovery!.contextHash,taskMemory:memory,evidencePolicy:{formal:true},validateArtifact:async raw=>{
+          if(!this.liveValid(live)||job.state!=='running')return '本任务已结束、停止或范围变化。';
+          try{parseProfessionalResult(raw,kind,job.phase);}catch(error){return (error as Error).message;}
+          if(!job.tools.some(t=>t.name==='read_skill'&&t.status==='ok'))return '请先用 read_skill 读取本阶段标准技能。';
+          const missing=materials.filter(m=>!job.tools.some(t=>(t.name==='read_material:'+m.id||t.name==='read_work_file:'+m.id)&&t.status==='ok'));
+          if(missing.length)return '请 read_material 读取本次材料：'+missing.map(m=>m.id+' '+m.name).join('、');
+          if(source?.text&&!job.tools.some(t=>t.name==='read_draft'&&t.status==='ok'))return '请 read_draft 读取冻结完成稿。';
+          return undefined;
+        },runId,caseId:c.identity.id,processKey:record.processKey,action:kind==='review'?'review':'discuss',discussionId:runId,snapshotDir,outputDir,prompt:{rules:skill.main,task,combined:`${skill.main}\n\n${task}`},skillResources:skill.resources,materials,draft:source?.text?{id:source.id,text:source.text,amendmentText:source.amendmentText,applicationParts:source.applicationParts,correctionContents:source.correctionContents,amendmentBasis:source.amendmentBasis}:undefined,messages:[],runtime,signal:controller.signal,onEvent:event=>{
+          if(!this.liveValid(live)||job.state!=='running')return;
+          if(event.type==='progress'){job.progress=structuredClone(event.progress);this.changed(key);void this.serial(async()=>{if(this.liveValid(live)&&job.state==='running')await this.persist(key,scope);}).catch(()=>{});}
+          if(event.type==='quality'){job.quality=structuredClone(event.quality);this.changed(key);}
           if(event.type==='partial'){live.partial=event.text;this.changed(key);}
           if(event.type==='tool'){job.tools.push({name:(event.toolKind==='read_material'||event.toolKind==='read_work_file')&&event.materialId?`${event.toolKind}:${event.materialId}`:event.toolKind||event.filename,status:event.status,detail:event.detail});this.changed(key);}
           if(event.type==='completed')live.partial=event.outputText||live.partial;

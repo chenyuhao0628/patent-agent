@@ -1,0 +1,65 @@
+/* One visual language for progress and provenance in all three workspaces. */
+.task-panel{--task-line:var(--line,#e8e9ef);--task-ink:var(--ink,#232631);--task-muted:#697285;min-width:0;margin:12px 0;border:1px solid var(--task-line);border-radius:10px;background:#fff;color:var(--task-ink);font-size:12px;line-height:1.7;overflow-wrap:anywhere;flex-shrink:0;text-align:left}
+.task-panel-heading{display:flex;align-items:center;gap:10px;min-height:44px;padding:10px 14px;background:#fafafe;border-radius:10px}
+.task-panel-title{display:flex;align-items:center;gap:8px;min-width:0;font-size:13px;font-weight:600;line-height:1.5}
+.task-panel-title>svg{color:#7568b5;flex-shrink:0}
+.task-panel-badge{flex-shrink:0;margin-left:auto;padding:2px 8px;border-radius:5px;background:var(--soft,#f0efff);color:#6055a2;font-size:11px;font-weight:500;line-height:1.6;white-space:nowrap}
+.task-panel-badge.is-neutral{background:#eef0f5;color:#626b7a}
+.task-panel-badge.is-complete{background:#eaf4ee;color:#376e51}
+.task-panel p{margin:8px 0;white-space:normal}
+.task-panel .task-panel-note,.task-panel .task-evidence-note{color:var(--task-muted);font-size:12px;line-height:1.7}
+.task-disclosure{display:flex;align-items:center;gap:8px;cursor:pointer;list-style:none;min-width:0;text-align:left}
+.task-disclosure::-webkit-details-marker{display:none}
+.task-disclosure::marker{content:''}
+.task-disclosure>svg{flex-shrink:0;color:#7b7890}
+.task-disclosure>span:not(.task-panel-badge){min-width:0}
+.task-disclosure-chevron{margin-left:auto;transition:transform .15s}
+.task-panel-heading>.task-disclosure-chevron{margin-left:0}
+.task-disclosure:hover{background:#f3f2fb}
+.task-disclosure:focus-visible{outline:2px solid var(--accent,#625de8);outline-offset:-3px;border-radius:8px}
+.task-evidence[open]>.task-disclosure>.task-disclosure-chevron,.task-recovery[open]>.task-disclosure>.task-disclosure-chevron,.task-memory-entry[open]>.task-disclosure>.task-disclosure-chevron{transform:rotate(90deg)}
+.task-progress-content{padding:12px 14px}
+.task-progress-rows{display:grid;gap:7px;margin:0}
+.task-progress-rows>div{display:grid;grid-template-columns:48px minmax(0,1fr);gap:10px;align-items:baseline}
+.task-progress-rows dt{color:var(--task-muted)}
+.task-progress-rows dd{margin:0;min-width:0;line-height:1.75}
+.task-progress-extra{display:block;color:var(--task-muted)}
+.task-progress-hint{margin-left:8px;color:var(--task-muted)}
+.task-progress-content>.task-panel-note{margin:10px 0 0}
+.task-panel .task-progress-warning{display:flex;align-items:flex-start;gap:8px;margin:12px 0 0;padding:9px 10px;background:#fffbf1;border:1px solid #eee1c2;border-radius:7px;color:#856522;font-size:12px;line-height:1.7}
+.task-progress-warning>svg{flex-shrink:0;margin-top:3px}
+.task-recovery{border-top:1px solid var(--task-line)}
+.task-recovery>.task-disclosure{padding:10px 14px;color:#626074;border-radius:0 0 10px 10px}
+.task-recovery-content{max-height:260px;padding:0 14px 12px;overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable}
+.task-recovery-list{list-style:none;padding:0;margin:8px 0;display:grid;gap:8px}
+.task-file-record{display:grid;gap:4px;padding:10px 12px;background:#f8f9fc;border:1px solid var(--task-line);border-radius:7px;min-width:0}
+.task-file-record strong{font-weight:500}
+.task-file-record code{display:block;font:11px/1.6 ui-monospace,SFMono-Regular,Consolas,monospace;color:#697285;overflow-wrap:anywhere}
+.task-record-label{font-size:11px;color:var(--task-muted)}
+.task-operation-record{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:8px 0;border-bottom:1px solid var(--task-line)}
+.task-operation-record>span{min-width:0}
+.task-operation-record small{display:block;color:var(--task-muted);font-size:11px}
+.task-operation-record>.task-record-label{flex-shrink:0}
+.task-evidence-content{padding:2px 14px 14px;max-height:420px;overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable;line-height:1.75}
+.task-evidence[open]>.task-panel-heading{border-bottom:1px solid var(--task-line);border-radius:10px 10px 0 0}
+.task-evidence-content>section{padding-top:14px;margin-top:14px;border-top:1px solid var(--task-line)}
+.task-evidence-content h4{margin:0 0 8px;font-size:12px;font-weight:600;color:var(--task-ink)}
+.task-evidence-content small{color:var(--task-muted);font-size:11px}
+.task-evidence-content ul:not(.task-evidence-materials){padding-left:18px}
+.task-evidence-content li+li{margin-top:6px}
+.task-evidence-materials{list-style:none;padding:0;margin:0;display:grid;gap:8px}
+.task-evidence-materials li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;padding:10px 12px;border:1px solid var(--task-line);border-radius:7px;background:#fafbfe;align-items:baseline}
+.task-evidence-materials li strong{font-weight:500}
+.task-evidence-materials li>span{font-size:11px;color:#657083}
+.task-evidence-materials small{grid-column:1/-1}
+.task-evidence-citation{padding:10px 0;border-bottom:1px solid var(--task-line)}
+.task-evidence-citation:last-child{border-bottom:0;padding-bottom:0}
+.task-evidence-citation strong{font-weight:500}
+.task-evidence-citation blockquote{margin:8px 0;padding:8px 12px;border-left:2px solid #bdb5de;background:#f7f6fc;border-radius:0 6px 6px 0;white-space:pre-wrap}
+.task-evidence-error{color:#a13d2b}
+.task-memory-entry{margin:8px 0;border:1px solid var(--task-line);border-radius:7px;background:#fff}
+.task-memory-entry>summary{padding:9px 10px}
+.task-memory-entry>p,.task-memory-entry>small{display:block;margin:0;padding:0 10px 10px;white-space:pre-wrap}
+@media(max-width:700px){.task-evidence-materials li{grid-template-columns:minmax(0,1fr)}.task-evidence-content{max-height:360px}}
+@media(max-width:540px){.task-panel-heading{gap:6px;padding:10px 12px;flex-wrap:wrap}.task-panel-title{font-size:12px}.task-panel-badge{font-size:10px}.task-progress-content{padding:12px}.task-progress-rows>div{grid-template-columns:42px minmax(0,1fr);gap:8px}.task-recovery>.task-disclosure{padding:10px 12px}}
+@media(prefers-reduced-motion:reduce){.task-disclosure-chevron{transition:none}}

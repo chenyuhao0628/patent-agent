@@ -1,0 +1,175 @@
+{
+  "schema": 1,
+  "version": "0.17.0",
+  "verifiedAt": "2026-09-30T01:33:14.050575+00:00",
+  "scope": [
+    "原建议第4项：可核对的中断续办",
+    "原建议第5项：业务进度和缺项修复判据"
+  ],
+  "source": {
+    "baseCommit": "793bbd1a644be213b7a8b2cf078dd72bdd9ae509",
+    "uncommitted": true,
+    "files": [
+      {
+        "file": "desktop/agent-broker.ts",
+        "sha256": "2c8ec82357f25fea862443d7435011b644e5aa3ef6a0ab8cb5fd2921e8cbd460"
+      },
+      {
+        "file": "desktop/agent-recovery.ts",
+        "sha256": "a1e9727eac3002fcb1c3b3f23f4890d155eeb719499a2912e0008620b364f6f4"
+      },
+      {
+        "file": "desktop/recovery-files.ts",
+        "sha256": "d40ccefbf43f64475c888a784b3858bc27f2b75df7b3e722ec6c608a4599e377"
+      },
+      {
+        "file": "desktop/artifact-checkpoint.ts",
+        "sha256": "7281853f9028327045f9013ce3014cd3831f9f3ad5d9c4c3af3c325771bff3ea"
+      },
+      {
+        "file": "desktop/agent-runner.ts",
+        "sha256": "3aed3a337070e939a47c72ffe7ab5931fd70636c25105e3af08ed9914adbf1c5"
+      },
+      {
+        "file": "desktop/agent-integration.ts",
+        "sha256": "ca8722ddc2c55ce98e0ae1587c7146c4c9ee75b6a0bdede55133179fc2b2066f"
+      },
+      {
+        "file": "desktop/agent-host.ts",
+        "sha256": "9d8ce77d2da07ed1a0f9dcf4bfd046494fcc42bd9797cf64c8b9a39adf395478"
+      },
+      {
+        "file": "desktop/professional-host.ts",
+        "sha256": "961f9bb1d27d53d1c0641b68cacbc3ce8d7aa0515726a87bd7904042bf397b54"
+      },
+      {
+        "file": "desktop/ipc-contracts.ts",
+        "sha256": "c92b84c054d4279e59d1831af8ed301facc87f1e288375a2d75cdb88da7b1be1"
+      },
+      {
+        "file": "src/domain/task-progress.ts",
+        "sha256": "c31fd397ca4d24ce5f8209b88c62c34290eed7be74fccd4f1d76d1c8c901fa3e"
+      },
+      {
+        "file": "src/professional-api.ts",
+        "sha256": "df67032b0fa04e0dd82fee010bdca49cb8697f0ba522668fd2f8c03f03d6e3b9"
+      },
+      {
+        "file": "src/components/TaskBusinessProgress.tsx",
+        "sha256": "25d0b693ad079e323db83dbf651d6da54d5232cc6894dd0afbde3fe94e7d7062"
+      },
+      {
+        "file": "src/components/AgentRunStatus.tsx",
+        "sha256": "da7ec82c7eb046808fc06e4ee48af2d9683fec96155ba2c1afa8bd47e908b2ec"
+      },
+      {
+        "file": "src/components/ProfessionalWork.tsx",
+        "sha256": "f639a15761ef1cc562b8184560d1d80ee629f0ce3967f22b8d4fc5fd43e3bad0"
+      },
+      {
+        "file": "src/task-evidence.css",
+        "sha256": "74278a7df045e914a74d96a02ddb89e5bcf40a1eb94e218760e8f3a59586a6f8"
+      }
+    ]
+  },
+  "automated": {
+    "command": "npm test",
+    "tests": 763,
+    "passed": 763,
+    "failed": 0,
+    "skipped": 0,
+    "cancelled": 0,
+    "build": "npm run build passed (TypeScript, Vite, desktop bundle)",
+    "logs": [
+      {
+        "path": "/tmp/patent-agent-continuation-tests-final.log",
+        "sha256": "b080c6e2ea522e39c83a8a4c79884340eff0b55dfb10732e019af9fa88c180dc"
+      },
+      {
+        "path": "/tmp/patent-agent-continuation-build.log",
+        "sha256": "f666d47defca03b5d3d800baeea6c86abf582d4bc6774a5e7e1e20d190573c78"
+      }
+    ]
+  },
+  "behaviors": [
+    "摘要及范围核验、旧内容损坏不复用且保留原件",
+    "申请 documents 子项合并及专业任务分项续办",
+    "主进程重开后续办原撰写要求、审查来源与冻结材料；材料变化允许另开新版本",
+    "未完成操作回执持久化、结果不明不自动重放，已结束返回摘要可查看",
+    "没有正文检查点时仍复用已核对命令工作文件",
+    "自动修复支持实际缺项逐步减少，反复改写同字段在两次停滞后保留结果退出",
+    "编辑重发不恢复旧分支，任务结束后迟到进度不覆盖记录"
+  ],
+  "browser": {
+    "method": "bsk Agent Window; actual ProfessionalWork / AgentRunStatus components with synthetic API responses",
+    "url": "http://127.0.0.1:4187/",
+    "viewports": [
+      {
+        "observation": [
+          1455,
+          692
+        ],
+        "screenshotPixels": [
+          2940,
+          1384
+        ]
+      },
+      {
+        "observation": [
+          805,
+          692
+        ],
+        "windowInnerWidth": 820,
+        "screenshotPixels": [
+          1640,
+          1384
+        ]
+      }
+    ],
+    "checks": {
+      "correctTitleAndUrl": true,
+      "nonblank": true,
+      "noFrameworkOverlay": true,
+      "noRelevantAppConsoleErrors": true,
+      "noHorizontalOverflowAtNarrowWidth": true,
+      "writingResumeCommand": {
+        "type": "resume",
+        "jobId": "stopped-write"
+      },
+      "reviewResumeCommand": {
+        "type": "resume",
+        "jobId": "stopped-review"
+      },
+      "stopCommands": 2,
+      "submissionNavigationStillEnabled": true
+    },
+    "consoleNote": "记录到 1 条 chrome-extension://invalid/ 加载失败；来源为浏览器扩展，非产品错误。",
+    "captures": [
+      {
+        "path": "/tmp/patent-agent-continuation-ui/writing-desktop.png",
+        "sha256": "721b1c62bc50bdeac9e2ec845f592a108cd30460ac050afc1ab6fd1e6e0bedca"
+      },
+      {
+        "path": "/tmp/patent-agent-continuation-ui/review-narrow.png",
+        "sha256": "01531cc2a41c09ec019030a79d2d41b0899e0705bc247f696e6ebdfd10e5b0a1"
+      },
+      {
+        "path": "/tmp/patent-agent-continuation-ui/debug.json",
+        "sha256": "ee30c5f8e0b5263796705033a19e9694b34d21ce36103d6aa41b035cc8873767"
+      }
+    ],
+    "cleanedUp": {
+      "browserSessionStopped": true,
+      "temporaryServerStopped": true
+    },
+    "limits": "合成 API 只验证组件发出正确命令及状态展示；真实主进程恢复由自动化测试覆盖，非原生 GUI / 真实模型端到端证明。"
+  },
+  "limits": [
+    "未访问真实凭证或案件材料",
+    "未运行真实模型",
+    "未完成 Electron 原生退出恢复与 Windows 实机安装启动验收",
+    "未修改模板，未完成指定 Word 模板原生版式验收",
+    "未执行真实内部流转、提交、推送、发布或覆盖安装",
+    "未启动原建议第6项固定专利质量评测功能"
+  ]
+}

@@ -267,12 +267,17 @@ function textResult(
   body: string,
   startLine: number,
   endLine: number,
+  suppliedChunks?: Array<{start:number;end:number;text:string}>,
 ): McpContent[] {
+  const visual=fields.ocr===false;
+  const chunks=visual?[]:suppliedChunks??[{start:startLine,end:endLine,text:body}];
   return [{
     type: 'text',
     text: `${headerBlock(fields)}\n\n${body}`,
     startLine,
     endLine,
+    observation:{materialId:String(fields.materialId),hash:String(fields.hash),unit:fields.rangeUnit==='page'?'page':'line',start:startLine,end:endLine,
+      total:Number(fields.totalLines??fields.pages)||undefined,mode:visual?'visual':'text',completeUnits:true,chunks},
   }];
 }
 
@@ -544,7 +549,7 @@ async function readPdf(material: FrozenMaterial, buffer: Buffer, range?: ToolRan
     truncated: returnedEnd < end,
     unread: Boolean(unreadFrom),
     hint,
-  }, chunks.join('\n\n'), start, returnedEnd);
+  }, chunks.join('\n\n'), start, returnedEnd, [...pages].filter(([page])=>page>=start&&page<=returnedEnd).map(([page,text])=>({start:page,end:page,text})));
 }
 
 function readImage(material: FrozenMaterial, buffer: Buffer, kind: 'png' | 'jpeg'): McpContent[] {
@@ -571,7 +576,7 @@ function readImage(material: FrozenMaterial, buffer: Buffer, kind: 'png' | 'jpeg
     throw new Error('图片编码后超过 MCP 响应上限，未作为图像返回。');
   }
   return [
-    { type: 'text', text: header },
+    { type: 'text', text: header, observation:{materialId:material.id,hash:material.hash,unit:'image',start:1,end:1,total:1,mode:'visual',completeUnits:true,chunks:[]} },
     { type: 'image', data, mimeType },
   ];
 }

@@ -1,3 +1,6 @@
+import type { ArtifactQuality, ReadEvidence } from './agent-evidence.ts';
+import type { TaskMemoryView } from './task-memory.ts';
+import { isNoticeMaterial, missingEvidenceRanges } from './agent-evidence.ts';
 import {validateCorrectionContents,type CorrectionContent} from './correction.ts';
 import {validateApplicationParts,type ApplicationParts} from './application-parts.ts';
 // Pure business core for any structured runner. No HTTP/IPC/GUI, no credentials, no demo timer.
@@ -11,7 +14,7 @@ export type AgentAction = 'analysis' | 'discuss' | 'draft' | 'revise' | 'review'
 export type AgentJobState = 'running' | 'stopped' | 'failed' | 'completed';
 export type DiscussionKind = 'main' | 'review';
 export type ToolEventStatus = 'started' | 'ok' | 'error' | 'stopped';
-export type ToolKind = 'read_material' | 'read_draft' | 'read_skill' | 'write_artifact' | 'web_search' | 'web_fetch' | 'ensure_tool' | 'discover_tools' | 'execute_command' | 'download_file' | 'prepare_material' | 'read_work_file' | 'custom_mcp';
+export type ToolKind = 'read_task_memory' | 'inspect_evidence' | 'read_material' | 'read_draft' | 'read_skill' | 'write_artifact' | 'web_search' | 'web_fetch' | 'ensure_tool' | 'discover_tools' | 'execute_command' | 'download_file' | 'prepare_material' | 'read_work_file' | 'custom_mcp';
 export type AdoptStatus = 'pending' | 'adopted' | 'rejected' | 'conflict';
 export type DraftSource = 'generated-initial' | 'generated-revise' | 'user';
 export type IssueSeverity = 'error' | 'warning' | 'info';
@@ -67,6 +70,7 @@ export type AgentMessage = {
 };
 
 export type ToolEvent = {
+  evidence?: ReadEvidence;
   id: string;
   runId: string;
   filename: string;
@@ -105,6 +109,9 @@ export type PublicRuntimeSnapshot = {
 };
 
 export type AgentJob = {
+  progress?:import('./task-progress.ts').TaskProgress;
+  memory?: TaskMemoryView;
+  quality?: ArtifactQuality;
   queueId?:string;
   branchId?: string;
   userMessage?: string;
@@ -970,9 +977,10 @@ export function startAgentJob(state: AgentProcessState, cmd: StartJobCommand): A
   });
 }
 
-const TOOL_KINDS = new Set<ToolKind>(['read_material', 'read_draft', 'read_skill', 'write_artifact', 'web_search', 'web_fetch', 'ensure_tool', 'discover_tools', 'execute_command', 'download_file', 'prepare_material', 'read_work_file','custom_mcp']);
+const TOOL_KINDS = new Set<ToolKind>(['read_task_memory','inspect_evidence','read_material', 'read_draft', 'read_skill', 'write_artifact', 'web_search', 'web_fetch', 'ensure_tool', 'discover_tools', 'execute_command', 'download_file', 'prepare_material', 'read_work_file','custom_mcp']);
 
 export function recordToolEvent(state: AgentProcessState, cmd: ScopeCommand & {
+  evidence?: ReadEvidence;
   runId: string;
   filename: string;
   detail?: string;
@@ -996,6 +1004,7 @@ export function recordToolEvent(state: AgentProcessState, cmd: ScopeCommand & {
   const discussion = discussionOf(next, running.discussionId);
   if (!discussion) return agentFail('DISCUSSION_NOT_FOUND');
   const event: ToolEvent = {
+    evidence: cmd.evidence ? structuredClone(cmd.evidence) : undefined,
     id: newId(),
     runId: cmd.runId,
     filename: cmd.filename.trim(),
@@ -1132,6 +1141,15 @@ export function missingFormalReads(state: AgentProcessState, runId: string): Age
   const missing = required.filter(item => !readIds.has(item.id));
   if (missing.length) {
     return agentFail('MATERIALS_UNREAD', `正式任务完成前必须实际读取：${missing.map(item => item.name).join('、')}。`);
+  }
+  for(const material of required.filter(m=>isNoticeMaterial(m.role))){
+    const evidence=materialReads.filter(e=>e.materialId===material.id).map(e=>e.evidence).filter((e):e is ReadEvidence=>!!e&&e.mode!=='derived'&&e.mode!=='unknown'&&(!material.hash||e.hash===material.hash));
+    const total=evidence.find(e=>e.total!==undefined)?.total;
+    if(total){
+      const unit=evidence.find(e=>e.total===total)!.unit;
+      const missing=missingEvidenceRanges(evidence.filter(e=>e.unit===unit&&e.completeUnits),total);
+      if(missing.length)return agentFail('MATERIALS_UNREAD','当前通知 '+material.name+' 尚缺第 '+missing[0].start+'-'+missing[0].end+(unit==='page'?' 页':' 行')+'，请仅补读缺失范围后继续。');
+    }
   }
   if (job.action === 'review' && !reads.some(event => event.toolKind === 'read_draft')) {
     return agentFail('MATERIALS_UNREAD', '正式复核完成前必须实际读取当前稿件，不能仅凭模型自述。');

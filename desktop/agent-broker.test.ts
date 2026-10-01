@@ -435,3 +435,59 @@ test('atomicWrite matches checkpoint class: rename replaces without partial fina
   assert.equal(await fs.readFile(file, 'utf8'), '{"a":2,"b":"x"}');
   assert.equal((await fs.readdir(root)).filter(n => n.endsWith('.tmp')).length, 0);
 });
+
+test('quality loop repairs only notice gaps and verifies actual quote before accepting',async t=>{
+ const root=await tmpDir('quality'),snap=path.join(root,'snap'),out=path.join(root,'out');
+ const material=await writeMaterial(snap,'通知.txt','第一行真实意见\n第二行真实依据\n第三行其他意见','notice');material.role='当前通知';
+ const reports:import('../src/domain/agent-evidence.ts').ArtifactQuality[]=[];
+ const broker=await startAgentBroker({token:randomRunToken(),snapshotRoot:snap,outputsRoot:out,materials:[material],evidencePolicy:{formal:true,noticeCoverage:true},onQuality:q=>reports.push(q)});
+ t.after(async()=>{await broker.close();await fs.rm(root,{recursive:true,force:true});});
+ const invoke=async(name:string,args:Record<string,unknown>)=>(await callTool(broker.url,broker.token,name,args)).parsed as {result:{isError?:boolean;content:unknown;structuredContent?:unknown}};
+ await invoke('read_material',{materialId:material.id,startLine:1,endLine:1});
+ const partial=await invoke('write_artifact',{name:'result.json',content:{kind:'discuss',reply:'候选'}});assert(partial.result.isError);assert.match(JSON.stringify(partial),/2-3/);assert.equal(broker.artifacts().length,0);
+ await invoke('read_material',{materialId:material.id,startLine:2,endLine:3});
+ const wrong={kind:'discuss',reply:'候选',evidenceCitations:[{id:'c1',materialId:material.id,hash:material.hash,unit:'line',start:2,end:2,quote:'编造的引文'}]};
+ assert((await invoke('write_artifact',{name:'result.json',content:wrong})).result.isError);
+ wrong.evidenceCitations[0].quote='第二行真实依据';assert(!(await invoke('write_artifact',{name:'result.json',content:wrong})).result.isError);
+ assert.equal(reports.at(-1)?.citations[0].status,'verified');assert.equal(reports.at(-1)?.materials[0].status,'complete');
+ assert.equal(JSON.parse(await fs.readFile(path.join(out,'evidence-report.json'),'utf8')).citations[0].status,'verified');
+ assert.equal(digest(await fs.readFile(material.absoluteSnapshotPath)),material.hash);
+});
+test('task-local memory paginates exactly, disallows another task and requires deferred text before acceptance',async t=>{
+ const root=await tmpDir('memory'),text='早期用户限制'.repeat(3000),token=randomRunToken();
+ const broker=await startAgentBroker({token,snapshotRoot:path.join(root,'snap'),outputsRoot:path.join(root,'out'),materials:[],taskMemory:{schema:1,caseId:'a',processKey:'p',entries:[{id:'u1',kind:'user-statement',source:'用户消息u1',text}]},requiredMemoryIds:['u1']});
+ t.after(async()=>{await broker.close();await fs.rm(root,{recursive:true,force:true});});
+ const invoke=async(name:string,args:Record<string,unknown>)=>(await callTool(broker.url,token,name,args)).parsed as {result:{isError?:boolean;content:Array<{text:string}>}};
+ assert((await invoke('read_task_memory',{id:'another-case'})).result.isError);
+ assert((await invoke('write_artifact',{name:'result.json',content:{ok:true}})).result.isError);
+ const first=await invoke('read_task_memory',{id:'u1'});assert.equal(JSON.parse(first.result.content[0].text).nextOffset,12000);
+ assert((await invoke('write_artifact',{name:'result.json',content:{ok:true}})).result.isError);
+ const last=await invoke('read_task_memory',{id:'u1',offset:12000});assert.equal(JSON.parse(last.result.content[0].text).nextOffset,null);
+ assert(!(await invoke('write_artifact',{name:'result.json',content:{ok:true}})).result.isError);
+});
+test('empty range cannot satisfy a read and ordinary partial reference only produces a warning',async t=>{
+ const root=await tmpDir('reference'),snap=path.join(root,'snap');const mat=await writeMaterial(snap,'参考.txt','一\n二\n三');
+ const broker=await startAgentBroker({token:randomRunToken(),snapshotRoot:snap,outputsRoot:path.join(root,'out'),materials:[mat],evidencePolicy:{formal:true,noticeCoverage:true}});
+ t.after(async()=>{await broker.close();await fs.rm(root,{recursive:true,force:true});});
+ assert.match(JSON.stringify((await callTool(broker.url,broker.token,'read_material',{materialId:mat.id,startLine:999})).parsed),/没有可读取文本/);
+ await callTool(broker.url,broker.token,'read_material',{materialId:mat.id,startLine:1,endLine:1});
+ const result=await callTool(broker.url,broker.token,'write_artifact',{name:'result.json',content:{kind:'discuss',reply:'仅讨论已读范围'}});
+ assert(!((result.parsed as {result:{isError?:boolean}}).result.isError));assert.equal(broker.artifacts().length,1);
+});
+
+test('professional document checkpoints resume, report business gaps, and complete via local merge',async t=>{
+ const root=await tmpDir('professional-resume');t.after(()=>fs.rm(root,{recursive:true,force:true}));
+ const {parseProfessionalResult}=await import('./professional-host.ts');
+ const token=randomRunToken(),contract={kind:'writing' as const,professional:true,phase:4};
+ const options={token,snapshotRoot:path.join(root,'snap'),outputsRoot:path.join(root,'old/outputs'),materials:[],taskContract:contract,artifactScope:'case-phase',validateArtifact:async(raw:string)=>{try{parseProfessionalResult(raw,'writing',4);}catch(e){return (e as Error).message;}}};
+ let broker=await startAgentBroker(options);t.after(()=>broker.close());
+ const save=(content:unknown)=>callTool(broker.url,token,'write_artifact',{name:'result.json',mode:'merge',content});
+ assert.match((await save({kind:'writing',text:'整理说明',documents:{ABSTRACT:'摘要',CLAIMS:'权利要求'}})).text,/分项已保存/);
+ const p=broker.progress();assert(p.saved.some(s=>s.id==='documents.CLAIMS'));assert(p.pending.some(s=>s.id==='documents.DESCRIPTION'));assert.equal(p.accepted,false);
+ await broker.close();broker=await startAgentBroker({...options,outputsRoot:path.join(root,'new/outputs'),recoveryArtifactRoot:options.outputsRoot});
+ assert.equal(broker.progress().recovery?.status,'restored');
+ const inspect=await callTool(broker.url,token,'inspect_artifact',{field:'documents'});assert.match(inspect.text,/权利要求/);
+ assert.match((await save({documents:{DESCRIPTION:'说明书',ABSTRACT_IMAGE:'',DRAWINGS:''}})).text,/已写入并通过校验/);
+ assert.equal(broker.progress().accepted,true);const result=JSON.parse(await fs.readFile(broker.artifacts()[0].absolutePath,'utf8'));assert.equal(result.documents.ABSTRACT,'摘要');
+ const saved=JSON.parse(await fs.readFile(path.join(root,'new/outputs/task-progress.json'),'utf8'));assert.equal(saved.pending.length,0);assert.equal(saved.accepted,true);
+});

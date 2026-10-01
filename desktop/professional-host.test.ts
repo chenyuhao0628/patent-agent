@@ -27,6 +27,25 @@ async function fixture(t:test.TestContext,options:{delayed?:boolean;unread?:bool
  return {root,service,host,agent,inputs,id:service.workspace.cases[0].id};
 }
 async function settled(host:ProfessionalHost,id:string){for(let i=0;i<200;i++){const view=await host.getCase('local',id);if(!view.busy)return view;await new Promise(r=>setTimeout(r,5));}throw new Error('task did not settle');}
+test('writing validates before exit and persists source memory and nonblocking quality',async t=>{
+ let release!:()=>void;const hold=new Promise<void>(resolve=>{release=resolve;});
+ const f=await fixture(t,{hold});
+ await f.host.command('local',f.id,{type:'write',message:'温度不得超过40℃',materialIds:[]});
+ const input=f.inputs[0],raw=JSON.stringify({kind:'writing',text:'合成阶段结果'});
+ assert.match((await input.validateArtifact!(raw))!,/read_skill/);
+ await input.onEvent({type:'tool',filename:'SKILL.md',toolKind:'read_skill',status:'ok'});
+ assert.equal(await input.validateArtifact!(raw),undefined);
+ const frozen=JSON.parse(await fs.readFile(path.join(input.snapshotDir,'task-memory.json'),'utf8'));
+ assert(input.taskMemory);assert.deepEqual(frozen,input.taskMemory);assert(frozen.entries.some((e:{text:string})=>e.text==='温度不得超过40℃'));
+ const quality={schema:1 as const,materials:[],citations:[],issues:[{code:'CITATIONS_NOT_STRUCTURED',severity:'warning' as const,message:'合成非阻塞提示'}]};
+ await input.onEvent({type:'quality',quality});release();
+ const view=await settled(f.host,f.id),job=view.record.jobs[0];
+ assert.equal(job.state,'completed');assert.deepEqual(job.quality,quality);assert.equal(job.input,'温度不得超过40℃');
+ const disk=JSON.parse(await fs.readFile(path.join(f.service.root,'profiles/local/professional-work.json'),'utf8'));
+ assert(JSON.stringify(disk).includes('合成非阻塞提示'));
+ await input.onEvent({type:'quality',quality:{...quality,issues:[]}});
+ assert.deepEqual((await f.host.getCase('local',f.id)).record.jobs[0].quality,quality);
+});
 test('new reply reviews remain visible when the same source already has a personal review snapshot',async t=>{
  const f=await fixture(t);f.service.findCase(f.id).localDraft='合成稿件';await f.host.command('local',f.id,{type:'ready-manual'});
  const source=(await f.host.listReviews('local'))[0].source;
@@ -315,4 +334,87 @@ test('legacy Markdown stage converts once to an exact DOCX without replacing the
  const reader=new ProfessionalHost(f.service,f.agent,f.host.models,f.host.run,path.resolve('resources'));t.after(()=>reader.shutdown());
  const preview=await reader.previewDocument('local',f.id,job.processKey,job.id);assert.match(preview.relativePath,/\.docx$/);assert.ok(preview.hash);
  assert.deepEqual(await fs.readFile(raw),before);assert.equal((await reader.previewDocument('local',f.id,job.processKey,job.id)).relativePath,preview.relativePath);
+});
+
+test('stopped writing resumes frozen requirements across reopening and persists progress without late overwrite',async t=>{
+ let release!:()=>void;const hold=new Promise<void>(resolve=>{release=resolve;});const f=await fixture(t,{hold});
+ await f.host.command('local',f.id,{type:'write',message:'只处理原输入',materialIds:[]});
+ const original=f.inputs[0],{taskProgress}=await import('../src/domain/task-progress.ts');
+ const progress=taskProgress({kind:'writing',text:'保留部分'},{kind:'writing',professional:true,phase:0},{schema:1,materials:[],citations:[],issues:[]});
+ await original.onEvent({type:'progress',progress});await f.host.command('local',f.id,{type:'stop'});await settled(f.host,f.id);await f.host.shutdown();
+ const reopened=new ProfessionalHost(f.service,f.agent,f.host.models,f.host.run,path.resolve('resources'));t.after(()=>reopened.shutdown());
+ assert.deepEqual((await reopened.getCase('local',f.id)).record.jobs[0].progress,JSON.parse(JSON.stringify(progress)));
+ await reopened.command('local',f.id,{type:'resume',jobId:original.runId});const resumed=f.inputs[1];
+ assert.equal(resumed.resumeFromRunId,original.runId);assert.deepEqual(resumed.taskContract,{kind:'writing',professional:true,phase:0});assert.equal(resumed.artifactScope,original.artifactScope);assert.match(resumed.prompt.task,/只处理原输入/);
+ release();const view=await settled(reopened,f.id);assert.equal(view.record.jobs[1].state,'completed');assert.equal(view.record.jobs[0].state,'stopped');
+ await original.onEvent({type:'progress',progress:{...progress,accepted:true}});assert.equal((await reopened.getCase('local',f.id)).record.jobs[0].progress?.accepted,false);
+ await assert.rejects(reopened.command('local',f.id,{type:'resume',jobId:original.runId}),/新要求或版本/);
+});
+test('review resumes only the same current source and writing restart invalidates previous continuation',async t=>{
+ const f=await fixture(t,{delayed:true});f.service.findCase(f.id).localDraft='冻结审查正文';await f.host.command('local',f.id,{type:'ready-manual'});
+ const source=(await f.host.listReviews('local'))[0].source;
+ await f.host.command('local',f.id,{type:'review',sourceId:source.id});const first=f.inputs[0];await f.host.command('local',f.id,{type:'stop'});await settled(f.host,f.id);
+ await f.host.command('local',f.id,{type:'resume',jobId:first.runId});assert.equal(f.inputs[1].resumeFromRunId,first.runId);assert.equal(f.inputs[1].draft?.text,'冻结审查正文');assert.deepEqual(f.inputs[1].messages,[]);
+ await f.host.command('local',f.id,{type:'stop'});await settled(f.host,f.id);
+ await f.host.command('local',f.id,{type:'write',message:'新构思',materialIds:[]});const writing=f.inputs[2];await f.host.command('local',f.id,{type:'stop'});await settled(f.host,f.id);
+ await f.host.command('local',f.id,{type:'restart',phase:0});await assert.rejects(f.host.command('local',f.id,{type:'resume',jobId:writing.runId}),/新要求或版本/);
+});
+
+test('resume detects externally changed selected material without losing checkpoint or starting another model',async t=>{
+ const f=await fixture(t,{delayed:true});
+ const sourceFile=path.join(f.root,'reference.txt');await fs.writeFile(sourceFile,'合成原件');
+ await f.host.addReferences('local',f.id,[sourceFile]);
+ const material=(await f.host.getCase('local',f.id)).materials[0];
+ await f.host.command('local',f.id,{type:'write',message:'使用选定版本',materialIds:[material.id]});const first=f.inputs[0];
+ await f.host.command('local',f.id,{type:'stop'});await settled(f.host,f.id);
+ await fs.writeFile(await f.service.casePath(f.id,material.relativePath!),'用户新改动');
+ await assert.rejects(f.host.command('local',f.id,{type:'resume',jobId:first.runId}),/外部修改/);assert.equal(f.inputs.length,1);
+ assert.equal(await fs.readFile(first.materials[0].snapshotPath,'utf8'),'合成原件');
+ await f.host.command('local',f.id,{type:'write',message:'采用新版本',materialIds:[material.id]});assert.equal(f.inputs.length,2);await f.host.command('local',f.id,{type:'stop'});await settled(f.host,f.id);
+});
+
+test('returning to a writing step does not re-confirm results from the previous writing context',async t=>{
+ const f=await fixture(t);
+ await f.host.command('local',f.id,{type:'write',message:'旧方向',materialIds:[]});
+ const first=(await settled(f.host,f.id)).record.jobs.at(-1)!;
+ await f.host.command('local',f.id,{type:'confirm',jobId:first.id,decision:'采用旧方向'});
+ await f.host.command('local',f.id,{type:'write',message:'旧方案',materialIds:[]});
+ const second=(await settled(f.host,f.id)).record.jobs.at(-1)!;
+ await f.host.command('local',f.id,{type:'restart',phase:0});
+ await assert.rejects(f.host.command('local',f.id,{type:'confirm',jobId:first.id,decision:'误用旧方向'}),/阶段结果|当前版本/);
+ await f.host.command('local',f.id,{type:'write',message:'新方向',materialIds:[]});
+ const replacement=(await settled(f.host,f.id)).record.jobs.at(-1)!;
+ await f.host.command('local',f.id,{type:'confirm',jobId:replacement.id,decision:'采用新方向'});
+ await assert.rejects(f.host.command('local',f.id,{type:'confirm',jobId:second.id,decision:'误用旧方案'}),/阶段结果|当前版本/);
+ const current=await f.host.getCase('local',f.id);
+ assert.equal(current.record.phase,1);assert.equal(current.record.jobs.length,3);
+ assert.equal(current.record.confirmations[0].jobId,replacement.id);
+ assert((await f.host.previewDocument('local',f.id,first.processKey,first.id)).blocks.length>0);
+});
+
+test('material-based entry starts at the chosen step without inventing earlier confirmations',async t=>{
+ const f=await fixture(t);
+ const started=await f.host.command('local',f.id,{type:'start-at',phase:2});
+ assert.equal(started.record.phase,2);assert.equal(started.record.entry?.phase,2);assert.deepEqual(started.record.confirmations,[]);assert.equal(f.inputs.length,0);
+ await f.host.command('local',f.id,{type:'write',message:'已有完整技术交底，先写说明书',materialIds:[]});
+ const v=await settled(f.host,f.id),job=v.record.jobs.at(-1)!;
+ assert.match(f.inputs[0].prompt.task,/从「说明书」开始/);assert.match(f.inputs[0].prompt.task,/不得声称已确认/);
+ await assert.rejects(f.host.command('local',f.id,{type:'start-at',phase:4}),/已有本轮成果/);
+ const next=await f.host.command('local',f.id,{type:'confirm',jobId:job.id,decision:''});
+ assert.equal(next.record.phase,3);assert.deepEqual(next.record.confirmations.map(c=>c.phase),[2]);
+ const back=await f.host.command('local',f.id,{type:'restart',phase:1});
+ assert.equal(back.record.phase,1);assert.equal(back.record.jobs[0].id,job.id);assert.deepEqual(back.record.confirmations,[]);
+ await assert.rejects(f.host.command('local',f.id,{type:'start-at',phase:5}),/起点/);
+});
+
+test('an explicitly selected earlier finished version is adopted without deleting later attempts',async t=>{
+ const f=await fixture(t);
+ await f.host.command('local',f.id,{type:'write',message:'第一版',materialIds:[]});
+ const first=(await settled(f.host,f.id)).record.jobs.at(-1)!;
+ await f.host.command('local',f.id,{type:'write',message:'第二版',materialIds:[]});
+ const second=(await settled(f.host,f.id)).record.jobs.at(-1)!;
+ const confirmed=await f.host.command('local',f.id,{type:'confirm',jobId:first.id,decision:'明确采用第一版'});
+ assert.equal(confirmed.record.phase,1);assert.equal(confirmed.record.confirmations[0].jobId,first.id);
+ assert.equal(confirmed.record.jobs[1].id,second.id);assert.equal(confirmed.record.jobs[1].state,'completed');
+ assert.match(f.inputs[1].prompt.task,/第二版/);
 });

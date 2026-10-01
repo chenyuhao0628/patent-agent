@@ -37,3 +37,13 @@ export function professionalWorkEditable(caseItem: Case): boolean {
 export function professionalWritingEditable(caseItem: Case): boolean {
   return professionalWorkEditable(caseItem) && currentWork(caseItem).kind === 'write';
 }
+
+/** A step number alone cannot identify work after going back and changing its inputs. */
+export function currentWritingJobs(record: import('../professional-api.ts').ProfessionalRecord, contextHash?: string) {
+  return record.jobs.filter(job => job.kind === 'writing' && job.caseId === record.caseId && job.processKey === record.processKey && job.phase === record.phase
+    && (!record.revision || !!contextHash && job.recovery?.contextHash === contextHash));
+}
+
+export function canChooseWritingStart(record: import('../professional-api.ts').ProfessionalRecord, contextHash?: string) {
+  return !record.completed && !record.confirmations.length && !currentWritingJobs(record, contextHash).length;
+}

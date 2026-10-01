@@ -58,13 +58,13 @@ export function formatToolRange(range?: ToolRange): string | undefined {
   return undefined;
 }
 
-function toolKindOf(name: string): 'read_material' | 'read_draft' | 'read_skill' | 'write_artifact' | 'web_search' | 'web_fetch' | 'ensure_tool' | 'discover_tools' | 'execute_command' | 'download_file' | 'prepare_material' | 'read_work_file' | 'custom_mcp' | null {
+function toolKindOf(name: string): 'read_task_memory' | 'inspect_evidence' | 'read_material' | 'read_draft' | 'read_skill' | 'write_artifact' | 'web_search' | 'web_fetch' | 'ensure_tool' | 'discover_tools' | 'execute_command' | 'download_file' | 'prepare_material' | 'read_work_file' | 'custom_mcp' | null {
   if(/^custom_[a-f0-9]+_/.test(name))return 'custom_mcp';
   if (name === TOOL_READ_MATERIAL || name.endsWith(`_${TOOL_READ_MATERIAL}`)) return 'read_material';
   if (name === TOOL_READ_SKILL || name.endsWith(`_${TOOL_READ_SKILL}`)) return 'read_skill';
   if (name === TOOL_READ_DRAFT || name.endsWith(`_${TOOL_READ_DRAFT}`)) return 'read_draft';
   if (name === TOOL_WRITE_ARTIFACT || name.endsWith(`_${TOOL_WRITE_ARTIFACT}`)) return 'write_artifact';
-  for(const key of ['web_search','web_fetch','ensure_tool','discover_tools','execute_command','download_file','prepare_material','read_work_file'] as const)if(name===key||name.endsWith('_'+key))return key;
+  for(const key of ['read_task_memory','inspect_evidence','web_search','web_fetch','ensure_tool','discover_tools','execute_command','download_file','prepare_material','read_work_file'] as const)if(name===key||name.endsWith('_'+key))return key;
   return null;
 }
 
@@ -76,6 +76,7 @@ export function mapRunnerToolEvent(event: ToolEvent): Extract<AgentHostRunEvent,
     filename: ['execute_command','download_file','web_fetch'].includes(toolKind) ? toolKind : event.materialName || event.artifactName || event.name,
     detail: ['execute_command','download_file','web_fetch'].includes(toolKind) ? event.materialName : undefined,
     readRange: formatToolRange(event.range),
+    evidence:event.evidence,
     status: event.success || event.status === 'success' ? 'ok' : 'error',
     materialId: event.materialId,
     toolKind,
@@ -189,6 +190,9 @@ export function createHostRun(runner: Pick<AgentRunner, 'run'>, extensions?:Exte
     const wait = (async () => {
       const custom=await extensions?.runtime(input.runtime.profileKey);
       const result: AgentRunResult = await runner.run({
+        taskContract:input.taskContract,
+        taskMemory:input.taskMemory,
+        evidencePolicy:input.evidencePolicy,
         artifactExpect:input.artifactExpect,
         validateArtifact:input.validateArtifact,
         artifactScope:input.artifactScope,
@@ -208,10 +212,10 @@ export function createHostRun(runner: Pick<AgentRunner, 'run'>, extensions?:Exte
           hash: item.hash,
         })),
         draftText: draftTextForRunner(input.draft),
-        productPrompt: input.prompt.combined+(custom?.prompt||'')+(input.resumeFromRunId ? '\n本次恢复不自动重放自定义 MCP 操作；需要此类操作时说明已完成与待核对项，请用户核对后发起新的明确请求。相同命令、下载及安装由持久执行记录防止重复；先检查已有结果。' : ''),
+        productPrompt: input.prompt.combined+(custom?.prompt||'')+(input.resumeFromRunId ? '\n本次恢复不自动重放自定义 MCP 操作；需要此类操作时说明已完成与待核对项，请用户核对后发起新的明确请求。先调用 inspect_artifact 查看 progress 中的已保存分项、待办、工作文件相对路径 / 摘要与操作回执；指定 field 取回已有正文，指定 operationId 查看已结束操作的返回摘要。工作文件用 read_work_file 阅读。相同命令、下载及安装由持久执行记录防止重复；结果不明的操作先核对，不以新参数绕过重复保护。只补待办，用 mode=merge 保存；旧内容不必重新生成。' : ''),
         publicMessages: input.action === 'review'
           ? []
-          : input.messages.map(item => ({ role: item.role, content: item.text })),
+          : input.messages.map(item => ({ sourceId:item.sourceId,role: item.role, content: item.text })),
         review: input.action === 'review',
         allowedArtifacts: [PREFERRED_ARTIFACT],
         snapshotRoot: input.snapshotDir,
@@ -220,7 +224,7 @@ export function createHostRun(runner: Pick<AgentRunner, 'run'>, extensions?:Exte
         signal,
         onEvent(event) {
           if (aborted()) return;
-          if (event.type === 'thinking' || event.type === 'activity') { void input.onEvent(event); return; }
+          if (event.type === 'thinking' || event.type === 'activity' || event.type === 'quality' || event.type === 'progress') { void input.onEvent(event); return; }
           if (event.type === 'delta') {
             partial = accumulatePartial(partial, event.text);
             void input.onEvent({ type: 'partial', text: partial });

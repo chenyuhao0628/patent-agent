@@ -18,3 +18,13 @@ test('recovery blocks completed and uncertain side effects after reopening, allo
   await second('execute_command', { a: 3 }, async () => ++writes);
   assert.equal(writes, 2);
 });
+
+test('recovery exposes redacted reported results, preserves uncertain timeout and handles corrupt journal locally',async t=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'agent-receipts-detail-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
+ const journal=await recoveryJournal(path.join(root,'a.json'));
+ await journal('execute_command',{command:'synthetic'},async()=>({isError:false,structuredContent:{exitCode:0},content:[{type:'text',text:'saved synthetic result'}]}));
+ const receipt=journal.receipts()[0];assert.equal(receipt.name,'execute_command');assert.equal(receipt.state,'finished');assert.match(journal.result(receipt.id)!,/synthetic result/);
+ await journal('execute_command',{command:'slow'},async()=>({isError:true,structuredContent:{timedOut:true}}));assert(journal.receipts().some(r=>r.state==='started'));
+ await fs.writeFile(path.join(root,'bad.json'),'not JSON');const next=await recoveryJournal(path.join(root,'new.json'),path.join(root,'bad.json'));
+ assert.equal(next.receipts()[0].state,'started');await assert.rejects(next('execute_command',{},async()=>1),/旧执行记录无法核验/);assert.equal(await fs.readFile(path.join(root,'bad.json'),'utf8'),'not JSON');
+});

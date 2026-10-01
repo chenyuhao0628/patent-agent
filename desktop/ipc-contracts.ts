@@ -17,7 +17,7 @@ const AGENT_COMMANDS = new Set([
   'updateDraft', 'finalize', 'unfinalize', 'setStage',
 ]);
 
-const PROFESSIONAL_COMMANDS = new Set(['write', 'confirm', 'restart', 'review', 'ready-manual', 'stop']);
+const PROFESSIONAL_COMMANDS = new Set(['write', 'start-at', 'resume', 'confirm', 'restart', 'review', 'ready-manual', 'stop']);
 const EXTENSION_METHODS = new Set(['test', 'list', 'toggle', 'remove', 'saveMcp', 'saveSkill', 'importSkill']);
 const PRIOR_ART_METHODS = new Set(['status', 'save', 'clear', 'importLegacy', 'test', 'prepare']);
 const DIRECTORY_KINDS = ['originalLibrary', 'workRoot'] as const;
@@ -434,10 +434,12 @@ export function ipcProfessionalCommand(value: unknown): ProfessionalCommand {
   if (type === 'write') {
     if (typeof record.message !== 'string' || record.message.length > PROFESSIONAL_WRITE_MESSAGE_MAX) throw new Error('撰写要求无效。');
     stringArray(record, 'materialIds', '材料选择');
+  } else if (type === 'resume') {
+    fieldString(record, 'jobId', '任务标识');
   } else if (type === 'confirm') {
     fieldString(record, 'jobId', '任务标识');
     if (typeof record.decision !== 'string' || record.decision.length > PROFESSIONAL_DECISION_MAX) throw new Error('确认意见无效。');
-  } else if (type === 'restart') {
+  } else if (type === 'restart' || type === 'start-at') {
     if (!Number.isInteger(record.phase) || Number(record.phase) < 0 || Number(record.phase) > 4) throw new Error('撰写阶段无效。');
   } else if (type === 'review') {
     fieldString(record, 'sourceId', '稿件标识');

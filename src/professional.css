@@ -48,3 +48,70 @@
   .professional-writing-result{padding:16px}
   .professional-writing-result .stage-word-page{padding:20px 16px}
 }
+
+/* Align task inputs, results and continuation controls with shared task panels. */
+.professional-work>.section-heading{align-items:flex-start;gap:16px;margin-bottom:20px}
+.professional-work>.section-heading>div:first-child{min-width:0}
+.professional-work>.section-heading h2{margin:0;font-size:20px;line-height:1.5}
+.professional-work>.section-heading .section-copy{margin:6px 0 0;line-height:1.7;color:#697285}
+.professional-work .button-row{margin:0;gap:8px;flex-wrap:wrap;justify-content:flex-start}
+.professional-work>.section-heading>.button-row{flex-shrink:0;padding-top:2px;justify-content:flex-end}
+.professional-work button{min-height:38px;line-height:20px;padding:8px 12px}
+.professional-work button>svg{flex-shrink:0}
+.professional-work .writing-progress{margin:0 0 24px;padding:10px;gap:8px;border:1px solid var(--line);border-radius:10px;background:#fafafe;display:grid;grid-template-columns:repeat(5,minmax(0,1fr))}
+.professional-work .writing-progress li{min-width:0;padding:8px;line-height:1.5;font-size:12px;border-radius:7px}
+.professional-work .writing-progress li>span{flex-shrink:0}
+.professional-work .writing-progress .current{background:#efecfc;color:#6150b9}
+.professional-work .writing-progress .current>span{background:var(--accent);color:#fff}
+.professional-work .writing-progress .done>span{background:#eaf4ee}
+.professional-work .professional-grid{gap:20px;grid-template-columns:280px minmax(0,1fr)}
+.professional-grid>.professional-writing-input{padding:20px;border:1px solid var(--line);border-radius:12px;background:#fff}
+.professional-work .professional-writing-result{padding:20px}
+.professional-writing-input>h3,.professional-writing-result>.section-heading>h3{margin:0;font-size:15px;line-height:1.5}
+.professional-writing-result>.section-heading{min-height:23px;margin:0 0 4px}
+.professional-writing-result>.task-panel,.professional-review-result>.task-panel{margin:12px 0 0}
+.professional-writing-result>.note,.professional-review-result>.note{margin:16px 0 0;line-height:1.75}
+.professional-work .writing-references{gap:10px}
+.professional-work .writing-references h4{margin:0;font-size:12px;line-height:1.6}
+.professional-work .writing-references p{margin:0;font-size:12px;line-height:1.75}
+.professional-work .professional-materials{margin:0;gap:10px}
+.professional-input-actions{gap:8px}
+.professional-input-actions>button:not(.primary){font-size:12px}
+.professional-review-input{margin:0 0 20px;align-items:flex-end;gap:16px}
+.professional-review-input>.field{max-width:none;min-width:0}
+.professional-review-input select{min-height:38px;line-height:20px;padding:8px 12px}
+.professional-review-input>.button-row{flex-shrink:0}
+.professional-work .review-source-card{padding:20px;margin:0 0 20px;background:#fafafe;border-color:var(--line)}
+.review-source-card h3{font-size:15px;line-height:1.6;overflow-wrap:anywhere}
+.professional-work .review-source-card p{font-size:12px;line-height:1.75;margin:6px 0;color:#697285}
+.professional-work .review-source-card .button-row{margin-top:16px}
+.professional-review-result{padding:20px}
+.professional-review-result>.task-panel:first-child{margin-top:0}
+.professional-report-body{margin-top:20px;padding-top:20px;border-top:1px solid var(--line)}
+.professional-report-body>.section-heading{margin-bottom:12px}
+.professional-report-body h3{margin:0;font-size:15px}
+.professional-report-body>.muted{font-size:12px;line-height:1.7}
+@media(max-width:1050px){.professional-work .professional-grid{grid-template-columns:230px minmax(0,1fr);gap:16px}.professional-grid>.professional-writing-input{padding:16px}.professional-work .professional-writing-result{padding:16px}.professional-work .writing-progress li{padding:6px;gap:6px}}
+@media(max-width:850px){.professional-work .professional-grid{grid-template-columns:minmax(0,1fr)}.professional-work>.section-heading{flex-wrap:wrap}.professional-review-input .button-row{margin-top:12px}.professional-work .professional-writing-result,.professional-review-result{padding:16px}.professional-work .writing-progress{grid-template-columns:repeat(auto-fit,minmax(135px,1fr))}}
+@media(max-width:540px){.professional-work>.section-heading h2{font-size:18px}.professional-work>.section-heading .section-copy{font-size:12px}.professional-work .review-source-card{padding:16px}.review-source-card .button-row>button{flex:1 1 140px}.professional-work .professional-result .section-heading{align-items:flex-start}}
+
+.professional-work .writing-progress li>div{min-width:0}
+.professional-work .writing-progress small{display:block;font-size:10px;font-weight:400;line-height:1.6;margin-top:3px;color:#788091}
+.professional-work .writing-progress .current small{color:#6c5bab}
+.professional-work .writing-progress .done small{color:#4a7f65}
+.professional-entry-note,.professional-task-caption{color:#697285;font-size:12px;line-height:1.7}
+.professional-entry-note{margin:-12px 0 20px}
+.professional-task-caption{margin:6px 0 0}
+.professional-start-field{padding-bottom:14px;border-bottom:1px solid var(--line)}
+.professional-start-field small{color:#697285;line-height:1.6}
+.professional-backtrack{display:grid;grid-template-columns:minmax(0,1fr);gap:6px;padding-top:8px;border-top:1px solid var(--line)}
+.professional-backtrack select{min-width:0;width:100%;font-size:12px}
+.professional-version-note{margin:10px 0 0;padding:10px 12px;border:1px solid #ded9f1;border-radius:8px;background:#f8f6ff;color:#655886;font-size:12px;line-height:1.7}
+.professional-writing-result>.section-heading select{min-width:0;width:auto;max-width:100%;font-size:12px}
+.professional-work .professional-writing-result>.section-heading{align-items:flex-start}
+
+/* Keep completed text in view on laptop displays; task evidence remains expandable. */
+.professional-result-records[open]>.task-disclosure>.task-disclosure-chevron{transform:rotate(90deg)}
+.professional-result-records-content{padding:0 12px 12px;max-height:360px;overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable}
+.professional-result-records-content>.task-panel:last-child{margin-bottom:0}
+.professional-result-records .task-panel-badge{white-space:normal;text-align:right}

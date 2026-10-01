@@ -1,0 +1,249 @@
+{
+  "schema": 1,
+  "version": "0.16.0",
+  "verifiedAt": "2026-09-29T17:26:27.265Z",
+  "localTimeZone": "Asia/Shanghai",
+  "scope": [
+    "实际阅读范围及来源证据",
+    "带来源的任务记忆与长对话保留",
+    "结构化引用及意见回应核对"
+  ],
+  "source": {
+    "baseCommit": "793bbd1a644be213b7a8b2cf078dd72bdd9ae509",
+    "uncommitted": true,
+    "files": [
+      {
+        "file": "desktop/agent-broker.test.ts",
+        "sha256": "79dcba7b018414f0de3d1e7635e21b8e12493345b2615fc123c649344c9fd68f"
+      },
+      {
+        "file": "desktop/agent-broker.ts",
+        "sha256": "da1db1caf190f77d6686671775358b6e0ffa3c81b546dfe9d9b780c98ef35e4a"
+      },
+      {
+        "file": "desktop/agent-document-reader.ts",
+        "sha256": "7c349290c6d1f5bd286f055c24da966f5a8ae49b0af9105f2d97bd033e0f54f8"
+      },
+      {
+        "file": "desktop/agent-evidence.test.ts",
+        "sha256": "847b6c5f93a2338b95659bb68a4cf63e9e4a5d12703744fe231cf0cd045163b9"
+      },
+      {
+        "file": "desktop/agent-evidence.ts",
+        "sha256": "085e0539673b371a161fd58469cb1474c6bd7ed0499e959d6475e42a28df7b13"
+      },
+      {
+        "file": "desktop/agent-host.test.ts",
+        "sha256": "73dc8258dd4466d2468c3749483621b405626c46639d570f2204ad221a8da073"
+      },
+      {
+        "file": "desktop/agent-host.ts",
+        "sha256": "848e7550874727844a2b504df4c5d1a00229b5c81d9ad26d8f81a0c2ee466d9c"
+      },
+      {
+        "file": "desktop/agent-integration.ts",
+        "sha256": "ed779d1537925dea3642162ca3a02c04b3fd6568496ca11c93855e1c167b518d"
+      },
+      {
+        "file": "desktop/agent-runner.ts",
+        "sha256": "838840ff5dad3ee428c2070d11f7ac6925f7d3d6c10b86d59be1632dc49c50fc"
+      },
+      {
+        "file": "desktop/artifact-checkpoint.ts",
+        "sha256": "4441fc510538f106fe583b474c5fe469bb44756ca5a438502296cdad12eea071"
+      },
+      {
+        "file": "desktop/conversation-context.test.ts",
+        "sha256": "daf22d08ea3a6112602362297d8b22ba22e1625b29c354d119af660e94a89c55"
+      },
+      {
+        "file": "desktop/conversation-context.ts",
+        "sha256": "e599219d8037ea09dfea22c9b25d4eae59d61c635a5fe487bd6ce1e298353b97"
+      },
+      {
+        "file": "desktop/professional-host.test.ts",
+        "sha256": "a516d0436e0fde9f7078ba041c9f5c7780d9dda558577baa704bcc106622d700"
+      },
+      {
+        "file": "desktop/professional-host.ts",
+        "sha256": "cccb79c7c8155a71aeab7383e187e744da7915b272952a4f881b51855a6e8ff9"
+      },
+      {
+        "file": "package-lock.json",
+        "sha256": "6cda68a51b527a77354a50f785d95f11d23f769ce245efa7ba3d1fd1fe296b4f"
+      },
+      {
+        "file": "package.json",
+        "sha256": "4f2cb7a109ebe3411505c64a885b2eb9256e9a3fedd07b7f505d37af84a2028a"
+      },
+      {
+        "file": "src/components/AgentRunStatus.tsx",
+        "sha256": "608455e4571c215227bdaae50c285fb8d2caa56dacfc8ec41543195c171380bf"
+      },
+      {
+        "file": "src/components/ProfessionalWork.tsx",
+        "sha256": "88a7bbe83728187684710ffcde63f46e8ab916420eac347d8e439e24ba1f43d5"
+      },
+      {
+        "file": "src/components/TaskEvidenceDetails.tsx",
+        "sha256": "a4f4470ac678ed4ccb39a78d81ce395150674358c3dc8678c60fe9771bfe86e0"
+      },
+      {
+        "file": "src/desktop.ts",
+        "sha256": "629d0dd0d44a8703eaac8680e151053b2989f1949736b90b5a3abde2ecf8623c"
+      },
+      {
+        "file": "src/domain/agent-evidence.ts",
+        "sha256": "eb25251f4e3126f07b0ba1a8089ab8f0babce9f7a29a85cac2a2880f4dffd399"
+      },
+      {
+        "file": "src/domain/agent.test.ts",
+        "sha256": "b9a1351a536e36f2bead304d93e30402ec947bd88380bafec858f0180b041e56"
+      },
+      {
+        "file": "src/domain/agent.ts",
+        "sha256": "95d016a53c76f8eb17e863032567337cca02e4827cc34cf11be4de3178be8b5e"
+      },
+      {
+        "file": "src/domain/task-memory.test.ts",
+        "sha256": "f79978a7a253c55dfe7ca133c073534b07f06bf7d779ec67802aae7a4ae9c106"
+      },
+      {
+        "file": "src/domain/task-memory.ts",
+        "sha256": "34508d9bb5ed4d0f05a4f7a6c915df8993f7dae9e3b7ea90603b3b0ec8406c71"
+      },
+      {
+        "file": "src/professional-api.ts",
+        "sha256": "cf7c1ae4daddbbef3e3fb48713eb5afd0c7d1427a0849098a5b9402981578408"
+      },
+      {
+        "file": "src/task-evidence.css",
+        "sha256": "badb20dff868163958c38b161136e4c158366fc7be3433c9ac4dc38b8a4ba42f"
+      }
+    ],
+    "desktopBundleSha256": "4978f30980a912f9060b8fdda6c1acb00db511f0b4030b1e3da2be47374c2da3"
+  },
+  "verification": {
+    "automated": {
+      "command": "npm test",
+      "tests": 749,
+      "passed": 749,
+      "failed": 0,
+      "skipped": 0,
+      "cancelled": 0
+    },
+    "productionBuild": {
+      "command": "npm run build",
+      "exitCode": 0,
+      "includes": [
+        "TypeScript",
+        "Vite frontend",
+        "desktop bundle"
+      ]
+    },
+    "browser": {
+      "kind": "synthetic-components",
+      "components": [
+        "AgentRunStatus",
+        "TaskEvidenceDetails"
+      ],
+      "url": "http://127.0.0.1:5189/",
+      "viewports": [
+        {
+          "width": 1425,
+          "height": 692
+        },
+        {
+          "width": 845,
+          "height": 583
+        }
+      ],
+      "results": [
+        "折叠 / 展开及内部滚动",
+        "用户原话与已确认来源区分",
+        "已保存含提示、需补读及旧记录三种状态",
+        "窄窗无水平溢出；面板 clientWidth=scrollWidth",
+        "合成周边操作未被提示禁用"
+      ],
+      "applicationErrors": 0,
+      "extensionErrors": 2,
+      "sessionClosed": true,
+      "fixtureServerStopped": true,
+      "limitations": [
+        "不是完整应用端到端验证",
+        "未证明真实定稿操作或原生 Electron 行为"
+      ],
+      "temporaryArtifacts": [
+        {
+          "file": "/tmp/patent-agent-evidence-ui/desktop.png",
+          "sha256": "ce717405f1a1c088a0d1cb77c26ac302c143904227679c0cdd8297b551dc4acf",
+          "temporary": true
+        },
+        {
+          "file": "/tmp/patent-agent-evidence-ui/narrow-final.png",
+          "sha256": "fb4b885ad9fbca1e6c9e7b68bdb623067dcc1ac216dd4d64d0c5813099b4611d",
+          "temporary": true
+        },
+        {
+          "file": "/tmp/patent-agent-evidence-ui/debug.json",
+          "sha256": "fc0379db128a137e52ab209333fb776becfb9c533d917d9812f5db9322ea2882",
+          "temporary": true
+        }
+      ]
+    },
+    "packagingEvidence": "evidence/release-0.16.0-20260930.json",
+    "nativeGui": false,
+    "realModel": false,
+    "wordNativeLayout": false,
+    "macInstallation": false,
+    "windowsInstallation": false,
+    "realBusinessWrite": false,
+    "independentReviewer": false
+  },
+  "regressions": [
+    "已知通知缺页补读，普通参考部分读取为提示",
+    "错误来源 / 哈希 / 范围 / 引文返回修复",
+    "页边界与数学符号匹配，视觉 / 转换来源不假称文字通过",
+    "真实 broker 拒绝、补读、修正、接受闭环",
+    "被延后用户原文分页阅读及空读不算完成",
+    "早期限制、当前分支及已确认阶段各轮原话保留",
+    "独立审查不注入主讨论",
+    "任务快照 / 质量落盘；迟到事件不覆盖已结束任务",
+    "答复复核在审查历史保留记忆及质量报告"
+  ],
+  "reviewFindingsResolved": [
+    "跨阶段保留已确认阶段早期输入",
+    "稿件补读提示使用 read_draft",
+    "专业任务结束后拒绝迟到质量事件",
+    "审查历史映射携带对应任务来源"
+  ],
+  "guardrails": [
+    "未增加人工定稿、提交或必选独立审查门槛",
+    "旧记录与人工稿兼容",
+    "未接触真实凭证、案件材料或服务端业务写入",
+    "未提交、推送、发布或覆盖安装"
+  ],
+  "remaining": [
+    "授权隔离材料上的真实模型读取与答复质量",
+    "当前版本 Electron GUI 与退出恢复现场验证",
+    "用户准确模板的 Word 版式验收",
+    "macOS 覆盖安装与 Windows 安装启动验收"
+  ],
+  "logs": [
+    {
+      "file": "/tmp/patent-agent-evidence-tests-final.log",
+      "sha256": "5dc63fc5c66c373f46b940945c457f3addaf2f0d4b657d33b89654a13919ede1",
+      "temporary": true
+    },
+    {
+      "file": "/tmp/patent-agent-evidence-build.log",
+      "sha256": "764a689773b33b78a8c37338edeaaf38b6316e5a8bc353ffb2ddc75e83f192ea",
+      "temporary": true
+    },
+    {
+      "file": "/tmp/patent-agent-evidence-packaging-final.log",
+      "sha256": "a9b338377db1ca1daee3b63cc84946893e65ec358715945c6e15592f704440ed",
+      "temporary": true
+    }
+  ]
+}

@@ -1,0 +1,89 @@
+{
+  "schema": 1,
+  "version": "0.16.0",
+  "verifiedAt": "2026-09-29T17:22:14.049Z",
+  "timeZone": "Asia/Shanghai",
+  "manifest": {
+    "version": "0.16.0",
+    "builtAt": "2026-09-29T17:21:23.073Z",
+    "appId": "com.patentworkbench.desktop",
+    "productName": "专利工作台",
+    "files": [
+      {
+        "file": "专利工作台-0.16.0-macOS-arm64.app",
+        "platform": "mac-arm64",
+        "version": "0.16.0",
+        "sha256": "7854d375f95614c24aef3614359ed1fe7bb7b85bce27a1bd314573fb367d6684",
+        "hashAlgorithm": "sha256-tree"
+      },
+      {
+        "file": "PatentWorkbench-0.16.0-macOS-arm64.pkg",
+        "platform": "mac-arm64-installer",
+        "version": "0.16.0",
+        "sha256": "76ca71a45361dd6e3990388d0b26a4a05d5ae0d1cc49e87451a76192fba01699",
+        "hashAlgorithm": "sha256"
+      },
+      {
+        "file": "PatentWorkbench-0.16.0-Windows-x64-Setup.exe",
+        "platform": "win-x64",
+        "version": "0.16.0",
+        "sha256": "de2ad0f4b438d5bdfe15362b0cf89731d3d1019c360106615c003ed565048442",
+        "hashAlgorithm": "sha256"
+      }
+    ]
+  },
+  "bundleSha256": "4978f30980a912f9060b8fdda6c1acb00db511f0b4030b1e3da2be47374c2da3",
+  "bundleMatchesBothPlatforms": true,
+  "previousReleasePreserved": {
+    "version": "0.15.3",
+    "files": [
+      {
+        "file": "专利工作台-0.15.3-macOS-arm64.app",
+        "platform": "mac-arm64",
+        "version": "0.15.3",
+        "sha256": "2f0f578e2607730c809fc28db1416285b6dadae48473840e5898af3ad382f456",
+        "hashAlgorithm": "sha256-tree"
+      },
+      {
+        "file": "PatentWorkbench-0.15.3-macOS-arm64.pkg",
+        "platform": "mac-arm64-installer",
+        "version": "0.15.3",
+        "sha256": "9e51456baaec3f77c19e5f383c31d59576b3c497eeb4abd5442ce6a5d722d2ad",
+        "hashAlgorithm": "sha256"
+      },
+      {
+        "file": "PatentWorkbench-0.15.3-Windows-x64-Setup.exe",
+        "platform": "win-x64",
+        "version": "0.15.3",
+        "sha256": "fc0b23709a8fef274b6f24cc9a2eb0b2ce1fb9162ac46adcfce7f88a2d1ef019",
+        "hashAlgorithm": "sha256"
+      }
+    ],
+    "hashesRechecked": true
+  },
+  "verification": {
+    "macApp": true,
+    "macPkgXarHeader": true,
+    "windowsPeHeader": true,
+    "installed": false,
+    "nativeGui": false,
+    "windowsRuntime": false,
+    "published": false,
+    "macPkgMetadataVersion": [
+      {
+        "file": "Distribution",
+        "versionMatch": true
+      },
+      {
+        "file": "com.patentworkbench.desktop.pkg/PackageInfo",
+        "versionMatch": true
+      }
+    ],
+    "packagedPayloadAndRuntimeFiles": true
+  },
+  "notes": [
+    "本机生成并校验；未安装、未签名公证、未创建发布。",
+    "未调用会清理旧包的 publishArtifacts；0.15.3 三项制品保留且摘要一致。"
+  ],
+  "temporaryStagingRemoved": true
+}

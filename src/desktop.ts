@@ -113,6 +113,8 @@ export function canSelectCaseMaterials(opts: {
 
 export function toolEventLabel(tool: ToolEvent): string {
   const kind = toolKindOf(tool);
+  if(kind==='read_task_memory')return tool.status==='ok'?'已读取本次记忆':'读取本次记忆';
+  if(kind==='inspect_evidence')return '检查材料证据';
   if(kind==='custom_mcp')return '自定义 MCP · '+tool.filename;
   const failed = tool.status === 'error';
   const stopped = tool.status === 'stopped';

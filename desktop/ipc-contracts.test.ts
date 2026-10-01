@@ -152,6 +152,8 @@ test('IPC contract guards reject malformed or unsupported commands', () => {
   assert.throws(() => ipcAgentCommand({ type: 'queue', discussionId: 'd-1', operation: 'remove' }), /队列消息标识无效/);
   assert.throws(() => ipcAgentCommand({ type: 'conversation', discussionId: 'd-1', operation: 'edit', messageId: 'm-1' }), /对话内容无效/);
   assert.throws(() => ipcAgentCommand({ type: 'conversation', discussionId: 'd-1', operation: 'retry' }), /任务标识无效/);
+  assert.deepEqual(ipcProfessionalCommand({ type: 'start-at', phase: 2 }), { type: 'start-at', phase: 2 });
+  assert.throws(() => ipcProfessionalCommand({ type: 'start-at', phase: 5 }), /撰写阶段无效/);
   assert.throws(() => ipcProfessionalCommand({ type: 'unknown' }), /不支持的专业工作操作/);
   assert.throws(() => ipcProfessionalCommand({ type: 'write' }), /撰写要求无效/);
   assert.throws(() => ipcProfessionalCommand({ type: 'write', materialIds: [] }), /撰写要求无效/);

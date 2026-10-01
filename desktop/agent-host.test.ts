@@ -93,6 +93,7 @@ function draftJson(strategyId = 's2') {
 }
 
 type RunnerCtl = {
+  quality?: import('../src/domain/agent-evidence.ts').ArtifactQuality;
   starts: number;
   last?: AgentHostRunInput;
   gate?: Promise<void>;
@@ -139,6 +140,7 @@ function mockRunner(ctl: RunnerCtl): AgentHostRun {
           : input.action === 'review' ? JSON.stringify({ kind: 'review', draftVersionId: input.draft?.id, summary: '未见必须处理的问题。', issues: [] })
             : JSON.stringify({ kind: 'discuss', reply: '可以讨论期限。' });
       await fs.writeFile(path.join(input.outputDir, 'result.json'), text);
+      if(ctl.quality)await input.onEvent({type:'quality',quality:ctl.quality});
       await input.onEvent({ type: 'completed', outputText: text });
     })();
     return {
@@ -214,6 +216,32 @@ async function setup(t: test.TestContext, runnerCtl?: RunnerCtl, over?: {
 }
 
 const classify = { patentType: '发明' as const, noticeCategory: '审查意见通知书' as const, officeActionRound: 1, correctionBasis: 'original' as const };
+
+test('task memory and quality persist while late quality cannot overwrite a settled reply job', async t => {
+  let release!:()=>void;
+  const gate=new Promise<void>(resolve=>{release=resolve;});
+  t.after(()=>release());
+  const {root,service,host,ctl}=await setup(t,{starts:0,gate});
+  const c=await prepareCase(service,'MEMORY');
+  await readyAnalysis(host,c.id,['n-MEMORY','a-MEMORY']);
+  await host.command('local',c.id,{type:'run',action:'analysis',userMessage:'只能修改权利要求3，不得改变权利要求1'});
+  const input=ctl.last!;
+  const frozen=JSON.parse(await fs.readFile(path.join(input.snapshotDir,'task-memory.json'),'utf8'));
+  assert.deepEqual(frozen,JSON.parse(JSON.stringify(input.taskMemory)));
+  assert(frozen.entries.some((e:{text:string})=>e.text==='只能修改权利要求3，不得改变权利要求1'));
+  const quality={schema:1 as const,materials:[],citations:[],issues:[{code:'CITATIONS_NOT_STRUCTURED',severity:'warning' as const,message:'合成核对提示'}]};
+  await input.onEvent({type:'quality',quality});
+  release();await host.waitIdle();
+  let view=await host.getCase('local',c.id);
+  const saved=view.process.jobs.find(j=>j.runId===input.runId)!;
+  assert.equal(saved.state,'completed');assert.deepEqual(saved.quality,quality);
+  assert(saved.memory?.entries.some(e=>e.preview.includes('不得改变权利要求1')));
+  const disk=JSON.parse(await fs.readFile(path.join(root,'profiles/local/agent/state.json'),'utf8'));
+  assert(JSON.stringify(disk).includes('合成核对提示'));
+  await input.onEvent({type:'quality',quality:{...quality,issues:[]}});await host.waitIdle();
+  view=await host.getCase('local',c.id);
+  assert.deepEqual(view.process.jobs.find(j=>j.runId===input.runId)?.quality,quality);
+});
 
 async function readyAnalysis(host: AgentHost, caseId: string, ids: string[]) {
   await host.command('local', caseId, { type: 'classify', classification: classify });
@@ -368,7 +396,7 @@ test('initial task persistence failure never reserves a live slot or prevents re
 });
 
 test('策略门、独立复核、定稿 Word、采用冲突与成果索引隔离', async t => {
-  const { service, host, root } = await setup(t);
+  const { service, host, root, ctl } = await setup(t);
   const c = await prepareCase(service, 'F1');
   await host.command('local', c.id, { type: 'classify', classification: { patentType: '发明', noticeCategory: '审查意见通知书', officeActionRound: 1, correctionBasis: 'original' } });
   await host.command('local', c.id, { type: 'materials', selectedIds: ['n-F1', 'a-F1'] });
@@ -399,11 +427,16 @@ test('策略门、独立复核、定稿 Word、采用冲突与成果索引隔离
   await host.command('local', c2.id, { type: 'adopt', versionId: okPending.id });
   const reviewSource=(await host.reviewSources('local')).find(s=>s.caseId===c2.id)!;assert.equal(reviewSource.files.length,2);assert(reviewSource.files.every(f=>f.hash));assert.equal(reviewSource.supersededAt,undefined);
   const scopedSources=await host.reviewSources('local',c2.id);assert.equal(scopedSources.length,1);assert.equal(scopedSources[0].caseId,c2.id);
+  ctl.quality={schema:1,materials:[],citations:[],issues:[{code:'CITATIONS_NOT_STRUCTURED',severity:'warning',message:'复核来源提示'}]};
   view = await host.getCase('local', c2.id);
   await host.command('local', c2.id, { type: 'run', action: 'review' });
   await host.waitIdle();
   view = await host.getCase('local', c2.id);
   assert.ok(view.process.discussions.some(item => item.kind === 'review'));
+  const report=(await host.reviewSources('local',c2.id))[0].reports![0];
+  assert.deepEqual(report.quality,ctl.quality);
+  assert.deepEqual(report.memory,view.process.jobs.find(j=>j.action==='review')!.memory);
+  assert(report.memory?.entries.some(e=>e.kind==='version'));
   await host.command('local', c2.id, { type: 'finalize' });
   view = await host.getCase('local', c2.id);
   assert.equal(view.process.stage, 'final');
@@ -997,6 +1030,8 @@ test('0.4: stopped partial and thoughts persist; continue excludes thoughts; edi
   const saved = JSON.parse(await fs.readFile(path.join(service.root, 'profiles/local/agent/state.json'), 'utf8'));
   assert.ok(saved.processes[0].jobs[0].partialText);
   await host.command('local', c.id, { type: 'conversation', discussionId, operation: 'continue', runId: first.runId });
+  assert.equal(inputs[1].resumeFromRunId,first.runId);
+  assert.equal(inputs[1].artifactScope,first.artifactScope);
   assert.ok(inputs[1].messages.some(m => m.text.includes('未完成旧回复')));
   assert.equal(JSON.stringify(inputs[1].messages).includes('供应商返回的分析摘要'), false);
   await inputs[1].onEvent({ type: 'partial', text: '第二次尚未完成' });
@@ -1004,6 +1039,8 @@ test('0.4: stopped partial and thoughts persist; continue excludes thoughts; edi
   await host.command('local', c.id, { type: 'conversation', discussionId, operation: 'edit', messageId: user.id, text: '修改后的问题' });
   assert.equal(inputs[1].signal.aborted, true);
   assert.equal(inputs.length, 3);
+  assert.equal(inputs[2].resumeFromRunId,undefined);
+  assert.notEqual(inputs[2].artifactScope,first.artifactScope);
   assert.deepEqual(inputs[2].messages.map(m => m.text), ['修改后的问题']);
   await inputs[1].onEvent({ type: 'partial', text: '迟到污染' });
   await host.command('local', c.id, { type: 'stop', runId: inputs[2].runId });

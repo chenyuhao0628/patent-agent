@@ -115,3 +115,17 @@ test('generic download accepts non-Office sources, verifies hash, rejects redire
   const controller = new AbortController(); controller.abort(); await assert.rejects(downloadToolFile({ ...input, signal: controller.signal }, fetcher));
   assert.deepEqual(await fs.readdir(root), before);
 });
+
+test('verified command outputs resume even before any artifact save, without replaying completed command', {skip:process.platform==='win32'},async t=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'local-resume-'));
+ configureManagedTools(path.join(root,'tools'));configureLocalTools({commandsEnabled:true,downloadsEnabled:false});
+ const out=path.join(root,'old/outputs'),options={token:randomRunToken(),snapshotRoot:path.join(root,'snap'),outputsRoot:out,materials:[],artifactScope:'case-A'};
+ let b=await startAgentBroker(options);t.after(async()=>{await b.close();configureLocalTools({commandsEnabled:false,downloadsEnabled:false});await fs.rm(root,{recursive:true,force:true});});
+ const args={command:'printf "reusable synthetic text" > converted.txt'};
+ assert.equal((await call(b,'execute_command',args)).isError,false);const operation=b.progress().recovery!.operations[0];assert.equal(operation.state,'finished');await b.close();
+ b=await startAgentBroker({...options,outputsRoot:path.join(root,'new/outputs'),recoveryArtifactRoot:out,recoveryJournalPath:path.join(root,'old/operation-journal.json')});
+ assert.equal(b.progress().recovery?.files.find(f=>f.relativePath==='converted.txt')?.state,'reused');
+ assert.match(JSON.stringify(await call(b,'read_work_file',{path:'converted.txt'})),/reusable synthetic text/);
+ assert.equal((await call(b,'execute_command',args)).isError,true);
+ assert.match(JSON.stringify(await call(b,'inspect_artifact',{operationId:operation.id})),/exitCode/);
+});

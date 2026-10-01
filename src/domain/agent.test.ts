@@ -864,3 +864,13 @@ test('artifactPreviewText extracts full text for all final and drafting artifact
   assert.equal(artifactPreviewText('unknown-kind', draft), undefined);
   assert.equal(artifactPreviewText('final-word', undefined), undefined);
 });
+
+test('known notice coverage requires missing lines while legacy and reference reads stay compatible',()=>{
+ const base=confirmed();let state=unwrap(startAgentJob(base,{...scope,action:'analysis',discussionId:base.mainDiscussionId})).state;
+ state=readSelected(state);
+ const runId=state.activeRunId!;
+ state=unwrap(recordToolEvent(state,{...scope,runId,filename:'通知.pdf',materialId:'n1',toolKind:'read_material',status:'ok',evidence:{materialId:'n1',hash:'h-notice',unit:'page',start:1,end:1,total:3,mode:'text',completeUnits:true}})).state;
+ assert.match(missingFormalReads(state,runId)?.error??'',/2-3/);
+ state=unwrap(recordToolEvent(state,{...scope,runId,filename:'通知.pdf',materialId:'n1',toolKind:'read_material',status:'ok',evidence:{materialId:'n1',hash:'h-notice',unit:'page',start:2,end:3,total:3,mode:'visual',completeUnits:true}})).state;
+ assert.equal(missingFormalReads(state,runId),null);
+});
