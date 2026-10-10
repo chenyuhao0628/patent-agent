@@ -21,6 +21,14 @@ export class Server extends BaselandClient {
     if(ep==='GetFormInstructionsAndImage')return {FormGroup:structuredClone(this.group),...structuredClone(this.setting)};
     if(['GetFormOpinionStatement','GetFormCorrection','GetFormPatentRequestInfo'].includes(ep!))return this.badReadback&&this.form?{...this.form,File:{FileNo:'wrong'},CorrectionContentList:[]}:structuredClone(this.form);
     if(ep==='IsHasCaseHandForm')return true;
+    if(ep==='GetCaseNameByInstructionsFile')return {CaseName:'说明书抬头名称'};
+    if(ep==='UploadFormFile'){
+      const part=FIVE_PARTS.find(p=>p.code===String(body.FormCode));if(!part)return 'FormCodeNullOrEmpty';
+      const figure=body.SpecificationInfoList?.find((s:any)=>s.Type==='AbstractDrawNumber')?.StrValue;
+      this.group=this.group.filter(g=>String(g.FormCode)!==String(body.FormCode));
+      this.group.push({FormCode:body.FormCode,FormName:part.name,File:structuredClone(body.File),...(figure?{AbstractDrawNumber:figure}:{})});
+      return 'Success';
+    }
     if(ep==='UploadExistFileFormInstructionsAndImage')return {Result:'Success',FileList:FIVE_PARTS.filter(p=>this.parsedCodes.includes(p.code)).map(p=>({FormName:p.name,FormCode:Number(p.code),FileNo:'split-'+p.code,CaseName:p.code==='100002'?'说明书抬头名称':undefined,Untouched:'preserve'}))};
     if(ep==='ModifyFormInstructionsAndImage'){this.group=[...body.FileList.map((f:any)=>({FormCode:f.FormCode,AbstractDrawNumber:f.AbstractDrawNumber,File:{FileNo:f.FileNo,FileName:f.FormName+'.docx'}})),{IsMixFile:true,File:{FileNo:body.MixFile.fileNo,FileName:body.MixFile.fileName}}];return 'Success';}
     if(ep==='UpdateFormInstructionsAndImageSetting'||ep==='InsertFormInstructionsAndImageSetting'){this.setting={...this.setting,...body,CaseHandFormInstructionsAndImageSettingId:'setting-1'};return 'Success';}

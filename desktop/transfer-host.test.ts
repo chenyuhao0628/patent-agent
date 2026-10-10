@@ -7,6 +7,7 @@ import { Server } from './test-support/transfer-server.ts';
 import { DesktopService } from './service.ts';
 import { TransferHost, pickTransferRecipient } from './transfer-host.ts';
 import { isRemoteTransferSaved, remoteFiles, remoteApplicationMissing } from './baseland-transfer.ts';
+import { exportApplicationParts } from './document-export.ts';
 import type { AgentHost } from './agent-host.ts';
 import type { Case } from '../src/domain/workflow.ts';
 
@@ -22,6 +23,129 @@ async function setup(t:test.TestContext){
   const source=path.join(root,'reply.docx');await fs.copyFile(path.resolve('resources/document-templates/reply.docx'),source);
   return {root,service,client,agent,host,c,source};
 }
+
+test('workbench claims and description save as independent files, survive reopen and never use mixed parsing',async t=>{
+ const {service,client,agent,c}=await setup(t);
+ client.setting.IsShowCaseName=true;
+ const parts={CLAIMS:'1. 一种测试设备，包括底座。'+String.fromCharCode(10)+'2. 根据权利要求1所述的设备，还包括支架。',DESCRIPTION:'合成测试设备'+String.fromCharCode(10)+'技术领域'+String.fromCharCode(10)+'本发明涉及合成测试。'};
+ agent.getCase=async()=>({artifacts:[],process:{drafts:[{id:'two-parts',text:'本次修改说明书与权利要求书。',adoptStatus:'adopted',applicationParts:parts}],currentDraftVersionId:'two-parts',classification:{status:'classified',noticeCategory:'审查意见通知书',officeActionRound:1}}}) as any;
+ const host=new TransferHost(service,agent,{templatesRoot:path.resolve('resources/document-templates')});
+ let view=await host.prepare(service.key,c.id);
+ assert.deepEqual(view.files.map(f=>f.role).sort(),['claims','description','reply']);
+ assert.deepEqual(view.review.keepCodes,['100001','100002']);assert.equal(view.review.form.claimsCount,'2');
+ assert.equal(client.serial,0);
+ const originals=await Promise.all(view.files.map(async f=>fs.readFile(await service.casePath(c.id,f.relativePath))));
+ const reopened=new TransferHost(service,agent);view=(await reopened.inspect(service.key,c.id))!;
+ assert.equal(view.files.length,3);
+ assert.match((await reopened.previewFile(service.key,view.id,{role:'claims'})).content??'',/一种测试设备/);
+ view=await reopened.save(service.key,view.id,{...view.review,confirmedDraftId:'two-parts'});
+ assert.equal(view.phase,'saved',view.error);
+ assert.equal(client.serial,3);
+ const uploaded=client.calls.filter(c=>c.endpoint.endsWith('/UploadFormFile'));
+ assert.deepEqual(uploaded.map(c=>c.body.FormCode),[100001,100002]);
+ assert.deepEqual(uploaded[0].body.SpecificationInfoList,[{Type:'ClaimsCount',Value:2}]);
+ assert.equal(client.group.length,2);assert.equal(client.setting.CaseName,'说明书抬头名称');
+ assert(!client.calls.some(c=>/UploadExistFileFormInstructionsAndImage|ModifyFormInstructionsAndImage|SubmitHandFlow/.test(c.endpoint)));
+ assert(!client.calls.some(c=>c.endpoint.endsWith('DeleteFormInstructionsAndImageMixFile')));
+ for(const [index,file] of view.files.entries())assert.deepEqual(await fs.readFile(await service.casePath(c.id,file.relativePath)),originals[index]);
+});
+
+test('workbench claims-only amendments retain remote name without requiring a new description',async t=>{
+ const {service,client,agent,c}=await setup(t);client.setting.IsShowCaseName=true;client.setting.CaseName='远端已核对名称';
+ agent.getCase=async()=>({artifacts:[],process:{drafts:[{id:'claims-only',text:'本次仅修改权利要求。',adoptStatus:'adopted',applicationParts:{CLAIMS:'1. 一种合成装置，包括组件。'}}],currentDraftVersionId:'claims-only',classification:{status:'classified',noticeCategory:'审查意见通知书',officeActionRound:1}}}) as any;
+ const host=new TransferHost(service,agent,{templatesRoot:path.resolve('resources/document-templates')});
+ let view=await host.prepare(service.key,c.id);view=await host.save(service.key,view.id,{...view.review,confirmedDraftId:'claims-only'});
+ assert.equal(view.phase,'saved',view.error);assert.equal(client.setting.CaseName,'远端已核对名称');
+ assert(!client.calls.some(c=>c.endpoint.endsWith('GetCaseNameByInstructionsFile')));
+});
+
+test('manual independent files replace and remove only their own type and survive preparation restart',async t=>{
+ const {root,service,client,agent,host,c,source}=await setup(t);
+ const claims=path.join(root,'claims.docx'),description=path.join(root,'description.docx');
+ await fs.writeFile(claims,await exportApplicationParts(path.resolve('resources/document-templates'),{CLAIMS:'1. 一种测试组件。'}));
+ await fs.writeFile(description,await exportApplicationParts(path.resolve('resources/document-templates'),{DESCRIPTION:'合成测试说明书'}));
+ let view=await host.prepare(service.key,c.id,false,'local');
+ view=await host.addFile(service.key,view.id,'reply',source);
+ view=await host.addFile(service.key,view.id,'claims',claims);
+ view=await host.addFile(service.key,view.id,'description',description);
+ const desc=view.files.find(f=>f.role==='description')!;
+ await assert.rejects(host.addFile(service.key,view.id,'claims',description),/包含其他申请部分/);
+ await assert.rejects(host.addFile(service.key,view.id,'application',claims),/不能同时选用/);
+ await fs.writeFile(claims,await exportApplicationParts(path.resolve('resources/document-templates'),{CLAIMS:'1. 一种修改后测试组件。'}));
+ view=await host.addFile(service.key,view.id,'claims',claims);assert.deepEqual(view.files.find(f=>f.role==='description'),desc);
+ view=await host.removeFile(service.key,view.id,'claims');assert.deepEqual(view.review.keepCodes,['100002']);assert.deepEqual(view.files.find(f=>f.role==='description'),desc);
+ view=await host.addFile(service.key,view.id,'claims',claims);
+ const reopened=new TransferHost(service,agent);view=(await reopened.prepare(service.key,c.id,false,'local'));
+ assert.equal(view.files.length,3);view=await reopened.reprepare(service.key,view.id);assert.equal(view.files.length,3);
+ view=await reopened.save(service.key,view.id,view.review);assert.equal(view.phase,'saved',view.error);assert.equal(client.serial,3);
+});
+
+test('adding another amendment preserves reviewed claims count and exclusions',async t=>{
+ const {root,service,host,c}=await setup(t);
+ const claims=path.join(root,'claims.docx'),description=path.join(root,'description.docx');
+ await fs.writeFile(claims,await exportApplicationParts(path.resolve('resources/document-templates'),{CLAIMS:'1. 一种合成测试组件。'}));
+ await fs.writeFile(description,await exportApplicationParts(path.resolve('resources/document-templates'),{DESCRIPTION:'合成测试说明书'}));
+ let view=await host.prepare(service.key,c.id,false,'local');
+ view=await host.addFile(service.key,view.id,'claims',claims);
+ view=await host.saveLocalReview(service.key,view.id,{...view.review,keepCodes:[],form:{...view.review.form,claimsCount:'3'}});
+ view=await host.addFile(service.key,view.id,'description',description);
+ assert.equal(view.review.form.claimsCount,'3');assert.deepEqual(view.review.keepCodes,['100002']);
+ view=await host.removeFile(service.key,view.id,'description');
+ assert.equal(view.review.form.claimsCount,'3');assert.deepEqual(view.review.keepCodes,[]);
+});
+
+test('second independent upload failure retains uncertain journal and never writes reply or sends handoff',async t=>{
+ const {root,service,client,agent,host,c,source}=await setup(t);
+ const claims=path.join(root,'claims.docx'),description=path.join(root,'description.docx');
+ await fs.writeFile(claims,await exportApplicationParts(path.resolve('resources/document-templates'),{CLAIMS:'1. 一种测试组件。'}));
+ await fs.writeFile(description,await exportApplicationParts(path.resolve('resources/document-templates'),{DESCRIPTION:'合成测试说明书'}));
+ let view=await host.prepare(service.key,c.id,false,'local');
+ for(const [role,file] of [['reply',source],['claims',claims],['description',description]] as const)view=await host.addFile(service.key,view.id,role,file);
+ const request=client.request.bind(client);client.request=async(ep,b,p)=>ep.endsWith('/UploadFormFile')&&b.FormCode===100002?'InvalidFileFormat':request(ep,b,p);
+ view=await host.save(service.key,view.id,view.review);assert.equal(view.phase,'uncertain');assert.match(view.error??'',/文件格式/);
+ assert.equal(client.group.length,1);assert.equal(client.form,null);
+ assert(!client.calls.some(c=>c.endpoint.endsWith('SubmitHandFlow')));
+ const reopened=new TransferHost(service,agent);const restored=(await reopened.inspect(service.key,c.id))!;assert.equal(restored.phase,'uncertain');assert.equal(restored.files.length,3);
+ await assert.rejects(reopened.submit(service.key,restored.id),/先完成/);
+});
+
+for(const mismatch of ['none','file','form'] as const){
+ test(`interrupted amendment response recovers only exact file and form expectations: ${mismatch}`,async t=>{
+  const {root,service,client,agent,host,c,source}=await setup(t);
+  const claims=path.join(root,'claims.docx');
+  await fs.writeFile(claims,await exportApplicationParts(path.resolve('resources/document-templates'),{CLAIMS:'1. 一种合成组件。'}));
+  let view=await host.prepare(service.key,c.id,false,'local');
+  view=await host.addFile(service.key,view.id,'claims',claims);
+  view=await host.addFile(service.key,view.id,'reply',source);
+  const request=client.request.bind(client);let interrupt=true;
+  client.request=async(ep,b,p)=>{const result=await request(ep,b,p);if(interrupt&&ep.endsWith('InsertFormOpinionStatement')){interrupt=false;throw new Error('合成：保存响应中断');}return result;};
+  view=await host.save(service.key,view.id,view.review);
+  assert.equal(view.phase,'uncertain');assert.ok(view.saveExpectation);
+  if(mismatch==='file')client.group[0].File.FileNo='unrelated-file';
+  if(mismatch==='form')client.form.OpinionStatement.NoticeNo='unrelated-notice';
+  const remoteWrites=()=>client.calls.filter(c=>/[/](Add|Insert|Update|Delete|Modify|Upload|Submit|Start)/.test(c.endpoint)).length;
+  const writes=remoteWrites(),uploads=client.serial;
+  const reopened=new TransferHost(service,agent);view=(await reopened.inspect(service.key,c.id))!;
+  view=await reopened.refresh(service.key,view.id);
+  assert.equal(view.phase,mismatch==='none'?'saved':'uncertain');
+  assert.equal(view.pendingFileSave,mismatch!=='none');
+  assert.equal(client.serial,uploads);assert.equal(remoteWrites(),writes);
+  assert(!client.calls.some(c=>c.endpoint.endsWith('SubmitHandFlow')));
+ });
+}
+
+test('failed new amendments cannot be marked saved by an older complete reply after refresh',async t=>{
+ const {root,service,client,agent,host,c,source}=await setup(t);
+ let view=await host.prepare(service.key,c.id,false,'local');view=await host.addFile(service.key,view.id,'reply',source);view=await host.save(service.key,view.id,view.review);
+ assert.equal(view.phase,'saved');view=await host.revoke(service.key,view.id);
+ const claims=path.join(root,'claims.docx');await fs.writeFile(claims,await exportApplicationParts(path.resolve('resources/document-templates'),{CLAIMS:'1. 一种合成组件。'}));
+ view=await host.addFile(service.key,view.id,'claims',claims);
+ const request=client.request.bind(client);client.request=async(ep,b,p)=>ep.endsWith('/UploadFormFile')?'InvalidFileFormat':request(ep,b,p);
+ view=await host.save(service.key,view.id,view.review);assert.equal(view.phase,'uncertain');assert.equal(view.pendingFileSave,true);
+ const reopened=new TransferHost(service,agent);view=(await reopened.inspect(service.key,c.id))!;view=await reopened.refresh(service.key,view.id);
+ assert.equal(view.phase,'uncertain');assert.equal(view.pendingFileSave,true);
+ await assert.rejects(reopened.submit(service.key,view.id),/先完成/);
+});
 test('internal save survives reopen, never auto-submits, and rejects repeated submit',async t=>{
   const {service,client,host,agent,c,source}=await setup(t);
   let v=await host.prepare(service.key,c.id);v=await host.addFile(service.key,v.id,'reply',source);
@@ -201,7 +325,7 @@ test('selected full Word parts enter local transfer preparation without any remo
  const host=new TransferHost(service,agent,{templatesRoot:path.resolve('resources/document-templates')});
  const view=await host.prepare(service.key,c.id);
  assert.deepEqual(view.review.keepCodes,['100001']);assert.equal(view.parts.find(p=>p.code==='100002')?.available,false);
- const file=view.files.find(f=>f.role==='application');assert(file);
+ const file=view.files.find(f=>f.role==='claims');assert(file);
  const {applicationSections}=await import('./application-diff.ts');const parts=await applicationSections(await fs.readFile(await service.casePath(c.id,file.relativePath)));
  assert.deepEqual([...parts.keys()],['100001']);assert.match(parts.get('100001')!.text,/检测组件/);
  assert.equal(client.serial,0);assert(!client.calls.some(c=>/Upload|Save|Submit|StartHand/.test(c.endpoint)));
@@ -215,7 +339,7 @@ test('correction adopts four fields independently of a Word upload and retains e
  const host=new TransferHost(service,agent,{templatesRoot:path.resolve('resources/document-templates')});
  let view=await host.prepare(service.key,c.id);
  assert.deepEqual(view.review.form.corrections,[{...content,ChangeId:'server-row',Sort:0}]);
- assert.deepEqual(view.review.keepCodes,['100001']);assert(view.files.some(f=>f.role==='application'));
+ assert.deepEqual(view.review.keepCodes,['100001']);assert(view.files.some(f=>f.role==='claims'));
  assert(!view.files.some(f=>f.role==='reply'||/补正说明/.test(f.name)));assert.equal(client.serial,0);
  await assert.rejects(host.addFile(service.key,view.id,'reply',source),/不能上传/);assert.equal(client.serial,0);
  client.parsedCodes=['100001'];view=await host.save(service.key,view.id,{...view.review,confirmedDraftId:view.sourceDraft?.id});assert.equal(view.phase,'saved');
@@ -374,13 +498,13 @@ test('workbench automatically fetches pending draft after empty preparation and 
  const empty=await host.prepare(service.key,c.id);assert.equal(empty.files.length,0);
  const process={drafts:[{id:'pending-v1',text:'尊敬的审查员：\n合成待采用稿。\n此致',at:'2026-09-14T00:00:00Z',adoptStatus:'pending',strategyId:'s2',applicationParts:{CLAIMS:'1. 一种合成装置，包括测试组件。'}}],userSelectedStrategyId:'s2',currentDraftVersionId:null,finalized:null,reviews:[],classification:{status:'classified',noticeCategory:'审查意见通知书',officeActionRound:1}};
  agent.getCase=async()=>({artifacts:[],process}) as any;
- let view=await host.prepare(service.key,c.id);assert.notEqual(view.id,empty.id);assert.equal(view.sourceDraft?.id,'pending-v1');assert.equal(view.sourceDraft?.pending,true);assert(view.files.some(f=>f.role==='reply'));assert(view.files.some(f=>f.role==='application'));
+ let view=await host.prepare(service.key,c.id);assert.notEqual(view.id,empty.id);assert.equal(view.sourceDraft?.id,'pending-v1');assert.equal(view.sourceDraft?.pending,true);assert(view.files.some(f=>f.role==='reply'));assert(view.files.some(f=>f.role==='claims'));
  assert.equal(process.currentDraftVersionId,null);assert.equal(process.drafts[0].adoptStatus,'pending');assert.equal(client.serial,0);
  await assert.rejects(host.save(service.key,view.id,view.review),/确认.*版本/);assert.equal(client.serial,0);
  await assert.rejects(host.save(service.key,view.id,{...view.review,confirmedDraftId:'wrong'}),/确认.*版本/);
  // Latest version intentionally has no application modifications: do not bring old application file forward.
  process.drafts.push({...process.drafts[0],id:'pending-v2',at:'2026-09-15T00:00:00Z',applicationParts:{} as any});
- view=await host.reprepare(service.key,view.id);assert.equal(view.sourceDraft?.id,'pending-v2');assert(!view.files.some(f=>f.role==='application'));assert.equal(view.review.confirmedDraftId,undefined);
+ view=await host.reprepare(service.key,view.id);assert.equal(view.sourceDraft?.id,'pending-v2');assert(!view.files.some(f=>f.role==='application'||f.role==='claims'));assert.equal(view.review.confirmedDraftId,undefined);
  view=await host.save(service.key,view.id,{...view.review,confirmedDraftId:'pending-v2'});assert.equal(view.phase,'saved');assert(!client.calls.some(c=>c.endpoint.endsWith('SubmitHandFlow')));
 });
 
