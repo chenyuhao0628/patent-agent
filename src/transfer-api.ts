@@ -6,16 +6,20 @@ export const FIVE_PARTS = [
 ] as const;
 export type TransferSource = 'workbench' | 'local';
 export type TransferRoute = 'application' | 'reply' | 'correction';
-export type TransferFileRole = 'baseline' | 'application' | 'reply';
+export const TRANSFER_PART_ROLES = { claims: '100001', description: '100002', drawings: '100003', abstract: '100004', abstractImage: '100005' } as const;
+export type TransferPartRole = keyof typeof TRANSFER_PART_ROLES;
+export type TransferFileRole = 'baseline' | 'application' | 'reply' | TransferPartRole;
+export const TRANSFER_FILE_ROLES: readonly TransferFileRole[] = ['baseline', 'application', 'reply', ...Object.keys(TRANSFER_PART_ROLES) as TransferPartRole[]];
 export type CorrectionRow = { ChangeId: string; Sort: number; FileName: string; PositionInFile: string; CorrectionBefore: string; CorrectionAfter: string };
 export type PartComparison = { code: string; name: string; changed: boolean | null; reason: string; available?: boolean; before?: string; after?: string };
 export type TransferForm = {
   noticeDate: string; noticeName: string; noticeNo: string;
   correctionReason: 1 | 2; addEntrust: boolean; corrections: CorrectionRow[];
-  otherProof: boolean; experimentData: boolean; abstractFigure: string;
+  otherProof: boolean; experimentData: boolean; abstractFigure: string; claimsCount?: string;
   declarations: Record<string, boolean>;
 };
 export type TransferReview = { confirmedDraftId?: string; keepCodes: string[]; form: TransferForm; stepId: string; userId: string; remark: string };
+export type TransferSaveExpectation = { handId: string; instructionsHash: string; form: Record<string, unknown> };
 export type RemoteFileDeleteRef = { fileNo: string; handId: string; fingerprint: string };
 export type RemoteTransferFile = { fileNo: string; name: string; deleteRef?: RemoteFileDeleteRef; deleteDisabledReason?: string };
 export type RemoteFileDeletion = {
@@ -35,6 +39,8 @@ export type TransferView = {
   submissionTarget?: {handId:string;step:{id:string;name:string};user:{id:string;name:string}};
   cleanupPending?: boolean; cleanupFileNos?: string[]; localReviewSaved?: boolean;
   fileDeletion?: RemoteFileDeletion;
+  pendingFileSave?: boolean;
+  saveExpectation?: TransferSaveExpectation;
 };
 export type TransferFilePreviewRef = { role?: TransferFileRole; partCode?: string; fileNo?: string; name?: string };
 export type TransferFilePreviewResult = {

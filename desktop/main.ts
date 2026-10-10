@@ -382,7 +382,8 @@ app.whenReady().then(async()=>{
   handle('transferPrepare',ipcArgs(ipcProfileKey,ipcCaseId,ipcOptional(ipcTransferSource)),(key,id,sourceMode)=>transferHost.prepare(key,id,false,sourceMode),true,true);
   handle('transferPickFile',ipcArgs(ipcProfileKey,ipcCaseId,ipcTransferRole),async(profileKey,caseId,fileRole)=>{
     const scope=transferHost.requestScope(profileKey,caseId);
-    const selected=await dialog.showOpenDialog(window!,{title:fileRole==='baseline'?'选择本次修改所基于的完整申请文件':fileRole==='reply'?'选择本次定稿意见陈述书':'选择完整修改后的申请文件',filters:[{name:'Word 文档',extensions:['docx']}],properties:['openFile']});
+    const labels:Record<string,string>={claims:'权利要求书',description:'说明书',drawings:'说明书附图',abstract:'说明书摘要',abstractImage:'摘要附图'};
+    const selected=await dialog.showOpenDialog(window!,{title:fileRole==='baseline'?'选择本次修改所基于的完整申请文件':fileRole==='reply'?'选择本次定稿意见陈述书':labels[fileRole]?`选择本次修改后的${labels[fileRole]}（独立文件）`:'选择修改后的合并申请文件',filters:[{name:'Word 文档',extensions:['docx']}],properties:['openFile']});
     const filePath=selectedTransferFile(selected,()=>service.assertScope(scope));
     if(!filePath)return null;
     return transferHost.addFile(profileKey,caseId,fileRole,filePath);

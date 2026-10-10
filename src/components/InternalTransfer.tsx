@@ -209,7 +209,7 @@ export function InternalTransfer({profileKey,profileView,refreshSeq,scopeVersion
   const locked=busy||view?.phase!=='draft'||view?.canEditRemote===false;
   const lockedRecipient=busy||(view?.phase!=='draft'&&view?.phase!=='saved')||view?.canEditRemote===false;
   const roles: readonly TransferFileRole[] = view ? transferRouteDefinition(view.route).fileRoles : [];
-  const roleName={baseline:'修改前申请文件（比对用，可选）',application:view?.route==='application'?'完整申请文件':'本次修改后的申请文件（有修改时）',reply:'意见陈述书 Word'};
+  const roleName:Record<TransferFileRole,string>={baseline:'修改前申请文件（比对用，可选）',application:view?.route==='application'?'完整申请文件':'修改后合并稿（与独立分件二选一）',reply:'意见陈述书 Word',claims:'修改后权利要求书',description:'修改后说明书',drawings:'修改后说明书附图',abstract:'修改后说明书摘要',abstractImage:'修改后摘要附图'};
   const step=view?.steps.find(s=>s.id===review?.stepId),user=step?.users.find(u=>u.id===review?.userId);
   const phaseLabel:Record<TransferView['phase'],string>={draft:'草稿，待核对并保存',saved:'已保存，等待内部转交',submitted:'内部转交已确认',uncertain:'结果待核验，不能重复操作',superseded:'已被新方案替代'};
   const phaseDescription:Record<TransferView['phase'],string>={draft:'请依次核对材料、业务表单和下一办理人。',saved:'保存、回读和材料核验已完成，官方递交仍由后续办理人负责。',submitted:'服务端已回读下一流程和办理人，当前方案不能再次转交。',uncertain:'上一次操作结果尚未确认，请先刷新核对；确认前不能重复写入。',superseded:'本方案仅保留历史记录，不能继续执行。'};
@@ -337,8 +337,9 @@ export function InternalTransfer({profileKey,profileView,refreshSeq,scopeVersion
                 {file&&view.phase==='draft'?<button type="button" disabled={locked} onClick={()=>void act(()=>desktop!.transfer.removeFile(profileKey,view.id,role))} title="仅取消本次方案的选用；保留本地原件、已复制文件及远端材料" aria-label={`取消选择：${file.name}`}><X size={14}/>取消选择</button>:<span className="transfer-empty-action" aria-hidden="true"/>}
               </>}/>;
           })}</ul>
-          <div className="transfer-material-footer"><p>{view.route==='application'?'完整申请 Word 用于生成本次五书。':view.route==='correction'?'申请文件仅在本次修改申请内容时需要；补正内容在下方逐条填写。':'修改后申请文件仅在本次有修改时需要；意见陈述书是本次答复正文。'}文件复制到本案目录，原件和历史稿保留。</p></div>
+          <div className="transfer-material-footer"><p>{view.route==='application'?'完整申请 Word 用于生成本次五书。':'说明书、权利要求书等可在对应行分别选择，同时保存多份修改文件；也可选择一份合并稿。两种申请文件方式不混用。'}文件复制到本案目录，原件和历史稿保留。</p></div>
           </section>
+          {view.files.some(f=>f.role==='claims')&&<label className="field">本次权利要求项数（请核对）<input disabled={locked} inputMode="numeric" maxLength={8} value={review.form.claimsCount??''} onChange={e=>form({claimsCount:e.target.value})}/><span className="muted">按独立文件连续编号识别，未能识别时请填写实际项数。</span></label>}
           {view.parts.length>0&&<><h4>本次五书保留范围</h4><div className="transfer-parts">{view.parts.map(p=><div key={p.code}><label><input type="checkbox" disabled={locked||view.route==='application'||p.available===false} checked={review.keepCodes.includes(p.code)} onChange={e=>patch({keepCodes:e.target.checked?[...review.keepCodes,p.code]:review.keepCodes.filter(c=>c!==p.code)})}/><b>{p.name}</b><span className={p.changed===null?'text-warning':'muted'}>{view.route==='application'?'申请材料':p.changed===null?'待人工核对':p.changed?'发现变化':'未发现变化'}</span></label><p>{view.route==='application'?'本次完整申请保留此部分。':p.reason}</p>{(p.before||p.after)&&<div style={{display:'flex',gap:'8px',marginTop:'4px'}}><button type="button" className="small-button" onClick={()=>void handlePreviewDoc({partCode:p.code,name:p.name})}><Eye size={12}/> 预览此分件</button></div>}{view.route!=='application'&&(p.before||p.after)&&<details><summary>比较文字</summary><div className="transfer-comparison"><div><b>基线</b><pre>{p.before||'未识别正文'}</pre></div><div><b>本次</b><pre>{p.after||'未识别正文'}</pre></div></div></details>}</div>)}</div>{view.route!=='application'&&<Note>保存后，本次递交列表只保留勾选的五书部分；未勾选部分及完整混合申请文件会从当前递交实例移除。</Note>}</>}
           {view.route==='correction'&&<div className="transfer-form">
             <h4>补正内容</h4>

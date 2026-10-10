@@ -8,8 +8,9 @@ export function businessCode(value:unknown):string|undefined {
   }
   return undefined;
 }
-const writes=new Set(['StartHand','AddCaseHandForm','DeleteFormFile','DeleteFormInstructionsAndImageMixFile','ModifyFormInstructionsAndImage','UploadExistFileFormInstructionsAndImage','InsertFormInstructionsAndImageSetting','UpdateFormInstructionsAndImageSetting','InsertFromPatentRequestInfo','UpdateFormPatentRequestInfo','InsertFormOpinionStatement','UpdateFormOpinionStatement','InsertFormCorrection','UpdateFormCorrection','SubmitHandFlow']);
+const writes=new Set(['StartHand','AddCaseHandForm','DeleteFormFile','DeleteFormInstructionsAndImageMixFile','ModifyFormInstructionsAndImage','UploadExistFileFormInstructionsAndImage','UploadFormFile','InsertFormInstructionsAndImageSetting','UpdateFormInstructionsAndImageSetting','InsertFromPatentRequestInfo','UpdateFormPatentRequestInfo','InsertFormOpinionStatement','UpdateFormOpinionStatement','InsertFormCorrection','UpdateFormCorrection','SubmitHandFlow']);
 const tables:Record<string,string>={StartHand:'start',SubmitHandFlow:'submit',AddCaseHandForm:'selectForm',DeleteFormFile:'deleteFile',InsertFromPatentRequestInfo:'requestForm',UpdateFormPatentRequestInfo:'requestForm',InsertFormInstructionsAndImageSetting:'setting',UpdateFormInstructionsAndImageSetting:'setting'};
+for(const endpoint of ['UploadExistFileFormInstructionsAndImage','UploadFormFile','ModifyFormInstructionsAndImage','DeleteFormInstructionsAndImageMixFile'])tables[endpoint]='deleteFile';
 export type BusinessResultKind='busy'|'prerequisite'|'confirmation'|'failure'|'unknown';
 export class BaselandBusinessError extends Error {
   kind:BusinessResultKind;
@@ -52,5 +53,7 @@ export function assertWriteResult(endpoint:string,value:unknown):void {
     throw new BaselandBusinessError(reason+' '+(hasPlaceholders?'请在贝思兰德查看具体值。':'')+action,kind);
   }
   if(code==='NoAuthority'&&table)throw new BaselandBusinessError('当前账号无操作权限，请刷新核对账号和办理节点；本应用不会自动变更权限。','failure');
-  throw new BaselandBusinessError('服务端未确认本次操作成功，结果待核验；已发出的请求可能已生效，请先刷新核对，勿直接重复执行。','unknown');
+  const stages:Record<string,string>={UploadExistFileFormInstructionsAndImage:'申请文件解析',UploadFormFile:'申请分件关联保存',ModifyFormInstructionsAndImage:'合并申请文件关联保存'};
+  const detail=stages[ep]?`${stages[ep]}未通过（${code&&/^[A-Za-z][A-Za-z0-9_]{0,70}$/.test(code)?code:'未返回有效业务结果'}）。`:'';
+  throw new BaselandBusinessError(detail+'服务端未确认本次操作成功，结果待核验；已发出的请求可能已生效，请先刷新核对，勿直接重复执行。','unknown');
 }

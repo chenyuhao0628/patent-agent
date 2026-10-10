@@ -55,6 +55,7 @@ function stringArray(record: Record<string, unknown>, key: string, label = key, 
 
 function ipcTransferForm(value: unknown): Record<string, unknown> {
   const form = assertRecord(value, '内部流转表单无效。');
+  if(form.claimsCount!==undefined&&(typeof form.claimsCount!=='string'||form.claimsCount.length>8||form.claimsCount!==''&&!/^[1-9][0-9]{0,7}$/.test(form.claimsCount)))throw new Error('权利要求项数无效。');
   for (const key of ['noticeDate', 'noticeName', 'noticeNo', 'abstractFigure'] as const) {
     if (typeof form[key] !== 'string' || (form[key] as string).length > 4096) throw new Error('内部流转表单无效。');
   }
@@ -221,12 +222,12 @@ export function ipcRelativePath(value: unknown): string {
   return relativePath;
 }
 
-export function ipcTransferRole(value: unknown): 'baseline' | 'application' | 'reply' {
+export function ipcTransferRole(value: unknown): import('../src/transfer-api.ts').TransferFileRole {
   const role = assertString(value, '文件用途', 32);
-  if (role !== 'baseline' && role !== 'application' && role !== 'reply') {
+  if (!['baseline', 'application', 'reply', 'claims', 'description', 'drawings', 'abstract', 'abstractImage'].includes(role)) {
     throw new Error('文件用途无效。');
   }
-  return role;
+  return role as import('../src/transfer-api.ts').TransferFileRole;
 }
 
 export function ipcTransferSource(value: unknown): 'workbench' | 'local' {

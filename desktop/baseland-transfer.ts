@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { FIVE_PARTS } from '../src/transfer-api.ts';
-import type { TransferRoute, TransferReview, TransferForm, TransferView, RemoteTransferFile, RemoteFileDeleteRef, RemoteFileDeletion } from '../src/transfer-api.ts';
+import type { TransferRoute, TransferReview, TransferForm, TransferView, TransferSaveExpectation, RemoteTransferFile, RemoteFileDeleteRef, RemoteFileDeletion } from '../src/transfer-api.ts';
 import type { BaselandClient } from './baseland.ts';
 import { flag, combineOfficialSubmission, boolTri, sendStatusState } from './baseland.ts';
 import { assertWriteResult, businessCode } from './baseland-results.ts';
@@ -293,13 +293,22 @@ function includesValues(actual:any,expected:any,key=''):boolean{
   return actual!=null&&Object.entries(expected).every(([k,v])=>includesValues(actual[k],v,k));
 }
 export type TransferUpload={name:string;bytes:Buffer};
-export async function saveRemoteTransfer(input:{client:BaselandClient;processId:string;caseTitle:string;route:TransferRoute;remote:RemoteTransfer;review:TransferReview;application?:TransferUpload;reply?:TransferUpload;guard:()=>void;onWrite:()=>void;checkpoint:(message:string)=>Promise<void>;confirmName?:(details:{applicationName:string;caseName:string})=>Promise<boolean>}):Promise<RemoteTransfer>{
+export function matchesTransferSave(r:RemoteTransfer,expected:TransferSaveExpectation):boolean{
+  return r.handId===expected.handId&&digest(JSON.stringify(r.instructions))===expected.instructionsHash&&includesValues(r.form,expected.form);
+}
+export async function saveRemoteTransfer(input:{client:BaselandClient;processId:string;caseTitle:string;route:TransferRoute;remote:RemoteTransfer;review:TransferReview;application?:TransferUpload;applicationFiles?:Array<TransferUpload&{formCode:string}>;reply?:TransferUpload;guard:()=>void;onWrite:()=>void;checkpoint:(message:string)=>Promise<void>;onSaveExpectation?:(expected:TransferSaveExpectation)=>Promise<void>;confirmName?:(details:{applicationName:string;caseName:string})=>Promise<boolean>}):Promise<RemoteTransfer>{
   const {client,route,review,remote:r,guard,checkpoint}=input;
+  const applicationFiles=input.applicationFiles??[];
+  if(applicationFiles.length&&(input.application||route==='application'))throw new Error('独立分件仅用于答复或补正，不能与合并申请稿同时保存。');
+  if(new Set(applicationFiles.map(f=>f.formCode)).size!==applicationFiles.length||applicationFiles.some(f=>!FIVE_PARTS.some(p=>p.code===f.formCode)||!review.keepCodes.includes(f.formCode)))throw new Error('申请分件类型重复或未勾选，请重新核对。');
+  if(applicationFiles.some(f=>f.formCode==='100001')&&!/^[1-9][0-9]{0,7}$/.test(review.form.claimsCount??''))throw new Error('请核对权利要求项数后再保存独立权利要求书。');
+  if(!input.application&&applicationFiles.length&&review.keepCodes.some(c=>!applicationFiles.some(f=>f.formCode===c)&&!existingTransferParts(r).some(p=>p.code===c&&p.available)))throw new Error('所选部分没有对应本次文件或远端材料，请逐项核对。');
   if(route!=='reply'&&input.reply)throw new Error('补正通过表单字段保存，不能上传补正说明文件。');
-  validateReview(route,r,review,!!input.application,!!input.reply);
+  validateReview(route,r,review,!!input.application||applicationFiles.length>0,!!input.reply);
   const q=async(ep:string,body?:Obj,params?:Record<string,string>,kind:'data'|'list'='data')=>{guard();if(body||/^(Add|Delete)/.test(ep))input.onWrite();const result=await client.request('/CaseInfo/'+ep,body,params,undefined,kind);guard();if(body||/^(Add|Delete)/.test(ep))assertWriteResult(ep,result);return result;};
   const fresh=await readRemoteTransfer(client,input.processId,route);guard();
   if(!fresh||fresh.fingerprint!==r.fingerprint)throw new Error('服务端文件或流程已变化，请重新读取并核对。');
+  let expectedInstructions=fresh.instructions;
   const params={caseHandId:r.handId};
   const ensure=async(formCode:string)=>{
     const selected=(remote:RemoteTransfer)=>flag(remote.cards.find(c=>code(c.Code)===code(formCode))?.IsSelect);
@@ -317,26 +326,48 @@ export async function saveRemoteTransfer(input:{client:BaselandClient;processId:
     if(!checked||checked.handId!==fresh.handId||JSON.stringify(checked.hand.CurrentFlowInfo)!==JSON.stringify(fresh.hand.CurrentFlowInfo)||flag(checked.hand.IsReviewing)!==flag(fresh.hand.IsReviewing)||(!createdBlank&&JSON.stringify(checked.form)!==JSON.stringify(fresh.form))||!selected(checked))throw new Error('表单选中状态或内容发生变化，请刷新回读后核对，已停止后续保存。');
     if(createdBlank&&code(formCode)===code(r.formCode))r.form=checked.form;
   };
-  if(input.application){
+  if(input.application||applicationFiles.length){
     if(!r.instructionsCode)throw new Error('未找到申请原文卡片，不能上传拆分。');
     if(code(r.instructionsCode)!=='000000')await ensure(r.instructionsCode);
-    guard();input.onWrite();const fileNo=await client.uploadDocument(input.application.name,input.application.bytes);guard();
-    await checkpoint('申请文件已上传，等待本次材料解析。');
-    const parsed=await q('UploadExistFileFormInstructionsAndImage',{FileNo:fileNo,CaseHandId:r.handId});
     const figure=review.form.abstractFigure?.trim()||'1';
-    const parsedFiles=list(parsed?.FileList).map(f=>code(f.FormCode)==='100003'||f.FormName==='说明书附图'?{...f,AbstractDrawNumber:figure}:f);
     const requiredParts=route==='application'?FIVE_PARTS:FIVE_PARTS.filter(p=>review.keepCodes.includes(p.code));
-    const expectedFiles=new Map(requiredParts.map(p=>{const matches=parsedFiles.filter(f=>String(f.FormName||f.FileName)===p.name);const no=matches[0]?.FileNo??matches[0]?.File?.FileNo;if(matches.length!==1||!id(no))throw new Error('贝思兰德未明确解析出本次所选部分，已停止保存：'+p.name);return [p.code,id(no)];}));
-    await q('ModifyFormInstructionsAndImage',{CaseHandId:r.handId,IsUseXmlHand:true,FileList:parsedFiles,MixFile:{fileNo,fileName:input.application.name}});
+    let fileNo:string|undefined;let parsedFiles:Obj[]=[];const expectedFiles=new Map<string,string>();
+    if(input.application){
+      await checkpoint('正在上传合并申请文件；此时尚未关联到递交实例。');
+      guard();input.onWrite();fileNo=await client.uploadDocument(input.application.name,input.application.bytes);guard();
+      await checkpoint('合并申请文件已进入文件存储，正在解析；尚未关联到递交实例。');
+      const parsed=await q('UploadExistFileFormInstructionsAndImage',{FileNo:fileNo,CaseHandId:r.handId},{CaseHandId:r.handId,UploadType:'1'});
+      parsedFiles=list(parsed?.FileList).map(f=>code(f.FormCode)==='100003'||f.FormName==='说明书附图'?{...f,AbstractDrawNumber:figure}:f);
+      for(const p of requiredParts){const matches=parsedFiles.filter(f=>code(f.FormCode)===p.code||String(f.FormName||f.FileName)===p.name);const no=matches[0]?.FileNo??matches[0]?.File?.FileNo;if(matches.length!==1||isEmptyGuid(no))throw new Error('贝思兰德未明确解析出本次所选部分，已停止保存：'+p.name);expectedFiles.set(p.code,id(no));}
+      await checkpoint('本次所选部分已解析，正在保存申请文件关联。');
+      await q('ModifyFormInstructionsAndImage',{CaseHandId:r.handId,IsUseXmlHand:true,FileList:parsedFiles,MixFile:{fileNo,fileName:input.application.name}});
+    }else{
+      for(const p of requiredParts){const old=list(r.instructions?.FormGroup).find(g=>code(g.FormCode)===p.code);if(old?.File?.FileNo)expectedFiles.set(p.code,id(old.File.FileNo));}
+      for(const file of applicationFiles){
+        const name=FIVE_PARTS.find(p=>p.code===file.formCode)!.name;
+        await checkpoint(`正在上传【${name}】文件存储；尚未保存此分件关联。`);
+        guard();input.onWrite();const uploaded=await client.uploadDocument(file.name,file.bytes);guard();
+        const specification=file.formCode==='100001'?[{Type:'ClaimsCount',Value:Number(review.form.claimsCount)}]:file.formCode==='100003'?[{Type:'AbstractDrawNumber',StrValue:figure}]:undefined;
+        await checkpoint(`【${name}】文件存储完成，正在保存分件关联。`);
+        await q('UploadFormFile',{CaseHandId:r.handId,FormCode:Number(file.formCode),File:{FileNo:uploaded,FileName:file.name},...(specification?{SpecificationInfoList:specification}:{})});
+        const readback=await q('GetFormInstructionsAndImage',undefined,{...params,formCode:r.instructionsCode});
+        const matches=list(readback?.FormGroup).filter(g=>code(g.FormCode)===file.formCode&&g.File?.FileNo);
+        if(matches.length!==1||id(matches[0].File.FileNo)!==uploaded)throw new Error(`【${name}】分件关联回读未匹配，已停止后续保存。`);
+        expectedFiles.set(file.formCode,uploaded);
+        parsedFiles.push({FormCode:file.formCode,FileNo:uploaded});
+        await checkpoint(`【${name}】分件关联已回读核验。`);
+      }
+    }
     const card=await q('GetFormInstructionsAndImage',undefined,{...params,formCode:r.instructionsCode});
     const initialGroup=list(card?.FormGroup);
     for(const p of requiredParts){if(!initialGroup.some(g=>code(g.FormCode)===p.code&&id(g.File?.FileNo)===expectedFiles.get(p.code)))throw new Error('保存的五书不是本次解析文件，停止整理：'+p.name);}
-    if(!initialGroup.some(g=>flag(g.IsMixFile)&&id(g.File?.FileNo)===fileNo))throw new Error('完整申请文件回读未匹配，停止整理。');
+    if(input.application&&!initialGroup.some(g=>flag(g.IsMixFile)&&id(g.File?.FileNo)===fileNo))throw new Error('完整申请文件回读未匹配，停止整理。');
     const setting=card?.Setting??card?.InstructionsAndImageSetting??card??{};
     const showName=boolTri(setting.IsShowCaseName);
     if(showName===undefined)throw new Error('服务端未提供名称设置条件，停止设置，请刷新核对。');
     const specification=parsedFiles.find(f=>code(f.FormCode)==='100002'||f.FormName==='说明书');
-    const caseName=showName?String(specification?.CaseName??'').trim():null;
+    let caseName=showName?String(specification?specification.CaseName??'':setting.CaseName??'').trim():null;
+    if(showName&&specification&&!caseName&&applicationFiles.length){const result=await q('GetCaseNameByInstructionsFile',undefined,{fileNo:id(specification.FileNo)});caseName=String(result?.CaseName??'').trim();}
     if(showName&&!caseName)throw new Error('未能从本次说明书解析出案件名称，请核对说明书抬头；文件已上传，尚未转交。');
     const endpoint=setting.CaseHandFormInstructionsAndImageSettingId?'UpdateFormInstructionsAndImageSetting':'InsertFormInstructionsAndImageSetting';
     const body={CaseHandFormInstructionsAndImageSettingId:setting.CaseHandFormInstructionsAndImageSettingId,CaseHandId:r.handId,IsUseXmlFormatHand:true,CaseName:caseName,HasConfirmCaseNameIsNotSame:false};
@@ -356,20 +387,21 @@ export async function saveRemoteTransfer(input:{client:BaselandClient;processId:
     const checked=settingsCard?.Setting??settingsCard?.InstructionsAndImageSetting??settingsCard??{};
     if(!flag(checked.IsUseXmlFormatHand)||!id(checked.CaseHandFormInstructionsAndImageSettingId)||showName&&String(checked.CaseName??'').trim()!==caseName)throw new Error('五书设置回读未匹配，文件可能已保存，尚未转交。');
     const drawing=list(settingsCard?.FormGroup).find(g=>code(g.FormCode)==='100003');
-    if(requiredParts.some(p=>p.code==='100003')&&String(drawing?.AbstractDrawNumber??'').trim()!==figure)throw new Error('指定摘要附图回读未匹配，文件已保存但尚未转交。');
+    if((input.application&&requiredParts.some(p=>p.code==='100003')||applicationFiles.some(f=>f.formCode==='100003'))&&String(drawing?.AbstractDrawNumber??'').trim()!==figure)throw new Error('指定摘要附图回读未匹配，文件已保存但尚未转交。');
     await checkpoint('五书 XML 设置、说明书名称及指定摘要附图已回读核对。');
     if(route!=='application'){
       for(const p of FIVE_PARTS.filter(p=>!review.keepCodes.includes(p.code)&&initialGroup.some(g=>code(g.FormCode)===p.code&&g.File?.FileNo)))await q('DeleteFormFile',undefined,{...params,formCode:p.code});
-      await q('DeleteFormInstructionsAndImageMixFile',undefined,params);
+      if(initialGroup.some(g=>flag(g.IsMixFile)&&g.File?.FileNo))await q('DeleteFormInstructionsAndImageMixFile',undefined,params);
     }
     const saved=await q('GetFormInstructionsAndImage',undefined,{...params,formCode:r.instructionsCode});
+    expectedInstructions=saved;
     const group=list(saved?.FormGroup);
     for(const p of FIVE_PARTS){const found=group.find(g=>code(g.FormCode)===p.code&&!!g.File?.FileNo);if(!!found!==review.keepCodes.includes(p.code)||found&&id(found.File.FileNo)!==expectedFiles.get(p.code))throw new Error('五书回读与本次文件或勾选不一致：'+p.name);}
     const mix=group.find(g=>flag(g.IsMixFile)&&g.File?.FileNo);
     if(route!=='application'&&mix||route==='application'&&(!mix||id(mix.File.FileNo)!==fileNo))throw new Error('完整申请文件保留状态与本次方案不一致。');
     await checkpoint('五书保存与本次文件保留范围已回读核对。');
   }
-  if(!input.application&&route!=='application'&&r.instructionsCode){
+  if(!input.application&&!applicationFiles.length&&route!=='application'&&r.instructionsCode){
     const group=list(r.instructions?.FormGroup);
     const removed=group.filter(g=>g.File?.FileNo&&(flag(g.IsMixFile)||FIVE_PARTS.some(p=>p.code===code(g.FormCode))&&!review.keepCodes.includes(code(g.FormCode))));
     if(removed.length){
@@ -377,6 +409,7 @@ export async function saveRemoteTransfer(input:{client:BaselandClient;processId:
       if(!current||current.fingerprint!==r.fingerprint)throw new Error('服务端材料或流程已变化，不能整理已有文件。');
       for(const g of removed)await q(flag(g.IsMixFile)?'DeleteFormInstructionsAndImageMixFile':'DeleteFormFile',undefined,flag(g.IsMixFile)?params:{...params,formCode:id(g.FormCode)});
       const saved=await q('GetFormInstructionsAndImage',undefined,{...params,formCode:r.instructionsCode});
+      expectedInstructions=saved;
       const actual=list(saved?.FormGroup);
       for(const p of FIVE_PARTS){const found=actual.find(g=>code(g.FormCode)===p.code&&g.File?.FileNo),previous=group.find(g=>code(g.FormCode)===p.code&&g.File?.FileNo);if(!!found!==review.keepCodes.includes(p.code)||found&&id(found.File.FileNo)!==id(previous?.File?.FileNo))throw new Error('服务端已有五书整理结果未匹配：'+p.name);}
       if(actual.some(g=>flag(g.IsMixFile)&&g.File?.FileNo))throw new Error('本次完整混合申请文件移除尚未确认。');
@@ -385,14 +418,16 @@ export async function saveRemoteTransfer(input:{client:BaselandClient;processId:
   }
   await ensure(r.formCode);
   let replyFile: {FileNo:string;FileName:string}|undefined;
-  if(input.reply){guard();input.onWrite();replyFile={FileNo:await client.uploadDocument(input.reply.name,input.reply.bytes),FileName:input.reply.name};guard();}
+  if(input.reply){await checkpoint('正在上传意见陈述书文件存储，尚未保存答复表单关联。');guard();input.onWrite();replyFile={FileNo:await client.uploadDocument(input.reply.name,input.reply.bytes),FileName:input.reply.name};guard();}
   if(route==='reply'&&!replyFile)replyFile=replyIdentity(r);
   if(route==='reply'&&(!replyFile||isEmptyGuid(replyFile.FileNo)))throw new Error('答复文件编号无效，未保存业务表单。');
   const payload=transferPayload(route,r,review,replyFile);
   const formExists=route==='application'?!!r.form?.RequestInfo:route==='reply'?!!r.form?.OpinionStatement:!!r.form?.Correction;
+  const verify=route==='reply'?{File:{FileNo:replyFile?.FileNo},OpinionStatement:payload.OpinionStatement}:route==='correction'?{Correction:payload.Correction,CorrectionContentList:payload.CorrectionContentList}:{RequestInfo:payload.RequestInfo,SpecificationInfo:payload.SpecificationInfo,DivisionalCase:payload.DivisionalCase};
+  await input.onSaveExpectation?.({handId:r.handId,instructionsHash:digest(JSON.stringify(expectedInstructions)),form:verify});
+  await checkpoint('正在保存业务表单与文件关联，随后回读核验。');
   await q(saveEndpoint(route,formExists),payload);
   const savedForm=await q(GET_FORM[route],undefined,params);
-  const verify=route==='reply'?{File:{FileNo:replyFile?.FileNo},OpinionStatement:payload.OpinionStatement}:route==='correction'?{Correction:payload.Correction,CorrectionContentList:payload.CorrectionContentList}:{RequestInfo:payload.RequestInfo,SpecificationInfo:payload.SpecificationInfo,DivisionalCase:payload.DivisionalCase};
   if(!includesValues(savedForm,verify))throw new Error('业务表单回读不一致，不能转交。');
   await checkpoint('业务表单已保存并通过专用接口回读。');
   const after=await readRemoteTransfer(client,input.processId,route);guard();if(!after||after.handId!==r.handId)throw new Error('保存后递交实例发生变化。');return after;
