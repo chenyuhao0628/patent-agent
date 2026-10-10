@@ -117,7 +117,7 @@ test('proxy replaces dummy child key, injects session/UA/reasoning/limits, store
     assert.equal(headers['user-agent'], OPENCODE_USER_AGENT);
     const body = JSON.parse(upstream.seen[0].body) as { max_output_tokens: number; store: boolean; reasoning?: { effort: string } };
     assert.equal(body.max_output_tokens, effectiveMaxOutput(cfg));
-    assert.equal(body.store, false);
+    assert.equal(body.store, true);
     assert.equal(body.reasoning?.effort, 'high');
     assert.doesNotMatch(upstream.seen[0].body, new RegExp(DUMMY_UPSTREAM_KEY));
     const forbidden = await fetch(`${proxy.childBaseURL}/chat/completions`, {
@@ -218,7 +218,6 @@ test('vendor-default omitted reasoning strips engine injections', () => {
   assert.equal(out.reasoning, undefined);
   assert.equal(out.temperature, undefined);
   assert.equal(out.max_output_tokens, 32);
-  assert.equal(out.store, false);
 });
 
 test('Gemini streamGenerateContent keeps alt=sse query', () => {

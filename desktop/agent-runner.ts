@@ -402,7 +402,7 @@ export function buildOpenCodeConfig(input: {
         options: {
           baseURL: input.childBaseURL,
           apiKey: DUMMY_UPSTREAM_KEY,
-          setCacheKey: false,
+          setCacheKey: true,
           headers: { Authorization: `Bearer ${DUMMY_UPSTREAM_KEY}` },
         },
         models: {

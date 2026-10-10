@@ -276,7 +276,6 @@ export function applyWirePolicy(protocol: ModelProtocol, body: JsonObject, runti
     next.model = runtime.modelId;
     if (protocol === 'openai-responses') {
       next.max_output_tokens = maxOutput;
-      next.store = false;
       delete next.max_tokens;
     } else if (protocol === 'openai-chat-completions') {
       next.max_tokens = maxOutput;
@@ -660,7 +659,8 @@ function copySafeHeaders(status: number, headers: Headers, res: http.ServerRespo
   res.statusCode = status;
   const contentType = headers.get('content-type') || 'application/json';
   res.setHeader('Content-Type', contentType);
-  res.setHeader('Cache-Control', 'no-store');
+  const upstreamCache = headers.get('cache-control');
+  res.setHeader('Cache-Control', upstreamCache || 'no-store');
   res.setHeader('Connection', 'close');
   const skip = new Set(['transfer-encoding', 'connection', 'authorization', 'x-api-key', 'api-key', 'x-goog-api-key']);
   headers.forEach((value, key) => {
