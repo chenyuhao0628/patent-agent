@@ -1,0 +1,102 @@
+{
+  "schema": 1,
+  "version": "0.20.0",
+  "candidate": true,
+  "date": "2026-10-09",
+  "builtAt": "2026-10-09T09:42:39.406Z",
+  "source": {
+    "baseCommit": "f881796b155f9394ba3b4e8bcd52ef121e7810b4",
+    "uncommitted": true
+  },
+  "files": [
+    {
+      "file": "专利工作台-0.20.0-macOS-arm64.app",
+      "platform": "mac-arm64",
+      "version": "0.20.0",
+      "sha256": "bbb7f9b88617ad733ea8a1facb3c58417151b6a329e6cfbbd814e06a3fca5db1",
+      "hashAlgorithm": "sha256-tree"
+    },
+    {
+      "file": "PatentWorkbench-0.20.0-macOS-arm64.pkg",
+      "platform": "mac-arm64-installer",
+      "version": "0.20.0",
+      "sha256": "2425a525949ac572c5ab87cbe806c0bb74928b0c6d2b77f803441aea2fe1b45a",
+      "hashAlgorithm": "sha256"
+    },
+    {
+      "file": "PatentWorkbench-0.20.0-Windows-x64-Setup.exe",
+      "platform": "win-x64",
+      "version": "0.20.0",
+      "sha256": "bc506abca813483343f08422e8005ae87acbb3a9c5aae0da7c2fba093f792c90",
+      "hashAlgorithm": "sha256"
+    }
+  ],
+  "payload": [
+    {
+      "platform": "mac",
+      "file": "desktop-dist/main.cjs",
+      "sha256": "7131390c22b056467ecb395a70f2bce40f39749d9104eebf8e39802ac2e66ad0"
+    },
+    {
+      "platform": "mac",
+      "file": "desktop-dist/preload.cjs",
+      "sha256": "7f4e795fea955d25c0e64e4897ec664ef9924543c8faa5c8a43569207bc78dca"
+    },
+    {
+      "platform": "mac",
+      "file": "dist/index.html",
+      "sha256": "7a8871f1eb3f6729ab9100b0c77d3ae8720cc71e1aa1dcdc2a558df7b3ea83e2"
+    },
+    {
+      "platform": "win",
+      "file": "desktop-dist/main.cjs",
+      "sha256": "7131390c22b056467ecb395a70f2bce40f39749d9104eebf8e39802ac2e66ad0"
+    },
+    {
+      "platform": "win",
+      "file": "desktop-dist/preload.cjs",
+      "sha256": "7f4e795fea955d25c0e64e4897ec664ef9924543c8faa5c8a43569207bc78dca"
+    },
+    {
+      "platform": "win",
+      "file": "dist/index.html",
+      "sha256": "7a8871f1eb3f6729ab9100b0c77d3ae8720cc71e1aa1dcdc2a558df7b3ea83e2"
+    }
+  ],
+  "previousArtifactsPreserved": [
+    {
+      "file": "PatentWorkbench-0.19.1-Windows-x64-Setup.exe",
+      "sha256": "35757774546633de0b0dd1bfb6d2797aa8341687b27263888f4001fb6afe66a6"
+    },
+    {
+      "file": "PatentWorkbench-0.19.1-macOS-arm64.pkg",
+      "sha256": "85dedf6edc934f5f2d43e166e823a8f2a7a0c6c1b4105aeada989e4855aaefe8"
+    },
+    {
+      "file": "专利工作台-0.19.1-macOS-arm64.app",
+      "sha256": "1882423676903f2fefb2d2493db3a090ddfd4ae198d7fa809331500a150167ae"
+    }
+  ],
+  "checks": {
+    "staging": true,
+    "macPackageMetadata": true,
+    "payloadMatchesBuiltSource": true,
+    "frontendAssetsMatchBuiltSource": true,
+    "previousArtifactHashesUnchanged": true,
+    "independentManifestHashRecheck": true,
+    "packageVersionLockManifestMatch": true
+  },
+  "limits": [
+    "未覆盖安装；用户将自行实机测试",
+    "未执行真实贝思兰德写入",
+    "实际失败根因尚未证实",
+    "未签名或公证",
+    "未提交、推送或对外发布"
+  ],
+  "stagingDirectory": "/tmp/patent-0200-packaging-6KhAdA/release-staging",
+  "tests": {
+    "applicationRegression": "787/787, prior turn; same business source",
+    "packagingRegression": "12/12, 2026-10-09",
+    "build": "typecheck + production build + desktop bundle passed during packaging"
+  }
+}
