@@ -1,0 +1,37 @@
+import http from 'node:http';
+import {gzipSync} from 'node:zlib';
+import fs from 'node:fs/promises';
+import {startAgentProxy,DUMMY_UPSTREAM_KEY} from '/Users/cyh/Documents/ChatGPT/patent-agent/desktop/agent-proxy.ts';
+
+const jsonText=JSON.stringify({id:'synthetic-response',output:[{type:'message',content:[{type:'output_text',text:'synthetic-result '.repeat(20)}]}]});
+let expected=jsonText,contentType='application/json';
+const records=[];
+const upstream=http.createServer((req,res)=>{req.resume();req.on('end',()=>{const b=gzipSync(Buffer.from(expected));res.writeHead(200,{'Content-Type':contentType,'Content-Encoding':'gzip','Content-Length':b.length});res.end(b);});});
+await new Promise(r=>upstream.listen(0,'127.0.0.1',r));
+const runtime={profileKey:'audit',providerId:'audit',providerName:'audit',baseURL:'http://127.0.0.1:'+upstream.address().port+'/v1',protocol:'openai-responses',modelId:'synthetic',displayName:'audit',contextWindow:32000,maxOutput:1000,key:'synthetic-not-a-real-key',headers:{}};
+for(const format of ['json','sse'])for(const transport of ['node','runner-fetch']){
+ expected=format==='json'?jsonText:'data: '+jsonText+'\n\n';contentType=format==='json'?'application/json':'text/event-stream';
+ const proxy=await startAgentProxy({runtime,discussionId:'audit',...(transport==='runner-fetch'?{fetchImpl:globalThis.fetch.bind(globalThis)}:{})});
+ try{
+  const response=await fetch(proxy.childBaseURL+'/responses',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+DUMMY_UPSTREAM_KEY},body:JSON.stringify({model:runtime.modelId,input:'synthetic'}),signal:AbortSignal.timeout(3000)});
+  let received,error;
+  try{received=await response.text();}catch(e){error={name:e.name,message:e.message,cause:e.cause?.message};}
+  records.push({probe:'gzip-response',format,transport,status:response.status,headers:Object.fromEntries(response.headers),receivedMatches:received===expected,error});
+ }finally{await proxy.close();}
+}
+await new Promise(r=>upstream.close(r));
+
+let upstreamAborted=false,upstreamStarted=false;
+const proxy=await startAgentProxy({runtime,discussionId:'audit-disconnect',fetchImpl:async(_url,init)=>{
+ upstreamStarted=true;
+ init.signal.addEventListener('abort',()=>{upstreamAborted=true;},{once:true});
+ return new Response(new ReadableStream({start(c){c.enqueue(new TextEncoder().encode('data: {}\n\n'));}}),{headers:{'content-type':'text/event-stream'}});
+}});
+const controller=new AbortController();
+const response=await fetch(proxy.childBaseURL+'/responses',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+DUMMY_UPSTREAM_KEY},body:JSON.stringify({input:'synthetic'}),signal:controller.signal});
+const reader=response.body.getReader();await reader.read();controller.abort();
+await new Promise(r=>setTimeout(r,150));
+records.push({probe:'client-disconnect',upstreamStarted,upstreamAbortedBeforeProxyClose:upstreamAborted});
+await proxy.close();
+await fs.writeFile(new URL('./proxy-probes.json',import.meta.url),JSON.stringify(records,null,2));
+console.log(JSON.stringify(records,null,2));

@@ -1,0 +1,11 @@
+import {spawn} from 'node:child_process';
+import fs from 'node:fs';
+import net from 'node:net';
+const root='/tmp/patent-agent-audit-20261012.bcKNuP';
+const srv=net.createServer();await new Promise(r=>srv.listen(0,'127.0.0.1',r));const port=srv.address().port;await new Promise(r=>srv.close(r));
+const exe='/Users/cyh/Documents/ChatGPT/patent-agent/release/专利工作台-0.20.1-macOS-arm64.app/Contents/MacOS/专利工作台';
+const log=fs.openSync(root+'/desktop.log','a',0o600);
+const child=spawn(exe,['--remote-debugging-address=127.0.0.1','--remote-debugging-port='+port],{env:{...process.env,PATENT_AGENT_DATA_DIR:root+'/desktop-profile'},stdio:['ignore',log,log]});
+fs.writeFileSync(root+'/desktop-process.json',JSON.stringify({pid:child.pid,port,exe,userData:root+'/desktop-profile'},null,2));
+console.log(JSON.stringify({pid:child.pid,port}));
+child.once('exit',(code,signal)=>{fs.closeSync(log);console.log(JSON.stringify({code,signal}));});

@@ -1,0 +1,18 @@
+{
+  "checkedOn": "2026-10-12",
+  "sources": {
+    "migration": "https://opencode.ai/v2/docs/migrate-v1/",
+    "api": "https://opencode.ai/v2/docs/api/",
+    "config": "https://opencode.ai/v2/docs/config/",
+    "providers": "https://opencode.ai/v2/docs/providers/",
+    "permissions": "https://opencode.ai/v2/docs/permissions/",
+    "mcp": "https://opencode.ai/v2/docs/mcp-servers/",
+    "warming": "https://opencode.ai/v2/docs/warming/",
+    "compaction": "https://opencode.ai/v2/docs/compaction/",
+    "client": "https://opencode.ai/v2/docs/build/client/"
+  },
+  "cliDistTagAtCheck": "2.0.27",
+  "macOSNativeDistTagAtCheck": "2.0.26",
+  "selectedCompatibilitySample": "2.0.26",
+  "selectionIsNotRuntimeVersionPin": true
+}

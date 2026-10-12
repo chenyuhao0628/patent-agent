@@ -1,0 +1,31 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import {createRequire} from 'node:module';
+import {createHash} from 'node:crypto';
+import {hashPath,sha256File,verifyMacApp,verifyMz} from '/Users/cyh/Documents/ChatGPT/patent-agent/scripts/package-release.mjs';
+import {verifyAgentRuntime} from '/Users/cyh/Documents/ChatGPT/patent-agent/scripts/prepare-agent-runtime.mjs';
+const root='/Users/cyh/Documents/ChatGPT/patent-agent';
+const require=createRequire(path.join(root,'package.json'));
+const asar=require('@electron/asar');
+const manifest=JSON.parse(await fs.readFile(path.join(root,'release/release-manifest.json'),'utf8'));
+const pkg=JSON.parse(await fs.readFile(path.join(root,'package.json'),'utf8'));
+const lock=JSON.parse(await fs.readFile(path.join(root,'package-lock.json'),'utf8'));
+const output={version:{package:pkg.version,lock:lock.version,lockRoot:lock.packages[''].version,manifest:manifest.version},runtime:await verifyAgentRuntime(path.join(root,'.lab/agent-runtime')),artifacts:[],payload:[]};
+for(const entry of manifest.files){
+ const file=path.join(root,'release',entry.file);
+ const actual=entry.hashAlgorithm==='sha256-tree'?await hashPath(file):await sha256File(file);
+ let structural='not-run';
+ if(entry.file.endsWith('.app')){await verifyMacApp(file,manifest.version);structural='passed';}
+ if(entry.file.endsWith('.exe')){await verifyMz(file);structural='MZ passed';}
+ output.artifacts.push({file:entry.file,expected:entry.sha256,actual,matches:actual===entry.sha256,structural});
+ if(entry.file.endsWith('.app')){
+  const archive=path.join(file,'Contents/Resources/app.asar');
+  for(const rel of ['desktop-dist/main.cjs','desktop-dist/preload.cjs','dist/index.html']){
+   const bundled=asar.extractFile(archive,rel),current=await fs.readFile(path.join(root,rel));
+   const hash=x=>createHash('sha256').update(x).digest('hex');
+   output.payload.push({file:rel,matches:hash(bundled)===hash(current),bundleHash:hash(bundled),sourceBuildHash:hash(current)});
+  }
+ }
+}
+await fs.writeFile(new URL('./release-probe.json',import.meta.url),JSON.stringify(output,null,2));
+console.log(JSON.stringify(output,null,2));

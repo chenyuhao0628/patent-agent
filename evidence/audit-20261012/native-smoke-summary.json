@@ -1,0 +1,54 @@
+{
+  "screens": [
+    {
+      "name": "native-models",
+      "text": "专利工作台\n工作空间\n案件库\n等待官方\n0\n工作任务\n审查队列\n内部流转\n案件状态\n设置\n本机工作空间\n设置\n桌面版 0.20.1\n设置\n\n管理当前账号、原始申请文件库和案件工作目录。\n\n贝思兰德账号\n文件与目录\n模型服务\n模板与规则\n文档工具\n技能与 MCP\n诊断日志\n应用与更新\n模型服务\n\n先选择或添加供应商，再管理其下的模型。密钥只在保存时提交，不回显。\n\n添加供应商\n从 DSH 导入\nOpenCode Go\n预置\n1 个模型\n默认\n进入",
+      "viewport": [
+        1400,
+        837
+      ],
+      "scrollWidth": 1385
+    },
+    {
+      "name": "native-tools",
+      "text": "专利工作台\n工作空间\n案件库\n等待官方\n0\n工作任务\n审查队列\n内部流转\n案件状态\n设置\n本机工作空间\n设置\n桌面版 0.20.1\n设置\n\n管理当前账号、原始申请文件库和案件工作目录。\n\n贝思兰德账号\n文件与目录\n模型服务\n模板与规则\n文档工具\n技能与 MCP\n诊断日志\n应用与更新\n文档工具与 Agent 权限\n\n由你选择 Agent 的能力。优先复用本机工具，也可下载轻量工具、自行安装依赖。\n\n工具权限\n联网检索\n通过 Exa 检索和读取公开网页，保留来源和调用记录。\n软件下载\n可从任意公开软件来源下载，集中保存并记录来源与摘要；下载后不会自动运行。\n任意命令与软件安装\n可执行脚本、安装任意工具、调用已有 WPS / Word 等应用。以你的本机用户权限运行，可访问其他文件和联网；默认工作目录不是沙箱。此选项开启后，命令自行联网不受上面两个开关限制。\n预设转换组件自动安装\n保留 LibreOffice 固定版本安装快捷方式，可单独关闭。不是唯一转换方式。\n\n开关立即保存，本机各账号共用；运行中需先停止任务再修改。新增下载与命令权限默认关闭。命令、退出码及限长输出保存在本次任务的 tool-audit 记录，停止任务会终止所管理的命令进程。\n\n本机工具\n\nAgent 可检测这些工具，并在命令权限开启后尝试调用。检测到安装不等于已验证自动转换；具体能力由安装版本决定。\n\n重新检测本机工具\n打开工具目录\nWPS Office\n已检测到\nMicrosoft Word\n已检测到\n系统 DOC 转换\n已检测到\npython3\n已检测到\nnode\n已检测到\nnpm\n已检测到\ntesseract\n已检测到\nsoffice\n已检测到\n\n/tmp/patent-agent-audit-20261012.bcKNuP/desktop-profile/tools\n\ndownloads 保存下载文件；custom 保存可复用工具及依赖，应用更新时保留。命令默认使用本次材料副本和独立工作目录。自行指定系统安装位置的工具由对应安装器管理。\n\nPDF 页图与模型视觉\n\n已内置。扫描件直接交给模型查看，保留页码与未读范围，不额外安装 OCR 引擎。\n\n旧 DOC 转 DOCX\n\nmacOS 系统转换已就绪，普通文字阅读无需下载。\n\n系统转换适合文字阅读；复杂公式、附图与版式需要选择合适工具并核对。原始 DOC 始终保留。\n\n可选 LibreOffice 转换组件\n智慧芽对比文件\n\n贝思兰德通知同步后自动识别公开号，通过智慧芽下载 PDF 并保存到本案轮次。失败项目可以单独重试。\n\n尚未配置\n\nAPI Key 或 Client ID:Client Secret\n导入本机旧配置\n保存凭证\n测试连接\n移除凭证\n\n只发送公开专利编号；通知书、原始申请及账号登录凭证不发送给智慧芽。无需安装旧项目。",
+      "viewport": [
+        1400,
+        837
+      ],
+      "scrollWidth": 1385
+    },
+    {
+      "name": "native-mcp",
+      "text": "专利工作台\n工作空间\n案件库\n等待官方\n0\n工作任务\n审查队列\n内部流转\n案件状态\n设置\n本机工作空间\n设置\n桌面版 0.20.1\n设置\n\n管理当前账号、原始申请文件库和案件工作目录。\n\n贝思兰德账号\n文件与目录\n模型服务\n模板与规则\n文档工具\n技能与 MCP\n诊断日志\n应用与更新\n技能与 MCP\n\n保存后用于下一次 Agent 任务；正在运行的任务保持原配置。\n\ndraft-cn-invention-patent\n\n标准业务技能 · 随应用提供\n\n已内置\nreview-cn-invention-patent\n\n标准业务技能 · 随应用提供\n\n已内置\n导入技能文件夹\n编写技能\n粘贴 MCP 配置\n\n技能导入包含 SKILL.md、文本参考及脚本（不执行）；图片和二进制附件请通过案件材料提供。远程 MCP 会接收你交给其工具的内容；本地 MCP 按当前用户权限运行，需要开启“任意命令”。应用不会主动传入贝思兰德凭证或整个案件库。请求头及环境变量加密保存在当前账号。",
+      "viewport": [
+        1400,
+        837
+      ],
+      "scrollWidth": 1385
+    },
+    {
+      "name": "native-app-settings",
+      "text": "专利工作台\n工作空间\n案件库\n等待官方\n0\n工作任务\n审查队列\n内部流转\n案件状态\n设置\n本机工作空间\n设置\n桌面版 0.20.1\n设置\n\n管理当前账号、原始申请文件库和案件工作目录。\n\n贝思兰德账号\n文件与目录\n模型服务\n模板与规则\n文档工具\n技能与 MCP\n诊断日志\n应用与更新\n应用与更新\n启动与窗口\n\n设置这台电脑上的启动和窗口行为。后台运行时，同步与任务继续执行。\n\n登录启动\n登录电脑时自动启动\n\n系统状态：未启用\n\n自启时放入后台，不弹出窗口\n关闭窗口\n保存并退出应用\n隐藏到托盘，继续后台运行\n\n后台运行时，可从托盘重新打开工作台。\n\n最小化\n最小化时隐藏到托盘\n\n未勾选时，使用系统默认的窗口最小化方式。\n\n保存设置\n最小化窗口\n退出应用\n\n桌面版 0.20.1。答复 Word 已接入确认模板。\n\n目标平台\nmacOS / Windows\n更新方式\n下载新版安装包后运行，安装器识别已有安装并覆盖程序；账号、设置、对话与工作目录保留。\n最小化\n按上方最小化选项保留窗口或隐藏到托盘，同步继续检查。\n完全退出\n停止网络操作，保存本机记录。\n查看安装与更新说明\n\nmacOS 使用 .pkg 安装包，Windows 使用 Setup.exe。请安装到原安装位置，更新前先在工作台中退出应用。",
+      "viewport": [
+        1400,
+        837
+      ],
+      "scrollWidth": 1385
+    }
+  ],
+  "errors": [
+    {
+      "method": "Log.entryAdded",
+      "params": {
+        "entry": {
+          "source": "security",
+          "level": "error",
+          "text": "Loading the font 'data:font/woff2;base64,d09GMgABAAAAAA4oAA4AAAAAHbQAAA3TAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAABmAAgRQIDgmcDBEICo1oijYBNgIkA14LMgAEIAWJAAeBHAyBHBvbGiMRdnO0IkRRkiYDgr9KsJ1NUAf2kILNxgUmgqIgq1P89vcbIcmsQbRps3vCcXdYOKSWEPEKgZgQkprQQsxIXUgq0DqpGKmIvrgkeVGtEQD9DzAO29fM9jYhxZEsL2FeURH2JN4MIcTdO049NCVdxQ/w9NrSYFEBKTDKpLKfNkCGDc1RwjZLQcm3vqJ2UW9Xfa3tgAHz6ivp6vgC2yD4/6352ndnN0X0TL7seypkjZlMsjmZnf0Mm5Q+JykRWQBKCVCVPbARPXWyQtb5VgLB6Biq7/Uixcj2WGqdI8tGSgkuRG+t910GKP2D7AQH0DB9FMDW/obJZ8giFI3Wg8Cvevz0M+5m0rTh7XDBlvo9Y4vm13EXmftt...mCahLsdlyA5fdQkRSan9LgnnLEyGSkaKJCJog0wAgvepWBt80+1yKln1bMVtCljfNWDueKLsWwaEbBSfSPTEmVRsUcYYMnEjcjeyCZzBXK9E9BYBXLKjOSpUDR+nEV3TFSUdQaz+ot98QxgXwx0GQ+EEUAKB2qZPkQQ0GqFD8UPFMqyaCHM24BZmSGic9EYMagKizOw9Hz50DMrDLrqqLkTAhplMictiCAx5S3BIUQdeJeLnBy2CNtMfz6cV4u8XKoFZQesbf9YZiIERiHjaNodDW6LgcirX/mPnJIkBGDUpTBhSa0EIr38D5hCIszhCM8URGBqImoWjpvpt1ebu/v3Gl3qJfMnNM+9V+kiRFyROTPHQWOcs1dNW94/ukKMPZBvDi55i5CttdeJz84DLngLqjcdwEZ87bFFR8CIG35OAkDVN6VRDZ7aq67NteYqZ2lpT8oYB2CytoBd6VuAx4WgiAsnuj3WohG+LugzXiQRDeM3XYXlULv4dp5VFYC' violates the following Content Security Policy directive: \"default-src 'self'\". Note that 'font-src' was not explicitly set, so 'default-src' is used as a fallback. The action has been blocked.",
+          "timestamp": 1791777728041.448,
+          "url": "file:///Users/cyh/Documents/ChatGPT/patent-agent/release/%E4%B8%93%E5%88%A9%E5%B7%A5%E4%BD%9C%E5%8F%B0-0.20.1-macOS-arm64.app/Contents/Resources/app.asar/dist/index.html"
+        }
+      }
+    }
+  ]
+}

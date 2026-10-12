@@ -1,0 +1,21 @@
+import fs from 'node:fs/promises';
+import {connect} from './cdp.mjs';
+const c=await connect();try{
+ const saved=JSON.parse(await fs.readFile(new URL('./native-case-state.json',import.meta.url)));
+ const id=saved.cases[0].id;
+ const record=await c.evaluate(`window.patentDesktop.professional.getCase('local',${JSON.stringify(id)}).then(v=>({phase:v.record.phase,entry:v.record.entry,jobs:v.record.jobs.length,confirmations:v.record.confirmations.length}))`);
+ if(record.phase!==2||record.jobs!==0||record.confirmations!==0)throw Error('Reopen mismatch: '+JSON.stringify(record));
+ await c.evaluate(`location.hash=${JSON.stringify('#/case/'+id+'/write')}`);
+ await new Promise(r=>setTimeout(r,200));
+ const viewports=[];
+ for(const [width,height] of [[1440,900],[1920,1080],[1280,800]]){
+  await c.call('Emulation.setDeviceMetricsOverride',{width,height,deviceScaleFactor:1,mobile:false});
+  await new Promise(r=>setTimeout(r,60));
+  const state=await c.snapshot('native-reopen-'+width+'x'+height);
+  viewports.push({width,height,actual:state.viewport,scrollWidth:state.scrollWidth,overflowX:state.scrollWidth>width,correctStage:state.text.includes('本轮从「说明书」开始')});
+ }
+ const report={record,viewports,errors:c.events.filter(e=>e.method==='Runtime.exceptionThrown'||e.method==='Log.entryAdded'&&['error','warning'].includes(e.params.entry.level))};
+ await fs.writeFile(new URL('./native-reopen-summary.json',import.meta.url),JSON.stringify(report,null,2));
+ console.log(JSON.stringify(report,null,2));
+ await c.evaluate('window.patentDesktop.application.quit()');
+}finally{c.close();}

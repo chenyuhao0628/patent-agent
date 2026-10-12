@@ -1,0 +1,72 @@
+{
+  "version": {
+    "package": "0.20.1",
+    "lock": "0.20.1",
+    "lockRoot": "0.20.1",
+    "manifest": "0.20.1"
+  },
+  "runtime": {
+    "runtime": "OpenCode",
+    "version": "1.18.30",
+    "sourceDir": "/Users/cyh/Documents/ChatGPT/patent-agent/.lab/agent-runtime",
+    "files": [
+      {
+        "platform": "darwin-arm64",
+        "file": "darwin-arm64/opencode",
+        "bytes": 144272354,
+        "sha256": "2d0c9c339bb91046c6ea951c97664bc2f8a8eaca707f31fbfbb7bc73c4eddc62",
+        "header": "cffaedfe"
+      },
+      {
+        "platform": "win32-x64",
+        "file": "win32-x64/opencode.exe",
+        "bytes": 179793448,
+        "sha256": "17aea6d895c750ad5008df2395c5ae85353bd03a62ffc698ec040ef6dfea4115",
+        "header": "4d5a7800"
+      }
+    ]
+  },
+  "artifacts": [
+    {
+      "file": "专利工作台-0.20.1-macOS-arm64.app",
+      "expected": "1da764e831e1e9887127c0485fa6c31bcc66711eb53e6d36985495df3cd930e3",
+      "actual": "1da764e831e1e9887127c0485fa6c31bcc66711eb53e6d36985495df3cd930e3",
+      "matches": true,
+      "structural": "passed"
+    },
+    {
+      "file": "PatentWorkbench-0.20.1-macOS-arm64.pkg",
+      "expected": "10e0e000852d53f8f73180f1fde1a91d228f5a31bd22277f6a85b84d69c63d4b",
+      "actual": "10e0e000852d53f8f73180f1fde1a91d228f5a31bd22277f6a85b84d69c63d4b",
+      "matches": true,
+      "structural": "not-run"
+    },
+    {
+      "file": "PatentWorkbench-0.20.1-Windows-x64-Setup.exe",
+      "expected": "ae81215eed967b23bd27f97335b3426fa8019646423a06839da76d5b40b3ecf9",
+      "actual": "ae81215eed967b23bd27f97335b3426fa8019646423a06839da76d5b40b3ecf9",
+      "matches": true,
+      "structural": "MZ passed"
+    }
+  ],
+  "payload": [
+    {
+      "file": "desktop-dist/main.cjs",
+      "matches": true,
+      "bundleHash": "9c3a753b8dd11fdb49d7c1944218a78e8d8b96e109ea236d9fc19d59331b502d",
+      "sourceBuildHash": "9c3a753b8dd11fdb49d7c1944218a78e8d8b96e109ea236d9fc19d59331b502d"
+    },
+    {
+      "file": "desktop-dist/preload.cjs",
+      "matches": true,
+      "bundleHash": "7f4e795fea955d25c0e64e4897ec664ef9924543c8faa5c8a43569207bc78dca",
+      "sourceBuildHash": "7f4e795fea955d25c0e64e4897ec664ef9924543c8faa5c8a43569207bc78dca"
+    },
+    {
+      "file": "dist/index.html",
+      "matches": true,
+      "bundleHash": "7a8871f1eb3f6729ab9100b0c77d3ae8720cc71e1aa1dcdc2a558df7b3ea83e2",
+      "sourceBuildHash": "7a8871f1eb3f6729ab9100b0c77d3ae8720cc71e1aa1dcdc2a558df7b3ea83e2"
+    }
+  ]
+}

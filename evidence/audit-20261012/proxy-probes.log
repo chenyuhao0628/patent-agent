@@ -1,0 +1,77 @@
+[
+  {
+    "probe": "gzip-response",
+    "format": "json",
+    "transport": "node",
+    "status": 200,
+    "headers": {
+      "cache-control": "no-store",
+      "connection": "close",
+      "content-encoding": "gzip",
+      "content-length": "106",
+      "content-type": "application/json",
+      "date": "Mon, 12 Oct 2026 04:12:27 GMT"
+    },
+    "receivedMatches": true
+  },
+  {
+    "probe": "gzip-response",
+    "format": "json",
+    "transport": "runner-fetch",
+    "status": 200,
+    "headers": {
+      "cache-control": "no-store",
+      "connection": "close",
+      "content-encoding": "gzip",
+      "content-length": "106",
+      "content-type": "application/json",
+      "date": "Mon, 12 Oct 2026 04:12:27 GMT"
+    },
+    "receivedMatches": false,
+    "error": {
+      "name": "TypeError",
+      "message": "terminated",
+      "cause": "incorrect header check"
+    }
+  },
+  {
+    "probe": "gzip-response",
+    "format": "sse",
+    "transport": "node",
+    "status": 200,
+    "headers": {
+      "cache-control": "no-store",
+      "connection": "close",
+      "content-encoding": "gzip",
+      "content-length": "114",
+      "content-type": "text/event-stream",
+      "date": "Mon, 12 Oct 2026 04:12:27 GMT"
+    },
+    "receivedMatches": true
+  },
+  {
+    "probe": "gzip-response",
+    "format": "sse",
+    "transport": "runner-fetch",
+    "status": 200,
+    "headers": {
+      "cache-control": "no-store",
+      "connection": "close",
+      "content-encoding": "gzip",
+      "content-length": "114",
+      "content-type": "text/event-stream",
+      "date": "Mon, 12 Oct 2026 04:12:27 GMT"
+    },
+    "receivedMatches": false,
+    "error": {
+      "name": "TypeError",
+      "message": "terminated",
+      "cause": "incorrect header check"
+    }
+  },
+  {
+    "probe": "client-disconnect",
+    "upstreamStarted": true,
+    "upstreamAbortedBeforeProxyClose": false
+  }
+]

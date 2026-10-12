@@ -1,0 +1,162 @@
+{
+  "state": {
+    "title": "专利工作台",
+    "url": "file:///Users/cyh/Documents/ChatGPT/patent-agent/release/%E4%B8%93%E5%88%A9%E5%B7%A5%E4%BD%9C%E5%8F%B0-0.20.1-macOS-arm64.app/Contents/Resources/app.asar/dist/index.html#/settings/model",
+    "text": "专利工作台\n工作空间\n案件库\n等待官方\n0\n工作任务\n审查队列\n内部流转\n案件状态\n设置\n本机工作空间\n设置\n桌面版 0.20.1\n设置\n\n管理当前账号、原始申请文件库和案件工作目录。\n\n贝思兰德账号\n文件与目录\n模型服务\n模板与规则\n文档工具\n技能与 MCP\n诊断日志\n应用与更新\n模型服务\n\n先选择或添加供应商，再管理其下的模型。密钥只在保存时提交，不回显。\n\n添加供应商\n从 DSH 导入\nOpenCode Go\n预置\n1 个模型\n默认\n进入",
+    "viewport": [
+      1400,
+      837
+    ],
+    "scrollWidth": 1385,
+    "buttons": [
+      {
+        "text": "贝思兰德账号",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      },
+      {
+        "text": "文件与目录",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      },
+      {
+        "text": "模型服务",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      },
+      {
+        "text": "模板与规则",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      },
+      {
+        "text": "文档工具",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      },
+      {
+        "text": "技能与 MCP",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      },
+      {
+        "text": "诊断日志",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      },
+      {
+        "text": "应用与更新",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      },
+      {
+        "text": "添加供应商",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      },
+      {
+        "text": "从 DSH 导入",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      },
+      {
+        "text": "OpenCode Go\n预置\n1 个模型\n默认\n进入",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      }
+    ],
+    "inputs": []
+  },
+  "events": [
+    {
+      "method": "Runtime.executionContextCreated",
+      "params": {
+        "context": {
+          "id": 2,
+          "origin": "file://",
+          "name": "Electron Isolated Context",
+          "uniqueId": "6379649264551950642.1729773042595425568",
+          "auxData": {
+            "isDefault": false,
+            "type": "isolated",
+            "frameId": "A6ABA929F2A52CF6477DAC6FDF3C2A0A"
+          }
+        }
+      }
+    },
+    {
+      "method": "Runtime.executionContextCreated",
+      "params": {
+        "context": {
+          "id": 1,
+          "origin": "file://",
+          "name": "",
+          "uniqueId": "-4202489310330551421.8852811195152040183",
+          "auxData": {
+            "isDefault": true,
+            "type": "default",
+            "frameId": "A6ABA929F2A52CF6477DAC6FDF3C2A0A"
+          }
+        }
+      }
+    },
+    {
+      "method": "Log.entryAdded",
+      "params": {
+        "entry": {
+          "source": "security",
+          "level": "error",
+          "text": "Loading the font 'data:font/woff2;base64,d09GMgABAAAAAA4oAA4AAAAAHbQAAA3TAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAABmAAgRQIDgmcDBEICo1oijYBNgIkA14LMgAEIAWJAAeBHAyBHBvbGiMRdnO0IkRRkiYDgr9KsJ1NUAf2kILNxgUmgqIgq1P89vcbIcmsQbRps3vCcXdYOKSWEPEKgZgQkprQQsxIXUgq0DqpGKmIvrgkeVGtEQD9DzAO29fM9jYhxZEsL2FeURH2JN4MIcTdO049NCVdxQ/w9NrSYFEBKTDKpLKfNkCGDc1RwjZLQcm3vqJ2UW9Xfa3tgAHz6ivp6vgC2yD4/6352ndnN0X0TL7seypkjZlMsjmZnf0Mm5Q+JykRWQBKCVCVPbARPXWyQtb5VgLB6Biq7/Uixcj2WGqdI8tGSgkuRG+t910GKP2D7AQH0DB9FMDW/obJZ8giFI3Wg8Cvevz0M+5m0rTh7XDBlvo9Y4vm13EXmftt...mCahLsdlyA5fdQkRSan9LgnnLEyGSkaKJCJog0wAgvepWBt80+1yKln1bMVtCljfNWDueKLsWwaEbBSfSPTEmVRsUcYYMnEjcjeyCZzBXK9E9BYBXLKjOSpUDR+nEV3TFSUdQaz+ot98QxgXwx0GQ+EEUAKB2qZPkQQ0GqFD8UPFMqyaCHM24BZmSGic9EYMagKizOw9Hz50DMrDLrqqLkTAhplMictiCAx5S3BIUQdeJeLnBy2CNtMfz6cV4u8XKoFZQesbf9YZiIERiHjaNodDW6LgcirX/mPnJIkBGDUpTBhSa0EIr38D5hCIszhCM8URGBqImoWjpvpt1ebu/v3Gl3qJfMnNM+9V+kiRFyROTPHQWOcs1dNW94/ukKMPZBvDi55i5CttdeJz84DLngLqjcdwEZ87bFFR8CIG35OAkDVN6VRDZ7aq67NteYqZ2lpT8oYB2CytoBd6VuAx4WgiAsnuj3WohG+LugzXiQRDeM3XYXlULv4dp5VFYC' violates the following Content Security Policy directive: \"default-src 'self'\". Note that 'font-src' was not explicitly set, so 'default-src' is used as a fallback. The action has been blocked.",
+          "timestamp": 1791777728041.448,
+          "url": "file:///Users/cyh/Documents/ChatGPT/patent-agent/release/%E4%B8%93%E5%88%A9%E5%B7%A5%E4%BD%9C%E5%8F%B0-0.20.1-macOS-arm64.app/Contents/Resources/app.asar/dist/index.html"
+        }
+      }
+    },
+    {
+      "method": "Page.frameScheduledNavigation",
+      "params": {
+        "frameId": "A6ABA929F2A52CF6477DAC6FDF3C2A0A",
+        "delay": 0,
+        "reason": "scriptInitiated",
+        "url": "file:///Users/cyh/Documents/ChatGPT/patent-agent/release/%E4%B8%93%E5%88%A9%E5%B7%A5%E4%BD%9C%E5%8F%B0-0.20.1-macOS-arm64.app/Contents/Resources/app.asar/dist/index.html#/settings/model"
+      }
+    },
+    {
+      "method": "Page.frameStartedLoading",
+      "params": {
+        "frameId": "A6ABA929F2A52CF6477DAC6FDF3C2A0A"
+      }
+    },
+    {
+      "method": "Page.navigatedWithinDocument",
+      "params": {
+        "frameId": "A6ABA929F2A52CF6477DAC6FDF3C2A0A",
+        "url": "file:///Users/cyh/Documents/ChatGPT/patent-agent/release/%E4%B8%93%E5%88%A9%E5%B7%A5%E4%BD%9C%E5%8F%B0-0.20.1-macOS-arm64.app/Contents/Resources/app.asar/dist/index.html#/settings/model",
+        "navigationType": "fragment"
+      }
+    },
+    {
+      "method": "Page.frameStoppedLoading",
+      "params": {
+        "frameId": "A6ABA929F2A52CF6477DAC6FDF3C2A0A"
+      }
+    },
+    {
+      "method": "Page.frameClearedScheduledNavigation",
+      "params": {
+        "frameId": "A6ABA929F2A52CF6477DAC6FDF3C2A0A"
+      }
+    }
+  ]
+}

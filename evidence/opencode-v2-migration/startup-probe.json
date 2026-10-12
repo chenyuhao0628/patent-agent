@@ -1,0 +1,167 @@
+[
+  {
+    "major": 1,
+    "round": 0,
+    "elapsedMs": 1746,
+    "info": {
+      "healthy": true,
+      "version": "1.18.30"
+    }
+  },
+  {
+    "major": 1,
+    "round": 1,
+    "elapsedMs": 931,
+    "info": {
+      "healthy": true,
+      "version": "1.18.30"
+    }
+  },
+  {
+    "major": 1,
+    "round": 2,
+    "elapsedMs": 920,
+    "info": {
+      "healthy": true,
+      "version": "1.18.30"
+    }
+  },
+  {
+    "major": 2,
+    "round": 0,
+    "elapsedMs": 626,
+    "info": {
+      "version": "2.0.26",
+      "pid": 12240,
+      "urls": [
+        "http://127.0.0.1:51805"
+      ],
+      "paths": {
+        "tmp": "/private/tmp/opencode"
+      },
+      "capabilities": {
+        "persistentPty": true
+      }
+    },
+    "session": {
+      "status": 200,
+      "response": {
+        "data": {
+          "id": "ses_ed19d3c06ffe5ywUVNYLuYReQQ",
+          "projectID": "ecb29cb11a24f05891b729e4cd0212ed7b116446",
+          "cost": 0,
+          "tokens": {
+            "input": 0,
+            "output": 0,
+            "reasoning": 0,
+            "cache": {
+              "read": 0,
+              "write": 0
+            }
+          },
+          "time": {
+            "created": 1791779587071,
+            "updated": 1791779587071
+          },
+          "title": "synthetic-compatibility",
+          "subpath": "../../../tmp/patent-oc-start-uZBiSo",
+          "location": {
+            "directory": "/tmp/patent-oc-start-uZBiSo"
+          }
+        }
+      }
+    }
+  },
+  {
+    "major": 2,
+    "round": 1,
+    "elapsedMs": 615,
+    "info": {
+      "version": "2.0.26",
+      "pid": 12255,
+      "urls": [
+        "http://127.0.0.1:51817"
+      ],
+      "paths": {
+        "tmp": "/private/tmp/opencode"
+      },
+      "capabilities": {
+        "persistentPty": true
+      }
+    },
+    "session": {
+      "status": 200,
+      "response": {
+        "data": {
+          "id": "ses_ed19d3979ffeYWGe3MIhRwwB0J",
+          "projectID": "ea57d054ba3016ae1308439b19f72d453f4e068e",
+          "cost": 0,
+          "tokens": {
+            "input": 0,
+            "output": 0,
+            "reasoning": 0,
+            "cache": {
+              "read": 0,
+              "write": 0
+            }
+          },
+          "time": {
+            "created": 1791779587727,
+            "updated": 1791779587727
+          },
+          "title": "synthetic-compatibility",
+          "subpath": "../../../tmp/patent-oc-start-nEewSt",
+          "location": {
+            "directory": "/tmp/patent-oc-start-nEewSt"
+          }
+        }
+      }
+    }
+  },
+  {
+    "major": 2,
+    "round": 2,
+    "elapsedMs": 634,
+    "info": {
+      "version": "2.0.26",
+      "pid": 12281,
+      "urls": [
+        "http://127.0.0.1:51836"
+      ],
+      "paths": {
+        "tmp": "/private/tmp/opencode"
+      },
+      "capabilities": {
+        "persistentPty": true
+      }
+    },
+    "session": {
+      "status": 200,
+      "response": {
+        "data": {
+          "id": "ses_ed19d36b5ffe7IdX1BWzKDdr0b",
+          "projectID": "3ce250e77ffe50225bfde2c04191d6ca9fb1a4c4",
+          "cost": 0,
+          "tokens": {
+            "input": 0,
+            "output": 0,
+            "reasoning": 0,
+            "cache": {
+              "read": 0,
+              "write": 0
+            }
+          },
+          "time": {
+            "created": 1791779588430,
+            "updated": 1791779588430
+          },
+          "title": "synthetic-compatibility",
+          "subpath": "../../../tmp/patent-oc-start-UmhZK1",
+          "location": {
+            "directory": "/tmp/patent-oc-start-UmhZK1"
+          }
+        }
+      }
+    }
+  }
+]

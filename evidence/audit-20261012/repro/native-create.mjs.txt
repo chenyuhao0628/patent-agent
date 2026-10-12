@@ -1,0 +1,8 @@
+import {connect} from './cdp.mjs';
+const c=await connect();try{
+ await c.evaluate(`(()=>{const set=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;for(const [label,value] of [['案件名称','合成审计案件：桌面落盘与恢复'],['案号／本地项目编号','AUDIT-20261012-001']]){const l=[...document.querySelectorAll('label')].find(l=>l.innerText===label);const e=l.querySelector('input');set.call(e,value);e.dispatchEvent(new Event('input',{bubbles:true}));}})()`);
+ await new Promise(r=>setTimeout(r,50));
+ await c.evaluate(`[...document.querySelectorAll('button')].find(b=>b.innerText==='建立案件与目录').click()`);
+ await new Promise(r=>setTimeout(r,500));
+ console.log(JSON.stringify(await c.snapshot('native-case-created'),null,2));
+}finally{c.close();}

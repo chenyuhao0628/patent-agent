@@ -1,0 +1,13 @@
+import fs from 'node:fs/promises';
+import {connect} from './cdp.mjs';
+const c=await connect();try{
+ await c.evaluate(`[...document.querySelectorAll('button')].find(b=>b.innerText==='撰写').click()`);
+ await new Promise(r=>setTimeout(r,150));
+ await c.evaluate(`(()=>{const s=[...document.querySelectorAll('label')].find(l=>l.innerText.includes('根据已有材料选择起点')).querySelector('select');s.value='2';s.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+ await new Promise(r=>setTimeout(r,300));
+ const state=await c.snapshot('native-phase-saved');
+ const saved=await c.evaluate(`window.patentDesktop.bootstrap().then(s=>({profile:s.profileKey,cases:s.workspace.cases.map(c=>({id:c.id,title:c.title,number:c.number,directory:c.directory,current:c.current}))}))`);
+ await fs.writeFile(new URL('./native-case-state.json',import.meta.url),JSON.stringify(saved,null,2));
+ console.log(JSON.stringify({text:state.text,viewport:state.viewport,scrollWidth:state.scrollWidth,saved},null,2));
+ await c.evaluate('window.patentDesktop.application.quit()');
+}finally{c.close();}

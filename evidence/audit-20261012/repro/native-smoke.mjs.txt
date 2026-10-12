@@ -1,0 +1,14 @@
+import fs from 'node:fs/promises';
+import {connect} from './cdp.mjs';
+const c=await connect();
+try{
+ const summary=[];
+ for(const [label,name] of [['模型服务','native-models'],['文档工具','native-tools'],['技能与 MCP','native-mcp'],['应用与更新','native-app-settings']]){
+  await c.evaluate(`(()=>{const b=[...document.querySelectorAll('button')].find(b=>b.innerText===${JSON.stringify(label)});if(!b)throw Error('Missing tab');b.click();})()`);
+  await new Promise(r=>setTimeout(r,250));
+  const s=await c.snapshot(name);summary.push({name,text:s.text,viewport:s.viewport,scrollWidth:s.scrollWidth});
+ }
+ await fs.writeFile(new URL('./native-smoke-summary.json',import.meta.url),JSON.stringify({screens:summary,errors:c.events.filter(e=>e.method==='Runtime.exceptionThrown'||e.method==='Log.entryAdded'&&['error','warning'].includes(e.params.entry.level))},null,2));
+ console.log(JSON.stringify(summary.map(s=>({name:s.name,text:s.text.slice(-1800),viewport:s.viewport,scrollWidth:s.scrollWidth})),null,2));
+ await c.evaluate('window.patentDesktop.application.quit()');
+}finally{c.close();}

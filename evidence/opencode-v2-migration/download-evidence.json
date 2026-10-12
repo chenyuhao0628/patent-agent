@@ -1,0 +1,24 @@
+[
+  {
+    "platform": "darwin-arm64",
+    "version": "2.0.26",
+    "file": "/Users/cyh/Documents/ChatGPT/patent-agent/.lab/opencode-v2-eval-2.0.26/darwin-arm64/opencode",
+    "bytes": 185808848,
+    "sha256": "1b6418a3bd4211344d8a2b75d7d4367b24283ae548bd6b896cf717f6f8858f26",
+    "source": "https://registry.npmjs.org/@opencode/cli-darwin-arm64/-/cli-darwin-arm64-2.0.26.tgz",
+    "integrity": "sha512-XklldeO6eWgG8vkPNLcdlBPEm1Y+/tyhEXGZvXbk8uytpPP7SEVV2R9oZ98NMSSPH9kBAO/+Xo4sKfvD6CHAsw=="
+  },
+  {
+    "platform": "win32-x64",
+    "version": "2.0.26",
+    "file": "/Users/cyh/Documents/ChatGPT/patent-agent/.lab/opencode-v2-eval-2.0.26/win32-x64/opencode.exe",
+    "bytes": 212567080,
+    "sha256": "e13e57a7f6b7abddec887e0b2d912d22484077c50dff5bed4f3199bcf63b6088",
+    "source": "https://registry.npmjs.org/@opencode/cli-windows-x64/-/cli-windows-x64-2.0.26.tgz",
+    "integrity": "sha512-SnM0HxXr+UB1yV/7JcLx2kpFkMktTmuECyylxkwtkUzWRE2Kc9F58+/BrJRyVrY6cSg4Zt3uPZFUwZaLix652w=="
+  },
+  {
+    "package": "@opencode/client",
+    "directory": "/tmp/patent-opencode-v2-evaluation/client26"
+  }
+]

@@ -1,0 +1,61 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { OpenCodeRunner, inspectAssistantTurn } from '/Users/cyh/Documents/ChatGPT/patent-agent/desktop/agent-runner.ts';
+
+const root=path.dirname(new URL(import.meta.url).pathname);
+const fake=path.join(root,'audit-opencode.mjs');
+await fs.writeFile(fake,`#!${process.execPath}
+import http from 'node:http';
+const port=Number(process.argv[process.argv.indexOf('--port')+1]);
+let title='',prompts=0;
+const send=(r,status,value)=>{r.writeHead(status,{'Content-Type':'application/json'});r.end(JSON.stringify(value));};
+http.createServer(async(req,res)=>{
+ const u=new URL(req.url,'http://127.0.0.1');
+ let body=''; for await(const x of req)body+=x;
+ if(u.pathname==='/global/health')return send(res,200,{healthy:true,version:'1.18.30'});
+ if(u.pathname==='/global/event'){res.writeHead(200,{'Content-Type':'text/event-stream'});res.write(': connected\\n\\n');return;}
+ if(u.pathname==='/session'&&req.method==='POST'){title=JSON.parse(body).title;return send(res,200,{id:'s-audit'});}
+ if(u.pathname.endsWith('/prompt_async')){
+  prompts++;
+  if(title==='tool-turn'){
+   const cfg=JSON.parse(process.env.OPENCODE_CONFIG_CONTENT);
+   const mcp=cfg.mcp.case_tools;
+   await fetch(mcp.url,{method:'POST',headers:{...mcp.headers,'Content-Type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'tools/call',params:{name:'write_artifact',arguments:{name:'result.json',content:{kind:'discuss',reply:'Draft before planned final validation'}}}})});
+  }
+  send(res,204,null);if(title==='crash')setTimeout(()=>process.exit(17),40);return;
+ }
+ if(u.pathname==='/session/status')return send(res,200,{'s-audit':{type:'busy'}});
+ if(u.pathname.endsWith('/message')){
+  if(title==='tool-turn'&&prompts)return send(res,200,[{info:{id:'a1',role:'assistant',time:{created:1,completed:Date.now()},finish:'tool-calls'},parts:[{id:'t1',type:'tool',tool:'case_tools_read_material',state:{status:'completed'}}]}]);
+  return send(res,200,[]);
+ }
+ return send(res,200,{});
+}).listen(port,'127.0.0.1');
+`,{mode:0o700});
+
+const runtime={profileKey:'audit',providerId:'audit',providerName:'audit',baseURL:'http://127.0.0.1:1/v1',protocol:'openai-responses',modelId:'audit-model',displayName:'audit',contextWindow:32000,maxOutput:1000,key:'synthetic-not-a-real-key',headers:{}};
+const base=async(label,extra={})=>({runtime,runId:label,discussionId:label,localRunDirectory:await fs.mkdtemp(path.join(root,label+'-')),materials:[],productPrompt:'Synthetic audit.',publicMessages:[],onEvent:()=>{},deadlineMs:2500,...extra});
+const records=[];
+const prior=new Set(process._getActiveHandles());
+const abort=new AbortController();abort.abort();
+const input=await base('pre-aborted',{signal:abort.signal});
+let cancelledUpstreamRequests=0;
+const result=await new OpenCodeRunner({binaryPath:fake,fetchImpl:async(url,init)=>{
+ if(String(url).startsWith(runtime.baseURL)){cancelledUpstreamRequests++;return new Response('{"synthetic":true}',{headers:{'Content-Type':'application/json'}});}
+ return fetch(url,init);
+}}).run(input);
+const leaked=process._getActiveHandles().filter(h=>!prior.has(h)&&h.constructor?.name==='Server'&&h.listening);
+const retainedConfig=JSON.parse(await fs.readFile(path.join(input.localRunDirectory,'xdg-config/opencode/opencode.json'),'utf8'));
+const retained=await fetch(retainedConfig.provider.patent.options.baseURL+'/responses',{method:'POST',headers:{'Content-Type':'application/json',Authorization:retainedConfig.provider.patent.options.headers.Authorization},body:JSON.stringify({input:'synthetic request after cancellation'})});
+await retained.text();
+records.push({probe:'pre-aborted',status:result.status,liveServersAfterReturn:leaked.map(h=>h.address()),proxyStatusAfterRunReturned:retained.status,cancelledUpstreamRequests});
+for(const h of leaked){h.closeAllConnections?.();await new Promise(r=>h.close(r));}
+const crashInput=await base('crash');const started=Date.now();
+const crash=await new OpenCodeRunner({binaryPath:fake}).run(crashInput);
+records.push({probe:'crash-after-prompt',status:crash.status,error:crash.error,elapsedMs:Date.now()-started,configuredDeadlineMs:2500});
+const toolInput=await base('tool-turn',{allowedArtifacts:['result.json'],artifactExpect:{kind:'discuss'}});
+const tool=await new OpenCodeRunner({binaryPath:fake}).run(toolInput);
+records.push({probe:'completed-tool-turn-while-busy',status:tool.status,finalText:tool.finalText,artifact:tool.artifact??null});
+records.push({probe:'inspect-completed-tool-turn',result:inspectAssistantTurn([{info:{id:'a1',role:'assistant',time:{completed:1},finish:'tool-calls'},parts:[{type:'tool',state:{status:'completed'}}]}])});
+await fs.writeFile(path.join(root,'runner-probes.json'),JSON.stringify(records,null,2));
+console.log(JSON.stringify(records,null,2));

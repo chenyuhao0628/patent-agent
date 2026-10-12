@@ -1,0 +1,210 @@
+{
+  "state": {
+    "title": "专利工作台",
+    "url": "file:///Users/cyh/Documents/ChatGPT/patent-agent/release/%E4%B8%93%E5%88%A9%E5%B7%A5%E4%BD%9C%E5%8F%B0-0.20.1-macOS-arm64.app/Contents/Resources/app.asar/dist/index.html#/case/a53950a8-cef3-4fe9-97ba-e993f8f8c3ad/discussion",
+    "text": "专利工作台\n工作空间\n案件库\n等待官方\n0\n工作任务\n审查队列\n内部流转\n案件状态\n设置\n本机工作空间\n案件库\nAUDIT-20261012-001\n本案对话\n桌面版 0.20.1\n合成审计案件：桌面落盘与恢复\n\nAUDIT-20261012-001\n·\n发明\n当前：专利撰写\n\n概览\n材料\n本案对话\n撰写\n稿件审查\n办理历史\n成果\n贝思兰德流程\n本案对话\n\n材料讨论\n\n完整撰写申请文件尚未完成，当前只开放围绕本案材料的讨论。\n\n清理会话\n模型与设置\n讨论列表\n选用材料\n讨论\n本案讨论\n本案讨论\n新建讨论已归档（0）\n还没有消息。可以先提问；只有已选并完成读取的材料才会作为依据。\n本次发送：仅讨论（当前流程不可办理）\n办理当前步骤\n仅讨论\n发送\n停止",
+    "viewport": [
+      1400,
+      838
+    ],
+    "scrollWidth": 1385,
+    "buttons": [
+      {
+        "text": "",
+        "title": "",
+        "aria": "案件管理操作",
+        "disabled": false
+      },
+      {
+        "text": "概览",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      },
+      {
+        "text": "材料",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      },
+      {
+        "text": "本案对话",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      },
+      {
+        "text": "撰写",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      },
+      {
+        "text": "稿件审查",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      },
+      {
+        "text": "办理历史",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      },
+      {
+        "text": "成果",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      },
+      {
+        "text": "贝思兰德流程",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      },
+      {
+        "text": "清理会话",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      },
+      {
+        "text": "讨论列表",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      },
+      {
+        "text": "选用材料",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      },
+      {
+        "text": "本案讨论\n本案讨论",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      },
+      {
+        "text": "新建讨论",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      },
+      {
+        "text": "已归档（0）",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      },
+      {
+        "text": "发送",
+        "title": "",
+        "aria": null,
+        "disabled": true
+      },
+      {
+        "text": "停止",
+        "title": "",
+        "aria": null,
+        "disabled": true
+      }
+    ],
+    "inputs": [
+      {
+        "type": "select-one",
+        "placeholder": null,
+        "value": "discuss",
+        "label": "本次发送：仅讨论（当前流程不可办理）\n办理当前步骤\n仅讨论"
+      },
+      {
+        "type": "textarea",
+        "placeholder": "围绕本案提问…",
+        "value": ""
+      }
+    ]
+  },
+  "events": [
+    {
+      "method": "Runtime.executionContextCreated",
+      "params": {
+        "context": {
+          "id": 2,
+          "origin": "file://",
+          "name": "Electron Isolated Context",
+          "uniqueId": "-3057300705867352574.-4930022696269219192",
+          "auxData": {
+            "isDefault": false,
+            "type": "isolated",
+            "frameId": "98BFDF2550CBDEB1A54BCF64B1E2E8E9"
+          }
+        }
+      }
+    },
+    {
+      "method": "Runtime.executionContextCreated",
+      "params": {
+        "context": {
+          "id": 1,
+          "origin": "file://",
+          "name": "",
+          "uniqueId": "4188957707616938284.6659243087266515480",
+          "auxData": {
+            "isDefault": true,
+            "type": "default",
+            "frameId": "98BFDF2550CBDEB1A54BCF64B1E2E8E9"
+          }
+        }
+      }
+    },
+    {
+      "method": "Log.entryAdded",
+      "params": {
+        "entry": {
+          "source": "security",
+          "level": "error",
+          "text": "Loading the font 'data:font/woff2;base64,d09GMgABAAAAAA4oAA4AAAAAHbQAAA3TAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAABmAAgRQIDgmcDBEICo1oijYBNgIkA14LMgAEIAWJAAeBHAyBHBvbGiMRdnO0IkRRkiYDgr9KsJ1NUAf2kILNxgUmgqIgq1P89vcbIcmsQbRps3vCcXdYOKSWEPEKgZgQkprQQsxIXUgq0DqpGKmIvrgkeVGtEQD9DzAO29fM9jYhxZEsL2FeURH2JN4MIcTdO049NCVdxQ/w9NrSYFEBKTDKpLKfNkCGDc1RwjZLQcm3vqJ2UW9Xfa3tgAHz6ivp6vgC2yD4/6352ndnN0X0TL7seypkjZlMsjmZnf0Mm5Q+JykRWQBKCVCVPbARPXWyQtb5VgLB6Biq7/Uixcj2WGqdI8tGSgkuRG+t910GKP2D7AQH0DB9FMDW/obJZ8giFI3Wg8Cvevz0M+5m0rTh7XDBlvo9Y4vm13EXmftt...mCahLsdlyA5fdQkRSan9LgnnLEyGSkaKJCJog0wAgvepWBt80+1yKln1bMVtCljfNWDueKLsWwaEbBSfSPTEmVRsUcYYMnEjcjeyCZzBXK9E9BYBXLKjOSpUDR+nEV3TFSUdQaz+ot98QxgXwx0GQ+EEUAKB2qZPkQQ0GqFD8UPFMqyaCHM24BZmSGic9EYMagKizOw9Hz50DMrDLrqqLkTAhplMictiCAx5S3BIUQdeJeLnBy2CNtMfz6cV4u8XKoFZQesbf9YZiIERiHjaNodDW6LgcirX/mPnJIkBGDUpTBhSa0EIr38D5hCIszhCM8URGBqImoWjpvpt1ebu/v3Gl3qJfMnNM+9V+kiRFyROTPHQWOcs1dNW94/ukKMPZBvDi55i5CttdeJz84DLngLqjcdwEZ87bFFR8CIG35OAkDVN6VRDZ7aq67NteYqZ2lpT8oYB2CytoBd6VuAx4WgiAsnuj3WohG+LugzXiQRDeM3XYXlULv4dp5VFYC' violates the following Content Security Policy directive: \"default-src 'self'\". Note that 'font-src' was not explicitly set, so 'default-src' is used as a fallback. The action has been blocked.",
+          "timestamp": 1791777981352.474,
+          "url": "file:///Users/cyh/Documents/ChatGPT/patent-agent/release/%E4%B8%93%E5%88%A9%E5%B7%A5%E4%BD%9C%E5%8F%B0-0.20.1-macOS-arm64.app/Contents/Resources/app.asar/dist/index.html"
+        }
+      }
+    },
+    {
+      "method": "Page.frameScheduledNavigation",
+      "params": {
+        "frameId": "98BFDF2550CBDEB1A54BCF64B1E2E8E9",
+        "delay": 0,
+        "reason": "scriptInitiated",
+        "url": "file:///Users/cyh/Documents/ChatGPT/patent-agent/release/%E4%B8%93%E5%88%A9%E5%B7%A5%E4%BD%9C%E5%8F%B0-0.20.1-macOS-arm64.app/Contents/Resources/app.asar/dist/index.html#/case/a53950a8-cef3-4fe9-97ba-e993f8f8c3ad/discussion"
+      }
+    },
+    {
+      "method": "Page.frameStartedLoading",
+      "params": {
+        "frameId": "98BFDF2550CBDEB1A54BCF64B1E2E8E9"
+      }
+    },
+    {
+      "method": "Page.navigatedWithinDocument",
+      "params": {
+        "frameId": "98BFDF2550CBDEB1A54BCF64B1E2E8E9",
+        "url": "file:///Users/cyh/Documents/ChatGPT/patent-agent/release/%E4%B8%93%E5%88%A9%E5%B7%A5%E4%BD%9C%E5%8F%B0-0.20.1-macOS-arm64.app/Contents/Resources/app.asar/dist/index.html#/case/a53950a8-cef3-4fe9-97ba-e993f8f8c3ad/discussion",
+        "navigationType": "fragment"
+      }
+    },
+    {
+      "method": "Page.frameStoppedLoading",
+      "params": {
+        "frameId": "98BFDF2550CBDEB1A54BCF64B1E2E8E9"
+      }
+    },
+    {
+      "method": "Page.frameClearedScheduledNavigation",
+      "params": {
+        "frameId": "98BFDF2550CBDEB1A54BCF64B1E2E8E9"
+      }
+    }
+  ]
+}

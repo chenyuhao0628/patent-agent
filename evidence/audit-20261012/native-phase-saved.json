@@ -1,0 +1,192 @@
+{
+  "state": {
+    "title": "专利工作台",
+    "url": "file:///Users/cyh/Documents/ChatGPT/patent-agent/release/%E4%B8%93%E5%88%A9%E5%B7%A5%E4%BD%9C%E5%8F%B0-0.20.1-macOS-arm64.app/Contents/Resources/app.asar/dist/index.html#/case/a53950a8-cef3-4fe9-97ba-e993f8f8c3ad/write",
+    "text": "专利工作台\n工作空间\n案件库\n等待官方\n0\n工作任务\n审查队列\n内部流转\n案件状态\n设置\n本机工作空间\n案件库\nAUDIT-20261012-001\n撰写\n桌面版 0.20.1\n合成审计案件：桌面落盘与恢复\n\nAUDIT-20261012-001\n·\n发明\n当前：专利撰写\n\n概览\n材料\n本案对话\n撰写\n稿件审查\n办理历史\n成果\n贝思兰德流程\n专利撰写\n\n按现有材料选择起点，确认采用的成果后进入下一步骤。\n\n1\n方向构思\n未逐步确认\n2\n技术方案与保护架构\n未逐步确认\n3\n说明书\n当前步骤\n4\n权利要求书\n待办理\n5\n申请文件整理\n待办理\n\n本轮从「说明书」开始；前序内容以提供材料为依据，未自动标为确认，可按需返回补充。\n\n本阶段输入\n根据已有材料选择起点\n1. 方向构思\n2. 技术方案与保护架构\n3. 说明书\n4. 权利要求书\n5. 申请文件整理\n仅调整起点；不会启动 AI 或替你确认前序内容。\n补充要求或修改意见\n本案参考材料（已选 0）\n\n技术交底、图纸或参考专利。添加后保存到本案，只有勾选材料会供本次撰写读取。\n\n添加参考材料\n\n每次最多 12 份，每份 20MB；Word、PDF、TXT、Markdown、PNG、JPEG。\n\n暂无材料，请点击“添加参考材料”；也可以只输入文字构思。\n\n移出列表保留原文件和历史任务副本；添加成功不代表 AI 已完成读取。\n\n生成说明书\n方向构思\n技术方案与保护架构\n返回补充 / 修改\n查看阶段历史\n说明书结果\n本次任务依据\n来源记录\n\n生成本步骤结果后，在这里阅读并确认。历史版本会保留。",
+    "viewport": [
+      1400,
+      838
+    ],
+    "scrollWidth": 1385,
+    "buttons": [
+      {
+        "text": "",
+        "title": "",
+        "aria": "案件管理操作",
+        "disabled": false
+      },
+      {
+        "text": "概览",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      },
+      {
+        "text": "材料",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      },
+      {
+        "text": "本案对话",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      },
+      {
+        "text": "撰写",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      },
+      {
+        "text": "稿件审查",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      },
+      {
+        "text": "办理历史",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      },
+      {
+        "text": "成果",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      },
+      {
+        "text": "贝思兰德流程",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      },
+      {
+        "text": "添加参考材料",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      },
+      {
+        "text": "生成说明书",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      },
+      {
+        "text": "返回补充 / 修改",
+        "title": "保留历史成果，返回所选步骤补充；后续旧稿不自动沿用",
+        "aria": null,
+        "disabled": false
+      },
+      {
+        "text": "查看阶段历史",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      }
+    ],
+    "inputs": [
+      {
+        "type": "select-one",
+        "placeholder": null,
+        "value": "2",
+        "label": "根据已有材料选择起点\n1. 方向构思\n2. 技术方案与保护架构\n3. 说明书\n4. 权利要求书\n5. 申请文件整理\n仅调整起点；不会启动 AI 或替你确认前序内容。"
+      },
+      {
+        "type": "textarea",
+        "placeholder": "前序确认内容会自动带入，可补充本阶段要求。",
+        "value": "",
+        "label": "补充要求或修改意见"
+      },
+      {
+        "type": "select-one",
+        "placeholder": null,
+        "value": "1"
+      }
+    ]
+  },
+  "events": [
+    {
+      "method": "Runtime.executionContextCreated",
+      "params": {
+        "context": {
+          "id": 2,
+          "origin": "file://",
+          "name": "Electron Isolated Context",
+          "uniqueId": "-3057300705867352574.-4930022696269219192",
+          "auxData": {
+            "isDefault": false,
+            "type": "isolated",
+            "frameId": "98BFDF2550CBDEB1A54BCF64B1E2E8E9"
+          }
+        }
+      }
+    },
+    {
+      "method": "Runtime.executionContextCreated",
+      "params": {
+        "context": {
+          "id": 1,
+          "origin": "file://",
+          "name": "",
+          "uniqueId": "4188957707616938284.6659243087266515480",
+          "auxData": {
+            "isDefault": true,
+            "type": "default",
+            "frameId": "98BFDF2550CBDEB1A54BCF64B1E2E8E9"
+          }
+        }
+      }
+    },
+    {
+      "method": "Log.entryAdded",
+      "params": {
+        "entry": {
+          "source": "security",
+          "level": "error",
+          "text": "Loading the font 'data:font/woff2;base64,d09GMgABAAAAAA4oAA4AAAAAHbQAAA3TAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAABmAAgRQIDgmcDBEICo1oijYBNgIkA14LMgAEIAWJAAeBHAyBHBvbGiMRdnO0IkRRkiYDgr9KsJ1NUAf2kILNxgUmgqIgq1P89vcbIcmsQbRps3vCcXdYOKSWEPEKgZgQkprQQsxIXUgq0DqpGKmIvrgkeVGtEQD9DzAO29fM9jYhxZEsL2FeURH2JN4MIcTdO049NCVdxQ/w9NrSYFEBKTDKpLKfNkCGDc1RwjZLQcm3vqJ2UW9Xfa3tgAHz6ivp6vgC2yD4/6352ndnN0X0TL7seypkjZlMsjmZnf0Mm5Q+JykRWQBKCVCVPbARPXWyQtb5VgLB6Biq7/Uixcj2WGqdI8tGSgkuRG+t910GKP2D7AQH0DB9FMDW/obJZ8giFI3Wg8Cvevz0M+5m0rTh7XDBlvo9Y4vm13EXmftt...mCahLsdlyA5fdQkRSan9LgnnLEyGSkaKJCJog0wAgvepWBt80+1yKln1bMVtCljfNWDueKLsWwaEbBSfSPTEmVRsUcYYMnEjcjeyCZzBXK9E9BYBXLKjOSpUDR+nEV3TFSUdQaz+ot98QxgXwx0GQ+EEUAKB2qZPkQQ0GqFD8UPFMqyaCHM24BZmSGic9EYMagKizOw9Hz50DMrDLrqqLkTAhplMictiCAx5S3BIUQdeJeLnBy2CNtMfz6cV4u8XKoFZQesbf9YZiIERiHjaNodDW6LgcirX/mPnJIkBGDUpTBhSa0EIr38D5hCIszhCM8URGBqImoWjpvpt1ebu/v3Gl3qJfMnNM+9V+kiRFyROTPHQWOcs1dNW94/ukKMPZBvDi55i5CttdeJz84DLngLqjcdwEZ87bFFR8CIG35OAkDVN6VRDZ7aq67NteYqZ2lpT8oYB2CytoBd6VuAx4WgiAsnuj3WohG+LugzXiQRDeM3XYXlULv4dp5VFYC' violates the following Content Security Policy directive: \"default-src 'self'\". Note that 'font-src' was not explicitly set, so 'default-src' is used as a fallback. The action has been blocked.",
+          "timestamp": 1791777981352.474,
+          "url": "file:///Users/cyh/Documents/ChatGPT/patent-agent/release/%E4%B8%93%E5%88%A9%E5%B7%A5%E4%BD%9C%E5%8F%B0-0.20.1-macOS-arm64.app/Contents/Resources/app.asar/dist/index.html"
+        }
+      }
+    },
+    {
+      "method": "Page.frameScheduledNavigation",
+      "params": {
+        "frameId": "98BFDF2550CBDEB1A54BCF64B1E2E8E9",
+        "delay": 0,
+        "reason": "scriptInitiated",
+        "url": "file:///Users/cyh/Documents/ChatGPT/patent-agent/release/%E4%B8%93%E5%88%A9%E5%B7%A5%E4%BD%9C%E5%8F%B0-0.20.1-macOS-arm64.app/Contents/Resources/app.asar/dist/index.html#/case/a53950a8-cef3-4fe9-97ba-e993f8f8c3ad/write"
+      }
+    },
+    {
+      "method": "Page.frameStartedLoading",
+      "params": {
+        "frameId": "98BFDF2550CBDEB1A54BCF64B1E2E8E9"
+      }
+    },
+    {
+      "method": "Page.navigatedWithinDocument",
+      "params": {
+        "frameId": "98BFDF2550CBDEB1A54BCF64B1E2E8E9",
+        "url": "file:///Users/cyh/Documents/ChatGPT/patent-agent/release/%E4%B8%93%E5%88%A9%E5%B7%A5%E4%BD%9C%E5%8F%B0-0.20.1-macOS-arm64.app/Contents/Resources/app.asar/dist/index.html#/case/a53950a8-cef3-4fe9-97ba-e993f8f8c3ad/write",
+        "navigationType": "fragment"
+      }
+    },
+    {
+      "method": "Page.frameStoppedLoading",
+      "params": {
+        "frameId": "98BFDF2550CBDEB1A54BCF64B1E2E8E9"
+      }
+    },
+    {
+      "method": "Page.frameClearedScheduledNavigation",
+      "params": {
+        "frameId": "98BFDF2550CBDEB1A54BCF64B1E2E8E9"
+      }
+    }
+  ]
+}

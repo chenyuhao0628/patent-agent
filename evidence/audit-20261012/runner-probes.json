@@ -1,0 +1,53 @@
+[
+  {
+    "probe": "pre-aborted",
+    "status": "aborted",
+    "liveServersAfterReturn": [
+      {
+        "address": "127.0.0.1",
+        "family": "IPv4",
+        "port": 62275
+      },
+      {
+        "address": "127.0.0.1",
+        "family": "IPv4",
+        "port": 62276
+      }
+    ],
+    "proxyStatusAfterRunReturned": 200,
+    "cancelledUpstreamRequests": 1
+  },
+  {
+    "probe": "crash-after-prompt",
+    "status": "failed",
+    "error": {
+      "code": "deadline",
+      "message": "后台任务达到运行时限，可导出最近 10 分钟日志后继续任务。"
+    },
+    "elapsedMs": 2532,
+    "configuredDeadlineMs": 2500
+  },
+  {
+    "probe": "completed-tool-turn-while-busy",
+    "status": "completed",
+    "finalText": "",
+    "artifact": {
+      "name": "result.json",
+      "relativePath": "result.json",
+      "absolutePath": "/private/tmp/patent-agent-audit-20261012.bcKNuP/tool-turn-CBqZ3Z/outputs/result.json",
+      "hash": "0bb6b8055f41788f7aa2dc972ae3d0333afb40fe4bebd49d4ce09fd4e001057e",
+      "bytes": 66
+    }
+  },
+  {
+    "probe": "inspect-completed-tool-turn",
+    "result": {
+      "pendingTools": false,
+      "assistantCompleted": true,
+      "hasAssistant": true,
+      "assistantId": "a1",
+      "textParts": [],
+      "thinkingParts": []
+    }
+  }
+]

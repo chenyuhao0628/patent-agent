@@ -1,0 +1,162 @@
+{
+  "state": {
+    "title": "专利工作台",
+    "url": "file:///Users/cyh/Documents/ChatGPT/patent-agent/release/%E4%B8%93%E5%88%A9%E5%B7%A5%E4%BD%9C%E5%8F%B0-0.20.1-macOS-arm64.app/Contents/Resources/app.asar/dist/index.html#/case/a53950a8-cef3-4fe9-97ba-e993f8f8c3ad/outputs",
+    "text": "专利工作台\n工作空间\n案件库\n等待官方\n0\n工作任务\n审查队列\n内部流转\n案件状态\n设置\n本机工作空间\n案件库\nAUDIT-20261012-001\n成果\n桌面版 0.20.1\n合成审计案件：桌面落盘与恢复\n\nAUDIT-20261012-001\n·\n发明\n当前：专利撰写\n\n概览\n材料\n本案对话\n撰写\n稿件审查\n办理历史\n成果\n贝思兰德流程\n本案成果\n\n生成文件可预览正文，或打开案件目录查看。答复 Word 使用确认模板，修改文本与内部说明分别归档。\n\n打开案件目录\n本案成果与定稿预览\n\n当前尚未定稿生成最终 Word。以下为当前采用稿件及修改文件的实时排版与公式预览：\n\n还没有生成成果。确认定稿后，按指定模板生成正式 Word；补正内容保存为表单字段记录，工作稿历史另行保留。\n\n打开案件目录",
+    "viewport": [
+      1400,
+      838
+    ],
+    "scrollWidth": 1385,
+    "buttons": [
+      {
+        "text": "",
+        "title": "",
+        "aria": "案件管理操作",
+        "disabled": false
+      },
+      {
+        "text": "概览",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      },
+      {
+        "text": "材料",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      },
+      {
+        "text": "本案对话",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      },
+      {
+        "text": "撰写",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      },
+      {
+        "text": "稿件审查",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      },
+      {
+        "text": "办理历史",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      },
+      {
+        "text": "成果",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      },
+      {
+        "text": "贝思兰德流程",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      },
+      {
+        "text": "打开案件目录",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      },
+      {
+        "text": "打开案件目录",
+        "title": "",
+        "aria": null,
+        "disabled": false
+      }
+    ],
+    "inputs": []
+  },
+  "events": [
+    {
+      "method": "Runtime.executionContextCreated",
+      "params": {
+        "context": {
+          "id": 2,
+          "origin": "file://",
+          "name": "Electron Isolated Context",
+          "uniqueId": "-3057300705867352574.-4930022696269219192",
+          "auxData": {
+            "isDefault": false,
+            "type": "isolated",
+            "frameId": "98BFDF2550CBDEB1A54BCF64B1E2E8E9"
+          }
+        }
+      }
+    },
+    {
+      "method": "Runtime.executionContextCreated",
+      "params": {
+        "context": {
+          "id": 1,
+          "origin": "file://",
+          "name": "",
+          "uniqueId": "4188957707616938284.6659243087266515480",
+          "auxData": {
+            "isDefault": true,
+            "type": "default",
+            "frameId": "98BFDF2550CBDEB1A54BCF64B1E2E8E9"
+          }
+        }
+      }
+    },
+    {
+      "method": "Log.entryAdded",
+      "params": {
+        "entry": {
+          "source": "security",
+          "level": "error",
+          "text": "Loading the font 'data:font/woff2;base64,d09GMgABAAAAAA4oAA4AAAAAHbQAAA3TAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAABmAAgRQIDgmcDBEICo1oijYBNgIkA14LMgAEIAWJAAeBHAyBHBvbGiMRdnO0IkRRkiYDgr9KsJ1NUAf2kILNxgUmgqIgq1P89vcbIcmsQbRps3vCcXdYOKSWEPEKgZgQkprQQsxIXUgq0DqpGKmIvrgkeVGtEQD9DzAO29fM9jYhxZEsL2FeURH2JN4MIcTdO049NCVdxQ/w9NrSYFEBKTDKpLKfNkCGDc1RwjZLQcm3vqJ2UW9Xfa3tgAHz6ivp6vgC2yD4/6352ndnN0X0TL7seypkjZlMsjmZnf0Mm5Q+JykRWQBKCVCVPbARPXWyQtb5VgLB6Biq7/Uixcj2WGqdI8tGSgkuRG+t910GKP2D7AQH0DB9FMDW/obJZ8giFI3Wg8Cvevz0M+5m0rTh7XDBlvo9Y4vm13EXmftt...mCahLsdlyA5fdQkRSan9LgnnLEyGSkaKJCJog0wAgvepWBt80+1yKln1bMVtCljfNWDueKLsWwaEbBSfSPTEmVRsUcYYMnEjcjeyCZzBXK9E9BYBXLKjOSpUDR+nEV3TFSUdQaz+ot98QxgXwx0GQ+EEUAKB2qZPkQQ0GqFD8UPFMqyaCHM24BZmSGic9EYMagKizOw9Hz50DMrDLrqqLkTAhplMictiCAx5S3BIUQdeJeLnBy2CNtMfz6cV4u8XKoFZQesbf9YZiIERiHjaNodDW6LgcirX/mPnJIkBGDUpTBhSa0EIr38D5hCIszhCM8URGBqImoWjpvpt1ebu/v3Gl3qJfMnNM+9V+kiRFyROTPHQWOcs1dNW94/ukKMPZBvDi55i5CttdeJz84DLngLqjcdwEZ87bFFR8CIG35OAkDVN6VRDZ7aq67NteYqZ2lpT8oYB2CytoBd6VuAx4WgiAsnuj3WohG+LugzXiQRDeM3XYXlULv4dp5VFYC' violates the following Content Security Policy directive: \"default-src 'self'\". Note that 'font-src' was not explicitly set, so 'default-src' is used as a fallback. The action has been blocked.",
+          "timestamp": 1791777981352.474,
+          "url": "file:///Users/cyh/Documents/ChatGPT/patent-agent/release/%E4%B8%93%E5%88%A9%E5%B7%A5%E4%BD%9C%E5%8F%B0-0.20.1-macOS-arm64.app/Contents/Resources/app.asar/dist/index.html"
+        }
+      }
+    },
+    {
+      "method": "Page.frameScheduledNavigation",
+      "params": {
+        "frameId": "98BFDF2550CBDEB1A54BCF64B1E2E8E9",
+        "delay": 0,
+        "reason": "scriptInitiated",
+        "url": "file:///Users/cyh/Documents/ChatGPT/patent-agent/release/%E4%B8%93%E5%88%A9%E5%B7%A5%E4%BD%9C%E5%8F%B0-0.20.1-macOS-arm64.app/Contents/Resources/app.asar/dist/index.html#/case/a53950a8-cef3-4fe9-97ba-e993f8f8c3ad/outputs"
+      }
+    },
+    {
+      "method": "Page.frameStartedLoading",
+      "params": {
+        "frameId": "98BFDF2550CBDEB1A54BCF64B1E2E8E9"
+      }
+    },
+    {
+      "method": "Page.navigatedWithinDocument",
+      "params": {
+        "frameId": "98BFDF2550CBDEB1A54BCF64B1E2E8E9",
+        "url": "file:///Users/cyh/Documents/ChatGPT/patent-agent/release/%E4%B8%93%E5%88%A9%E5%B7%A5%E4%BD%9C%E5%8F%B0-0.20.1-macOS-arm64.app/Contents/Resources/app.asar/dist/index.html#/case/a53950a8-cef3-4fe9-97ba-e993f8f8c3ad/outputs",
+        "navigationType": "fragment"
+      }
+    },
+    {
+      "method": "Page.frameStoppedLoading",
+      "params": {
+        "frameId": "98BFDF2550CBDEB1A54BCF64B1E2E8E9"
+      }
+    },
+    {
+      "method": "Page.frameClearedScheduledNavigation",
+      "params": {
+        "frameId": "98BFDF2550CBDEB1A54BCF64B1E2E8E9"
+      }
+    }
+  ]
+}

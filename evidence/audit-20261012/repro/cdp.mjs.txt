@@ -1,0 +1,22 @@
+import fs from 'node:fs/promises';
+const dir='/tmp/patent-agent-audit-20261012.bcKNuP';
+export async function connect(){
+ const {port}=JSON.parse(await fs.readFile(dir+'/desktop-process.json'));
+ const pages=await(await fetch('http://127.0.0.1:'+port+'/json/list')).json();
+ const page=pages.find(x=>x.type==='page'&&x.url.includes('patent-agent/release/'));
+ if(!page)throw Error('Isolated release page not found: '+JSON.stringify(pages.map(p=>({type:p.type,url:p.url}))));
+ const ws=new WebSocket(page.webSocketDebuggerUrl);await new Promise((r,j)=>{ws.onopen=r;ws.onerror=j;});
+ let id=0;const pending=new Map(),events=[];
+ ws.onmessage=e=>{const p=JSON.parse(e.data);if(p.id){const t=pending.get(p.id);pending.delete(p.id);p.error?t?.reject(p.error):t?.resolve(p.result);}else events.push(p);};
+ const call=(method,params={})=>new Promise((resolve,reject)=>{const key=++id;pending.set(key,{resolve,reject});ws.send(JSON.stringify({id:key,method,params}));});
+ const evaluate=async expression=>{const r=await call('Runtime.evaluate',{expression,awaitPromise:true,returnByValue:true});if(r.exceptionDetails)throw Error(JSON.stringify(r.exceptionDetails));return r.result.value;};
+ await call('Runtime.enable');await call('Log.enable');await call('Page.enable');
+ return {call,evaluate,events,page,close:()=>ws.close(),async snapshot(name){
+  const state=await evaluate(`({title:document.title,url:location.href,text:document.body.innerText,viewport:[innerWidth,innerHeight],scrollWidth:document.documentElement.scrollWidth,buttons:[...document.querySelectorAll('button')].map(e=>({text:e.innerText,title:e.title,aria:e.getAttribute('aria-label'),disabled:e.disabled})),inputs:[...document.querySelectorAll('input,select,textarea')].map(e=>({type:e.type,placeholder:e.getAttribute('placeholder'),value:e.value,label:e.closest('label')?.innerText}))})`);
+  const shot=await call('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});
+  await fs.writeFile(dir+'/'+name+'.png',Buffer.from(shot.data,'base64'));
+  await fs.writeFile(dir+'/'+name+'.json',JSON.stringify({state,events},null,2));
+  return state;
+ }};
+}
+if(process.argv[1]===new URL(import.meta.url).pathname){const c=await connect();try{console.log(JSON.stringify(await c.snapshot('native-initial'),null,2));}finally{c.close();}}

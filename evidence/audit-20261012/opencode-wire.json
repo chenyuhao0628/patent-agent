@@ -1,0 +1,65 @@
+[
+  {
+    "path": "/v1/responses",
+    "model": "deepseek-v4.1-flash",
+    "stream": true,
+    "store": false,
+    "promptCacheKey": "ses_ed1b539f6ffeqCRWY15wv30JEu",
+    "maxOutput": 256,
+    "toolNames": [
+      "case_tools_discover_tools",
+      "case_tools_ensure_tool",
+      "case_tools_inspect_artifact",
+      "case_tools_inspect_evidence",
+      "case_tools_read_draft",
+      "case_tools_read_material",
+      "case_tools_read_task_memory",
+      "case_tools_web_fetch",
+      "case_tools_web_search",
+      "case_tools_write_artifact"
+    ],
+    "session": "live-discussion"
+  },
+  {
+    "path": "/v1/responses",
+    "model": "deepseek-v4.1-flash",
+    "stream": true,
+    "store": false,
+    "promptCacheKey": "ses_ed1b539f6ffeqCRWY15wv30JEu",
+    "maxOutput": 256,
+    "toolNames": [
+      "case_tools_discover_tools",
+      "case_tools_ensure_tool",
+      "case_tools_inspect_artifact",
+      "case_tools_inspect_evidence",
+      "case_tools_read_draft",
+      "case_tools_read_material",
+      "case_tools_read_task_memory",
+      "case_tools_web_fetch",
+      "case_tools_web_search",
+      "case_tools_write_artifact"
+    ],
+    "session": "live-discussion"
+  },
+  {
+    "path": "/v1/responses",
+    "model": "deepseek-v4.1-flash",
+    "stream": true,
+    "store": false,
+    "promptCacheKey": "ses_ed1b539f6ffeqCRWY15wv30JEu",
+    "maxOutput": 256,
+    "toolNames": [
+      "case_tools_discover_tools",
+      "case_tools_ensure_tool",
+      "case_tools_inspect_artifact",
+      "case_tools_inspect_evidence",
+      "case_tools_read_draft",
+      "case_tools_read_material",
+      "case_tools_read_task_memory",
+      "case_tools_web_fetch",
+      "case_tools_web_search",
+      "case_tools_write_artifact"
+    ],
+    "session": "live-discussion"
+  }
+]

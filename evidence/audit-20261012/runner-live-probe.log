@@ -1,0 +1,9 @@
+✔ live OpenCode + mock Responses: read_material then write result.json, abort, empty XDG has no npm download (8633.5115ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 9040.395542

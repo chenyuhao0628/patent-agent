@@ -1,0 +1,14 @@
+{
+  "profile": "local",
+  "cases": [
+    {
+      "id": "a53950a8-cef3-4fe9-97ba-e993f8f8c3ad",
+      "title": "合成审计案件：桌面落盘与恢复",
+      "number": "AUDIT-20261012-001",
+      "directory": "案件/local/AUDIT-20261012-001_合成审计案件_桌面落盘与恢复__7ea83f5cb1",
+      "current": {
+        "kind": "write"
+      }
+    }
+  ]
+}
