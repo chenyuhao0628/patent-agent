@@ -1,0 +1,407 @@
+{
+  "checkedAt": "2026-10-12T15:34:49.561Z",
+  "version": "0.22.1",
+  "executablePath": "/Users/cyh/Documents/ChatGPT/patent-agent/release/专利工作台-0.22.1-macOS-arm64.app/Contents/MacOS/专利工作台",
+  "sourceCommit": "d6a868ffc5591b0eb433ccb6a0dd1f702ddbb498",
+  "environment": {
+    "automation": "Playwright Electron 1.62.1",
+    "browserAvailability": "Browser plugin not available",
+    "data": "isolated synthetic two-case workspace",
+    "runtimeAutomaticChecksDisabledForTest": true
+  },
+  "flow": "最终 .app 启动 → 内部流转搜索与筛选 → 工作任务定位 → 切页 / 硬刷新 → 退出并重开",
+  "ui": {
+    "pages": [
+      {
+        "name": "transfer-cold",
+        "title": "专利工作台",
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "task": null,
+        "taskList": null,
+        "flow": {
+          "display": "block",
+          "listStyle": "disc",
+          "border": "1px",
+          "padding": "18px 20px",
+          "gap": "normal",
+          "width": 1079,
+          "height": 330.46875
+        },
+        "nodes": {
+          "display": "grid",
+          "listStyle": "none",
+          "border": "1px",
+          "padding": "18px 0px 0px",
+          "gap": "16px 12px",
+          "width": 1037,
+          "height": 150.78125
+        },
+        "overflow": false
+      },
+      {
+        "name": "tasks-cold",
+        "title": "专利工作台",
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "task": {
+          "display": "flex",
+          "listStyle": "disc",
+          "border": "1px",
+          "padding": "16px",
+          "gap": "16px",
+          "width": 1079,
+          "height": 108.3984375
+        },
+        "taskList": {
+          "display": "flex",
+          "listStyle": "disc",
+          "border": "0px",
+          "padding": "0px",
+          "gap": "10px",
+          "width": 1079,
+          "height": 224.296875
+        },
+        "flow": null,
+        "nodes": null,
+        "overflow": false
+      },
+      {
+        "name": "transfer-after-case",
+        "title": "专利工作台",
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "task": null,
+        "taskList": null,
+        "flow": {
+          "display": "block",
+          "listStyle": "disc",
+          "border": "1px",
+          "padding": "18px 20px",
+          "gap": "normal",
+          "width": 1079,
+          "height": 330.46875
+        },
+        "nodes": {
+          "display": "grid",
+          "listStyle": "none",
+          "border": "1px",
+          "padding": "18px 0px 0px",
+          "gap": "16px 12px",
+          "width": 1037,
+          "height": 150.78125
+        },
+        "overflow": false
+      },
+      {
+        "name": "tasks-after-case",
+        "title": "专利工作台",
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "task": {
+          "display": "flex",
+          "listStyle": "disc",
+          "border": "1px",
+          "padding": "16px",
+          "gap": "16px",
+          "width": 1079,
+          "height": 108.3984375
+        },
+        "taskList": {
+          "display": "flex",
+          "listStyle": "disc",
+          "border": "0px",
+          "padding": "0px",
+          "gap": "10px",
+          "width": 1079,
+          "height": 224.296875
+        },
+        "flow": null,
+        "nodes": null,
+        "overflow": false
+      },
+      {
+        "name": "transfer-responsive",
+        "title": "专利工作台",
+        "viewport": {
+          "width": 1280,
+          "height": 800
+        },
+        "task": null,
+        "taskList": null,
+        "flow": {
+          "display": "block",
+          "listStyle": "disc",
+          "border": "1px",
+          "padding": "18px 20px",
+          "gap": "normal",
+          "width": 957,
+          "height": 312.46875
+        },
+        "nodes": {
+          "display": "grid",
+          "listStyle": "none",
+          "border": "1px",
+          "padding": "18px 0px 0px",
+          "gap": "16px 12px",
+          "width": 915,
+          "height": 132.78125
+        },
+        "overflow": false
+      },
+      {
+        "name": "tasks-responsive",
+        "title": "专利工作台",
+        "viewport": {
+          "width": 1280,
+          "height": 800
+        },
+        "task": {
+          "display": "flex",
+          "listStyle": "disc",
+          "border": "1px",
+          "padding": "16px",
+          "gap": "16px",
+          "width": 957,
+          "height": 108.3984375
+        },
+        "taskList": {
+          "display": "flex",
+          "listStyle": "disc",
+          "border": "0px",
+          "padding": "0px",
+          "gap": "10px",
+          "width": 957,
+          "height": 224.296875
+        },
+        "flow": null,
+        "nodes": null,
+        "overflow": false
+      },
+      {
+        "name": "transfer-responsive",
+        "title": "专利工作台",
+        "viewport": {
+          "width": 1920,
+          "height": 1080
+        },
+        "task": null,
+        "taskList": null,
+        "flow": {
+          "display": "block",
+          "listStyle": "disc",
+          "border": "1px",
+          "padding": "18px 20px",
+          "gap": "normal",
+          "width": 1120,
+          "height": 312.46875
+        },
+        "nodes": {
+          "display": "grid",
+          "listStyle": "none",
+          "border": "1px",
+          "padding": "18px 0px 0px",
+          "gap": "16px 12px",
+          "width": 1078,
+          "height": 132.78125
+        },
+        "overflow": false
+      },
+      {
+        "name": "tasks-responsive",
+        "title": "专利工作台",
+        "viewport": {
+          "width": 1920,
+          "height": 1080
+        },
+        "task": {
+          "display": "flex",
+          "listStyle": "disc",
+          "border": "1px",
+          "padding": "16px",
+          "gap": "16px",
+          "width": 1559,
+          "height": 108.3984375
+        },
+        "taskList": {
+          "display": "flex",
+          "listStyle": "disc",
+          "border": "0px",
+          "padding": "0px",
+          "gap": "10px",
+          "width": 1559,
+          "height": 224.296875
+        },
+        "flow": null,
+        "nodes": null,
+        "overflow": false
+      },
+      {
+        "name": "transfer-responsive",
+        "title": "专利工作台",
+        "viewport": {
+          "width": 700,
+          "height": 800
+        },
+        "task": null,
+        "taskList": null,
+        "flow": {
+          "display": "block",
+          "listStyle": "disc",
+          "border": "1px",
+          "padding": "18px 20px",
+          "gap": "normal",
+          "width": 549,
+          "height": 385.0625
+        },
+        "nodes": {
+          "display": "grid",
+          "listStyle": "none",
+          "border": "1px",
+          "padding": "18px 0px 0px",
+          "gap": "16px 12px",
+          "width": 507,
+          "height": 205.375
+        },
+        "overflow": false
+      },
+      {
+        "name": "tasks-responsive",
+        "title": "专利工作台",
+        "viewport": {
+          "width": 700,
+          "height": 800
+        },
+        "task": {
+          "display": "flex",
+          "listStyle": "disc",
+          "border": "1px",
+          "padding": "16px",
+          "gap": "16px",
+          "width": 549,
+          "height": 124.8984375
+        },
+        "taskList": {
+          "display": "flex",
+          "listStyle": "disc",
+          "border": "0px",
+          "padding": "0px",
+          "gap": "10px",
+          "width": 549,
+          "height": 254.796875
+        },
+        "flow": null,
+        "nodes": null,
+        "overflow": false
+      },
+      {
+        "name": "tasks-hard-reload",
+        "title": "专利工作台",
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "task": {
+          "display": "flex",
+          "listStyle": "disc",
+          "border": "1px",
+          "padding": "16px",
+          "gap": "16px",
+          "width": 1079,
+          "height": 108.3984375
+        },
+        "taskList": {
+          "display": "flex",
+          "listStyle": "disc",
+          "border": "0px",
+          "padding": "0px",
+          "gap": "10px",
+          "width": 1079,
+          "height": 224.296875
+        },
+        "flow": null,
+        "nodes": null,
+        "overflow": false
+      },
+      {
+        "name": "transfer-hard-reload",
+        "title": "专利工作台",
+        "viewport": {
+          "width": 1440,
+          "height": 900
+        },
+        "task": null,
+        "taskList": null,
+        "flow": {
+          "display": "block",
+          "listStyle": "disc",
+          "border": "1px",
+          "padding": "18px 20px",
+          "gap": "normal",
+          "width": 1079,
+          "height": 330.46875
+        },
+        "nodes": {
+          "display": "grid",
+          "listStyle": "none",
+          "border": "1px",
+          "padding": "18px 0px 0px",
+          "gap": "16px 12px",
+          "width": 1037,
+          "height": 150.78125
+        },
+        "overflow": false
+      }
+    ],
+    "errors": [],
+    "warnings": [],
+    "externalRequests": [],
+    "filterAndSearch": true,
+    "exactTaskNavigation": true,
+    "flowCaseNavigation": true,
+    "caseCount": 2,
+    "taskCount": 2
+  },
+  "reopen": {
+    "checkedAt": "2026-10-12T15:34:49.561Z",
+    "dataRoot": "/var/folders/hq/dbmwrsr53nq3r4kgtg843ph40000gn/T/patent-ui-rebuild-release-6NTq6S",
+    "errors": [],
+    "warnings": [],
+    "externalRequests": [],
+    "taskIds": [
+      "ui-run-0",
+      "ui-run-1"
+    ],
+    "pageUrl": "file:///Users/cyh/Documents/ChatGPT/patent-agent/release/%E4%B8%93%E5%88%A9%E5%B7%A5%E4%BD%9C%E5%8F%B0-0.22.1-macOS-arm64.app/Contents/Resources/app.asar/dist/index.html#/tasks",
+    "pageTitle": "专利工作台",
+    "runtime": {
+      "automatic": true,
+      "state": "idle",
+      "activeVersion": "2.0.27",
+      "activeRuns": 0
+    },
+    "version": "0.22.1",
+    "caseIds": [
+      "5ea25f83-06ff-45fc-b4d1-02bf6922fff9",
+      "a00bb6ca-ee0e-4e0b-b64a-6f9bc45085f0"
+    ],
+    "caseCount": 2,
+    "taskCount": 2,
+    "workRootPreserved": true,
+    "frameworkOverlayAbsent": true,
+    "reopenPassed": true
+  },
+  "temporaryEvidence": {
+    "initial": "/var/folders/hq/dbmwrsr53nq3r4kgtg843ph40000gn/T/patent-ui-rebuild-release-6NTq6S",
+    "result": "/var/folders/hq/dbmwrsr53nq3r4kgtg843ph40000gn/T/patent-ui-rebuild-release-6NTq6S/result.json",
+    "reopen": "/tmp/patent-0221-rebuild-reopen.json"
+  }
+}

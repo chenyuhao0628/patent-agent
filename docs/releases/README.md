@@ -9,7 +9,7 @@
 | macOS Apple Silicon 应用 | `release/专利工作台-0.22.1-macOS-arm64.app` |
 | macOS 安装器 | `release/PatentWorkbench-0.22.1-macOS-arm64.pkg` |
 | Windows x64 安装器 | `release/PatentWorkbench-0.22.1-Windows-x64-Setup.exe` |
-| 使用、原生与包内检查 | [0.22.1 测试说明](../TESTING-0.22.1.md)：UI 修复时 865/865；此次重构建 19/19 定向检查、四视口、冷开 / 刷新、精确任务定位，两平台各 83 个文件摘要一致；pkg 解出应用与独立 .app 摘要一致 |
+| 使用、原生与包内检查 | [0.22.1 测试说明](../TESTING-0.22.1.md#当前重构建与清理验收)：UI 修复时 865/865；此次重构建 19/19 定向检查、四视口、冷开 / 刷新、精确任务定位及[退出重开](../../evidence/release-0.22.1-20261012/native-check.json)通过，两平台各 83 个文件摘要一致；pkg 解出应用与独立 .app 摘要一致 |
 | 当前清理结果 | [重构建核验](../../evidence/release-0.22.1-20261012/release-check.json)：已删除 0.22.0 三项旧制品，逻辑大小合计约 925 MB；release 仅有 0.22.1 三项制品和当前清单，打包暂存目录已清理 |
 | 本次交付摘要快照 | [0.22.1 清单](../../evidence/release-0.22.1-20261012/release-manifest.json)，构建时间 2026-10-12 23:28（北京时间）；[重构建前清单](../../evidence/release-0.22.1-20261012/manifest-before.json)保留原摘要 |
 | 既有安装包清理 | [此前清理记录](../../evidence/release-cleanup-20261012.json)：当时已删除 0.20.1 / 0.21.0 六项旧制品和三个未验收中间制品 |
