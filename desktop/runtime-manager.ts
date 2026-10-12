@@ -1,7 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { atomicJSON, managedPath } from './files.ts';
-import { OpenCodeRunner, type AgentRunner } from './agent-runner.ts';
+import type { AgentRunner } from './agent-contract.ts';
+import { engineAdapters } from './engine-adapters.ts';
 import { downloadRuntime, latestRuntimeRelease, newerVersion, runtimeFileHash, stableRuntimeVersion, type InstalledRuntime, type RuntimeRelease } from './runtime-download.ts';
 import { verifyOpenCodeRuntime } from './runtime-acceptance.ts';
 import type { EngineRuntimeStatus } from '../src/domain/engine-runtime.ts';
@@ -153,7 +154,7 @@ export class RuntimeManager implements AgentRunner {
   async run(input: Parameters<AgentRunner['run']>[0]) {
     const lease = await this.acquire();
     try {
-      const runner=this.options.createRunner?.(lease)??new OpenCodeRunner({binaryPath:lease.binaryPath,runtimeIdentity:lease.sha256});
+      const runner=this.options.createRunner?.(lease)??engineAdapters.create('opencode',{binaryPath:lease.binaryPath,runtimeIdentity:lease.sha256});
       const result = await runner.run(input);
       if (result.status === 'failed' && FAILURE_CODES.has(result.error?.code ?? '') && this.current().sha256 === lease.sha256 && this.state.previous) {
         await this.locked(async () => {

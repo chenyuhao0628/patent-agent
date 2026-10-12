@@ -10,12 +10,11 @@ import {
   TOOL_READ_DRAFT,
   TOOL_READ_MATERIAL,
   TOOL_WRITE_ARTIFACT,
-  type AgentRunner,
-  type AgentRunResult,
   type ToolEvent,
   type ToolRange,
   type WrittenArtifact,
-} from './agent-runner.ts';
+} from './agent-broker.ts';
+import type { AgentRunner, AgentRunResult } from './agent-contract.ts';
 import { digest, managedPath } from './files.ts';
 import { createReadMaterialCallback } from './agent-document-reader.ts';
 

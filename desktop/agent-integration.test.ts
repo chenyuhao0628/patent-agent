@@ -19,6 +19,7 @@ import type { AgentHostRunEvent, AgentHostRunInput } from './agent-host.ts';
 import type { AgentRunInput, AgentRunResult, RuntimeModelConfig } from './agent-runner.ts';
 import { PREFERRED_ARTIFACT } from './agent-runner.ts';
 import { digest } from './files.ts';
+import { createEngineAdapters, ENGINE_CAPABILITIES } from './engine-adapters.ts';
 
 const runtime: RuntimeModelConfig = {
   profileKey: 'local',
@@ -102,7 +103,7 @@ test('适配器把 Host 输入映射到 Runner：review 不带主讨论，draft 
   const json = '{"kind":"analysis","opinions":[],"strategies":[]}';
   const captured: AgentRunInput[] = [];
   const events: AgentHostRunEvent[] = [];
-  const run = createHostRun({
+  const registry = createEngineAdapters([{id:'contract-fixture',contractVersion:1,capabilities:ENGINE_CAPABILITIES,create:()=>({
     async run(input) {
       captured.push(input);
       input.onEvent({ type: 'delta', text: '哈' });
@@ -124,7 +125,8 @@ test('适配器把 Host 输入映射到 Runner：review 不带主讨论，draft 
         artifact: { name: PREFERRED_ARTIFACT, relativePath: PREFERRED_ARTIFACT, absolutePath: abs, hash, bytes: Buffer.byteLength(json) },
       } satisfies AgentRunResult;
     },
-  });
+  })}]);
+  const run = createHostRun(registry.create('contract-fixture',{binaryPath:'unused'}));
   const handle = await Promise.resolve(run(hostInput({
     snapshotDir,
     outputDir,

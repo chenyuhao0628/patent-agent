@@ -2,7 +2,8 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { OpenCodeRunner, type AgentRunInput, type AgentRunResult } from './agent-runner.ts';
+import type { AgentRunInput, AgentRunResult } from './agent-contract.ts';
+import { engineAdapters } from './engine-adapters.ts';
 import { startSyntheticProvider } from './synthetic-provider.ts';
 import { digest } from './files.ts';
 import type { ModelProtocol } from '../src/domain/models.ts';
@@ -29,7 +30,7 @@ export async function verifyOpenCodeRuntime(binaryPath: string, options: { signa
     }
     return response;
   };
-  const runner = (identity = runtimeIdentity) => new OpenCodeRunner({ binaryPath: path.resolve(binaryPath), runtimeIdentity: identity, fetchImpl });
+  const runner = (identity = runtimeIdentity) => engineAdapters.create('opencode',{ binaryPath: path.resolve(binaryPath), runtimeIdentity: identity, fetchImpl });
   const material = 'SYNTHETIC-CURRENT-CASE';
   await fs.mkdir(path.join(root, 'materials'));
   await fs.writeFile(path.join(root, 'materials', 'current.txt'), material);

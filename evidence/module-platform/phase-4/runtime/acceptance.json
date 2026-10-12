@@ -1,0 +1,152 @@
+{
+  "schema": 1,
+  "checkedAt": "2026-10-12T08:22:31.172Z",
+  "version": "2.0.27",
+  "authChecks": 16,
+  "requests": 84,
+  "results": [
+    {
+      "protocol": "openai-responses",
+      "status": "completed",
+      "sessionId": "ses_ed0cb70f7ffeGvufrvxqviDAK8",
+      "reused": false,
+      "cacheRead": 60
+    },
+    {
+      "protocol": "openai-chat-completions",
+      "status": "completed",
+      "sessionId": "ses_ed0cb6d10ffe1pGYEp7VKNrjCC",
+      "reused": false,
+      "cacheRead": 60
+    },
+    {
+      "protocol": "anthropic-messages",
+      "status": "completed",
+      "sessionId": "ses_ed0cb6935ffeN4Cvjs64KNYAml",
+      "reused": false,
+      "cacheRead": 60
+    },
+    {
+      "protocol": "gemini-generate-content",
+      "status": "completed",
+      "sessionId": "ses_ed0cb653cffejjtiUCr23m99VC",
+      "reused": false,
+      "cacheRead": 60
+    },
+    {
+      "protocol": "openai-responses",
+      "status": "completed",
+      "sessionId": "ses_ed0cb70f7ffeGvufrvxqviDAK8",
+      "reused": true,
+      "cacheRead": 60
+    },
+    {
+      "protocol": "openai-responses",
+      "status": "completed",
+      "sessionId": "ses_ed0cb5d79ffe3bX1a0jnOm7sgh",
+      "reused": false,
+      "cacheRead": 60
+    },
+    {
+      "protocol": "openai-responses",
+      "status": "completed",
+      "sessionId": "ses_ed0cb55edffe21rPU3wUgG4u3Y",
+      "reused": false,
+      "cacheRead": 60
+    },
+    {
+      "protocol": "openai-responses",
+      "status": "completed",
+      "sessionId": "ses_ed0cb5218ffeCXCU945pKcut9x",
+      "reused": false,
+      "cacheRead": 72
+    },
+    {
+      "protocol": "openai-responses",
+      "status": "completed",
+      "sessionId": "ses_ed0cb5218ffeCXCU945pKcut9x",
+      "reused": true,
+      "cacheRead": 72
+    },
+    {
+      "protocol": "openai-chat-completions",
+      "status": "completed",
+      "sessionId": "ses_ed0cb4a67ffeoh1Y9Y1APMt9qS",
+      "reused": false,
+      "cacheRead": 72
+    },
+    {
+      "protocol": "openai-chat-completions",
+      "status": "completed",
+      "sessionId": "ses_ed0cb4a67ffeoh1Y9Y1APMt9qS",
+      "reused": true,
+      "cacheRead": 72
+    },
+    {
+      "protocol": "anthropic-messages",
+      "status": "completed",
+      "sessionId": "ses_ed0cb42c9ffeZVdnOz1xUuk6xe",
+      "reused": false,
+      "cacheRead": 72
+    },
+    {
+      "protocol": "anthropic-messages",
+      "status": "completed",
+      "sessionId": "ses_ed0cb42c9ffeZVdnOz1xUuk6xe",
+      "reused": true,
+      "cacheRead": 72
+    },
+    {
+      "protocol": "gemini-generate-content",
+      "status": "completed",
+      "sessionId": "ses_ed0cb3b21ffekD7QT3BNkHKkHI",
+      "reused": false,
+      "cacheRead": 72
+    },
+    {
+      "protocol": "gemini-generate-content",
+      "status": "completed",
+      "sessionId": "ses_ed0cb3b21ffekD7QT3BNkHKkHI",
+      "reused": true,
+      "cacheRead": 72
+    }
+  ],
+  "compactionResults": [
+    {
+      "protocol": "openai-responses",
+      "firstCompactions": 1,
+      "resumedCompactions": 1,
+      "requests": 6,
+      "oldPrivateContextExcluded": true
+    },
+    {
+      "protocol": "openai-chat-completions",
+      "firstCompactions": 1,
+      "resumedCompactions": 1,
+      "requests": 6,
+      "oldPrivateContextExcluded": true
+    },
+    {
+      "protocol": "anthropic-messages",
+      "firstCompactions": 1,
+      "resumedCompactions": 1,
+      "requests": 6,
+      "oldPrivateContextExcluded": true
+    },
+    {
+      "protocol": "gemini-generate-content",
+      "firstCompactions": 1,
+      "resumedCompactions": 1,
+      "requests": 6,
+      "oldPrivateContextExcluded": true
+    }
+  ],
+  "stopped": "aborted",
+  "nativeToolDenied": true,
+  "foreignMaterialDenied": true,
+  "ambientConfigExcluded": true,
+  "retainedAfterRestart": true,
+  "retainedInCopiedDatabase": true,
+  "independentCases": true,
+  "cacheUsageObserved": true
+}

@@ -1,3 +1,4 @@
+import type { CaseSystemClient } from './case-system-contract.ts';
 import { diagnostic, diagnosticError } from './diagnostics.ts';
 export class BaselandAuthError extends Error { kind:'expired'|'forbidden';constructor(kind:'expired'|'forbidden',message:string){super(message);this.kind=kind;this.name='BaselandAuthError';} }
 import { businessCode } from './baseland-results.ts';
@@ -234,7 +235,7 @@ export function isIdempotentRead(endpoint:string):boolean{
   if(/(?:Get|Query|Snapshot|List|Statistics|Count|History|Record|Info|Setting|Type)/i.test(endpoint))return true;
   return false;
 }
-export class BaselandClient {
+export class BaselandClient implements CaseSystemClient {
   origin:string; token:string; fetcher:typeof fetch;
   onUnauthorized?:()=>Promise<boolean>;
   constructor(origin:string,token='',fetcher=fetch){this.origin=validOrigin(origin);this.token=token;this.fetcher=fetcher;}

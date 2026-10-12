@@ -430,7 +430,8 @@ test('0.5 auto-reauthorize: mid-sync 401 transparently retries request and finis
   await service.settings(service.key,{...service.workspace.settings,workRoot:f.work});
 
   let simulated401=true;
-  const originalFetcher=service.client!.fetcher;
+  const httpClient=service.client;assert.ok(httpClient instanceof BaselandClient);
+  const originalFetcher=httpClient.fetcher;
   const wrappedFetcher:typeof fetch=async(input,init)=>{
     const url=String(input);
     if(url.includes('/GetPersonalProcStatistics')&&simulated401){
@@ -439,7 +440,7 @@ test('0.5 auto-reauthorize: mid-sync 401 transparently retries request and finis
     }
     return originalFetcher(input,init);
   };
-  service.client!.fetcher=wrappedFetcher;
+  httpClient.fetcher=wrappedFetcher;
 
   let reauthTriggered=false;
   const origReauth=service.reauthorize.bind(service);
@@ -461,7 +462,8 @@ test('0.5 auto-reauthorize: expired token with unremembered session gracefully f
   await service.login({origin,username:'alice',password:'fixture-password',remember:false});
   await service.settings(service.key,{...service.workspace.settings,workRoot:f.work});
 
-  service.client!.fetcher=async()=>new Response(JSON.stringify({IsSuccess:false,Message:'Token已失效'}),{status:401});
+  const httpClient=service.client;assert.ok(httpClient instanceof BaselandClient);
+  httpClient.fetcher=async()=>new Response(JSON.stringify({IsSuccess:false,Message:'Token已失效'}),{status:401});
 
   const state=await service.sync({source:'manual'});
   assert.equal(state.account?.status,'expired');

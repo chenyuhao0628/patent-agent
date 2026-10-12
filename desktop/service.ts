@@ -9,7 +9,7 @@ import { BaselandAuthError } from './baseland.ts';
 import { readSharedCases } from './shared.ts';
 import * as fs from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
-import { applyRemoteClosure, applySubmissionToCurrent, assignCurrentProcess, BaselandClient, isInternallyActiveProcess, mergePersonalRows, officialDate, profileKey, rowStamp, shouldQueryOfficial, SUBMISSION_REFRESH_ERROR } from './baseland.ts';
+import { applyRemoteClosure, applySubmissionToCurrent, assignCurrentProcess, isInternallyActiveProcess, mergePersonalRows, officialDate, profileKey, rowStamp, shouldQueryOfficial, SUBMISSION_REFRESH_ERROR } from './baseland.ts';
 import { applyCaseDeadline, mergeRemoteProcess } from '../src/domain/deadlines.ts';
 import { atomicCreate, atomicJSON, CaseFiles, digest, managedPath, processFolder, readBoundedFile, readJSON, safeName, validateRoots } from './files.ts';
 import { projectReplyView, projectProfessionalView, projectTransferView } from '../src/domain/case-view.ts';
@@ -17,7 +17,10 @@ import { normalizeWorkspace, currentWork, editableCurrent, caseScopeFingerprint,
 import { pauseRunning } from '../src/domain/workflow.ts';
 import type { Case, CurrentFlowInfo, RemoteProcess, Settings, Submission, Workspace } from '../src/domain/workflow.ts';
 import { sharedCaseManifestFromCase } from '../src/domain/case-record.ts';
-import { FileWorkspaceRepository, type WorkspaceRepository, type ProfileLoad } from './workspace-repository.ts';
+import type { WorkspaceRepository, ProfileLoad } from './workspace-repository.ts';
+import { workspaceAdapters } from './workspace-adapters.ts';
+import { defaultCaseSystemFactory } from './case-system-adapters.ts';
+import type { CaseSystemClient, CaseSystemFactory } from './case-system-contract.ts';
 import type { Account, DesktopState, FlowView, MigrationState, SyncState, StorageState } from '../src/desktop.ts';
 import type { DesktopScope } from '../src/contracts/desktop-state.ts';
 import {
@@ -105,8 +108,8 @@ function mergeSyncMaterials(base:Case|undefined,incoming:Case,latest:Case,next:C
 }
 export class DesktopService {
   preparePriorArt?: (c:Case,key:string,signal?:AbortSignal,files?:CaseFiles)=>Promise<void>;
-  root:string; vault:Vault; clientFactory:(origin:string,token?:string)=>BaselandClient;
-  account:Account|null=null; key='local'; workspace=empty(); client:BaselandClient|null=null;
+  root:string; vault:Vault; clientFactory:CaseSystemFactory;
+  account:Account|null=null; key='local'; workspace=empty(); client:CaseSystemClient|null=null;
   syncState:SyncState={running:false,message:'登录并选择工作文件夹后自动同步个人案件。'};
   storageState:StorageState={running:false,message:'选择总工作文件夹后读取本工作台的案件索引、材料和稿件。'};
   generation=0; controller:AbortController|null=null; changed:()=>void=()=>{}; loginBusy=false; syncPreparing=false;
@@ -134,7 +137,7 @@ export class DesktopService {
   private savedCredentials?:{username:string;password:string};
   private profileStorageUnsafe=false;
   readonly repository:WorkspaceRepository;
-  constructor(root:string,vault:Vault,clientFactory=(origin:string,token?:string)=>new BaselandClient(origin,token),repository:WorkspaceRepository=new FileWorkspaceRepository(root)) {if(repository.contractVersion!==1)throw new Error('工作区存储接口不兼容。');this.root=root;this.vault=vault;this.clientFactory=clientFactory;this.repository=repository;}
+  constructor(root:string,vault:Vault,clientFactory:CaseSystemFactory=defaultCaseSystemFactory,repository:WorkspaceRepository=workspaceAdapters.create('local-files',{root})) {if(repository.contractVersion!==1)throw new Error('工作区存储接口不兼容。');this.root=root;this.vault=vault;this.clientFactory=clientFactory;this.repository=repository;}
   private resetCaseRevisions(cases=this.workspace.cases) {
     const next=new Map(this.caseRevisions);
     for(const c of cases)next.set(c.id,this.caseRevisions.get(c.id)??0);
@@ -158,14 +161,7 @@ export class DesktopService {
   private loadProfileWorkspace(key:string):Promise<ProfileLoad>{return this.repository.load(key);}
 
   private async backupLegacyProfileWorkspace(key=this.key):Promise<void>{
-    const source=this.profileFile(key);
-    try{await fs.access(source);}catch(e){if((e as NodeJS.ErrnoException).code==='ENOENT')return;throw e;}
-    const backup=path.join(path.dirname(source),`workspace.migration-backup.${randomUUID()}.json`);
-    try{
-      await fs.copyFile(source,backup,fs.constants.COPYFILE_EXCL);
-    }catch(e){
-      throw new Error(`本机案件记录迁移备份失败，未重写原文件：${(e as Error).message}`);
-    }
+    await this.repository.backup(key);
   }
   async init(verify=true){
     const saved=await readJSON<{key:string;account:Account;encrypted:string;credentials?:string}|null>(path.join(this.root,'session.json'),null);
@@ -708,7 +704,7 @@ export class DesktopService {
     if(this.stopping||this.migrationLock||startingKey!==this.key||startingGeneration!==this.generation)return this.state();
     const key=this.key,generation=this.generation,client=this.client,controller=new AbortController();this.controller=controller;
     if(client&&!client.onUnauthorized)client.onUnauthorized=()=>this.reauthorize();
-    const settings={...this.workspace.settings},persistFile=this.profileFile();
+    const settings={...this.workspace.settings};
     const check=()=>{controller.signal.throwIfAborted();if(generation!==this.generation||key!==this.key||settings.workRoot!==this.workspace.settings.workRoot)throw new Error('同步范围已变化。');};
     const downloads=new CaseFiles(settings,key,false,check),files=new CaseFiles(settings,key,true,check);
     const started=Date.now();let outcome='failed';diagnostic('sync','started',{state:full?'full':'incremental'});
@@ -822,7 +818,7 @@ export class DesktopService {
   private fileListCacheKey(c:Case,p:RemoteProcess,row?:Record<string,unknown>){return `${c.remote?.caseId??c.id}\0${p.id}\0${p.status}\0${rowStamp(row)}`;}
   private async downloadKnownCaseMaterials(
     c:Case,
-    client:BaselandClient,
+    client:CaseSystemClient,
     signal:AbortSignal,
     downloads:CaseFiles,
     check:()=>void,
@@ -873,7 +869,7 @@ export class DesktopService {
       }catch(e){check();failures.push(c.number+' / '+p.name+'：'+(e as Error).message);}
     }
   }
-  async refreshProcessOfficial(c:Case,p:RemoteProcess,client:BaselandClient,signal:AbortSignal,generation:number,force:boolean) {
+  async refreshProcessOfficial(c:Case,p:RemoteProcess,client:CaseSystemClient,signal:AbortSignal,generation:number,force:boolean) {
     const key=this.officialCacheKey(c,p.id);
     const cached=this.submissionCache.get(key);
     // 终态流程不接受 force 击穿：只受更长的 TTL 约束，避免每轮强制核验重复查询不会变化的递交状态。
@@ -1109,7 +1105,7 @@ export class DesktopService {
   }
   // 聚合门控命中时的判读：明细被跳过，但官方结论仍然要跟得上——授权/驳回通知不一定新建流程。
   // 只处理未出结论、未归档、未结案的案件；已出结论的按 OUTCOME_SETTLED_TTL 跳过。
-  private async judgeOutcomes(client:BaselandClient,check:()=>void,signal:AbortSignal,key:string,generation:number):Promise<string[]>{
+  private async judgeOutcomes(client:CaseSystemClient,check:()=>void,signal:AbortSignal,key:string,generation:number):Promise<string[]>{
     const targets=this.workspace.cases.filter(c=>c.source==='baseland'&&c.remote&&!c.archived&&!c.remoteClosure?.finished&&!outcomeSettled(c));
     if(!targets.length)return [];
     const failures:string[]=[],results=new Map<string,Case['officialOutcome']>();

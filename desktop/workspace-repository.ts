@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
+import { randomUUID } from 'node:crypto';
 import { atomicJSON, digest } from './files.ts';
 import { normalizeWorkspace } from '../src/domain/lifecycle.ts';
 import { pauseRunning, type Case, type Settings, type Workspace } from '../src/domain/workflow.ts';
@@ -18,6 +19,7 @@ export interface WorkspaceRepository {
   readonly contractVersion: 1;
   file(profileKey: string): string;
   load(profileKey: string): Promise<ProfileLoad>;
+  backup(profileKey: string): Promise<void>;
   save(profileKey: string, workspace: Workspace, guard: () => void): Promise<void>;
   record(profileKey: string, item: Case): CaseRecord;
 }
@@ -30,6 +32,13 @@ export class FileWorkspaceRepository implements WorkspaceRepository {
   private profileExtras = new Map<string, Record<string, unknown>>();
   private blocked = new Set<string>();
   constructor(root: string) { this.root = root; }
+  async backup(key: string) {
+    const source=this.file(key);
+    try { await fs.access(source); } catch(error) { if((error as NodeJS.ErrnoException).code==='ENOENT')return; throw error; }
+    const backup=path.join(path.dirname(source),`workspace.migration-backup.${randomUUID()}.json`);
+    try { await fs.copyFile(source,backup,fs.constants.COPYFILE_EXCL); }
+    catch(error) { throw new Error(`本机案件记录迁移备份失败，未重写原文件：${(error as Error).message}`); }
+  }
   file(key: string) {
     if (!/^[\w-]+$/.test(key)) throw new Error('账号标识无效。');
     return path.join(this.root,'profiles',key,'workspace.json');

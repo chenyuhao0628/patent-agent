@@ -84,64 +84,8 @@ export const HTTP_RESPONSE_MAX_BYTES = 16 * 1024 * 1024;
 export const EVENT_BUFFER_MAX_BYTES = 1_000_000;
 export const LOG_LINE_MAX = 400;
 
-export type PublicChatMessage = {
-  sourceId?: string;
-  role: 'user' | 'assistant' | 'system';
-  content: string;
-};
-
-export type AgentEvent =
-  | { type: 'session'; session: EngineSessionView }
-  | { type:'progress'; progress:TaskProgress }
-  | { type: 'quality'; quality: ArtifactQuality }
-  | { type: 'delta'; text: string }
-  | { type: 'thinking'; text: string }
-  | { type: 'activity'; label: string; stepId?: string; status?: string }
-  | { type: 'tool'; event: ToolEvent }
-  | { type: 'status'; status: string }
-  | { type: 'error'; code: string; message: string };
-
-export type AgentRunInput = {
-  sessionScope?: EngineSessionScope;
-  taskContract?:TaskContract;
-  taskMemory?: TaskMemory;
-  evidencePolicy?: EvidencePolicy;
-  recoveryJournalPath?: string;
-  customMcp?:Record<string,McpConfig>;
-  skillResources?: Array<{path:string;text:string}>;
-  runtime: RuntimeModelConfig;
-  runId: string;
-  discussionId: string;
-  localRunDirectory: string;
-  materials: FrozenMaterial[];
-  draftText?: string;
-  productPrompt: string;
-  publicMessages: PublicChatMessage[];
-  onEvent: (event: AgentEvent) => void;
-  signal?: AbortSignal;
-  deadlineMs?: number;
-  review?: boolean;
-  allowedArtifacts?: string[];
-  artifactExpect?: import('./agent-artifact.ts').ParseArtifactExpect;
-  validateArtifact?: (raw: string) => Promise<string | undefined>;
-  artifactScope?: string;
-  recoveryArtifactRoot?: string;
-  snapshotRoot?: string;
-  readMaterial?: ReadMaterialCallback;
-};
-
-export type AgentRunResult = {
-  session?: EngineSessionView;
-  status: 'completed' | 'aborted' | 'failed';
-  finalText: string;
-  toolEvents: ToolEvent[];
-  artifact?: WrittenArtifact;
-  error?: { code: string; message: string; detail?: string };
-};
-
-export type AgentRunner = {
-  run(input: AgentRunInput): Promise<AgentRunResult>;
-};
+export type { PublicChatMessage, AgentEvent, AgentRunInput, AgentRunResult, AgentRunner } from './agent-contract.ts';
+import type { PublicChatMessage, AgentEvent, AgentRunInput, AgentRunResult, AgentRunner } from './agent-contract.ts';
 
 export type OpenCodeRunnerOptions = {
   binaryPath: string;

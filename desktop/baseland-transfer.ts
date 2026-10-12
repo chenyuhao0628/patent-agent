@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { FIVE_PARTS } from '../src/transfer-api.ts';
 import type { TransferRoute, TransferReview, TransferForm, TransferView, TransferSaveExpectation, RemoteTransferFile, RemoteFileDeleteRef, RemoteFileDeletion } from '../src/transfer-api.ts';
-import type { BaselandClient } from './baseland.ts';
+import type { CaseSystemClient } from './case-system-contract.ts';
 import { flag, combineOfficialSubmission, boolTri, sendStatusState } from './baseland.ts';
 import { assertWriteResult, businessCode } from './baseland-results.ts';
 import { digest } from './files.ts';
@@ -74,7 +74,7 @@ export function remoteFileDeletionResult(r:RemoteTransfer,deletion:RemoteFileDel
   if(remoteFiles(r).some(f=>f.fileNo===deletion.target.fileNo))return 'uncertain';
   return deletionPreservationHash(r,deletion)===deletion.preservationHash?'deleted':'uncertain';
 }
-export async function deleteRemoteTransferFile(input:{client:BaselandClient;processId:string;route:TransferRoute;deletion:RemoteFileDeletion;guard:()=>void;onWrite:()=>void}):Promise<RemoteTransfer>{
+export async function deleteRemoteTransferFile(input:{client:CaseSystemClient;processId:string;route:TransferRoute;deletion:RemoteFileDeletion;guard:()=>void;onWrite:()=>void}):Promise<RemoteTransfer>{
   const {client,processId,route,deletion,guard,onWrite}=input;
   guard();const fresh=await readRemoteTransfer(client,processId,route);guard();
   if(!fresh)throw new Error('未找到当前递交实例，未删除文件。');
@@ -99,7 +99,7 @@ const GET_FORM:Record<TransferRoute,string>={reply:'GetFormOpinionStatement',cor
 const saveEndpoint=(route:TransferRoute,exists:boolean)=>route==='application'?(exists?'UpdateFormPatentRequestInfo':'InsertFromPatentRequestInfo'):(exists?'Update':'Insert')+(route==='reply'?'FormOpinionStatement':'FormCorrection');
 export const REQUEST_DECLARATIONS:Record<string,string>={IsApplySameDay:'同日申请',IsPublicAdvance:'请求提前公开',IsExhibition:'展览会公开声明',IsPublished:'学术或技术会议公开声明',IsPublicForCommonProfit:'公共利益目的公开声明',IsDisclosure:'他人未经同意泄露声明',IsGiveUpOn51Section:'放弃主动修改',IsRequestDelayReview1YearForUtility:'实用新型延迟审查一年'};
 
-export async function readRemoteTransfer(client:BaselandClient,processId:string,route:TransferRoute,options:{includeSteps?:boolean}={}):Promise<RemoteTransfer|null>{
+export async function readRemoteTransfer(client:CaseSystemClient,processId:string,route:TransferRoute,options:{includeSteps?:boolean}={}):Promise<RemoteTransfer|null>{
   const q=(ep:string,params:Record<string,string>,kind:'data'|'list'='data')=>client.request('/CaseInfo/'+ep,undefined,params,undefined,kind);
   const hand=await q('GetHandInfo',{caseProcId:processId});
   const handId=id(hand?.HandInfo?.CaseHandId);
@@ -296,7 +296,7 @@ export type TransferUpload={name:string;bytes:Buffer};
 export function matchesTransferSave(r:RemoteTransfer,expected:TransferSaveExpectation):boolean{
   return r.handId===expected.handId&&digest(JSON.stringify(r.instructions))===expected.instructionsHash&&includesValues(r.form,expected.form);
 }
-export async function saveRemoteTransfer(input:{client:BaselandClient;processId:string;caseTitle:string;route:TransferRoute;remote:RemoteTransfer;review:TransferReview;application?:TransferUpload;applicationFiles?:Array<TransferUpload&{formCode:string}>;reply?:TransferUpload;guard:()=>void;onWrite:()=>void;checkpoint:(message:string)=>Promise<void>;onSaveExpectation?:(expected:TransferSaveExpectation)=>Promise<void>;confirmName?:(details:{applicationName:string;caseName:string})=>Promise<boolean>}):Promise<RemoteTransfer>{
+export async function saveRemoteTransfer(input:{client:CaseSystemClient;processId:string;caseTitle:string;route:TransferRoute;remote:RemoteTransfer;review:TransferReview;application?:TransferUpload;applicationFiles?:Array<TransferUpload&{formCode:string}>;reply?:TransferUpload;guard:()=>void;onWrite:()=>void;checkpoint:(message:string)=>Promise<void>;onSaveExpectation?:(expected:TransferSaveExpectation)=>Promise<void>;confirmName?:(details:{applicationName:string;caseName:string})=>Promise<boolean>}):Promise<RemoteTransfer>{
   const {client,route,review,remote:r,guard,checkpoint}=input;
   const applicationFiles=input.applicationFiles??[];
   if(applicationFiles.length&&(input.application||route==='application'))throw new Error('独立分件仅用于答复或补正，不能与合并申请稿同时保存。');
@@ -443,7 +443,7 @@ export function matchesNextFlow(hand:Obj|null|undefined,handId:string|undefined,
   return Boolean(stepMatched&&userMatched);
 }
 
-export async function submitRemoteTransfer(client:BaselandClient,processId:string,route:TransferRoute,r:RemoteTransfer,review:TransferReview,guard:()=>void,onSend?:(target:{handId:string;step:{id:string;name:string};user:{id:string;name:string}})=>Promise<void>){
+export async function submitRemoteTransfer(client:CaseSystemClient,processId:string,route:TransferRoute,r:RemoteTransfer,review:TransferReview,guard:()=>void,onSend?:(target:{handId:string;step:{id:string;name:string};user:{id:string;name:string}})=>Promise<void>){
   const fresh=await readRemoteTransfer(client,processId,route);guard();
   if(!fresh||fresh.fingerprint!==r.fingerprint)throw new Error('保存后服务端流程或材料已变化，请重新核对。');
   if(!flag(fresh.hand.IsReviewing))throw new Error('当前账号已不能办理此节点，请刷新流程。');
@@ -470,7 +470,7 @@ export function isRemoteTransferCleared(r:RemoteTransfer,route:TransferRoute,tar
   return !remoteFiles(r).some(f=>targetFileNos.includes(f.fileNo));
 }
 export async function clearRemoteTransfer(
-  client:BaselandClient,processId:string,route:TransferRoute,guard:()=>void,
+  client:CaseSystemClient,processId:string,route:TransferRoute,guard:()=>void,
   expected?:{handId:string;fingerprint:string},
 ):Promise<RemoteTransfer|null>{
   guard();const r=await readRemoteTransfer(client,processId,route);guard();
