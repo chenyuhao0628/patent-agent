@@ -28,3 +28,5 @@ export type PanelDefinition = {
   enabled?: boolean;
   load: () => Promise<{ default: ComponentType<PanelProps> }>;
 };
+export type GlobalPanelDefinition = PanelDefinition & { location:'global'; navigation?:'main'|'footer'|'hidden'; enter?:never; historyRoute?:never };
+export type CasePanelDefinition = PanelDefinition & { location:'case'; navigation?:'case'|'hidden' };

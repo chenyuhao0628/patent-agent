@@ -1,5 +1,5 @@
 import type { WorkspaceStore } from './workspace-data.ts';
-import type { Case } from '../domain/workflow.ts';
+import type { Case, Workspace } from '../domain/workflow.ts';
 import { projectCaseView } from '../domain/case-view.ts';
 import { sameDesktopScope } from './scope.ts';
 
@@ -8,6 +8,7 @@ function frozen<T>(value: T): T {
   return value;
 }
 export type CaseMetadataPatch = Pick<Partial<Case>, 'title' | 'deadline' | 'tags' | 'archived'>;
+const summaries=(cases:Case[])=>frozen(cases.map(c=>({id:c.id,title:c.title,number:c.number,archived:c.archived,current:structuredClone(c.current)})));
 
 /** A module holds a lease on one account/case/stage, not a mutable workspace.
  * Read-only and historical panels receive no mutation method at all. */
@@ -15,12 +16,15 @@ export function createModuleDataLease(store: WorkspaceStore, caseId?: string, ed
   const expected=store.scope(caseId);
   let active=true;
   const subscriptions=new Set<()=>void>();
+  let listedWorkspace:Workspace|undefined,listedCases:ReturnType<typeof summaries>|undefined;
   const check=()=>{if(!active||!expected||!sameDesktopScope(store.scope(caseId),expected))throw new Error('模块的数据范围已变化，请重新打开页面。');};
   const read={
     scope: expected && frozen({...expected}),
     listCases: () => {
       check();
-      return frozen(store.getSnapshot().workspace.cases.filter(c=>!caseId||c.id===caseId).map(c=>({id:c.id,title:c.title,number:c.number,archived:c.archived,current:structuredClone(c.current)})));
+      const workspace=store.getSnapshot().workspace;
+      if(workspace!==listedWorkspace){listedCases=summaries(workspace.cases.filter(c=>!caseId||c.id===caseId));listedWorkspace=workspace;}
+      return listedCases!;
     },
     case: () => {
       check();

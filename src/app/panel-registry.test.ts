@@ -19,7 +19,9 @@ test('duplicate identities/routes and malformed capabilities fail during registr
  assert.throws(()=>createPanelRegistry([panel(),panel({id:'test.two'})]),/重复/);
  assert.throws(()=>createPanelRegistry([panel({requiredCapabilities:['']})]),/能力/);
  assert.throws(()=>createPanelRegistry([panel({enter:'open-case'})]),/全局/);
- assert.throws(()=>createPanelRegistry([panel({location:'case',historyRoute:'missing'})]),/历史/);
+ assert.throws(()=>createPanelRegistry([panel({location:'case',navigation:'case',historyRoute:'missing'})]),/历史/);
+ assert.throws(()=>createPanelRegistry([panel({location:'case',navigation:'main'})]),/位置/);
+ assert.throws(()=>createPanelRegistry([panel({navigation:'case'})]),/位置/);
 });
 test('navigation and direct routes enforce the same capability and enabled checks without loading components',()=>{
  let loaded=0;const definition=panel({requiredCapabilities:['custom.read'],load:async()=>{loaded++;return {default:()=>null};}}),registry=createPanelRegistry([definition,panel({id:'off',route:'off',enabled:false})]);
@@ -33,7 +35,7 @@ test('old historical bookmarks do not inherit current-stage start restrictions',
  assert.equal(panels.target('case','unknown',historical),undefined);
 });
 test('read-only modules default to no lifecycle or write grant and disabled history stays inaccessible',()=>{
- const view=panel({location:'case',historyRoute:'history'}),history=panel({id:'history',location:'case',route:'history',enabled:false});
+ const view=panel({location:'case',navigation:'case',historyRoute:'history'}),history=panel({id:'history',location:'case',navigation:'case',route:'history',enabled:false});
  const registry=createPanelRegistry([view,history]);assert.equal(registry.resolve('case','one')?.enter,undefined);assert.equal(registry.resolve('case','one')?.canEdit,undefined);
  assert.equal(registry.target('case','one',{...context,historical:true}),undefined);
 });

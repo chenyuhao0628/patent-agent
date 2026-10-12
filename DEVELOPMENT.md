@@ -11,6 +11,7 @@
 | [页面与历史访问](docs/architecture/ui.md) | 页面装配、Feature Registry、只读历史、加载与错误状态 |
 | [数据与安全](docs/architecture/data-security.md) | 领域记录、schema 迁移、共享边界、文件身份、凭证与工具权限 |
 | [开发与验收规范](docs/architecture/verification.md) | 开发顺序、按风险验证、各类证据的适用边界 |
+| [模块接入指南](docs/development/module-guide.md) | 全局 / 单案模板、统一数据、适配器、长任务与验证责任 |
 | [模块平台方案](docs/design/module-platform.md) | 已授权的面板宿主、统一数据、适配器及模板实施方案与复核 |
 
 ## 实施记录去向

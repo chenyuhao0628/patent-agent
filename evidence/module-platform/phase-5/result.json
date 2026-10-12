@@ -1,0 +1,21 @@
+{
+  "checkedAt": "2026-10-12T08:32:53.895Z",
+  "project": "/var/folders/hq/dbmwrsr53nq3r4kgtg843ph40000gn/T/patent-module-template-mkvu8qjt",
+  "root": "/var/folders/hq/dbmwrsr53nq3r4kgtg843ph40000gn/T/module-template-native-rvhIXR",
+  "global": "全案摘要验证\n\n当前账号的案件摘要\n\nSCOPE-A · SCOPE_CASE_A\nSCOPE-B · SCOPE_CASE_B",
+  "caseA": "本案摘要验证\n\n当前案件的摘要\n\nSCOPE-A · SCOPE_CASE_A",
+  "caseB": "本案摘要验证\n\n当前案件的摘要\n\nSCOPE-B · SCOPE_CASE_B",
+  "navigation": {
+    "global": true,
+    "single": true
+  },
+  "tasks": [
+    0,
+    0
+  ],
+  "errors": [],
+  "exit": {
+    "code": 0,
+    "signal": null
+  }
+}

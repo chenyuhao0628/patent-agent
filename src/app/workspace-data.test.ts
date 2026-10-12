@@ -68,3 +68,14 @@ test('unmounting a module expires retained callbacks and releases its subscripti
  store.receive({...initial,snapshotVersion:2});assert.equal(calls,0);assert.throws(()=>lease.data.case(),/范围已变化/);
  if('saveMetadata' in lease.data)await assert.rejects(lease.data.saveMetadata!({title:'late'}),/范围已变化/);
 });
+
+test('module list snapshots are stable for subscriptions and refresh only from a new workspace',async()=>{
+ const initial=state(),store=createWorkspaceStore({preview:initial.workspace}),global=createModuleData(store),single=createModuleData(store,'a');
+ const globalBefore=global.listCases(),singleBefore=single.listCases();
+ assert.equal(global.listCases(),globalBefore);assert.equal(single.listCases(),singleBefore);
+ assert.equal(globalBefore.length,2);assert.deepEqual(singleBefore.map(c=>c.id),['a']);
+ await store.updateCase('a',{title:'new'});
+ assert.notEqual(global.listCases(),globalBefore);assert.equal(single.listCases()[0].title,'new');
+ assert.equal(singleBefore[0].title,'a');assert.equal(globalBefore[0].title,'a');
+ assert.throws(()=>single.listCases().push(singleBefore[0]),TypeError);
+});

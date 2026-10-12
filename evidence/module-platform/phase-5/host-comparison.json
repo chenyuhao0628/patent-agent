@@ -1,0 +1,5 @@
+{
+  "src/App.tsx": true,
+  "src/app/page-content.tsx": true,
+  "src/components/CaseSpace.tsx": true
+}

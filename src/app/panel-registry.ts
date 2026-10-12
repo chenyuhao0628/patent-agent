@@ -7,8 +7,9 @@ export function createPanelRegistry(definitions: readonly PanelDefinition[]) {
     if(ids.has(definition.id)||routes.has(key))throw new Error(`面板 ID 或路由重复：${definition.id}`);
     if(definition.enter && definition.location!=='case')throw new Error('全局面板不能声明案件进入动作。');
     if(definition.historyRoute&&definition.location!=='case')throw new Error('全局面板不能声明案件历史入口。');
+    if(definition.navigation&&!(['hidden',...(definition.location==='global'?['main','footer']:['case'])].includes(definition.navigation)))throw new Error('面板导航与注册位置不匹配。');
     if(definition.requiredCapabilities&&(!Array.isArray(definition.requiredCapabilities)||definition.requiredCapabilities.some(c=>typeof c!=='string'||!c.trim())))throw new Error('面板能力声明无效。');
-    ids.add(definition.id);routes.set(key,Object.freeze({...definition}));
+    ids.add(definition.id);routes.set(key,Object.freeze({...definition,requiredCapabilities:definition.requiredCapabilities&&Object.freeze([...definition.requiredCapabilities])}));
   }
   const all=[...routes.values()].sort((a,b)=>a.order-b.order||a.id.localeCompare(b.id));
   for(const definition of all)if(definition.historyRoute&&!routes.has('case:'+definition.historyRoute))throw new Error('面板历史入口不存在。');
