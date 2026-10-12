@@ -1,6 +1,6 @@
 # 开发与架构入口
 
-更新：2026-10-01。源码与安装制品版本 **0.19.1**；以 [安装清单](release/release-manifest.json) 为准。本文只导航技术规范，阶段状态与待办统一维护在 [EXEC_PLAN.md](EXEC_PLAN.md)。
+更新：2026-10-12。当前源码和制品版本以 package.json、[安装清单](release/release-manifest.json) 为准；实施状态只维护于 [EXEC_PLAN.md](EXEC_PLAN.md)。
 
 ## 架构分册
 
@@ -11,7 +11,7 @@
 | [页面与历史访问](docs/architecture/ui.md) | 页面装配、Feature Registry、只读历史、加载与错误状态 |
 | [数据与安全](docs/architecture/data-security.md) | 领域记录、schema 迁移、共享边界、文件身份、凭证与工具权限 |
 | [开发与验收规范](docs/architecture/verification.md) | 开发顺序、按风险验证、各类证据的适用边界 |
-| [面板注册设计](docs/design/panel-registry.md) | 2026-09-29 可行性评估已完成；机制未实施，不是已实现架构 |
+| [模块平台方案](docs/design/module-platform.md) | 已授权的面板宿主、统一数据、适配器及模板实施方案与复核 |
 
 ## 实施记录去向
 
