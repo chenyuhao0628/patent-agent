@@ -13,6 +13,7 @@ import {
   macInstallerName,
   MANIFEST_NAME,
   packagingCommands,
+  parsePlatformArgs,
   runPackageRelease,
   TREE_HASH_ALGORITHM,
   winPublishedName,
@@ -385,6 +386,19 @@ test('mac-only publish preserves windows builder dirs and old windows executable
   assert.ok(!names.has(winPublishedName(VERSION)));
   await fs.stat(path.join(release, 'win-unpacked', 'dummy.txt'));
   assert.equal(await fs.readFile(path.join(release, '同事说明.txt'), 'utf8'), '请保留这份说明');
+});
+
+test('preserve-old release keeps prior installers and checksums while promoting the new version', async t => {
+  const {root,release,staging}=await harness(t);
+  const old='PatentWorkbench-0.2.3-Windows.exe',before=await fs.readFile(path.join(release,old));
+  await writeMacApp(path.join(staging,'mac-arm64',`${PRODUCT}.app`),VERSION);
+  await writeWindowsPortable(staging,VERSION);
+  assert.equal(parsePlatformArgs(['--preserve-old']).preserveOld,true);
+  await runPackageRelease({projectRoot:root,skipPackaging:true,preserveOld:true,log:silent});
+  assert.deepEqual(await fs.readFile(path.join(release,old)),before);
+  const manifest=JSON.parse(await fs.readFile(path.join(release,MANIFEST_NAME),'utf8'));
+  assert.ok(manifest.files.some(f=>f.file===old&&f.retained));
+  assert.ok(manifest.files.some(f=>f.file===winPublishedName(VERSION)&&!f.retained));
 });
 
 test('win-only publish preserves mac builder dirs including legacy app bundles', async t => {

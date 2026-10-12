@@ -326,7 +326,7 @@ export function buildSystemPrompt(productPrompt: string): string {
     localToolPermissions().downloadsEnabled ? '用户已开启 download_file，可从任意公开软件来源下载；优先官方来源并提供官方摘要核验。下载不代表安装或可信。' : '独立 download_file 权限关闭。若任意命令开启，命令本身仍可联网下载；不能把这个开关解释成系统网络隔离。',
     'web_search/web_fetch 查询公开资料，不发送客户信息、密钥、本机路径或未公开完整稿件。引用保留来源网址。',
     '旧 DOC 转换优先用 read_material，应用内置转换器用独立干净 profile，稳定可靠。不要用 execute_command 直接运行 soffice/libreoffice——命令行启动会复用可能损坏的默认配置层导致 abort 崩溃。ensure_tool 是 LibreOffice 的固定版本安装快捷方式，不是唯一方案；可先 discover_tools 探测 WPS/Word/系统工具/Python 等。任意命令开启时：prepare_material 取得本案副本，用 WPS/pandoc/antiword 等非 LibreOffice 工具转换到 workRoot 新文件，再 read_work_file 带 sourceMaterialId 阅读/视觉核对以关联原始材料。不得猜测 WPS 支持的命令行参数，实际探测其接口。扫描 PDF 已可 visual=true 查看页图，也可按需自行安装 OCR 再视觉核对。',
-    '对于提供答复业务 JSON 格式的任务，先调用 inspect_artifact 查看已保存分项和待办；起草时逐项生成 body、amendmentText、amendmentBasis、reviewNotes，每完成一项就用 write_artifact 的 mode=merge 保存该字段。不要在最后重新输出整套文件。数组和嵌套对象按整个字段替换。待办清空且校验通过才可结束。其他专业任务不使用 merge，按其原定产物格式保存。',
+    '答复、撰写和独立审查均先调用 inspect_artifact 查看已保存分项和待办，使用 write_artifact 的 mode=merge 保存本任务格式要求的字段。答复逐项保存 body、amendmentText、amendmentBasis、reviewNotes；专业任务按约定保存 text，documents 可按子项补齐。数组整段替换；不要在最后重新输出已保存的整套文件。待办清空且校验通过才可结束。',
     'write_artifact 会即时校验。若工具返回错误，不要结束任务，也不要重新读取或重做全部材料；按反馈只修正产物后再次调用。可直接把 content 传入 JSON 对象，程序负责转义和序列化。只有工具确认校验通过才说明保存完成。',
     '材料用 materialId 调用 read_material 或 prepare_material；冻结稿件用 read_draft。工具生成的文档、图像、文本用 read_work_file；最终结构化结果仍用 write_artifact 写预定文件。工具成功不等于文档内容/版式已验收。',
     `结构化结果必须写入 ${PREFERRED_ARTIFACT}，不要只用最后一句话代替产物。`,

@@ -1,11 +1,12 @@
 # 按模块归档索引
 
-整理：2026-09-30；记录截至 2026-09-29。已完成的实现、评估与历史方案分别标明层级；归档不表示全部交付验收完成，也不撤销持续有效的需求。当前待办只见 [EXEC_PLAN.md](../../EXEC_PLAN.md)。
+更新：2026-10-12。已完成的实现、评估与历史方案分别标明层级；归档不表示全部交付验收完成，也不撤销持续有效的需求。当前待办只见 [EXEC_PLAN.md](../../EXEC_PLAN.md)。
 
 ## 已完成的实现与证据
 
 | 模块 | 档案 / 证据 | 完成层级与边界 |
 | --- | --- | --- |
+| v2 前实施过程 | [2026-09-30 至 10-09 记录](implementation-before-opencode-v2.md) | 历史版本、授权与证据；当前状态仅看根计划 |
 | 平台、领域、案件中心与历史 | [平台档案](platform.md) | A–C 源码、自测及合成浏览器；保留旧编号，原生与安装按当前计划验收 |
 | 案件同步与单案刷新 | [同步档案](sync.md)、[#8 视觉证据](../../evidence/pr8-visual-20260927/README.md) | 源码、合成自动化与浏览器；不替代真实服务 |
 | 内部转交、材料删除与预览 | [流转档案](internal-transfer.md) | PR 修复、单文件删除与材料 UI 已实现；真实删除及修复版写入待复验 |
@@ -34,7 +35,7 @@
 | DEVELOPMENT.md 第 1–7、9 节 | [开发入口](../../DEVELOPMENT.md) 下的 5 个架构分册 |
 | DEVELOPMENT.md 第 5.5 节、EXEC_PLAN.md 面板评估 | [面板设计与评估](../design/panel-registry.md) |
 | DEVELOPMENT.md 第 8 节 A–C；EXEC_PLAN.md 第 2、3.2、3.4、5 节 | [平台档案](platform.md) |
-| DEVELOPMENT.md 第 8 节 D 与旧计划未完成事项 | [当前实施计划](../../EXEC_PLAN.md#未完成与待决定) |
+| DEVELOPMENT.md 第 8 节 D 与旧计划未完成事项 | [当前实施计划](../../EXEC_PLAN.md) |
 | EXEC_PLAN.md 单案刷新及第 3.1 节 | [同步档案](sync.md) |
 | EXEC_PLAN.md 单文件删除与八项 PR 修复 | [流转档案](internal-transfer.md) |
 | EXEC_PLAN.md 五项实测修复、阅读区与菜单 | [撰写档案](writing-review.md) |

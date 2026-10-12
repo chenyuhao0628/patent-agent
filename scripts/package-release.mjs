@@ -43,6 +43,7 @@ const USAGE = `用法：
   npm run package:release          # 一次构建，再分别打包 macOS arm64 .app 与 Windows x64 安装器
   npm run package:mac              # 仅 macOS arm64，语义同上（校验、发布、清理）
   npm run package:win              # 仅 Windows x64 安装器
+添加 --preserve-old 保留并校验已有安装制品。
 产物写入 release/，构建在同级 release-staging/ 中完成。`;
 
 export function macPublishedName(version) {
@@ -590,6 +591,7 @@ export async function publishArtifacts({
   version,
   platforms,
   fullRelease,
+  preserveOld = false,
   copyPath = copyArtifact,
   builtAt = new Date().toISOString(),
 }) {
@@ -599,6 +601,14 @@ export async function publishArtifacts({
   await removeStrayPromoting(releaseDir);
   const journal = [];
   const keepNames = new Set([MANIFEST_NAME]);
+  const retained = [];
+  if (preserveOld) for (const name of await listReleaseNames(releaseDir)) {
+    if (artifacts.some(a=>a.finalName===name)) throw new Error('保留旧制品模式拒绝覆盖同名版本，请使用新的安装版本。');
+    const kind=isMacDistributable(name)?'mac':isWindowsDistributable(name)?'win':isMacInstaller(name)?'pkg':undefined;
+    if(!kind)continue;
+    retained.push({name,kind,...await checksumForArtifact(kind,path.join(releaseDir,name))});
+    keepNames.add(name);
+  }
   try {
     const files = [];
     for (const artifact of artifacts) {
@@ -615,7 +625,13 @@ export async function publishArtifacts({
         ...await checksumForArtifact(artifact.kind, dest),
       });
     }
-    if (!fullRelease) {
+    if (preserveOld) {
+      for(const item of retained) {
+        const checksum=await checksumForArtifact(item.kind,path.join(releaseDir,item.name));
+        if(JSON.stringify(checksum)!==JSON.stringify(Object.fromEntries(Object.entries(item).filter(([key])=>!['name','kind'].includes(key)))))throw new Error(`旧制品 ${item.name} 的摘要已变化。`);
+        files.push({file:item.name,platform:item.kind==='win'?'win-x64':item.kind==='pkg'?'mac-arm64-installer':'mac-arm64',retained:true,...checksum});
+      }
+    } else if (!fullRelease) {
       for (const name of await listReleaseNames(releaseDir)) {
         if (!platforms.includes('win') && isWindowsDistributable(name)) {
           files.push({
@@ -737,8 +753,10 @@ function identityError(pkg) {
 
 export function parsePlatformArgs(argv) {
   let platform = 'release';
+  let preserveOld = false;
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
+    if(arg==='--preserve-old'){preserveOld=true;continue;}
     if (arg === '--help' || arg === '-h') return {help: true};
     if (arg === '--platform') {
       platform = argv[++i];
@@ -754,6 +772,7 @@ export function parsePlatformArgs(argv) {
   return {
     platforms: platform === 'release' ? ['mac', 'win'] : [platform],
     fullRelease: platform === 'release',
+    preserveOld,
   };
 }
 
@@ -798,6 +817,7 @@ export async function runPackageRelease(options = {}) {
       version,
       platforms,
       fullRelease,
+      preserveOld: options.preserveOld === true,
       copyPath: options.copyPath ?? copyArtifact,
       builtAt: options.builtAt ?? new Date().toISOString(),
     });

@@ -1,0 +1,20 @@
+{
+  "phase": {
+    "phase": 2,
+    "jobs": 0,
+    "confirmations": 0
+  },
+  "saved": {
+    "profile": "local",
+    "cases": [
+      {
+        "id": "fd99e723-e394-4c09-91ff-0e2bb5ea109f",
+        "current": {
+          "kind": "write"
+        }
+      }
+    ]
+  },
+  "url": "file:///Users/cyh/Documents/ChatGPT/patent-agent/dist/index.html#/case/fd99e723-e394-4c09-91ff-0e2bb5ea109f/outputs",
+  "errors": []
+}

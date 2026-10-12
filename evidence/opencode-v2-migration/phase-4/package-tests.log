@@ -1,0 +1,21 @@
+✔ failed verification preserves previous outputs (74.86425ms)
+✔ successful publish removes recognized old artifacts only (61.285708ms)
+✔ partial publish failure rolls back leftover copies and leaves previous outputs (52.058375ms)
+✔ full release runs npm build once then separate mac arm64 and win x64 builder commands (53.076041ms)
+✔ empty or malformed lock is fail-closed and not deleted (1.179041ms)
+✔ dead-owner lock is left byte-for-byte unchanged and is not acquired (0.588041ms)
+✔ live-owner lock contention does not steal the lock (0.58175ms)
+✔ mac-only publish preserves windows builder dirs and old windows executables (27.9955ms)
+✔ preserve-old release keeps prior installers and checksums while promoting the new version (56.8195ms)
+✔ win-only publish preserves mac builder dirs including legacy app bundles (23.736666ms)
+✔ missing bundled OpenCode runtime fails verification and keeps previous release (24.67675ms)
+✔ missing reply-rules fails verification and keeps previous release (21.952667ms)
+✔ runtime hash mismatch fails before promote and keeps previous release (21.996292ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 509.904666

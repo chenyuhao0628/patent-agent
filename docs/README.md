@@ -1,6 +1,6 @@
 # 文档总索引
 
-更新：2026-09-30。按“当前入口 → 模块细则 → 历史证据”查阅；默认无需通读归档。
+更新：2026-10-12。按“当前入口 → 模块细则 → 历史证据”查阅；默认无需通读归档。
 
 ## 当前入口
 
@@ -23,7 +23,7 @@
 | 答复、补正与定稿 | [需求](requirements/reply-finalization.md) | [接口与作用域](architecture/contracts.md) |
 | 撰写与独立审查 | [需求](requirements/writing-review.md) | [阶段成果与阅读区](archive/writing-review.md) |
 | 提交与内部转交 | [需求](requirements/internal-transfer.md) | [材料与流转修复](archive/internal-transfer.md) |
-| Agent、模型与工具 | [需求](requirements/agent-tools.md) | [后台对照证据](../evidence/BACKEND-COMPARISON.md) |
+| Agent、模型与工具 | [需求](requirements/agent-tools.md) | [v2 会话与更新证据](../evidence/opencode-v2-migration/phase-3/RESULT.md) |
 | 文档、目录与账号 | [需求](requirements/documents-security.md) | [领域持久化与安全](architecture/data-security.md) |
 
 ## 文档维护约定

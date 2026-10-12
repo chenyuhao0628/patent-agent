@@ -593,12 +593,19 @@ test('live OpenCode + mock Responses: read_material then write result.json, abor
       deadlineMs: 20_000,
       signal: controller.signal,
     });
-    await delay(800);
+    const readyDeadline=Date.now()+10_000;
+    while(!mock.seen.some(row=>row.headers[OPENCODE_SESSION_HEADER]===aborting.discussionId)&&Date.now()<readyDeadline)await delay(20);
+    assert.ok(mock.seen.some(row=>row.headers[OPENCODE_SESSION_HEADER]===aborting.discussionId),'stop probe must reach an in-flight upstream request');
+    const toolCount=aborting.events.filter(e=>e.type==='tool').length;
     controller.abort();
     const aborted = await pending;
     assert.equal(aborted.status, 'aborted');
-    assert.ok(!aborting.events.some(e => e.type === 'tool' && e.event.success && e.event.name === TOOL_WRITE_ARTIFACT && Date.now() < 0));
-    assert.ok(aborted.toolEvents.every(event => event.name !== TOOL_WRITE_ARTIFACT || event.status === 'error' || event.success === true));
+    await delay(150);
+    assert.equal(aborting.events.filter(e=>e.type==='tool').length,toolCount,'stopped task must not accept late tool events');
+    assert.ok(!aborted.toolEvents.some(event => event.name === TOOL_WRITE_ARTIFACT && event.success));
+    await assert.rejects(fs.access(path.join(aborting.runRoot,'outputs',PREFERRED_ARTIFACT)));
+    const config=JSON.parse(await fs.readFile(path.join(aborting.runRoot,'home','.config','opencode','opencode.json'),'utf8'));
+    await assert.rejects(fetch(config.providers.patent.settings.baseURL+'/responses',{method:'POST',headers:{Authorization:`Bearer ${DUMMY_UPSTREAM_KEY}`,'Content-Type':'application/json'},body:'{}',signal:AbortSignal.timeout(1000)}),'stopped model proxy must no longer accept requests');
   } finally {
     await mock.close();
   }

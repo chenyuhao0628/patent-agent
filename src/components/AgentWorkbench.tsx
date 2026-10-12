@@ -299,8 +299,6 @@ export function AgentWorkbench({
     access: process.access,
     finalized: !!process.finalized,
   });
-  const writeIncomplete = kind === 'write';
-  const reviewIncomplete = kind === 'review';
   const mainId = reviseRunDiscussionId(process);
   const partial = partialTextForDiscussion(view, discussion?.id);
   const pendingText = pending && pendingDiscussionId === discussion?.id ? pending : undefined;
@@ -330,7 +328,7 @@ export function AgentWorkbench({
       <div>
         <h3>{formal ? (kind==='correction'||process.classification.noticeCategory==='补正通知书'?'本案对话 · 补正办理':'本案对话 · 答复办理') : '本案对话'}</h3>
         <p className="agent-current-stage">{showProgress?`当前阶段：${STAGES[current]}`:"材料讨论"}</p>
-        {!formal && !showProgress && <p>{writeIncomplete ? '完整撰写申请文件尚未完成，当前只开放围绕本案材料的讨论。' : reviewIncomplete ? '独立导入审查尚未完成，当前只开放围绕本案材料的讨论。' : '本页用于材料讨论，正式办理请进入本案对应业务。'}</p>}
+        {!formal && !showProgress && <p>{kind === 'write' ? '本页用于本案材料讨论。生成和确认申请文件，请进入本案“撰写”。' : kind === 'review' ? '本页用于本案材料讨论。选择确切稿件并独立审查，请进入“稿件审查”。' : '本页用于材料讨论，正式办理请进入本案对应业务。'}</p>}
       </div>
       <div className="agent-head-actions">{branchPicker}
         <button type="button" disabled={busy || !discussion || !!discussion.archived} onClick={()=>setClearConfirm(true)}>清理会话</button><details className="agent-model-details"><summary>模型与设置</summary><p>{modelSnapshotLabel(view)}</p><a href="#/settings/model">模型设置</a></details>
@@ -397,7 +395,7 @@ export function AgentWorkbench({
         </div>}
         {!editing && <form className="agent-composer" onSubmit={e => { e.preventDefault(); void send(); }}>
           {visibleCommandError && <p className="agent-error" role="alert">{visibleCommandError}</p>}
-          <label className="agent-send-mode">本次发送：{formal ? nextAction : '仅讨论（当前流程不可办理）'}<select aria-label="发送用途" disabled={commandBusy} value={!formal || discussionOnly ? 'discuss' : 'workflow'} onChange={e => setDiscussionOnly(e.target.value === 'discuss')}><option value="workflow" disabled={!formal}>办理当前步骤</option><option value="discuss">仅讨论</option></select></label>
+          <label className="agent-send-mode">本次发送：{formal ? nextAction : '仅讨论（本页不推进办理阶段）'}<select aria-label="发送用途" disabled={commandBusy} value={!formal || discussionOnly ? 'discuss' : 'workflow'} onChange={e => setDiscussionOnly(e.target.value === 'discuss')}><option value="workflow" disabled={!formal}>办理当前步骤</option><option value="discuss">仅讨论</option></select></label>
           <textarea disabled={!!discussion?.archived} value={input} onChange={e => setInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();void send();}}} placeholder={runningOnThis ? '补充要求将排队；当前后台不支持途中追加。' : discussion?.kind === 'review' ? '在独立复核中讨论…正式修改请回主讨论。' : '围绕本案提问…'} />
           <button className="primary" type="submit" disabled={commandBusy || !!discussion?.archived || !input.trim()}>{view.busy?'完成后发送':'发送'}</button>
           <button type="button" disabled={!view.busy||commandBusy} onClick={() => void run({ type: 'stop', runId: process.activeRunId ?? undefined })}><Square size={14}/>停止</button>
@@ -668,7 +666,7 @@ export function AgentArtifacts({ view, caseId }: { view: AgentCaseView; caseId: 
     <h4>本案成果与定稿预览</h4>
     {!sortedArtifacts.length ? (
       <div className="draft-outcomes-section">
-        <p className="section-copy">当前尚未定稿生成最终 Word。以下为当前采用稿件及修改文件的实时排版与公式预览：</p>
+        {draftItems.length > 0 && <p className="section-copy">当前尚未定稿生成最终 Word。以下为当前采用稿件及修改文件的内容与公式预览：</p>}
         {draftItems.length > 0 ? (
           <>
             <div className="surface-switch" role="tablist" style={{ margin: '8px 0' }}>
@@ -691,7 +689,7 @@ export function AgentArtifacts({ view, caseId }: { view: AgentCaseView; caseId: 
             )}
           </>
         ) : (
-          <p className="muted">还没有生成成果。确认定稿后，按指定模板生成正式 Word；补正内容保存为表单字段记录，工作稿历史另行保留。</p>
+          <p className="muted">本阶段尚无答复或补正成果；撰写与独立审查成果在相应任务记录中查看，已保存文件按版本保留。</p>
         )}
       </div>
     ) : (
