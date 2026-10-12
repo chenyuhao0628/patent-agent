@@ -1,3 +1,4 @@
+import { encodeResponsesSse } from './synthetic-provider.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -98,7 +99,7 @@ function authorized(req) {
 function sessionOf(req) {
   const url = new URL(req.url, 'http://127.0.0.1');
   const parts = url.pathname.split('/').filter(Boolean);
-  return parts[0] === 'session' ? parts[1] : '';
+  return parts[1] === 'session' ? parts[2] : '';
 }
 function emit(payload) {
   const frame = 'data: ' + JSON.stringify({ payload }) + '\\n\\n';
@@ -143,52 +144,56 @@ const server = http.createServer((req, res) => {
   if (!authorized(req)) { send(res, 401, { error: 'unauthorized' }); return; }
   const url = new URL(req.url, 'http://127.0.0.1');
   const pathname = url.pathname;
-  if (pathname === '/global/health' && req.method === 'GET') {
-    send(res, 200, { healthy: true, version: '1.18.30' });
+  if (pathname === '/api/info' && req.method === 'GET') {
+    send(res, 200, { version: '2.99.0', pid: process.pid });
     return;
   }
-  if (pathname === '/global/event' && req.method === 'GET') {
+  if (pathname === '/api/event' && req.method === 'GET') {
     res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store' });
     sse.add(res);
     req.on('close', () => sse.delete(res));
     return;
   }
+  if(pathname==='/api/mcp'){send(res,200,{data:[{name:'case_tools',status:{status:'connected'}}]});return;}
   const chunks = [];
   req.on('data', c => chunks.push(c));
   req.on('end', () => {
     let body = {};
     try { body = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}'); } catch {}
-    if (pathname === '/session' && req.method === 'POST') {
+    if (pathname === '/api/session' && req.method === 'POST') {
       const id = 'ses_' + Math.random().toString(16).slice(2);
       const ses = { id, title: body.title || '', status: 'busy', messages: [] };
       sessions.set(id, ses);
-      send(res, 200, { id });
+      send(res, 200, { data: { id } });
       return;
     }
-    if (pathname === '/session/status' && req.method === 'GET') {
+    if (pathname === '/api/session/active' && req.method === 'GET') {
       const map = {};
       for (const [id, ses] of sessions) {
-        if (ses.status) map[id] = { type: ses.status };
+        if (ses.status === 'busy') map[id] = { type: 'running' };
       }
-      send(res, 200, map);
+      send(res, 200, {data:map});
       return;
     }
     const sid = sessionOf(req);
     const ses = sessions.get(sid);
-    if (pathname.endsWith('/prompt_async') && req.method === 'POST') {
+    if (pathname.endsWith('/prompt') && req.method === 'POST') {
       if (!ses) { send(res, 404, { error: 'missing' }); return; }
-      ses.turns=(ses.turns||0)+1;
+      if(body.text.includes('<!--workbench-turn:'))ses.initialPrompt=body.text;ses.status='busy';ses.turns=(ses.turns||0)+1;
       setTimeout(() => applyMode(ses), 30);
       send(res, 204);
       return;
     }
-    if (pathname.endsWith('/abort') && req.method === 'POST') {
+    if (pathname.endsWith('/interrupt') && req.method === 'POST') {
       if (ses) ses.status = 'idle';
       send(res, 204);
       return;
     }
     if (pathname.includes('/message') && req.method === 'GET') {
-      send(res, 200, ses ? ses.messages : []);
+      const rows=ses?ses.messages.map(row=>({id:row.info.id,type:'assistant',time:row.info.time,finish:row.info.finish,error:row.info.error,content:row.parts.map(({id,...part})=>part)})):[];
+      if(ses?.status==='idle')rows.push({id:'idle'+ses.turns,type:'idle',outcome:'succeeded'});
+      if(ses?.initialPrompt)rows.unshift({id:'u',type:'user',text:ses.initialPrompt});
+      send(res, 200, {data:rows.reverse(),cursor:{next:null}});
       return;
     }
     send(res, 404, { error: 'not_found' });
@@ -207,7 +212,7 @@ async function runWithFake(discussionId: string, opts: { deadlineMs?: number; si
   const root = await tmpDir('fake');
   const bin = await writeFakeOpenCode(root);
   const events: AgentEvent[] = [];
-  const runner = new OpenCodeRunner({ binaryPath: bin });
+  const runner = new OpenCodeRunner({ binaryPath: process.execPath, binaryArgs: [bin] });
   const result = await runner.run({
     runtime: runtime('http://127.0.0.1:9/v1'),
     runId: 'run-1',
@@ -237,7 +242,8 @@ test('OpenCode config injects dummy Authorization for every protocol', () => {
       mcpToken: 'x'.repeat(32),
       systemPrompt: 'p',
     });
-    const options = (cfg.provider as { patent: { options: { apiKey: string; headers: { Authorization: string }; baseURL: string } } }).patent.options;
+    const provider = (cfg.providers as { patent: { settings: { apiKey: string; baseURL: string }; headers: { Authorization: string } } }).patent;
+    const options = {...provider.settings, headers:provider.headers};
     assert.equal(options.apiKey, DUMMY_UPSTREAM_KEY);
     assert.equal(options.headers.Authorization, `Bearer ${DUMMY_UPSTREAM_KEY}`);
     assert.equal(options.baseURL, 'http://127.0.0.1:9/r/tok/v1');
@@ -395,62 +401,6 @@ function flattenInput(req: Record<string, unknown>): Record<string, unknown>[] {
   return [];
 }
 
-function encodeResponsesSse(model: unknown, output: Record<string, unknown>[]) {
-  const id = 'resp_' + randomBytes(3).toString('hex');
-  const usage = { input_tokens: 24, output_tokens: 16, total_tokens: 40 };
-  const events: Record<string, unknown>[] = [];
-  let seq = 0;
-  const push = (event: Record<string, unknown>) => {
-    events.push({ ...event, sequence_number: seq++ });
-  };
-  const created = {
-    id, object: 'response', created_at: Math.floor(Date.now() / 1000), status: 'in_progress',
-    model, output: [] as unknown[], usage: null, error: null,
-  };
-  push({ type: 'response.created', response: created });
-  const completedItems: Record<string, unknown>[] = [];
-  output.forEach((item, index) => {
-    if (item.type === 'function_call') {
-      const callId = String(item.call_id || `call_${index}`);
-      const itemId = String(item.id || `fc_${index}`);
-      const args = String(item.arguments || '{}');
-      const added = { type: 'function_call', id: itemId, call_id: callId, name: item.name, arguments: '', status: 'in_progress' };
-      push({ type: 'response.output_item.added', output_index: index, item: added });
-      push({ type: 'response.function_call_arguments.delta', item_id: itemId, output_index: index, delta: args });
-      push({ type: 'response.function_call_arguments.done', item_id: itemId, output_index: index, arguments: args });
-      const done = { ...added, arguments: args, status: 'completed' };
-      push({ type: 'response.output_item.done', output_index: index, item: done });
-      completedItems.push(done);
-    } else {
-      const itemId = String(item.id || `msg_${index}`);
-      const text = Array.isArray(item.content)
-        ? (item.content as { text?: string }[]).map(part => part.text || '').join('')
-        : String(item.text || '');
-      const added = {
-        type: 'message', id: itemId, role: 'assistant', status: 'in_progress',
-        content: [{ type: 'output_text', text: '' }],
-      };
-      push({ type: 'response.output_item.added', output_index: index, item: added });
-      push({ type: 'response.output_text.delta', item_id: itemId, output_index: index, content_index: 0, delta: text });
-      push({ type: 'response.output_text.done', item_id: itemId, output_index: index, content_index: 0, text });
-      const done = {
-        type: 'message', id: itemId, role: 'assistant', status: 'completed',
-        content: [{ type: 'output_text', text }],
-      };
-      push({ type: 'response.output_item.done', output_index: index, item: done });
-      completedItems.push(done);
-    }
-  });
-  push({
-    type: 'response.completed',
-    response: {
-      id, object: 'response', created_at: Math.floor(Date.now() / 1000), status: 'completed',
-      model, output: completedItems, usage, error: null,
-    },
-  });
-  const frames = events.map(event => `event: ${event.type}\ndata: ${JSON.stringify(event)}`).concat(['event: done\ndata: [DONE]']).join('\n\n') + '\n\n';
-  return Buffer.from(frames);
-}
 
 function startMockResponses() {
   const seen: { headers: http.IncomingHttpHeaders; body: Record<string, unknown>; path: string }[] = [];
@@ -529,7 +479,7 @@ async function isolateBinary(source: string, destDir: string) {
 }
 
 function collectDownloads(root: string, names: string[]) {
-  return names.filter(name => name.includes('node_modules') || name.includes('.bun') || name.includes('registry.npmjs') || name.endsWith('.tgz'));
+  return names.filter(name => name.includes('node_modules') || name.includes('bun/install') || name.includes('registry.npmjs') || name.endsWith('.tgz'));
 }
 
 async function walkNames(root: string): Promise<string[]> {
@@ -553,7 +503,7 @@ test('live OpenCode + mock Responses: read_material then write result.json, abor
   try {
     await fs.access(source);
   } catch {
-    t.skip('OpenCode 1.18.30 binary not available');
+    t.skip('Bundled OpenCode v2 binary not available');
     return;
   }
   const mock = await startMockResponses();
@@ -680,7 +630,7 @@ test('event stream keeps receiving valid events after more than 1 MB cumulative 
  let index=0;const encoder=new TextEncoder();const events:unknown[]=[];
  const stream=new ReadableStream<Uint8Array>({pull(controller){
    if(index++<1200)controller.enqueue(encoder.encode('data: '+JSON.stringify({type:'ignored',padding:'x'.repeat(1000)})+'\n\n'));
-   else {controller.enqueue(encoder.encode('data: '+JSON.stringify({type:'session.compacted',properties:{sessionID:'session'}})+'\n\n'));controller.close();}
+   else {controller.enqueue(encoder.encode('data: '+JSON.stringify({type:'session.compaction.ended',properties:{sessionID:'session'}})+'\n\n'));controller.close();}
  }});
  const runner=new OpenCodeRunner({binaryPath:process.execPath,fetchImpl:async()=>new Response(stream)});
  const consume=(runner as unknown as {consumeEvents:(...args:unknown[])=>Promise<void>}).consumeEvents.bind(runner);
@@ -690,13 +640,13 @@ test('event stream keeps receiving valid events after more than 1 MB cumulative 
 
 test('runner automatically resumes missing-artifact completion twice in the same session then pauses',async()=>{
  const root=await tmpDir('repair-limit');const bin=await writeFakeOpenCode(root);const events:AgentEvent[]=[];
- const runner=new OpenCodeRunner({binaryPath:bin});
+ const runner=new OpenCodeRunner({binaryPath:process.execPath,binaryArgs:[bin]});
  const result=await runner.run({runtime:runtime("http://127.0.0.1:9/v1"),runId:'repair-limit',discussionId:'repair-limit',localRunDirectory:root,materials:[],productPrompt:'test',publicMessages:[],artifactExpect:{kind:'discuss'},deadlineMs:10000,onEvent:e=>events.push(e)});
  assert.equal(result.status,'failed');assert.equal(result.error?.code,'artifact_repair_exhausted');assert.equal(events.filter(e=>e.type==='activity'&&e.stepId?.startsWith('artifact-repair-')).length,2);
 });
 test('user cancellation stops automatic artifact repair',async()=>{
  const root=await tmpDir('repair-cancel');const bin=await writeFakeOpenCode(root);const abort=new AbortController();
- const runner=new OpenCodeRunner({binaryPath:bin});
+ const runner=new OpenCodeRunner({binaryPath:process.execPath,binaryArgs:[bin]});
  const result=await runner.run({runtime:runtime("http://127.0.0.1:9/v1"),runId:'repair-cancel',discussionId:'repair-cancel',localRunDirectory:root,materials:[],productPrompt:'test',publicMessages:[],artifactExpect:{kind:'discuss'},deadlineMs:10000,signal:abort.signal,onEvent:e=>{if(e.type==='activity'&&e.stepId?.startsWith('artifact-repair-'))abort.abort();}});
  assert.equal(result.status,'aborted');
 });
@@ -705,17 +655,17 @@ test('incremental progress continues beyond two turns and stops only after repea
  const root=await tmpDir('repair-progress');const bin=await writeFakeOpenCode(root);let prompts=0;
  const events:AgentEvent[]=[];
  const fetchImpl:typeof fetch=async(input,init)=>{
-   if(String(input).includes('/prompt_async')){
+   if(String(input).includes('/prompt')){
      prompts++;
      if(prompts<=4){
-       const cfg=JSON.parse(await fs.readFile(path.join(root,'xdg-config','opencode','opencode.json'),'utf8'));
-       const mcp=cfg.mcp.case_tools;
+       const cfg=JSON.parse(await fs.readFile(path.join(root,'home','.config','opencode','opencode.json'),'utf8'));
+       const mcp=cfg.mcp.servers.case_tools;
        await fetch(mcp.url,{method:'POST',headers:{...mcp.headers,'Content-Type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:prompts,method:'tools/call',params:{name:'write_artifact',arguments:{name:'result.json',mode:'merge',content:{kind:'draft',...([{body:'正文'},{amendmentText:'建议修改'},{amendmentBasis:'来源依据'},{reviewNotes:'内部说明'}][prompts-1])}}}})});
      }
    }
    return fetch(input,init);
  };
- const runner=new OpenCodeRunner({binaryPath:bin,fetchImpl});
+ const runner=new OpenCodeRunner({binaryPath:process.execPath,binaryArgs:[bin],fetchImpl});
  const result=await runner.run({runtime:runtime('http://127.0.0.1:9/v1'),runId:'repair-progress',discussionId:'repair-progress',localRunDirectory:root,materials:[],productPrompt:'test',publicMessages:[],artifactExpect:{kind:'draft',strategyId:'s'},deadlineMs:15000,onEvent:e=>events.push(e)});
  assert.equal(result.error?.code,'artifact_repair_exhausted');assert.equal(prompts,6);
  assert.equal(events.filter(e=>e.type==='activity'&&e.stepId?.startsWith('artifact-repair-')).length,5);
@@ -724,12 +674,12 @@ test('incremental progress continues beyond two turns and stops only after repea
 test('rewriting the same field cannot prolong automatic repair indefinitely', {timeout:15000},async()=>{
  const root=await tmpDir('repair-churn');const bin=await writeFakeOpenCode(root);let prompts=0;
  const fetchImpl:typeof fetch=async(input,init)=>{
-   if(String(input).includes('/prompt_async')){
-     prompts++;const cfg=JSON.parse(await fs.readFile(path.join(root,'xdg-config','opencode','opencode.json'),'utf8')),mcp=cfg.mcp.case_tools;
+   if(String(input).includes('/prompt')){
+     prompts++;const cfg=JSON.parse(await fs.readFile(path.join(root,'home','.config','opencode','opencode.json'),'utf8')),mcp=cfg.mcp.servers.case_tools;
      await fetch(mcp.url,{method:'POST',headers:{...mcp.headers,'Content-Type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:prompts,method:'tools/call',params:{name:'write_artifact',arguments:{name:'result.json',mode:'merge',content:{kind:'draft',body:'反复改写 '+prompts}}}})});
    }return fetch(input,init);
  };
- const runner=new OpenCodeRunner({binaryPath:bin,fetchImpl});
+ const runner=new OpenCodeRunner({binaryPath:process.execPath,binaryArgs:[bin],fetchImpl});
  const result=await runner.run({runtime:runtime('http://127.0.0.1:9/v1'),runId:'repair-churn',discussionId:'repair-churn',localRunDirectory:root,materials:[],productPrompt:'test',publicMessages:[],artifactExpect:{kind:'draft'},deadlineMs:10000,onEvent:()=>{}});
  assert.equal(result.error?.code,'artifact_repair_exhausted');assert.equal(prompts,3);assert.match(await fs.readFile(path.join(root,'outputs/artifact-checkpoint.json'),'utf8'),/反复改写 3/);
 });

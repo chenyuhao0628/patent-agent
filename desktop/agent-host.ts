@@ -55,6 +55,7 @@ import type { RuntimeModelConfig } from './model-service.ts';
 export type AgentHostRuntimeConfig = RuntimeModelConfig;
 
 export type AgentHostRunEvent =
+  | { type: 'session'; session: import('../src/domain/engine-session.ts').EngineSessionView }
   | { type:'progress'; progress:TaskProgress }
   | { type: 'quality'; quality: ArtifactQuality }
   | { type: 'partial'; text: string }
@@ -76,6 +77,7 @@ export type AgentHostMaterialSnapshot = {
 };
 
 export type AgentHostRunInput = {
+  sessionScope?: import('./engine-sessions.ts').EngineSessionScope;
   taskContract?:TaskContract;
   taskMemory?: TaskMemory;
   evidencePolicy?: EvidencePolicy;
@@ -326,6 +328,7 @@ export class AgentHost implements AgentAPI {
           business:state.classification.noticeCategory==='补正通知书'?'补正' as const:'答复' as const,
           at:draft.at,text:draft.text,amendmentText:draft.amendmentText,applicationParts:draft.applicationParts,correctionContents:draft.correctionContents,amendmentBasis:draft.amendmentBasis,
           reports:state.reviews.filter(r=>r.draftVersionId===draft.id).map(r=>({
+            session:structuredClone(state.jobs.find(j=>j.runId===r.runId)?.session),
             memory:structuredClone(state.jobs.find(j=>j.runId===r.runId)?.memory),
             quality:structuredClone(state.jobs.find(j=>j.runId===r.runId)?.quality),
             progress:structuredClone(state.jobs.find(j=>j.runId===r.runId)?.progress),
@@ -1081,7 +1084,7 @@ export class AgentHost implements AgentAPI {
         const buf = await readBoundedFile(abs,MAX_MATERIAL_BYTES);
         const hash = digest(buf);
         if (item.hash && item.hash !== hash) throw new Error('材料哈希不一致，未启动任务。');
-        const snapshotId = randomUUID();
+        const snapshotId = 'mat_' + digest(JSON.stringify([item.id, hash])).slice(0, 32);
         const destName = safeName(path.basename(item.relativePath || item.name || 'material'), 48);
         const snapshotRel = portable(path.join('materials', snapshotId, destName));
         const dest = await managedPath(snapshotDir, snapshotRel, true);
@@ -1173,6 +1176,7 @@ export class AgentHost implements AgentAPI {
     diagnostic('host','dispatch_started',{caseId,runId:job.runId});
     try {
       const returned = await this.run({
+        sessionScope: { root: path.join(this.desktop.root, 'profiles', ticket.profileKey, 'opencode-sessions'), profileKey: ticket.profileKey, caseId: c.identity.id, processKey: state.scope.processKey, conversationId, branchId: job.branchId ?? 'main', kind: `${kind}:${command.action}`, contextHash: digest(JSON.stringify([materialHashes, state.userSelectedStrategyId, job.boundDraftVersionId])) },
         taskMemory:replyTaskMemory(state,conversationId,command.action),
         evidencePolicy:{formal:formal,noticeCoverage:formal,opinionIds:command.action==='draft'||command.action==='revise'?state.analysis?.opinions.map(o=>o.id):undefined},
         artifactExpect:{kind:command.action,strategyId:state.userSelectedStrategyId??undefined,draftVersionId:job.boundDraftVersionId},
@@ -1243,14 +1247,14 @@ export class AgentHost implements AgentAPI {
 
   private async handleEventAlreadyLocked(live: LiveRun, event: AgentHostRunEvent): Promise<void> {
     if (live.settled || live.ignoreEvents) return;
-    if(event.type==='quality'||event.type==='progress'){
+    if(event.type==='quality'||event.type==='progress'||event.type==='session'){
       if(!this.liveScopeStillValid(live))return;
       const store=await this.loadStore(live.profileKey);
       if(!this.liveScopeStillValid(live))return;
       const state=this.findProcess(store,live.caseId,live.processKey);
       const job=state?.jobs.find(j=>j.runId===live.runId);
       if(!state||!job||job.state!=='running')return;
-      if(event.type==='quality')job.quality=structuredClone(event.quality);else job.progress=structuredClone(event.progress);
+      if(event.type==='quality')job.quality=structuredClone(event.quality);else if(event.type==='session')job.session=structuredClone(event.session);else job.progress=structuredClone(event.progress);
       await this.persistStore(live.profileKey,store,this.liveTicket(live));
       if(this.liveScopeStillValid(live))await this.emitLive(live,this.desktop.replyCase(live.caseId),state,store);
       return;

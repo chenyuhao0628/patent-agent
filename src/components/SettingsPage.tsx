@@ -1,3 +1,4 @@
+import { RuntimeSettings } from './RuntimeSettings.tsx';
 import {DiagnosticSettings} from './DiagnosticSettings.tsx';
 import { ExtensionSettings } from './ExtensionSettings.tsx';
 import { PatsnapSettings } from './PriorArt.tsx';
@@ -47,7 +48,7 @@ export function SettingsPage({settings,save,nativeState,refresh,initialSection}:
     {section==='documents'&&desktop&&<><DocumentTools/>{nativeState&&<div className="prior-art-settings"><PatsnapSettings key={nativeState.profileKey} profileKey={nativeState.profileKey}/></div>}</>}
     {section==='extensions'&&(desktop&&nativeState?<ExtensionSettings key={nativeState.profileKey} profileKey={nativeState.profileKey}/>:<Note>请在桌面应用中管理扩展。</Note>)}
     {section==='diagnostics'&&<DiagnosticSettings/>}
-    {section==='updates'&&<><h2>应用与更新</h2>{desktop&&<ApplicationSettings/>}<p className="section-copy">{desktop?`桌面版 ${nativeState?.version??'0.2.0'}。答复 Word 已接入确认模板。`:'浏览器预览；请使用桌面程序登录和管理本机文件。'}</p><dl className="review-definition"><div><dt>目标平台</dt><dd>macOS / Windows</dd></div><div><dt>更新方式</dt><dd>下载新版安装包后运行，安装器识别已有安装并覆盖程序；账号、设置、对话与工作目录保留。</dd></div><div><dt>最小化</dt><dd>按上方最小化选项保留窗口或隐藏到托盘，同步继续检查。</dd></div><div><dt>完全退出</dt><dd>停止网络操作，保存本机记录。</dd></div></dl><button onClick={()=>setShowUpdate(true)}>查看安装与更新说明<ArrowRight size={15}/></button><Note>macOS 使用 .pkg 安装包，Windows 使用 Setup.exe。请安装到原安装位置，更新前先在工作台中退出应用。</Note></>}
+    {section==='updates'&&<><h2>应用与更新</h2>{desktop&&<><ApplicationSettings/><RuntimeSettings/></>}<p className="section-copy">{desktop?`桌面版 ${nativeState?.version??'0.2.0'}。答复 Word 已接入确认模板。`:'浏览器预览；请使用桌面程序登录和管理本机文件。'}</p><dl className="review-definition"><div><dt>目标平台</dt><dd>macOS / Windows</dd></div><div><dt>更新方式</dt><dd>下载新版安装包后运行，安装器识别已有安装并覆盖程序；账号、设置、对话与工作目录保留。</dd></div><div><dt>最小化</dt><dd>按上方最小化选项保留窗口或隐藏到托盘，同步继续检查。</dd></div><div><dt>完全退出</dt><dd>停止网络操作，保存本机记录。</dd></div></dl><button onClick={()=>setShowUpdate(true)}>查看安装与更新说明<ArrowRight size={15}/></button><Note>macOS 使用 .pkg 安装包，Windows 使用 Setup.exe。请安装到原安装位置，更新前先在工作台中退出应用。</Note></>}
     </section></div>
     {showUpdate&&<Modal title="安装与覆盖更新" onClose={()=>setShowUpdate(false)}><div className="update-flow">{['取得适合本机的新版本安装包','在工作台中保存工作并退出应用','运行安装包，自动识别原安装；按提示覆盖程序','重新打开，原账号、设置和案件工作目录继续使用'].map((s,i)=><div key={s}><span>0{i+1}</span><p>{s}</p></div>)}</div><Note>macOS 安装器按应用标识定位既有版本；首次安装默认应用程序目录。Windows 安装器沿用原安装位置；从旧便携版首次转为安装版时，会保留同一用户的本机数据。仅替换程序，不迁移原始库和工作目录。在线检查新版本尚未启用。</Note></Modal>}
   </div>;

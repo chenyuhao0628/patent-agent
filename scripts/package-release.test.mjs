@@ -99,7 +99,7 @@ async function writeRuntime(resourcesDir, platform) {
     await fs.writeFile(abs, buf);
     files.push({
       platform: 'darwin-arm64',
-      version: '1.18.30',
+      version: '2.8.3',
       file: rel,
       bytes: buf.length,
       sha256: createHash('sha256').update(buf).digest('hex'),
@@ -113,14 +113,14 @@ async function writeRuntime(resourcesDir, platform) {
     await fs.writeFile(abs, buf);
     files.push({
       platform: 'win32-x64',
-      version: '1.18.30',
+      version: '2.8.3',
       file: rel,
       bytes: buf.length,
       sha256: createHash('sha256').update(buf).digest('hex'),
       header: '4d5a7800',
     });
   }
-  await fs.writeFile(path.join(runtime, 'runtime-manifest.json'), `${JSON.stringify({runtime: 'OpenCode', version: '1.18.30', files})}\n`);
+  await fs.writeFile(path.join(runtime, 'runtime-manifest.json'), `${JSON.stringify({runtime: 'OpenCode', version: '2.8.3', files})}\n`);
 }
 
 async function writeMacApp(appPath, version) {

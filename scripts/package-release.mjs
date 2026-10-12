@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-import { LICENSE_NAME, PINNED_RUNTIME_FILES, PINNED_RUNTIME_VERSION, RUNTIME_MANIFEST_NAME } from './prepare-agent-runtime.mjs';
+import { LICENSE_NAME, RUNTIME_FILES, compatibleRuntimeVersion, RUNTIME_MANIFEST_NAME } from './prepare-agent-runtime.mjs';
 
 const require = createRequire(import.meta.url);
 const asar = require('@electron/asar');
@@ -319,8 +319,8 @@ async function verifyBundledRuntime(resourcesDir, platform) {
   } catch {
     throw new Error('校验未通过：缺少 OpenCode runtime-manifest.json。');
   }
-  if (manifest.version !== PINNED_RUNTIME_VERSION) {
-    throw new Error(`校验未通过：OpenCode 运行时版本为 ${manifest.version || '未知'}，期望 ${PINNED_RUNTIME_VERSION}。`);
+  if (!compatibleRuntimeVersion(manifest.version)) {
+    throw new Error(`校验未通过：OpenCode 运行时版本为 ${manifest.version || '未知'}，需要 OpenCode v2 或后续稳定版本。`);
   }
   const licensePath = path.join(runtimeRoot, LICENSE_NAME);
   try {
@@ -330,7 +330,7 @@ async function verifyBundledRuntime(resourcesDir, platform) {
     throw e;
   }
   const want = pinnedPlatform(platform);
-  const pinned = PINNED_RUNTIME_FILES.find(item => item.platform === want);
+  const pinned = RUNTIME_FILES.find(item => item.platform === want);
   if (!pinned) throw new Error(`校验未通过：没有 ${want} 的运行时定义。`);
   const files = Array.isArray(manifest.files) ? manifest.files : [];
   const row = files.find(item => item && item.platform === want);
@@ -362,7 +362,7 @@ async function verifyBundledRuntime(resourcesDir, platform) {
   }
   const hex = header.toString('hex');
   const expectedHeader = String(row.header || pinned.header).toLowerCase();
-  if (hex !== expectedHeader) throw new Error(`校验未通过：${want} 文件头不匹配。`);
+  if (!hex.startsWith(pinned.header) || !hex.startsWith(expectedHeader)) throw new Error(`校验未通过：${want} 文件头不匹配。`);
   const expectedHash = String(row.sha256 || '').toLowerCase();
   if (!expectedHash) throw new Error(`校验未通过：清单缺少 ${want} 的 sha256。`);
   const actualHash = await sha256File(absolute);

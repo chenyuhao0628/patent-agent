@@ -1,0 +1,35 @@
+{
+  "runtime": "OpenCode",
+  "version": "2.0.27",
+  "apiContract": "opencode-v2",
+  "files": [
+    {
+      "platform": "darwin-arm64",
+      "version": "2.0.27",
+      "file": "darwin-arm64/opencode",
+      "bytes": 186071504,
+      "sha256": "7fa5c8659e57cae76b1da4f45edbc583aef93aae917246a0b3abb1ac1b3fb93c",
+      "header": "cffaedfe",
+      "source": {
+        "version": "2.0.27",
+        "packageName": "@opencode/cli-darwin-arm64",
+        "tarball": "https://registry.npmjs.org/@opencode/cli-darwin-arm64/-/cli-darwin-arm64-2.0.27.tgz",
+        "integrity": "sha512-0BAaNYZE5QKve/7EFw9gyTQpkyOdff7Lj8Eul6FwK1vDnkj+yiVt/gdmJZl0PVoexl+6ZhjB7vuUPgSXrRATtA=="
+      }
+    },
+    {
+      "platform": "win32-x64",
+      "version": "2.0.27",
+      "file": "win32-x64/opencode.exe",
+      "bytes": 212824456,
+      "sha256": "42921a10846ebcf19659e9c491e68852e959e0a1d1c7e57f1283322d4cb7cc15",
+      "header": "4d5a7800",
+      "source": {
+        "version": "2.0.27",
+        "packageName": "@opencode/cli-windows-x64-baseline",
+        "tarball": "https://registry.npmjs.org/@opencode/cli-windows-x64-baseline/-/cli-windows-x64-baseline-2.0.27.tgz",
+        "integrity": "sha512-7ecPhOMY7nJ7eadGd1I3PSwARonNMQ3L62x5QcIrSecFjE1sFUb5qTu4JnQnPqoiDv0Ag7aJP14RU1nP2zMdbA=="
+      }
+    }
+  ]
+}

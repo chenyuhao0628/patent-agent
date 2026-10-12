@@ -4,11 +4,11 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-export const PINNED_RUNTIME_VERSION = '1.18.30';
+export function compatibleRuntimeVersion(value) { return typeof value === 'string' && /^\d+\.\d+\.\d+$/.test(value) && Number(value.split('.')[0]) >= 2; }
 export const RUNTIME_MANIFEST_NAME = 'runtime-manifest.json';
 export const LICENSE_NAME = 'OPENCODE-LICENSE.txt';
 
-export const PINNED_RUNTIME_FILES = [
+export const RUNTIME_FILES = [
   {
     platform: 'darwin-arm64',
     file: 'darwin-arm64/opencode',
@@ -17,7 +17,7 @@ export const PINNED_RUNTIME_FILES = [
   {
     platform: 'win32-x64',
     file: 'win32-x64/opencode.exe',
-    header: '4d5a7800',
+    header: '4d5a',
   },
 ];
 
@@ -87,17 +87,17 @@ export async function verifyAgentRuntime(sourceDir) {
   const resolved = path.resolve(sourceDir);
   const manifest = await readManifest(resolved);
   const version = String(manifest.version || '');
-  if (version !== PINNED_RUNTIME_VERSION) {
-    throw new PrepareRuntimeError('version', `运行时版本必须为 ${PINNED_RUNTIME_VERSION}，当前为 ${version || '未知'}。`);
+  if (!compatibleRuntimeVersion(version)) {
+    throw new PrepareRuntimeError('version', `运行时须为兼容的 OpenCode v2 或后续稳定版本，当前为 ${version || '未知'}。`);
   }
   const files = Array.isArray(manifest.files) ? manifest.files : [];
   const reports = [];
-  for (const pinned of PINNED_RUNTIME_FILES) {
+  for (const pinned of RUNTIME_FILES) {
     const row = files.find(item => asRecord(item)?.platform === pinned.platform);
     const rec = asRecord(row);
     if (!rec) throw new PrepareRuntimeError('missing_file', `清单缺少 ${pinned.platform}。`);
-    if (String(rec.version || version) !== PINNED_RUNTIME_VERSION) {
-      throw new PrepareRuntimeError('version', `${pinned.platform} 版本不是 ${PINNED_RUNTIME_VERSION}。`);
+    if (String(rec.version || version) !== version) {
+      throw new PrepareRuntimeError('version', `${pinned.platform} 版本与本次构建清单不一致。`);
     }
     const relative = String(rec.file || pinned.file);
     const absolute = path.resolve(resolved, relative);
@@ -116,12 +116,12 @@ export async function verifyAgentRuntime(sourceDir) {
     }
     const header = await fileHeaderHex(absolute, 4);
     const expectedHeader = String(rec.header || pinned.header).toLowerCase();
-    if (header !== expectedHeader) {
+    if (!header.startsWith(pinned.header) || !header.startsWith(expectedHeader)) {
       throw new PrepareRuntimeError('header', `${relative} 文件头不匹配。`);
     }
     const sha256 = await sha256File(absolute);
     const expectedHash = String(rec.sha256 || '').toLowerCase();
-    if (expectedHash && sha256 !== expectedHash) {
+    if (!/^[a-f0-9]{64}$/.test(expectedHash) || sha256 !== expectedHash) {
       throw new PrepareRuntimeError('hash', `${relative} 哈希不匹配。`);
     }
     reports.push({
@@ -144,7 +144,7 @@ export async function verifyAgentRuntime(sourceDir) {
   }
   return {
     runtime: 'OpenCode',
-    version: PINNED_RUNTIME_VERSION,
+    version,
     sourceDir: resolved,
     files: reports,
   };
@@ -178,7 +178,7 @@ function usage() {
   return `用法：
   node scripts/prepare-agent-runtime.mjs --source <已准备的运行时目录> --output <目标目录>
 
-仅复制并校验固定版本 ${PINNED_RUNTIME_VERSION} 的官方 OpenCode macOS arm64 与 Windows x64 构件。
+复制已通过兼容性验证的 OpenCode v2 或后续稳定版本，核对本次构建清单中的实际版本与摘要。
 不联网下载，不调用 git/npm/python，不修改进程环境变量。
 源目录须已由构建准备，并包含 runtime-manifest.json 与 OPENCODE-LICENSE.txt。`;
 }

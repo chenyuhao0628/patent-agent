@@ -386,7 +386,7 @@ export class ProfessionalHost {
       `可随时用 write_artifact 的 mode=merge 保存 text 或 documents 子项；未齐内容保存为检查点，先 inspect_artifact 查看已保存字段再补齐。最终必须用 write_artifact 写入 result.json，JSON 格式：${contract}`].join('\n\n');
     live.wait=(async()=>{
       try{
-        live.handle=await this.run({taskContract:{kind,professional:true,phase:job.phase},resumeFromRunId:resume?.id,artifactScope:job.recovery!.contextHash,taskMemory:memory,evidencePolicy:{formal:true},validateArtifact:async raw=>{
+        live.handle=await this.run({sessionScope:{root:path.join(this.service.root,'profiles',key,'opencode-sessions'),profileKey:key,caseId:c.identity.id,processKey:record.processKey,conversationId:kind==='review'?(resume?.id??runId):'writing',branchId:record.revision??'initial',kind:kind==='writing'?'writing:'+job.phase:'independent-review',contextHash:job.recovery!.contextHash},taskContract:{kind,professional:true,phase:job.phase},resumeFromRunId:resume?.id,artifactScope:job.recovery!.contextHash,taskMemory:memory,evidencePolicy:{formal:true},validateArtifact:async raw=>{
           if(!this.liveValid(live)||job.state!=='running')return '本任务已结束、停止或范围变化。';
           try{parseProfessionalResult(raw,kind,job.phase);}catch(error){return (error as Error).message;}
           if(!job.tools.some(t=>t.name==='read_skill'&&t.status==='ok'))return '请先用 read_skill 读取本阶段标准技能。';
@@ -397,6 +397,7 @@ export class ProfessionalHost {
         },runId,caseId:c.identity.id,processKey:record.processKey,action:kind==='review'?'review':'discuss',discussionId:runId,snapshotDir,outputDir,prompt:{rules:skill.main,task,combined:`${skill.main}\n\n${task}`},skillResources:skill.resources,materials,draft:source?.text?{id:source.id,text:source.text,amendmentText:source.amendmentText,applicationParts:source.applicationParts,correctionContents:source.correctionContents,amendmentBasis:source.amendmentBasis}:undefined,messages:[],runtime,signal:controller.signal,onEvent:event=>{
           if(!this.liveValid(live)||job.state!=='running')return;
           if(event.type==='progress'){job.progress=structuredClone(event.progress);this.changed(key);void this.serial(async()=>{if(this.liveValid(live)&&job.state==='running')await this.persist(key,scope);}).catch(()=>{});}
+          if(event.type==='session'){job.session=structuredClone(event.session);this.changed(key);}
           if(event.type==='quality'){job.quality=structuredClone(event.quality);this.changed(key);}
           if(event.type==='partial'){live.partial=event.text;this.changed(key);}
           if(event.type==='tool'){job.tools.push({name:(event.toolKind==='read_material'||event.toolKind==='read_work_file')&&event.materialId?`${event.toolKind}:${event.materialId}`:event.toolKind||event.filename,status:event.status,detail:event.detail});this.changed(key);}

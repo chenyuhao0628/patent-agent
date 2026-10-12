@@ -48,6 +48,12 @@ export type DesktopAccountAPI = {
 };
 
 export type DesktopToolAPI = {
+  runtime?: {
+    status(): Promise<import('../domain/engine-runtime.ts').EngineRuntimeStatus>;
+    check(): Promise<import('../domain/engine-runtime.ts').EngineRuntimeStatus>;
+    rollback(): Promise<import('../domain/engine-runtime.ts').EngineRuntimeStatus>;
+    automatic(enabled: boolean): Promise<import('../domain/engine-runtime.ts').EngineRuntimeStatus>;
+  };
   diagnosticExport: () => Promise<{ canceled: boolean; path?: string; count?: number; droppedWrites?: number }>;
   diagnosticReport: (input: { type: string; line?: number; column?: number }) => Promise<void>;
   selectDshDirectory(): Promise<string | null>;

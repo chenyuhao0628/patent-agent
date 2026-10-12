@@ -1,0 +1,19 @@
+{
+  "before": "file:///Users/cyh/Documents/ChatGPT/patent-agent/dist/index.html#/settings/updates",
+  "after": "file:///Users/cyh/Documents/ChatGPT/patent-agent/dist/index.html#/settings/updates",
+  "version": "2.0.27",
+  "toggledOff": true,
+  "toggledOn": true,
+  "viewport": [
+    1440,
+    900
+  ],
+  "scrollWidth": 1425,
+  "errors": [
+    {
+      "method": "Log.entryAdded",
+      "text": "{\"entry\":{\"source\":\"security\",\"level\":\"error\",\"text\":\"Loading the font 'data:font/woff2;base64,d09GMgABAAAAAA4oAA4AAAAAHbQAAA3TAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAABmAAgRQIDgmcDBEICo1oijYBNgIkA14LMgAEIAWJAAeBHAyBHBvbGiMRdnO0IkRRkiYDgr9KsJ1NUAf2kILNxgUmgqIgq1P89vcbIcmsQbRps3vCcXdYOKSWEPEKgZgQkprQQsxIXUgq0DqpGKmIvrgkeVGtEQD9DzAO29fM9jYhxZEsL2FeURH2JN4MIcTdO049NCVdxQ/w9NrSYFEBKTDKpLKfNkCGDc1RwjZLQcm3vqJ2UW9Xfa3tgAHz6ivp6vgC2yD4/6352ndnN0X0TL7seypkjZlMsjmZnf0Mm5Q+JykRWQBKCVCVPbARPXWyQtb5VgLB6Biq7/Uixcj2W"
+    }
+  ],
+  "validation": "Isolated Electron application and direct CDP; the listed Browser skill targets logged-in Chromium and does not control this native app. No browser dependency was added."
+}

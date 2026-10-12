@@ -21,10 +21,10 @@ export const DEFAULT_MAX_OUTPUT = 8_192;
 export const PROXY_BODY_MAX_BYTES = 16 * 1024 * 1024;
 export const PROXY_RESPONSE_MAX_BYTES = 64 * 1024 * 1024;
 export const PROVIDER_NPM = {
-  'openai-responses': '@ai-sdk/openai',
-  'openai-chat-completions': '@ai-sdk/openai-compatible',
-  'anthropic-messages': '@ai-sdk/anthropic',
-  'gemini-generate-content': '@ai-sdk/google',
+  'openai-responses': '@opencode/ai/providers/openai-compatible/responses',
+  'openai-chat-completions': '@opencode/ai/providers/openai-compatible',
+  'anthropic-messages': '@opencode/ai/providers/anthropic-compatible',
+  'gemini-generate-content': '@opencode/ai/providers/google',
 } as const;
 
 const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost', '::1', '[::1]']);
@@ -74,11 +74,37 @@ export type AgentProxyOptions = {
   runId?: string;
   runtime: RuntimeModelConfig;
   discussionId: string;
+  cacheKey?: string;
+  turnBoundary?: string;
   fetchImpl?: typeof fetch;
   bodyLimit?: number;
   responseLimit?: number;
   onSafeRequest?: (info: SafeProxyRequest) => void;
 };
+
+/** The native transcript is retained locally. Each new application task sends
+ * its authoritative public context; only this task's subsequent tool/reasoning
+ * exchange stays on the wire. This prevents stale tool output and hidden thought
+ * from an earlier task being silently replayed. */
+export function scopedWireContext(protocol: ModelProtocol, body: JsonObject, marker: string, established: boolean): { body: JsonObject; established: boolean } {
+  const field = protocol === 'openai-responses' ? 'input' : protocol === 'gemini-generate-content' ? 'contents' : 'messages';
+  const rows = body[field];
+  if (!Array.isArray(rows)) throw new Error('后台未提供可核对的任务上下文。');
+  const boundary = rows.findIndex(raw => {
+    const row = asObject(raw);
+    return row?.role === 'user' && JSON.stringify(row).includes(marker);
+  });
+  if (boundary < 0) {
+    // After a compaction the marker may have been replaced by the summary of
+    // this task, which was itself generated through this same scoped proxy.
+    if (!established) throw new Error('后台上下文缺少本次任务标识，未发送模型请求。');
+    return { body, established };
+  }
+  const system = rows.slice(0, boundary).filter(raw => ['system', 'developer'].includes(String(asObject(raw)?.role)));
+  const next = { ...body, [field]: [...system, ...rows.slice(boundary)] };
+  delete next.previous_response_id;
+  return { body: next, established: true };
+}
 
 export type AgentProxy = {
   port: number;
@@ -279,8 +305,10 @@ export function applyWirePolicy(protocol: ModelProtocol, body: JsonObject, runti
     if (protocol === 'openai-responses') {
       next.max_output_tokens = maxOutput;
       delete next.max_tokens;
+      delete next.max_completion_tokens;
     } else if (protocol === 'openai-chat-completions') {
-      next.max_tokens = maxOutput;
+      if (next.max_completion_tokens !== undefined) { next.max_completion_tokens = maxOutput; delete next.max_tokens; }
+      else next.max_tokens = maxOutput;
       delete next.max_output_tokens;
     } else if (protocol === 'anthropic-messages') {
       next.max_tokens = maxOutput;
@@ -382,6 +410,8 @@ function redactCapture(headers: http.IncomingHttpHeaders, path: string, method: 
     userAgent: header(headers, 'user-agent') || '',
     maxOutput: typeof body?.max_output_tokens === 'number'
       ? body.max_output_tokens
+      : typeof body?.max_completion_tokens === 'number'
+        ? body.max_completion_tokens
       : typeof body?.max_tokens === 'number'
         ? body.max_tokens
         : typeof asObject(body?.generationConfig)?.maxOutputTokens === 'number'
@@ -653,6 +683,7 @@ export function startAgentProxy(options: AgentProxyOptions): Promise<AgentProxy>
   const routePrefix = proxyRoutePrefix(token);
   const controllers = new Set<AbortController>();
   let closed = false;
+  let contextEstablished = false;
 
   const server = http.createServer((req, res) => {
     void withDiagnostics({runId:options.runId,discussionId,requestId:randomBytes(16).toString('hex')},()=>handle(req, res)).catch(() => {
@@ -720,10 +751,18 @@ export function startAgentProxy(options: AgentProxyOptions): Promise<AgentProxy>
           return;
         }
         try {
+          if (options.turnBoundary) {
+            const scoped = scopedWireContext(runtime.protocol, body, options.turnBoundary, contextEstablished);
+            body = scoped.body; contextEstablished = scoped.established;
+          }
           body = applyWirePolicy(runtime.protocol, body, runtime, maxOutput);
         } catch {
           writeJson(res, 403, safeErrorPayload('model_mismatch'));
           return;
+        }
+        if (runtime.protocol === 'openai-responses' && options.cacheKey) {
+          body.prompt_cache_key = `pw-${options.cacheKey.slice(0, 48)}`;
+          body.store = false;
         }
         raw = Buffer.from(JSON.stringify(body));
       } catch {

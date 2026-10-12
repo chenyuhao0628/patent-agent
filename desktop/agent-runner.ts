@@ -1,3 +1,7 @@
+import { v2Config, ENGINE_AGENT, ENGINE_PROVIDER, enginePermissions, requireV2Info, dataObject, currentV2Messages, normalizedV2Messages, v2Outcome, turnMarker, waitV2Tools } from './opencode-v2.ts';
+import { acquireEngineSession, type EngineSessionScope } from './engine-sessions.ts';
+import { digest, atomicJSON } from './files.ts';
+import type { EngineSessionView } from '../src/domain/engine-session.ts';
 import { RepairProgressTracker, type TaskProgress, type TaskContract } from '../src/domain/task-progress.ts';
 import { diagnostic, diagnosticError, sessionErrorMetadata } from './diagnostics.ts';
 import { StringDecoder } from 'node:string_decoder';
@@ -87,6 +91,7 @@ export type PublicChatMessage = {
 };
 
 export type AgentEvent =
+  | { type: 'session'; session: EngineSessionView }
   | { type:'progress'; progress:TaskProgress }
   | { type: 'quality'; quality: ArtifactQuality }
   | { type: 'delta'; text: string }
@@ -97,6 +102,7 @@ export type AgentEvent =
   | { type: 'error'; code: string; message: string };
 
 export type AgentRunInput = {
+  sessionScope?: EngineSessionScope;
   taskContract?:TaskContract;
   taskMemory?: TaskMemory;
   evidencePolicy?: EvidencePolicy;
@@ -125,6 +131,7 @@ export type AgentRunInput = {
 };
 
 export type AgentRunResult = {
+  session?: EngineSessionView;
   status: 'completed' | 'aborted' | 'failed';
   finalText: string;
   toolEvents: ToolEvent[];
@@ -138,27 +145,9 @@ export type AgentRunner = {
 
 export type OpenCodeRunnerOptions = {
   binaryPath: string;
+  runtimeIdentity?: string;
+  binaryArgs?: string[];
   fetchImpl?: typeof fetch;
-};
-
-const NATIVE_TOOLS_OFF: Record<string, boolean> = {
-  bash: false,
-  read: false,
-  edit: false,
-  write: false,
-  glob: false,
-  grep: false,
-  list: false,
-  webfetch: false,
-  websearch: false,
-  task: false,
-  skill: false,
-  todowrite: false,
-  question: false,
-  apply_patch: false,
-  patch: false,
-  lsp: false,
-  invalid: false,
 };
 
 const SYSTEM_ENV = [
@@ -252,10 +241,14 @@ function childEnv(layout: RunLayout, extra: Record<string, string>): NodeJS.Proc
   env.XDG_DATA_HOME = layout.data;
   env.XDG_CACHE_HOME = layout.cache;
   env.XDG_STATE_HOME = layout.state;
+  env.TMPDIR = layout.tmp;
+  env.TMP = layout.tmp;
+  env.TEMP = layout.tmp;
   env.NO_COLOR = '1';
   env.TERM = 'dumb';
   env.OPENCODE_DISABLE_AUTOUPDATE = '1';
   env.OPENCODE_DISABLE_MODELS_FETCH = '1';
+  env.OPENCODE_CONFIG_PROJECT_DISABLE = '1';
   env.OPENCODE_DISABLE_PRUNE = '1';
   env.OPENCODE_FAKE_VCS = 'git';
   env.BUN_RUNTIME_TRANSPILER_CACHE_PATH = '0';
@@ -281,24 +274,29 @@ type RunLayout = {
   outputs: string;
   snapshots: string;
   logs: string;
+  tmp: string;
   ocConfig: string;
 };
 
-async function prepareLayout(root: string): Promise<RunLayout> {
+async function prepareLayout(root: string, retained?: { root: string; data: string }): Promise<RunLayout> {
+  const engineRoot = retained?.root ?? root;
   const layout: RunLayout = {
     root,
-    home: path.join(root, 'home'),
-    config: path.join(root, 'xdg-config'),
-    data: path.join(root, 'xdg-data'),
-    cache: path.join(root, 'xdg-cache'),
-    state: path.join(root, 'xdg-state'),
-    work: path.join(root, 'work'),
+    home: path.join(engineRoot, 'home'),
+    config: path.join(engineRoot, 'home', '.config'),
+    data: retained?.data ?? path.join(root, 'xdg-data'),
+    cache: path.join(engineRoot, 'xdg-cache'),
+    state: path.join(engineRoot, 'xdg-state'),
+    // v2 skips ancestor config discovery when Location equals global.config.
+    // Keep it under the isolated HOME, which also bounds instruction discovery.
+    work: path.join(engineRoot, 'home', '.config', 'opencode'),
     outputs: path.join(root, 'outputs'),
     snapshots: path.join(root, 'snapshots'),
     logs: path.join(root, 'logs'),
-    ocConfig: path.join(root, 'xdg-config', 'opencode', 'opencode.json'),
+    tmp: path.join(root, 'tmp'),
+    ocConfig: path.join(engineRoot, 'home', '.config', 'opencode', 'opencode.json'),
   };
-  for (const dir of [layout.home, layout.config, layout.data, layout.cache, layout.state, layout.work, layout.outputs, layout.snapshots, layout.logs, path.dirname(layout.ocConfig)]) {
+  for (const dir of [layout.home, layout.config, layout.data, layout.cache, layout.state, layout.work, layout.outputs, layout.snapshots, layout.logs, layout.tmp, path.dirname(layout.ocConfig)]) {
     await fs.mkdir(dir, { recursive: true, mode: 0o700 });
   }
   return layout;
@@ -316,110 +314,7 @@ export function buildOpenCodeConfig(input: {
   systemPrompt: string;
   customMcp?:Record<string,McpConfig>;
 }): Record<string, unknown> {
-  const npm = providerNpmForProtocol(input.protocol);
-  const modelKey = `${PROVIDER_ID}/${input.modelId}`;
-  const tools = {
-    ...NATIVE_TOOLS_OFF,
-    ...Object.fromEntries(Object.keys(input.customMcp||{}).map(k=>[k+'_*',true])),
-    [prefixedToolName(TOOL_READ_MATERIAL)]: true,
-    [prefixedToolName(TOOL_READ_SKILL)]: true,
-    [prefixedToolName(TOOL_READ_DRAFT)]: true,
-    [prefixedToolName(TOOL_WRITE_ARTIFACT)]: true,
-    [prefixedToolName('inspect_artifact')]: true,
-    [prefixedToolName('inspect_evidence')]: true,
-    [prefixedToolName('read_task_memory')]: true,
-    ...Object.fromEntries(['web_search','web_fetch','ensure_tool',...LOCAL_TOOL_NAMES.filter(name=>localToolAllowed(name,localToolPermissions()))].map(name=>[prefixedToolName(name),true])),
-  };
-  const permission: Record<string, unknown> = {
-    '*': 'deny',
-    ...Object.fromEntries(Object.keys(input.customMcp||{}).map(k=>[k+'_*','allow'])),
-    bash: 'deny',
-    read: 'deny',
-    edit: 'deny',
-    write: 'deny',
-    glob: 'deny',
-    grep: 'deny',
-    list: 'deny',
-    webfetch: 'deny',
-    websearch: 'deny',
-    task: 'deny',
-    skill: 'deny',
-    todowrite: 'deny',
-    question: 'deny',
-    lsp: 'deny',
-    external_directory: 'deny',
-    [MCP_SERVER_NAME + '_*']: 'allow',
-    [prefixedToolName(TOOL_READ_MATERIAL)]: 'allow',
-    [prefixedToolName(TOOL_READ_SKILL)]: 'allow',
-    [prefixedToolName(TOOL_READ_DRAFT)]: 'allow',
-    [prefixedToolName(TOOL_WRITE_ARTIFACT)]: 'allow',
-    [prefixedToolName('inspect_artifact')]: 'allow',
-  };
-  const apiHint = input.protocol === 'openai-responses'
-    ? 'openai-responses'
-    : input.protocol === 'openai-chat-completions'
-      ? 'chat'
-      : input.protocol === 'anthropic-messages'
-        ? 'anthropic'
-        : 'google';
-  return {
-    $schema: 'https://opencode.ai/config.json',
-    model: modelKey,
-    share: 'disabled',
-    autoupdate: false,
-    snapshot: false,
-    plugin: [],
-    formatter: false,
-    lsp: false,
-    compaction: { auto: true, prune: true },
-    enabled_providers: [PROVIDER_ID],
-    tools,
-    permission,
-    agent: {
-      build: {
-        model: modelKey,
-        prompt: input.systemPrompt,
-        tools,
-        permission,
-      },
-      title: { disable: true },
-      compaction: { model: modelKey },
-    },
-    mcp: {
-      ...input.customMcp,
-      [MCP_SERVER_NAME]: {
-        type: 'remote',
-        url: input.mcpUrl,
-        headers: { Authorization: `Bearer ${input.mcpToken}` },
-        oauth: false,
-        enabled: true,
-        timeout: 600_000,
-      },
-    },
-    provider: {
-      [PROVIDER_ID]: {
-        npm,
-        name: PROVIDER_ID,
-        options: {
-          baseURL: input.childBaseURL,
-          apiKey: DUMMY_UPSTREAM_KEY,
-          setCacheKey: true,
-          headers: { Authorization: `Bearer ${DUMMY_UPSTREAM_KEY}` },
-        },
-        models: {
-          [input.modelId]: {
-            id: input.modelId,
-            name: input.displayName,
-            tool_call: true,
-            attachment: true,
-            modalities: { input: ['text', 'image'], output: ['text'] },
-            limit: { context: input.contextWindow, output: input.maxOutput },
-            provider: { npm, api: apiHint },
-          },
-        },
-      },
-    },
-  };
+  return v2Config(input);
 }
 
 export function buildSystemPrompt(productPrompt: string): string {
@@ -525,7 +420,7 @@ function createOpenCodeClient(origin: string, auth: string, fetchImpl: typeof fe
     url: origin,
     async request(method, pathName, body, timeoutMs = HTTP_WAIT_MS) {
       const url = new URL(origin + pathName);
-      url.searchParams.set('directory', directory);
+      url.searchParams.set('location[directory]', directory);
       const signal = AbortSignal.any([local.signal, AbortSignal.timeout(Math.max(250, timeoutMs))]);
       const headers: Record<string, string> = { Authorization: auth, Accept: 'application/json' };
       const init: RequestInit = { method, headers, signal };
@@ -566,6 +461,7 @@ export function eventSessionId(raw: unknown): string {
   const part = asRecord(payload.part) ?? asRecord(properties?.part);
   return asString(payload.sessionID)
     || asString(payload.sessionId)
+    || asString(asRecord(payload.data)?.sessionID)
     || asString(properties?.sessionID)
     || asString(properties?.sessionId)
     || asString(part?.sessionID)
@@ -624,8 +520,32 @@ export function createPartTextAccumulator(onDelta: (text: string) => void, onThi
 export function createAssistantEventFilter(sessionId: string, texts: ReturnType<typeof createPartTextAccumulator>, onActivity?: (event: Extract<AgentEvent, { type: 'activity' }>) => void) {
   const toolStates = new Map<string, string>();
   const roles = new Map<string, string>();
+  const streaming = new Map<string, string>();
   return (raw: unknown) => {
     const body = eventPayload(raw);
+    const data = asRecord(body.data), nativeType = asString(body.type) || '';
+    if (data && nativeType.startsWith('session.')) {
+      if (data.sessionID !== sessionId) return;
+      const messageId = asString(data.assistantMessageID) || asString(data.messageID) || '';
+      const partId = String(data.ordinal ?? '');
+      if (!messageId) return;
+      const type = nativeType.includes('.reasoning.') ? 'reasoning' : 'text';
+      const key = `${messageId}:${partId}`;
+      if (/^session\.(text|reasoning)\.started$/.test(nativeType)) streaming.set(key, '');
+      if (/^session\.(text|reasoning)\.delta$/.test(nativeType) && streaming.has(key) && typeof data.delta === 'string') {
+        const text = (streaming.get(key) || '') + data.delta;
+        streaming.set(key, text);
+        texts.ingest({ messageId, partId, type, text });
+      }
+      if (/^session\.(text|reasoning)\.ended$/.test(nativeType) && typeof data.text === 'string') texts.ingest({ messageId, partId, type, text: data.text });
+      if (nativeType === 'session.message.content.updated' && Array.isArray(data.content)) {
+        data.content.forEach((raw, ordinal) => {
+          const part = asRecord(raw);
+          if (part && ['text', 'reasoning'].includes(String(part.type)) && typeof part.text === 'string') texts.ingest({ messageId, partId: String(ordinal), type: String(part.type), text: part.text });
+        });
+      }
+      return;
+    }
     const properties = asRecord(body.properties) ?? body;
     const info = asRecord(properties.info);
     if (eventType(raw) === 'message.updated' && info) {
@@ -732,19 +652,17 @@ export function inspectAssistantTurn(messages: unknown, runId?:string): Assistan
   };
 }
 
-function sessionStatus(map: unknown, sessionId: string): string | undefined {
-  const rec = asRecord(map);
-  const row = asRecord(rec?.[sessionId]);
-  return asString(row?.type) || asString(asRecord(row?.status)?.type);
-}
-
 export class OpenCodeRunner implements AgentRunner {
   readonly binaryPath: string;
+  readonly runtimeIdentity: string;
+  private readonly binaryArgs: string[];
   private readonly fetchImpl: typeof fetch;
 
   constructor(options: OpenCodeRunnerOptions) {
     if (!options.binaryPath || options.binaryPath.includes('\0')) throw new Error('缺少 OpenCode 可执行文件路径。');
     this.binaryPath = options.binaryPath;
+    this.runtimeIdentity = options.runtimeIdentity ?? 'opencode-v2-local';
+    this.binaryArgs = options.binaryArgs ?? [];
     this.fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
   }
 
@@ -780,7 +698,7 @@ export class OpenCodeRunner implements AgentRunner {
         error: { code: 'context_too_large', message: '公开上下文超过当前模型窗口，已拒绝，未截断材料。' },
       };
     }
-    const layout = await prepareLayout(input.localRunDirectory);
+    let layout = await prepareLayout(input.localRunDirectory);
     const snapshotRoot = path.resolve(input.snapshotRoot || layout.snapshots);
     const toolEvents: ToolEvent[] = [];
     const customEvents=new Set<string>();
@@ -795,7 +713,7 @@ export class OpenCodeRunner implements AgentRunner {
       else if(event.type==='thinking')thinkingChars=event.text.length;
       else if(event.type==='progress')diagnostic('agent','business_progress',{runId:input.runId,count:event.progress.pending.length});
       else if(event.type==='quality')diagnostic('agent','quality_checked',{runId:input.runId,count:event.quality.issues.length});
-      else diagnostic('agent',event.type,{runId:input.runId,...(event.type==='tool'?{tool:event.event.name,state:event.event.status}:event.type==='error'?{code:event.code}:event.type==='activity'?{step:event.stepId,state:event.status}:{state:event.status})});
+      else if(event.type!=='session') diagnostic('agent',event.type,{runId:input.runId,...(event.type==='tool'?{tool:event.event.name,state:event.event.status}:event.type==='error'?{code:event.code}:event.type==='activity'?{step:event.stepId,state:event.status}:{state:event.status})});
       try { input.onEvent(event); } catch(error) { diagnostic('agent','event_delivery_failed',{runId:input.runId,...diagnosticError(error)}); }
     };
     if(context.compressed) emit({type:'activity',label:'已自动整理早期对话，原文保留在本机',stepId:'context-compaction',status:'completed'});
@@ -815,6 +733,10 @@ export class OpenCodeRunner implements AgentRunner {
     let closedProxy: AgentProxy | undefined;
     let ioClosing = Promise.resolve();
     let processFailure: { code: string; message: string } | undefined;
+    let retained: Awaited<ReturnType<typeof acquireEngineSession>> | undefined;
+    let sessionView: EngineSessionView | undefined;
+    let runtimeVersion = '';
+    let sessionUsage = '';
 
     const invalidateIO = () => {
       eventAbort?.abort();
@@ -841,19 +763,37 @@ export class OpenCodeRunner implements AgentRunner {
     const finish = async (result: AgentRunResult): Promise<AgentRunResult> => {
       diagnostic('agent','finished',{runId:input.runId,state:result.status,code:result.error?.code,durationMs:Date.now()-started,textChars,thinkingChars});
       clearInterval(heartbeat);
+      if (sessionView) emit({ type: 'session', session: { ...sessionView } });
       closed = true;
       clearTimeout(timeout);
       input.signal?.removeEventListener('abort', onUserAbort);
-      await invalidateIO();
-      await killManagedProcess(proc);
-      proc = undefined;
-      return result;
+      try {
+        await invalidateIO();
+        await killManagedProcess(proc);
+        proc = undefined;
+        if (sessionView) {
+          try {
+            await retained?.save(sessionView.id, result.status);
+            await atomicJSON(path.join(layout.root, 'session.json'), { ...sessionView, status: result.status });
+          } catch {
+            return {...result,status:result.status==='aborted'?'aborted':'failed',session:sessionView,error:{code:'session_persist_failed',message:'后台会话记录未能完整落盘，当前产物已保留。请检查磁盘空间后继续任务。'}};
+          }
+        }
+        return { ...result, session: sessionView };
+      } finally { await retained?.release(); retained = undefined; }
     };
 
     const artifactOf = () => pickPreferredArtifact(broker?.artifacts() ?? []);
 
     try {
       runAbort.signal.throwIfAborted();
+      if (input.sessionScope) {
+        if (input.sessionScope.profileKey !== input.runtime.profileKey) throw new Error('后台会话账号与模型账号不一致。');
+        const stamp = [input.runtime.providerId, input.runtime.baseURL, input.runtime.protocol, input.runtime.modelId, input.materials.map(m => [m.id, m.hash, m.role]), digest(input.draftText ?? ''), digest(JSON.stringify([input.customMcp, input.skillResources, localToolPermissions()]))];
+        retained = await acquireEngineSession(input.sessionScope, stamp, this.runtimeIdentity);
+        layout = await prepareLayout(input.localRunDirectory, retained);
+        runAbort.signal.throwIfAborted();
+      }
       const mcpToken = randomRunToken();
       broker = await startAgentBroker({
         taskContract:input.taskContract,
@@ -883,7 +823,9 @@ export class OpenCodeRunner implements AgentRunner {
       proxy = await startAgentProxy({
         runtime: input.runtime,
         runId: input.runId,
-        discussionId: input.discussionId.trim(),
+        discussionId: retained?.scopeHash ?? input.discussionId.trim(),
+        cacheKey: retained?.scopeHash ?? digest(JSON.stringify([input.runtime.profileKey, input.discussionId, input.artifactScope, input.runtime.providerId, input.runtime.modelId])),
+        turnBoundary: turnMarker(input.runId),
         fetchImpl: this.fetchImpl,
       });
       runAbort.signal.throwIfAborted();
@@ -923,7 +865,7 @@ export class OpenCodeRunner implements AgentRunner {
         OPENCODE_CONFIG_CONTENT: JSON.stringify(config),
       });
       const logStream = createCappedLogStream(path.join(layout.logs, 'opencode.log'),LOG_MAX_BYTES,Object.values(mcpEnv));
-      proc = spawnManagedProcess(this.binaryPath, ['serve', '--pure', '--hostname', '127.0.0.1', '--port', String(port)], {
+      proc = spawnManagedProcess(this.binaryPath, [...this.binaryArgs, 'serve', '--hostname', '127.0.0.1', '--port', String(port)], {
         cwd: layout.work,
         env,
         stdio: ['ignore', 'pipe', 'pipe'],
@@ -956,12 +898,14 @@ export class OpenCodeRunner implements AgentRunner {
         if (runAbort.signal.aborted) break;
         if (proc.exitCode !== null) throw Object.assign(new Error('opencode_exited'), { code: 'server_exited' });
         try {
-          const health = asRecord(await client.request('GET', '/global/health', undefined, 2_000));
-          if (health && (health.healthy === true || asString(health.version))) {
+          const health = asRecord(await client.request('GET', '/api/info', undefined, 2_000));
+          if (health) {
+            runtimeVersion = requireV2Info(health);
             healthy = true;
             break;
           }
-        } catch {
+        } catch (error) {
+          if ((error as {code?:string}).code === 'runtime_incompatible') throw error;
           await delay(120);
         }
       }
@@ -972,34 +916,30 @@ export class OpenCodeRunner implements AgentRunner {
         }
         throw Object.assign(new Error('deadline'), { code: 'deadline' });
       }
-      if(Object.keys(input.customMcp||{}).length){const states=asRecord(await client.request('GET','/mcp',undefined,bounded(deadline,20000)));for(const name of Object.keys(input.customMcp||{}))if(asRecord(states?.[name])?.status!=='connected')throw Object.assign(new Error('自定义 MCP 连接失败，请在设置中测试连接。'),{code:'custom_mcp_failed'});}
-      const session = asRecord(await client.request('POST', '/session', {
-        title: input.discussionId,
+      await waitV2Tools((method, route) => client!.request(method, route, undefined, bounded(deadline, HTTP_WAIT_MS)), [MCP_SERVER_NAME, ...Object.keys(input.customMcp ?? {})], runAbort.signal, bounded(deadline, 30_000));
+      let session: Record<string, unknown> | undefined;
+      if (retained?.previousId) {
+        try { session = dataObject(await client.request('GET', `/api/session/${retained.previousId}`)); }
+        catch (error) { if ((error as {code?:string}).code !== 'http_404') throw error; }
+        if (session && (session.id !== retained.previousId || asRecord(session.metadata)?.workbenchScope !== retained.scopeHash || session.outcome !== 'succeeded')) session = undefined;
+      }
+      const reused = !!session;
+      session ??= dataObject(await client.request('POST', '/api/session', {
+        title: input.discussionId, location: { directory: layout.work },
+        agent: ENGINE_AGENT, model: { providerID: ENGINE_PROVIDER, id: input.runtime.modelId },
+        permissions: enginePermissions(input.customMcp),
+        metadata: { workbenchScope: retained?.scopeHash ?? input.runId },
       }, bounded(deadline, HTTP_WAIT_MS)));
       const sessionId = asString(session?.id);
       if (!sessionId) throw Object.assign(new Error('session_create_failed'), { code: 'session_create_failed' });
+      await retained?.save(sessionId, 'running');
+      sessionView = { id: sessionId, reused, retained: !!retained, runtimeVersion, cacheEnabled: true, usageReported: false, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, compactions: 0 };
+      emit({ type: 'session', session: { ...sessionView } });
       eventAbort = new AbortController();
       const eventState = { idleObserved: false, sessionError: false, error: undefined as {code:string;message:string}|undefined };
       void this.consumeEvents(origin, auth, eventAbort.signal, sessionId, texts, eventState, emit,input.runId);
-      const promptBody = {
-        model: { providerID: PROVIDER_ID, modelID: input.runtime.modelId },
-        agent: 'build',
-        system: systemPrompt,
-        tools: {
-          ...NATIVE_TOOLS_OFF,
-    ...Object.fromEntries(Object.keys(input.customMcp||{}).map(k=>[k+'_*',true])),
-          [prefixedToolName(TOOL_READ_MATERIAL)]: true,
-          [prefixedToolName(TOOL_READ_SKILL)]: true,
-          [prefixedToolName(TOOL_READ_DRAFT)]: true,
-          [prefixedToolName(TOOL_WRITE_ARTIFACT)]: true,
-    [prefixedToolName('inspect_artifact')]: true,
-    [prefixedToolName('inspect_evidence')]: true,
-    [prefixedToolName('read_task_memory')]: true,
-          ...Object.fromEntries(['web_search','web_fetch','ensure_tool',...LOCAL_TOOL_NAMES.filter(name=>localToolAllowed(name,localToolPermissions()))].map(name=>[prefixedToolName(name),true])),
-        },
-        parts: [{ type: 'text', text: userPrompt }],
-      };
-      await client.request('POST', `/session/${sessionId}/prompt_async`, promptBody, bounded(deadline, HTTP_WAIT_MS));
+      const promptBody = { text: userPrompt + '\n' + turnMarker(input.runId), metadata: { workbenchRunId: input.runId }, delivery: 'queue', resume: true };
+      await client.request('POST', `/api/session/${sessionId}/prompt`, promptBody, bounded(deadline, HTTP_WAIT_MS));
       emit({ type: 'status', status: 'busy' });
       emit({ type: 'activity', label: '等待模型响应' });
       let repairAttempts=0;
@@ -1009,24 +949,32 @@ export class OpenCodeRunner implements AgentRunner {
       while (!runAbort.signal.aborted) {
         if (Date.now() >= deadline) throw Object.assign(new Error('deadline'), { code: 'deadline' });
         let status: string | undefined;
-        try {
-          const snapshot = await client.request('GET', '/session/status', undefined, bounded(deadline, 5_000));
-          if (asRecord(snapshot)) status = sessionStatus(snapshot, sessionId) ?? 'idle';
-        } catch (error) {
-          if (runAbort.signal.aborted) break;
-          if ((error as { code?: string }).code === 'response_too_large') throw error;
-          status = undefined;
-        }
         let messages: unknown = [];
+        let outcome: string | undefined;
         let messageFetchFailed = false;
         try {
-          messages = await client.request('GET', `/session/${sessionId}/message`, undefined, bounded(deadline, HTTP_WAIT_MS));
+          const current = await currentV2Messages((method, route, body) => client!.request(method, route, body, bounded(deadline, HTTP_WAIT_MS)), sessionId, input.runId);
+          Object.assign(sessionView, { usageReported: false, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, compactions: current.filter(m => m.type === 'compaction').length });
+          for (const message of current) {
+            const tokens = asRecord(message.tokens), cache = asRecord(tokens?.cache);
+            if (!tokens) continue;
+            const count = (v: unknown) => typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : 0;
+            sessionView.usageReported ||= count(tokens.input) + count(tokens.output) > 0;
+            sessionView.inputTokens += count(tokens.input); sessionView.outputTokens += count(tokens.output);
+            sessionView.cacheReadTokens += count(cache?.read); sessionView.cacheWriteTokens += count(cache?.write);
+          }
+          const usage = JSON.stringify([sessionView.usageReported, sessionView.inputTokens, sessionView.outputTokens, sessionView.cacheReadTokens, sessionView.cacheWriteTokens, sessionView.compactions]);
+          if (sessionUsage !== usage) { sessionUsage = usage; emit({type:'session', session:{...sessionView}}); }
+          messages = normalizedV2Messages(current);
+          outcome = v2Outcome(current);
+          const active = dataObject(await client.request('GET', '/api/session/active', undefined, bounded(deadline, 5_000)));
+          if (!active) throw Object.assign(new Error('后台运行状态格式已变化。'), { code: 'runtime_incompatible' });
+          status = active[sessionId] ? 'busy' : outcome === 'succeeded' ? 'idle' : undefined;
         } catch (error) {
           if (runAbort.signal.aborted) break;
-          if ((error as { code?: string }).code === 'response_too_large') throw error;
+          if (['response_too_large', 'runtime_incompatible'].includes((error as { code?: string }).code || '')) throw error;
           diagnostic('agent','message_poll_failed',{runId:input.runId,...diagnosticError(error)});
           messageFetchFailed = true;
-          messages = [];
         }
         if (!messageFetchFailed) {
           if(Array.isArray(messages))for(const row of messages)for(const part of (asRecord(row)?.parts as unknown[]||[])){const p=asRecord(part),tool=asString(p?.tool)||'',state=asRecord(p?.state),status=asString(state?.status);if(p?.type!=='tool'||!Object.keys(input.customMcp||{}).some(k=>tool.startsWith(k+'_'))||!['completed','error'].includes(status||''))continue;const id=String(p.id);if(customEvents.has(id))continue;customEvents.add(id);onTool({name:tool,materialName:tool,status:status==='completed'?'success':'error',success:status==='completed',error:status==='error'?'自定义 MCP 调用失败。':undefined});}
@@ -1051,7 +999,7 @@ export class OpenCodeRunner implements AgentRunner {
               error: inspected.error,
             });
           }
-          if (status === 'error' || eventState.sessionError) {
+          if (outcome === 'failed' || outcome === 'interrupted' || eventState.sessionError) {
             emit({ type: 'status', status: 'error' });
             return finish({
               status: 'failed',
@@ -1060,6 +1008,9 @@ export class OpenCodeRunner implements AgentRunner {
               artifact: artifactOf(),
               error: eventState.error ?? classifySessionError(undefined),
             });
+          }
+          if (outcome === 'succeeded' && !inspected.assistantCompleted && !inspected.pendingTools) {
+            return finish({status:'failed',finalText:texts.snapshot(),toolEvents:[...toolEvents],artifact:artifactOf(),error:{code:'incomplete_response',message:'后台已停止，但没有可核验的最终回复。当前产物与检查点已保留，可继续任务。'}});
           }
           if (inspected.assistantCompleted && status === 'idle') {
             if(awaitingAfter&&inspected.assistantId===awaitingAfter){await delay(POLL_INTERVAL_MS);continue;}
@@ -1075,7 +1026,7 @@ export class OpenCodeRunner implements AgentRunner {
               eventState.idleObserved=false;
               diagnostic('agent','artifact_repair_started',{runId:input.runId,count:repairAttempts,code:'ARTIFACT_INVALID'});
               emit({type:'activity',stepId:`artifact-repair-${repairAttempts}`,status:'running',label:'正在自动修复产物格式或缺失内容'});
-              await client.request('POST',`/session/${sessionId}/prompt_async`,{...promptBody,parts:[{type:'text',text:`工作台完成检查未通过：${problem}\n请继续本任务，只修复或保存当前产物，使用 write_artifact 并取得校验通过反馈。先调用 inspect_artifact 查看已保存字段和待办；缺少读取就只补读指定材料，内容问题只修改相应字段（答复、撰写和审查均用 mode=merge 保存相应字段，documents 可按子项补齐）。不重新起草已完成内容，不改已选策略。此前的候选内容及工具错误仍在当前上下文中；可直接传 content 对象。不要仅用文字宣称已完成。`}]},bounded(deadline,HTTP_WAIT_MS));
+              await client.request('POST',`/api/session/${sessionId}/prompt`,{...promptBody,text:`工作台完成检查未通过：${problem}\n请继续本任务，只修复或保存当前产物，使用 write_artifact 并取得校验通过反馈。先调用 inspect_artifact 查看已保存字段和待办；缺少读取就只补读指定材料，内容问题只修改相应字段（答复、撰写和审查均用 mode=merge 保存相应字段，documents 可按子项补齐）。不重新起草已完成内容，不改已选策略。此前的候选内容及工具错误仍在当前上下文中；可直接传 content 对象。不要仅用文字宣称已完成。`},bounded(deadline,HTTP_WAIT_MS));
               continue;
             }
             emit({ type: 'status', status: 'idle' });
@@ -1091,7 +1042,7 @@ export class OpenCodeRunner implements AgentRunner {
       }
       if (aborted || input.signal?.aborted) {
         try {
-          await client.request('POST', `/session/${sessionId}/abort`, {}, 5_000);
+          await client.request('POST', `/api/session/${sessionId}/interrupt`, {}, 5_000);
         } catch { /* invalidateIO / kill below */ }
         await invalidateIO();
         emit({ type: 'status', status: 'aborted' });
@@ -1144,7 +1095,7 @@ export class OpenCodeRunner implements AgentRunner {
   ) {
     const acceptTextEvent = createAssistantEventFilter(sessionId, texts, emit);
     try {
-      const response = await this.fetchImpl(`${origin}/global/event`, {
+      const response = await this.fetchImpl(`${origin}/api/event`, {
         headers: { Authorization: auth, Accept: 'text/event-stream' },
         signal,
       });
@@ -1161,25 +1112,25 @@ export class OpenCodeRunner implements AgentRunner {
           await reader.cancel().catch(() => undefined);
           break;
         }
-        let sep: number;
-        while ((sep = buf.indexOf('\n\n')) >= 0) {
-          const frame = buf.slice(0, sep);
-          buf = buf.slice(sep + 2);
-          const data = frame.split('\n').filter(line => line.startsWith('data:')).map(line => line.slice(5).trimStart()).join('\n');
+        let separator: RegExpExecArray | null;
+        while ((separator = /\r?\n\r?\n/.exec(buf))) {
+          const frame = buf.slice(0, separator.index);
+          buf = buf.slice(separator.index + separator[0].length);
+          const data = frame.split(/\r?\n/).filter(line => line.startsWith('data:')).map(line => line.slice(5).trimStart()).join('\n');
           if (!data) continue;
           try {
             const payload = JSON.parse(data) as unknown;
             const sid = eventSessionId(payload);
             if (sid && sid !== sessionId) continue;
             const type = eventType(payload);
-            if (type === 'session.compacted') emit({type:'activity',label:'上下文已自动压缩',stepId:'context-compaction',status:'completed'});
+            if (type === 'session.compaction.ended') emit({type:'activity',label:'上下文已自动压缩',stepId:'context-compaction',status:'completed'});
             if (type === 'session.idle') {
               state.idleObserved = true;
               emit({ type: 'status', status: 'idle' });
             }
-            if (type === 'session.error') {
+            if (type === 'session.execution.failed') {
               state.sessionError = true;
-              const rawError=asRecord(asRecord(payload)?.properties)?.error;
+              const rawError=asRecord(asRecord(payload)?.data)?.error;
               diagnostic('agent','session_error',{runId,...sessionErrorMetadata(rawError)});
               state.error = classifySessionError(rawError);
               emit({ type: 'error', ...state.error });

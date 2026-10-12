@@ -197,6 +197,12 @@ const api: DesktopAPI = {
     minimize: () => call('applicationMinimize'),
     quit: () => call('applicationQuit'),
   },
+  runtime: {
+    status: () => call('runtimeStatus'),
+    check: () => call('runtimeCheck'),
+    rollback: () => call('runtimeRollback'),
+    automatic: value => call('runtimeAutomatic', value),
+  },
   documentTools: {
     detect: () => call('documentToolsDetect'),
     status: () => call('documentToolsStatus'),

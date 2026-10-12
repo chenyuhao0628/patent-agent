@@ -1,0 +1,41 @@
+{
+  "date": "2026-10-12",
+  "files": [
+    {
+      "file": "RESULT.md",
+      "sha256": "118493dc0427d71c483fb04787a437380f31dfdeda4a98c91ae7740efe884b59"
+    },
+    {
+      "file": "build.log",
+      "sha256": "f28c300bdabfd9d9064a497bc41a06b0288f7815f4be9817b4ff39b86ded4df3"
+    },
+    {
+      "file": "bundled-runtime.json",
+      "sha256": "8f877caafd9a2bdcd9df1824eea9bdd172ad01b7a552b2eb9d553f95ba1dc8c6"
+    },
+    {
+      "file": "native-acceptance.json",
+      "sha256": "239c6c2592ee03c912da285a39e227a44473f4ce1f31da52152f46e4cb1667bd"
+    },
+    {
+      "file": "native-manual-update-check.json",
+      "sha256": "a8ad0409f6f57b07626e75d8d49138a35a5fef05c64881e44a43014f7837fb27"
+    },
+    {
+      "file": "native-settings-check.json",
+      "sha256": "18c596674758fc54d59593223cb1bcc7268ad8270e1557fef5e6f2df3484ea1f"
+    },
+    {
+      "file": "native-settings.png",
+      "sha256": "3c6c3746b4c016e5f4900ed014bbbf9fb70c57c45894a38bc6e21cadbd35004c"
+    },
+    {
+      "file": "native-update-check.json",
+      "sha256": "445f85f5a98b31dce4e10d34ac691e579fb77ca3e17615a58e5cdf601a192827"
+    },
+    {
+      "file": "tests.log",
+      "sha256": "91d92a5749a14d52810f66ec6d7cdd9703ba00bc718373073ba8a0cf33360f4f"
+    }
+  ]
+}

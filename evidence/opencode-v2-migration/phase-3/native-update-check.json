@@ -1,0 +1,102 @@
+{
+  "pending": {
+    "automatic": true,
+    "state": "pending",
+    "activeVersion": "2.0.26",
+    "candidateVersion": "2.0.27",
+    "activeRuns": 1,
+    "checkedAt": "2026-10-12T05:59:59.031Z"
+  },
+  "activated": {
+    "automatic": true,
+    "state": "idle",
+    "activeVersion": "2.0.27",
+    "previousVersion": "2.0.26",
+    "activeRuns": 0,
+    "checkedAt": "2026-10-12T05:59:59.031Z"
+  },
+  "queuedRollback": {
+    "automatic": true,
+    "state": "pending",
+    "activeVersion": "2.0.27",
+    "previousVersion": "2.0.26",
+    "candidateVersion": "2.0.26",
+    "activeRuns": 1,
+    "checkedAt": "2026-10-12T05:59:59.031Z"
+  },
+  "rolledBack": {
+    "automatic": true,
+    "state": "idle",
+    "activeVersion": "2.0.26",
+    "previousVersion": "2.0.27",
+    "activeRuns": 0,
+    "checkedAt": "2026-10-12T05:59:59.031Z"
+  },
+  "acceptance": {
+    "schema": 1,
+    "checkedAt": "2026-10-12T05:59:58.777Z",
+    "version": "2.0.27",
+    "authChecks": 8,
+    "requests": 36,
+    "results": [
+      {
+        "protocol": "openai-responses",
+        "status": "completed",
+        "sessionId": "ses_ed14e124bffebUqVWRL4OENf81",
+        "reused": false,
+        "cacheRead": 60
+      },
+      {
+        "protocol": "openai-chat-completions",
+        "status": "completed",
+        "sessionId": "ses_ed14dfc73ffecHHUeQC0DuP6nj",
+        "reused": false,
+        "cacheRead": 60
+      },
+      {
+        "protocol": "anthropic-messages",
+        "status": "completed",
+        "sessionId": "ses_ed14dea11ffeJZgNTqSUpITIP6",
+        "reused": false,
+        "cacheRead": 60
+      },
+      {
+        "protocol": "gemini-generate-content",
+        "status": "completed",
+        "sessionId": "ses_ed14dd4f3ffe2gcF7g8vWskztO",
+        "reused": false,
+        "cacheRead": 60
+      },
+      {
+        "protocol": "openai-responses",
+        "status": "completed",
+        "sessionId": "ses_ed14e124bffebUqVWRL4OENf81",
+        "reused": true,
+        "cacheRead": 60
+      },
+      {
+        "protocol": "openai-responses",
+        "status": "completed",
+        "sessionId": "ses_ed14dc303ffevvstYQp5X6Ydtf",
+        "reused": false,
+        "cacheRead": 60
+      },
+      {
+        "protocol": "openai-responses",
+        "status": "completed",
+        "sessionId": "ses_ed14db76fffeHindxkGQmjKPgk",
+        "reused": false,
+        "cacheRead": 60
+      }
+    ],
+    "stopped": "aborted",
+    "nativeToolDenied": true,
+    "foreignMaterialDenied": true,
+    "ambientConfigExcluded": true,
+    "retainedAfterRestart": true,
+    "retainedInCopiedDatabase": true,
+    "independentCases": true,
+    "cacheUsageObserved": true
+  },
+  "download": "Used a copy of the official native archive already SHA512-verified by runtime-download.ts; no second network download."
+}

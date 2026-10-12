@@ -1,4 +1,5 @@
 import { TaskBusinessProgress } from './TaskBusinessProgress.tsx';
+import { EngineSessionDetails } from './EngineSessionDetails.tsx';
 import { TaskEvidenceDetails } from './TaskEvidenceDetails.tsx';
 import { useEffect, useState } from 'react';
 import { ChevronRight } from 'lucide-react';
@@ -24,6 +25,7 @@ export function AgentRunStatus({ job, tools = [] }: { job: AgentJob; tools?: Too
     {running && <small>距最近活动 {duration(quiet)}{quiet >= 30 ? '；尚未收到新进展，可等待或停止。' : ''}</small>}
     <TaskBusinessProgress progress={job.progress}/>
     <TaskEvidenceDetails memory={job.memory} quality={job.quality}/>
+    <EngineSessionDetails session={job.session}/>
     <div className="agent-run-details">
       <details className="agent-execution-detail" name={`run-detail-${job.runId}`}><summary className="task-disclosure"><span>思考内容{job.thinkingText ? '' : '（暂无）'}</span><ChevronRight className="task-disclosure-chevron" size={15} aria-hidden="true"/></summary><div className="agent-detail-panel">
         {job.thinkingText ? <><small>供应商返回的可展示内容</small><pre>{job.thinkingText}</pre></> : <><p>本次尚未收到可展示的思考内容，可能与模型返回或协议适配有关。以下为执行进展。</p><ol>{job.steps?.slice(-6).map(step=><li key={step.id}>{step.label} · {step.status === 'completed' ? '完成' : step.status === 'running' ? '进行中' : '已结束'}</li>)}</ol></>}

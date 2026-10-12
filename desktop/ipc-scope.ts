@@ -5,6 +5,7 @@ type Policy = 'global' | 'account' | 'profile' | 'case' | 'local-case' | 'sessio
 
 // Session IDs and case IDs occupy the same tuple position, but are not interchangeable.
 export const IPC_SCOPE_POLICY = {
+  runtimeStatus: 'global', runtimeCheck: 'global', runtimeRollback: 'global', runtimeAutomatic: 'global',
   diagnosticExport: 'global', diagnosticReport: 'global',
   applicationGet: 'global', applicationSave: 'global', applicationMinimize: 'global', applicationQuit: 'global',
   bootstrap: 'global', verifyLogin: 'global', login: 'global', logout: 'global',

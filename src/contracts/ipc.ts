@@ -79,6 +79,10 @@ export type ModelIpcResult =
   | void;
 
 export type DesktopIpcChannels = {
+  runtimeStatus: { args: []; result: import('../domain/engine-runtime.ts').EngineRuntimeStatus };
+  runtimeCheck: { args: []; result: import('../domain/engine-runtime.ts').EngineRuntimeStatus };
+  runtimeRollback: { args: []; result: import('../domain/engine-runtime.ts').EngineRuntimeStatus };
+  runtimeAutomatic: { args: [boolean]; result: import('../domain/engine-runtime.ts').EngineRuntimeStatus };
   diagnosticExport: { args: []; result: { canceled: boolean; path?: string; count?: number; droppedWrites?: number } };
   diagnosticReport: { args: [{ type?: string; line?: number; column?: number }]; result: void };
   applicationGet: { args: []; result: ApplicationSettingsView };

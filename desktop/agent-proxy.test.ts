@@ -91,10 +91,17 @@ async function listen(handler: (req: http.IncomingMessage, res: http.ServerRespo
 
 test('unknown protocol is rejected and does not fall back to chat', () => {
   assert.throws(() => providerNpmForProtocol('mystery'), UnknownProtocolError);
-  assert.equal(providerNpmForProtocol('openai-responses'), '@ai-sdk/openai');
-  assert.equal(providerNpmForProtocol('openai-chat-completions'), '@ai-sdk/openai-compatible');
-  assert.equal(providerNpmForProtocol('anthropic-messages'), '@ai-sdk/anthropic');
-  assert.equal(providerNpmForProtocol('gemini-generate-content'), '@ai-sdk/google');
+  assert.equal(providerNpmForProtocol('openai-responses'), '@opencode/ai/providers/openai-compatible/responses');
+  assert.equal(providerNpmForProtocol('openai-chat-completions'), '@opencode/ai/providers/openai-compatible');
+  assert.equal(providerNpmForProtocol('anthropic-messages'), '@opencode/ai/providers/anthropic-compatible');
+  assert.equal(providerNpmForProtocol('gemini-generate-content'), '@opencode/ai/providers/google');
+});
+
+test('native Chat max_completion_tokens is bounded without sending the incompatible max_tokens alias', () => {
+  const cfg=runtime({protocol:'openai-chat-completions'});
+  const body=applyWirePolicy(cfg.protocol,{max_completion_tokens:9000,max_tokens:8000},cfg,256);
+  assert.equal(body.max_completion_tokens,256);assert.equal(body.max_tokens,undefined);
+  const legacy=applyWirePolicy(cfg.protocol,{max_tokens:8000},cfg,256);assert.equal(legacy.max_tokens,256);
 });
 
 test('proxy replaces dummy child key, injects session/UA/reasoning/limits, store=false, and rejects other endpoints', async () => {

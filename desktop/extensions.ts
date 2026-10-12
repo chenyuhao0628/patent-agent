@@ -8,14 +8,16 @@ const record=(v:unknown):Record<string,any>=>v&&typeof v==='object'&&!Array.isAr
 function stringMap(v:unknown){const result:Record<string,string>={};for(const [k,val]of Object.entries(record(v))){if(typeof val!=='string'||/[\r\n]/.test(k))throw new Error('请求头和环境变量必须是字符串。');result[k]=val;}return result;}
 export function parseMcpJSON(raw:string):Array<{name:string;config:McpConfig}>{
  let parsed:unknown;try{parsed=JSON.parse(raw);}catch{throw new Error('MCP 配置不是有效 JSON。');}
- const p=record(parsed),entries=record(p.mcpServers||p.mcp||p);if(Object.keys(entries).length>20)throw new Error('一次最多添加 20 个 MCP。');
+ const p=record(parsed),group=record(p.mcp),entries=record(p.mcpServers||group.servers||p.mcp||p);if(Object.keys(entries).length>20)throw new Error('一次最多添加 20 个 MCP。');
  return Object.entries(entries).map(([name,value])=>{
   const v=record(value);if(!name.trim()||name.length>100)throw new Error('MCP 名称无效。');
-  const timeout=typeof v.timeout==='number'?Math.min(60000,Math.max(1000,v.timeout)):15000;
-  if(v.url){const u=new URL(String(v.url));if(!['http:','https:'].includes(u.protocol)||u.username||u.password)throw new Error('MCP URL 无效，请将认证放入 headers。');if(v.oauth&&v.oauth!==false)throw new Error('本轮支持请求头认证，请使用 headers 配置该 MCP。');return {name,config:{type:'remote' as const,url:u.href,headers:stringMap(v.headers),oauth:false,enabled:v.enabled!==false,timeout}};}
+  const requestedTimeout=typeof v.timeout==='number'?v.timeout:record(v.timeout).execution??record(group.timeout).execution;
+  const timeout=typeof requestedTimeout==='number'&&Number.isFinite(requestedTimeout)?Math.min(60000,Math.max(1000,requestedTimeout)):15000;
+  const enabled=typeof v.disabled==='boolean'?!v.disabled:v.enabled!==false;
+  if(v.url){const u=new URL(String(v.url));if(!['http:','https:'].includes(u.protocol)||u.username||u.password)throw new Error('MCP URL 无效，请将认证放入 headers。');if(v.oauth&&v.oauth!==false)throw new Error('本轮支持请求头认证，请使用 headers 配置该 MCP。');return {name,config:{type:'remote' as const,url:u.href,headers:stringMap(v.headers),oauth:false,enabled,timeout}};}
   const command=Array.isArray(v.command)?v.command:[v.command,...(Array.isArray(v.args)?v.args:[])];
   if(!command.length||command.some(x=>typeof x!=='string'||!x.trim())||command.length>100)throw new Error('本地 MCP 需要 command 和参数数组。');
-  return {name,config:{type:'local' as const,command,environment:stringMap(v.environment||v.env),enabled:v.enabled!==false,timeout}};
+  return {name,config:{type:'local' as const,command,environment:stringMap(v.environment||v.env),enabled,timeout}};
  });
 }
 function publicExtension(e:Extension){const p=structuredClone(e);delete p.resources;if(p.config){for(const field of ['headers','environment'] as const){if(p.config[field])for(const key of Object.keys(p.config[field]!))p.config[field]![key]=MASK;}}return p;}

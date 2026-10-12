@@ -5,7 +5,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {
-  PINNED_RUNTIME_VERSION,
+  compatibleRuntimeVersion,
   PrepareRuntimeError,
   copyAgentRuntime,
   parsePrepareArgs,
@@ -26,11 +26,11 @@ async function fixtureRuntime() {
   await fs.writeFile(path.join(root, 'OPENCODE-LICENSE.txt'), 'MIT\n');
   const manifest = {
     runtime: 'OpenCode',
-    version: PINNED_RUNTIME_VERSION,
+    version: '2.8.3',
     files: [
       {
         platform: 'darwin-arm64',
-        version: PINNED_RUNTIME_VERSION,
+        version: '2.8.3',
         file: 'darwin-arm64/opencode',
         bytes: macBytes.length,
         sha256: createHash('sha256').update(macBytes).digest('hex'),
@@ -38,7 +38,7 @@ async function fixtureRuntime() {
       },
       {
         platform: 'win32-x64',
-        version: PINNED_RUNTIME_VERSION,
+        version: '2.8.3',
         file: 'win32-x64/opencode.exe',
         bytes: winBytes.length,
         sha256: createHash('sha256').update(winBytes).digest('hex'),
@@ -67,7 +67,7 @@ test('runtime license errors distinguish missing from invalid file types',async(
  }finally{await fs.rm(root,{recursive:true,force:true});}
 });
 
-test('copyAgentRuntime verifies pinned 1.18.30, copies, and does not mutate process.env', async () => {
+test('copyAgentRuntime verifies a recorded compatible version, copies, and does not mutate process.env', async () => {
   const source = await fixtureRuntime();
   const output = await fs.mkdtemp(path.join(os.tmpdir(), 'prepare-out-'));
   const beforeHome = process.env.HOME;
@@ -75,7 +75,7 @@ test('copyAgentRuntime verifies pinned 1.18.30, copies, and does not mutate proc
   const result = await copyAgentRuntime({ sourceDir: source, outputDir: output });
   assert.equal(process.env.HOME, beforeHome);
   assert.equal(process.env.USERPROFILE, beforeUser);
-  assert.equal(result.version, '1.18.30');
+  assert.equal(result.version, '2.8.3');
   const copied = path.join(output, 'darwin-arm64', 'opencode');
   assert.equal(await sha256File(copied), result.files[0].sha256);
   await verifyAgentRuntime(output);
@@ -85,16 +85,16 @@ test('wrong version or hash is rejected and does not download', async () => {
   const source = await fixtureRuntime();
   const manifestPath = path.join(source, 'runtime-manifest.json');
   const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'));
-  manifest.version = '9.9.9';
+  manifest.version = '1.18.30';
   await fs.writeFile(manifestPath, JSON.stringify(manifest));
   await assert.rejects(() => verifyAgentRuntime(source), err => err instanceof PrepareRuntimeError && err.code === 'version');
-  manifest.version = PINNED_RUNTIME_VERSION;
+  manifest.version = '2.8.3';
   manifest.files[0].sha256 = '0'.repeat(64);
   await fs.writeFile(manifestPath, JSON.stringify(manifest));
   await assert.rejects(() => verifyAgentRuntime(source), err => err instanceof PrepareRuntimeError && err.code === 'hash');
 });
 
-test('lab runtime if present is 1.18.30 and is only verified read-only', async t => {
+test('lab runtime if present is compatible and is only verified read-only', async t => {
   const source = process.env.PATENT_AGENT_RUNTIME_SOURCE || '/Users/cyh/Documents/ChatGPT/patent-agent/.lab/agent-runtime';
   try {
     await fs.access(path.join(source, 'runtime-manifest.json'));
@@ -104,7 +104,7 @@ test('lab runtime if present is 1.18.30 and is only verified read-only', async t
   }
   const before = JSON.stringify(await fs.readFile(path.join(source, 'runtime-manifest.json'), 'utf8'));
   const report = await verifyAgentRuntime(source);
-  assert.equal(report.version, '1.18.30');
+  assert.equal(compatibleRuntimeVersion(report.version), true);
   const after = JSON.stringify(await fs.readFile(path.join(source, 'runtime-manifest.json'), 'utf8'));
   assert.equal(after, before);
 });

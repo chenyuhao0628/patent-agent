@@ -263,7 +263,7 @@ test('材料快照核验 hash 并拒绝符号链接；跨案材料不会进入�
   assert.equal(manifest.key, undefined);
   assert.equal(JSON.stringify(manifest).includes('memory-only-key'), false);
   for (const item of ctl.last!.materials) {
-    assert.match(item.id, /^[0-9a-f-]{36}$/i);
+    assert.match(item.id, /^mat_[0-9a-f]{32}$/i);
     assert.equal(item.relativePath.includes('..'), false);
     assert.equal(item.snapshotPath.includes(`materials/${item.id}/`), true);
     assert.ok(manifest.ids[item.id] === 'n-A1' || manifest.ids[item.id] === 'a-A1');

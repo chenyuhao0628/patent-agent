@@ -20,7 +20,7 @@ import { configureDocumentConverter, findDocumentConverter } from './document-co
 import { configureManagedTools, configureAutomaticInstall, ensureDocumentTool, managedToolsStatus, removeDocumentTool } from './managed-tools.ts';
 import { configureWebTools } from './agent-web.ts';
 import { atomicJSON, readJSON } from './files.ts';
-import { OpenCodeRunner } from './agent-runner.ts';
+import { RuntimeManager, bundledRuntimeRecord } from './runtime-manager.ts';
 import { bundledOpenCodePath, createHostRun, replyRulesRoot } from './agent-integration.ts';
 import {
   ipcAgentCommand,
@@ -106,12 +106,17 @@ app.whenReady().then(async()=>{
   const configureConverter=()=>{configureDocumentConverter(converterConfig.executable,path.join(service.root,'profiles',service.key,'document-conversions'));configureWebTools(converterConfig.webEnabled!==false);configureAutomaticInstall(converterConfig.autoInstall!==false);configureLocalTools({commandsEnabled:converterConfig.commandsEnabled===true,downloadsEnabled:converterConfig.downloadsEnabled===true});};
   configureConverter();
   const extensions=new ExtensionService(service.root,service.vault);
+  let runtimeManager: RuntimeManager | undefined, runtimeError = '';
   let hostRun=createHostRun({run:async()=>{throw new Error('产品未捆绑 OpenCode 运行时，无法启动 Agent。请使用带运行时的安装包。');}});
   try{
     const binary=bundledOpenCodePath({resourcesPath:process.resourcesPath,appPath:app.getAppPath()});
-    hostRun=createHostRun(new OpenCodeRunner({binaryPath:binary}),extensions);
+    runtimeManager = new RuntimeManager({root:path.join(service.root,'agent-runtime'),bundled:await bundledRuntimeRecord(binary),startAutomaticChecks:process.env.PATENT_AGENT_DISABLE_RUNTIME_UPDATE!=='1'});
+    await runtimeManager.init();
+    hostRun=createHostRun(runtimeManager,extensions);
   }catch(e){
+    await runtimeManager?.shutdown(); runtimeManager=undefined;
     const message=(e as Error).message||'产品未捆绑 OpenCode 运行时，无法启动 Agent。';
+    runtimeError=message;
     hostRun=createHostRun({run:async()=>{throw new Error(message);}});
   }
   agentHost=new AgentHost({
@@ -221,6 +226,11 @@ app.whenReady().then(async()=>{
   handle('applicationSave',ipcArgs(ipcApplicationPreferences),async(input)=>{const view=await applicationSettings.save(input);configureTray();return view;},true);
   handle('applicationMinimize',ipcNoArgs,()=>window?.minimize());
   handle('applicationQuit',ipcNoArgs,()=>{app.quit();});
+  const requireRuntime = () => { if (!runtimeManager) throw new Error(runtimeError || '后台运行时不可用。'); return runtimeManager; };
+  handle('runtimeStatus',ipcNoArgs,()=>runtimeManager?.status() ?? {automatic:true,state:'unavailable',activeVersion:'未知',activeRuns:0,error:runtimeError});
+  handle('runtimeCheck',ipcNoArgs,()=>requireRuntime().check());
+  handle('runtimeRollback',ipcNoArgs,()=>requireRuntime().rollback());
+  handle('runtimeAutomatic',ipcArgs(v=>ipcBoolean(v,'自动更新')),value=>requireRuntime().automatic(value));
   handle('caseInfo',ipcArgs(ipcProfileKey,ipcCaseId),(key,id)=>service.caseInfo(key,id));
   handle('refreshCase',ipcArgs(ipcProfileKey,ipcCaseId),(key,id)=>service.refreshCase(key,id),false,true);
   handle('refreshCaseOutcomes',ipcArgs(ipcProfileKey),(key)=>service.refreshCaseOutcomes(key),true,true);
@@ -451,7 +461,7 @@ app.whenReady().then(async()=>{
     service.abortWorkMigration();
     modelService.abortRequests();
     modelRequests.abortAll();
-    void Promise.all([agentHost.shutdown(),professionalHost.shutdown()]).then(()=>serial(()=>service.shutdown())).then(()=>{
+    void Promise.all([agentHost.shutdown(),professionalHost.shutdown(),runtimeManager?.shutdown()]).then(()=>serial(()=>service.shutdown())).then(()=>{
       readyToQuit=true;
       app.quit();
     }).catch(()=>{

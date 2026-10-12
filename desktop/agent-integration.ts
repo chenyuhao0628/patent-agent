@@ -190,6 +190,7 @@ export function createHostRun(runner: Pick<AgentRunner, 'run'>, extensions?:Exte
     const wait = (async () => {
       const custom=await extensions?.runtime(input.runtime.profileKey);
       const result: AgentRunResult = await runner.run({
+        sessionScope: input.sessionScope,
         taskContract:input.taskContract,
         taskMemory:input.taskMemory,
         evidencePolicy:input.evidencePolicy,
@@ -224,7 +225,7 @@ export function createHostRun(runner: Pick<AgentRunner, 'run'>, extensions?:Exte
         signal,
         onEvent(event) {
           if (aborted()) return;
-          if (event.type === 'thinking' || event.type === 'activity' || event.type === 'quality' || event.type === 'progress') { void input.onEvent(event); return; }
+          if (event.type === 'thinking' || event.type === 'activity' || event.type === 'quality' || event.type === 'progress' || event.type === 'session') { void input.onEvent(event); return; }
           if (event.type === 'delta') {
             partial = accumulatePartial(partial, event.text);
             void input.onEvent({ type: 'partial', text: partial });

@@ -109,6 +109,7 @@ export type PublicRuntimeSnapshot = {
 };
 
 export type AgentJob = {
+  session?: import('./engine-session.ts').EngineSessionView;
   progress?:import('./task-progress.ts').TaskProgress;
   memory?: TaskMemoryView;
   quality?: ArtifactQuality;
