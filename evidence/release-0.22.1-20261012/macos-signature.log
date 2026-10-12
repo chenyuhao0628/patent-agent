@@ -1,0 +1,23 @@
+Executable=/Users/cyh/Documents/ChatGPT/patent-agent/release/专利工作台-0.22.1-macOS-arm64.app/Contents/MacOS/专利工作台
+Identifier=Electron
+Format=app bundle with Mach-O thin (arm64)
+CodeDirectory v=20400 size=392 flags=0x20002(adhoc,linker-signed) hashes=9+0 location=embedded
+VersionPlatform=1
+VersionMin=851968
+VersionSDK=1705216
+Hash type=sha256 size=32
+CandidateCDHash sha256=c14ae52f91d6075f1fcfa02b680ca7d25d7c3b3a
+CandidateCDHashFull sha256=c14ae52f91d6075f1fcfa02b680ca7d25d7c3b3af4c23c8735e7f99da37a6f32
+Hash choices=sha256
+CMSDigest=c14ae52f91d6075f1fcfa02b680ca7d25d7c3b3af4c23c8735e7f99da37a6f32
+CMSDigestType=2
+Executable Segment base=0
+Executable Segment limit=16384
+Executable Segment flags=0x1
+Page size=4096
+CDHash=c14ae52f91d6075f1fcfa02b680ca7d25d7c3b3a
+Signature=adhoc
+Info.plist=not bound
+TeamIdentifier=not set
+Sealed Resources=none
+Internal requirements=none

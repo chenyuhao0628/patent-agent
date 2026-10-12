@@ -1,0 +1,41 @@
+{
+  "checkedAt": "2026-10-12T15:31:53.682Z",
+  "checks": [
+    {
+      "name": "app",
+      "path": "/Users/cyh/Documents/ChatGPT/patent-agent/release/专利工作台-0.22.1-macOS-arm64.app",
+      "exitCode": 0,
+      "output": "Executable=/Users/cyh/Documents/ChatGPT/patent-agent/release/专利工作台-0.22.1-macOS-arm64.app/Contents/MacOS/专利工作台\nIdentifier=Electron\nFormat=app bundle with Mach-O thin (arm64)\nCodeDirectory v=20400 size=392 flags=0x20002(adhoc,linker-signed) hashes=9+0 location=embedded\nVersionPlatform=1\nVersionMin=851968\nVersionSDK=1705216\nHash type=sha256 size=32\nCandidateCDHash sha256=c14ae52f91d6075f1fcfa02b680ca7d25d7c3b3a\nCandidateCDHashFull sha256=c14ae52f91d6075f1fcfa02b680ca7d25d7c3b3af4c23c8735e7f99da37a6f32\nHash choices=sha256\nCMSDigest=c14ae52f91d6075f1fcfa02b680ca7d25d7c3b3af4c23c8735e7f99da37a6f32\nCMSDigestType=2\nExecutable Segment base=0\nExecutable Segment limit=16384\nExecutable Segment flags=0x1\nPage size=4096\nCDHash=c14ae52f91d6075f1fcfa02b680ca7d25d7c3b3a\nSignature=adhoc\nInfo.plist=not bound\nTeamIdentifier=not set\nSealed Resources=none\nInternal requirements=none\n"
+    },
+    {
+      "name": "electron-framework",
+      "path": "/Users/cyh/Documents/ChatGPT/patent-agent/release/专利工作台-0.22.1-macOS-arm64.app/Contents/Frameworks/Electron Framework.framework",
+      "exitCode": 0,
+      "output": "Executable=/Users/cyh/Documents/ChatGPT/patent-agent/release/专利工作台-0.22.1-macOS-arm64.app/Contents/Frameworks/Electron Framework.framework/Versions/Current/Electron Framework\nIdentifier=Electron Framework\nFormat=bundle with Mach-O thin (arm64)\nCodeDirectory v=20400 size=1562904 flags=0x20002(adhoc,linker-signed) hashes=48837+0 location=embedded\nVersionPlatform=1\nVersionMin=851968\nVersionSDK=1705216\nHash type=sha256 size=32\nCandidateCDHash sha256=6810c07c9fbc5a27f639119bb04a3a26047dcf74\nCandidateCDHashFull sha256=6810c07c9fbc5a27f639119bb04a3a26047dcf747873ee4d927c5c0d7c86b0fd\nHash choices=sha256\nCMSDigest=6810c07c9fbc5a27f639119bb04a3a26047dcf747873ee4d927c5c0d7c86b0fd\nCMSDigestType=2\nExecutable Segment base=0\nExecutable Segment limit=189874176\nExecutable Segment flags=0x0\nPage size=4096\nCDHash=6810c07c9fbc5a27f639119bb04a3a26047dcf74\nSignature=adhoc\nInfo.plist=not bound\nTeamIdentifier=not set\nSealed Resources=none\nInternal requirements=none\n"
+    },
+    {
+      "name": "helper",
+      "path": "/Users/cyh/Documents/ChatGPT/patent-agent/release/专利工作台-0.22.1-macOS-arm64.app/Contents/Frameworks/专利工作台 Helper.app",
+      "exitCode": 0,
+      "output": "Executable=/Users/cyh/Documents/ChatGPT/patent-agent/release/专利工作台-0.22.1-macOS-arm64.app/Contents/Frameworks/专利工作台 Helper.app/Contents/MacOS/专利工作台 Helper\nIdentifier=Electron Helper\nFormat=app bundle with Mach-O thin (arm64)\nCodeDirectory v=20400 size=1704 flags=0x20002(adhoc,linker-signed) hashes=50+0 location=embedded\nVersionPlatform=1\nVersionMin=851968\nVersionSDK=1705216\nHash type=sha256 size=32\nCandidateCDHash sha256=68cf0d65a16888b6378992b01b79bf7c6c262746\nCandidateCDHashFull sha256=68cf0d65a16888b6378992b01b79bf7c6c262746f9a4d9aefed7c17ba11e9c86\nHash choices=sha256\nCMSDigest=68cf0d65a16888b6378992b01b79bf7c6c262746f9a4d9aefed7c17ba11e9c86\nCMSDigestType=2\nExecutable Segment base=0\nExecutable Segment limit=163840\nExecutable Segment flags=0x1\nPage size=4096\nCDHash=68cf0d65a16888b6378992b01b79bf7c6c262746\nSignature=adhoc\nInfo.plist=not bound\nTeamIdentifier=not set\nSealed Resources=none\nInternal requirements=none\n"
+    },
+    {
+      "name": "opencode",
+      "path": "/Users/cyh/Documents/ChatGPT/patent-agent/release/专利工作台-0.22.1-macOS-arm64.app/Contents/Resources/agent-runtime/darwin-arm64/opencode",
+      "exitCode": 0,
+      "output": "Executable=/Users/cyh/Documents/ChatGPT/patent-agent/release/专利工作台-0.22.1-macOS-arm64.app/Contents/Resources/agent-runtime/darwin-arm64/opencode\nIdentifier=opencode\nFormat=Mach-O thin (arm64)\nCodeDirectory v=20500 size=363028 flags=0x10000(runtime) hashes=11334+7 location=embedded\nVersionPlatform=1\nVersionMin=851968\nVersionSDK=1705216\nHash type=sha256 size=32\nCandidateCDHash sha256=03487197687cffdf2e93dbc60670f1f5b31a67fb\nCandidateCDHashFull sha256=03487197687cffdf2e93dbc60670f1f5b31a67fbca7a359e511387023f3d179a\nHash choices=sha256\nCMSDigest=03487197687cffdf2e93dbc60670f1f5b31a67fbca7a359e511387023f3d179a\nCMSDigestType=2\nExecutable Segment base=0\nExecutable Segment limit=60243968\nExecutable Segment flags=0x1\nPage size=16384\nCDHash=03487197687cffdf2e93dbc60670f1f5b31a67fb\nSignature size=9071\nAuthority=Developer ID Application: Anomaly Innovations, Inc. (5NZ4Q7NXJ4)\nAuthority=Developer ID Certification Authority\nAuthority=Apple Root CA\nTimestamp=Oct 12, 2026 at 11:57:40\nInfo.plist=not bound\nTeamIdentifier=5NZ4Q7NXJ4\nRuntime Version=26.5.0\nSealed Resources=none\nInternal requirements count=1 size=168\n"
+    }
+  ],
+  "deepVerification": {
+    "exitCode": 1,
+    "output": "/Users/cyh/Documents/ChatGPT/patent-agent/release/专利工作台-0.22.1-macOS-arm64.app: code has no resources but signature indicates they must be present\n"
+  },
+  "entitlements": {
+    "exitCode": 0,
+    "output": "Executable=/Users/cyh/Documents/ChatGPT/patent-agent/release/专利工作台-0.22.1-macOS-arm64.app/Contents/MacOS/专利工作台\n"
+  },
+  "developerIdSigned": false,
+  "notarizationPerformed": false,
+  "pkgSignature": "no signature",
+  "windowsSigningConfigured": false
+}

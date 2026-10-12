@@ -1,0 +1,130 @@
+
+> patent-agent@0.22.1 package:release
+> node scripts/package-release.mjs
+
+打包 0.22.1（mac + win）
+构建前端与桌面入口…
+
+> patent-agent@0.22.1 build
+> tsc --noEmit && vite build && node scripts/build-desktop.mjs
+
+vite v8.3.0 building client environment for production...
+transforming...
+✓ 1975 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                                         1.12 kB │ gzip:  0.52 kB
+dist/assets/KaTeX_Size3-Regular-gV2CO0n9.woff2          3.62 kB
+dist/assets/KaTeX_Size3-Regular-CTq5MqoE.woff           4.42 kB
+dist/assets/KaTeX_Size4-Regular-Dl5lxZxV.woff2          4.92 kB
+dist/assets/KaTeX_Size2-Regular-Dy4dx90m.woff2          5.20 kB
+dist/assets/KaTeX_Size1-Regular-mCD8mA8B.woff2          5.46 kB
+dist/assets/KaTeX_Size4-Regular-BF-4gkZK.woff           5.98 kB
+dist/assets/KaTeX_Size2-Regular-oD1tc_U0.woff           6.18 kB
+dist/assets/KaTeX_Size1-Regular-C195tn64.woff           6.49 kB
+dist/assets/KaTeX_Caligraphic-Regular-Di6jR-x-.woff2    6.90 kB
+dist/assets/KaTeX_Caligraphic-Bold-Dq_IR9rO.woff2       6.91 kB
+dist/assets/KaTeX_Size3-Regular-DgpXs0kz.ttf            7.58 kB
+dist/assets/KaTeX_Caligraphic-Regular-CTRA-rTL.woff     7.65 kB
+dist/assets/KaTeX_Caligraphic-Bold-BEiXGLvX.woff        7.71 kB
+dist/assets/KaTeX_Script-Regular-D3wIWfF6.woff2         9.64 kB
+dist/assets/KaTeX_SansSerif-Regular-DDBCnlJ7.woff2     10.34 kB
+dist/assets/KaTeX_Size4-Regular-DWFBv043.ttf           10.36 kB
+dist/assets/KaTeX_Script-Regular-D5yQViql.woff         10.58 kB
+dist/assets/KaTeX_Fraktur-Regular-CTYiF6lA.woff2       11.31 kB
+dist/assets/KaTeX_Fraktur-Bold-CL6g_b3V.woff2          11.34 kB
+dist/assets/KaTeX_Size2-Regular-B7gKUWhC.ttf           11.50 kB
+dist/assets/KaTeX_SansSerif-Italic-C3H0VqGB.woff2      12.02 kB
+dist/assets/KaTeX_SansSerif-Bold-D1sUS0GD.woff2        12.21 kB
+dist/assets/KaTeX_Size1-Regular-Dbsnue_I.ttf           12.22 kB
+dist/assets/KaTeX_SansSerif-Regular-CS6fqUqJ.woff      12.31 kB
+dist/assets/KaTeX_Caligraphic-Regular-wX97UBjC.ttf     12.34 kB
+dist/assets/KaTeX_Caligraphic-Bold-ATXxdsX0.ttf        12.36 kB
+dist/assets/KaTeX_Fraktur-Regular-Dxdc4cR9.woff        13.20 kB
+dist/assets/KaTeX_Fraktur-Bold-BsDP51OF.woff           13.29 kB
+dist/assets/KaTeX_Typewriter-Regular-CO6r4hn1.woff2    13.56 kB
+dist/assets/KaTeX_SansSerif-Italic-DN2j7dab.woff       14.11 kB
+dist/assets/KaTeX_SansSerif-Bold-DbIhKOiC.woff         14.40 kB
+dist/assets/KaTeX_Typewriter-Regular-C0xS9mPB.woff     16.02 kB
+dist/assets/KaTeX_Math-BoldItalic-CZnvNsCZ.woff2       16.40 kB
+dist/assets/KaTeX_Math-Italic-t53AETM-.woff2           16.44 kB
+dist/assets/KaTeX_Script-Regular-C5JkGWo-.ttf          16.64 kB
+dist/assets/KaTeX_Main-BoldItalic-DxDJ3AOS.woff2       16.78 kB
+dist/assets/KaTeX_Main-Italic-NWA7e6Wa.woff2           16.98 kB
+dist/assets/KaTeX_Math-BoldItalic-iY-2wyZ7.woff        18.66 kB
+dist/assets/KaTeX_Math-Italic-DA0__PXp.woff            18.74 kB
+dist/assets/KaTeX_Main-BoldItalic-SpSLRI95.woff        19.41 kB
+dist/assets/KaTeX_SansSerif-Regular-BNo7hRIc.ttf       19.43 kB
+dist/assets/KaTeX_Fraktur-Regular-CB_wures.ttf         19.57 kB
+dist/assets/KaTeX_Fraktur-Bold-BdnERNNW.ttf            19.58 kB
+dist/assets/KaTeX_Main-Italic-BMLOBm91.woff            19.67 kB
+dist/assets/KaTeX_SansSerif-Italic-YYjJ1zSn.ttf        22.36 kB
+dist/assets/KaTeX_SansSerif-Bold-CFMepnvq.ttf          24.50 kB
+dist/assets/KaTeX_Main-Bold-Cx986IdX.woff2             25.32 kB
+dist/assets/KaTeX_Main-Regular-B22Nviop.woff2          26.27 kB
+dist/assets/KaTeX_Typewriter-Regular-D3Ib7_Hf.ttf      27.55 kB
+dist/assets/KaTeX_AMS-Regular-BQhdFMY1.woff2           28.07 kB
+dist/assets/KaTeX_Main-Bold-Jm3AIy58.woff              29.91 kB
+dist/assets/KaTeX_Main-Regular-Dr94JaBh.woff           30.77 kB
+dist/assets/KaTeX_Math-BoldItalic-B3XSjfu4.ttf         31.19 kB
+dist/assets/KaTeX_Math-Italic-flOr_0UB.ttf             31.30 kB
+dist/assets/KaTeX_Main-BoldItalic-DzxPMmG6.ttf         32.96 kB
+dist/assets/KaTeX_AMS-Regular-DMm9YOAa.woff            33.51 kB
+dist/assets/KaTeX_Main-Italic-3WenGoN9.ttf             33.58 kB
+dist/assets/KaTeX_Main-Bold-waoOVXN0.ttf               51.33 kB
+dist/assets/KaTeX_Main-Regular-ypZvNtVU.ttf            53.58 kB
+dist/assets/KaTeX_AMS-Regular-DRggAlZN.ttf             63.63 kB
+dist/assets/icon-JtLEFscH.png                         830.39 kB
+dist/assets/case-panels-DrgeL-Yy.css                    6.78 kB │ gzip:  1.70 kB
+dist/assets/ProfessionalWork-Cj-V-V_2.css              18.92 kB │ gzip:  3.91 kB
+dist/assets/workspace-panels-CTNlmkYk.css              21.04 kB │ gzip:  4.72 kB
+dist/assets/vendor-FXzTcCWA.css                        24.62 kB │ gzip:  3.99 kB
+dist/assets/CurrentCase-juQmAggO.css                   25.84 kB │ gzip:  5.68 kB
+dist/assets/index-B8inj2m8.css                         74.65 kB │ gzip: 14.88 kB
+dist/assets/rolldown-runtime-hePW80VL.js                0.71 kB │ gzip:  0.42 kB
+dist/assets/panel-context-Cntdm-Cg.js                   2.28 kB │ gzip:  1.17 kB
+dist/assets/vendor-icons-C4BFOCVi.js                   23.09 kB │ gzip:  8.48 kB
+dist/assets/FormattedFormulaText-DnTbKyiO.js           37.64 kB │ gzip: 13.59 kB
+dist/assets/ProfessionalWork-DR8Cwk1_.js               39.91 kB │ gzip: 12.33 kB
+dist/assets/index-D_U7b7E6.js                          65.60 kB │ gzip: 22.94 kB
+dist/assets/CurrentCase-B7CMAD5Y.js                    90.80 kB │ gzip: 27.89 kB
+dist/assets/case-panels-H8ohg2Zd.js                    95.96 kB │ gzip: 25.93 kB
+dist/assets/workspace-panels-CXTpm9sd.js              109.80 kB │ gzip: 31.95 kB
+dist/assets/vendor-react-CavBCu5A.js                  207.50 kB │ gzip: 64.65 kB
+dist/assets/vendor-CfNdNw4L.js                        262.45 kB │ gzip: 78.87 kB
+
+✓ built in 202ms
+electron-builder builder:mac 输出到 release-staging/…
+  • electron-builder  version=26.15.3 os=25.5.0
+  • loaded configuration  file=package.json ("build" field)
+  • executing @electron/rebuild  electronVersion=44.3.0 arch=arm64 buildFromSource=false workspaceRoot=/Users/cyh/Documents/ChatGPT/patent-agent projectDir=./ appDir=./
+  • installing native dependencies  arch=arm64
+  • completed installing native dependencies
+  • packaging       platform=darwin arch=arm64 electron=44.3.0 appOutDir=release-staging/mac-arm64
+  • downloaded      label=electron progress=100%
+  • downloaded electron zip extracted successfully  output=/Users/cyh/Documents/ChatGPT/patent-agent/release-staging/mac-arm64
+  • searching for node modules  pm=npm searchDir=/Users/cyh/Documents/ChatGPT/patent-agent
+  • duplicate dependency references  dependencies=["jszip@3.10.2"]
+  • skipped macOS code signing  reason=identity explicitly is set to null
+  • building        target=pkg arch=arm64 file=release-staging/PatentWorkbench-0.22.1-macOS-arm64.pkg
+  • skipped macOS notarization  reason=`notarize` options were unable to be generated
+electron-builder builder:win 输出到 release-staging/…
+  • electron-builder  version=26.15.3 os=25.5.0
+  • loaded configuration  file=package.json ("build" field)
+  • executing @electron/rebuild  electronVersion=44.3.0 arch=x64 buildFromSource=false workspaceRoot=/Users/cyh/Documents/ChatGPT/patent-agent projectDir=./ appDir=./
+  • installing native dependencies  arch=x64
+  • completed installing native dependencies
+  • packaging       platform=win32 arch=x64 electron=44.3.0 appOutDir=release-staging/win-unpacked
+  • downloaded      label=electron progress=100%
+  • downloaded electron zip extracted successfully  output=/Users/cyh/Documents/ChatGPT/patent-agent/release-staging/win-unpacked
+  • searching for node modules  pm=npm searchDir=/Users/cyh/Documents/ChatGPT/patent-agent
+  • duplicate dependency references  dependencies=["jszip@3.10.2"]
+  • updating asar integrity executable resource  executablePath=release-staging/win-unpacked/专利工作台.exe
+  • file signing skipped via signExecutable configuration  file=release-staging/win-unpacked/专利工作台.exe
+  • building        target=nsis file=release-staging/PatentWorkbench-0.22.1-Windows-x64-Setup.exe archs=x64 oneClick=false perMachine=false
+  • file signing skipped via signExecutable configuration  file=release-staging/PatentWorkbench-0.22.1-Windows-x64-Setup.__uninstaller.exe
+  • file signing skipped via signExecutable configuration  file=release-staging/PatentWorkbench-0.22.1-Windows-x64-Setup.exe
+  • building block map  blockMapFile=release-staging/PatentWorkbench-0.22.1-Windows-x64-Setup.exe.blockmap
+校验暂存产物…
+发布到 release/…
+完成：专利工作台-0.22.1-macOS-arm64.app、PatentWorkbench-0.22.1-macOS-arm64.pkg、PatentWorkbench-0.22.1-Windows-x64-Setup.exe 与 release-manifest.json

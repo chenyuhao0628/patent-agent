@@ -1,0 +1,111 @@
+{
+  "checkedAt": "2026-10-12T15:30:04.100Z",
+  "version": {
+    "package": "0.22.1",
+    "lock": "0.22.1",
+    "lockRoot": "0.22.1",
+    "manifest": "0.22.1"
+  },
+  "runtime": {
+    "runtime": "OpenCode",
+    "version": "2.0.27",
+    "sourceDir": "/Users/cyh/Documents/ChatGPT/patent-agent/.lab/agent-runtime",
+    "files": [
+      {
+        "platform": "darwin-arm64",
+        "file": "darwin-arm64/opencode",
+        "bytes": 186071504,
+        "sha256": "7fa5c8659e57cae76b1da4f45edbc583aef93aae917246a0b3abb1ac1b3fb93c",
+        "header": "cffaedfe"
+      },
+      {
+        "platform": "win32-x64",
+        "file": "win32-x64/opencode.exe",
+        "bytes": 212824456,
+        "sha256": "42921a10846ebcf19659e9c491e68852e959e0a1d1c7e57f1283322d4cb7cc15",
+        "header": "4d5a7800"
+      }
+    ]
+  },
+  "artifacts": [
+    {
+      "file": "专利工作台-0.22.1-macOS-arm64.app",
+      "sha256": "ff65accfd755363c3629a620fe614303fa62b0ac3fb392fd3521ba60c7e9bd2d",
+      "matches": true,
+      "retained": false
+    },
+    {
+      "file": "PatentWorkbench-0.22.1-macOS-arm64.pkg",
+      "sha256": "133ff5d08b07a2bb31478e7cb182ae82c07439cf56096d2f161eb7ec5dda0a5e",
+      "matches": true,
+      "retained": false
+    },
+    {
+      "file": "PatentWorkbench-0.22.1-Windows-x64-Setup.exe",
+      "sha256": "be93ca52598c1cdd0fec32a00a2a7d32b38e50541d8ea6920930b73bb29c5fdf",
+      "matches": true,
+      "retained": false
+    }
+  ],
+  "payload": [
+    {
+      "platform": "mac",
+      "version": "0.22.1",
+      "verifiedFiles": 83,
+      "noNodeModules": true,
+      "allMatchSource": true,
+      "globalPanelStylesPresent": true
+    },
+    {
+      "platform": "windows",
+      "version": "0.22.1",
+      "verifiedFiles": 83,
+      "noNodeModules": true,
+      "allMatchSource": true,
+      "globalPanelStylesPresent": true
+    }
+  ],
+  "windowsRuntime": {
+    "version": "2.0.27",
+    "sha256": "42921a10846ebcf19659e9c491e68852e959e0a1d1c7e57f1283322d4cb7cc15",
+    "matches": true
+  },
+  "pkgMetadataVerified": true,
+  "pkgPayload": {
+    "matchesStandaloneApp": true,
+    "sha256Tree": "ff65accfd755363c3629a620fe614303fa62b0ac3fb392fd3521ba60c7e9bd2d"
+  },
+  "cleanup": {
+    "removed": [
+      {
+        "file": "PatentWorkbench-0.22.0-Windows-x64-Setup.exe",
+        "bytes": 197358379,
+        "sha256": "dcf160f0c0135a7c032d8aba23810497d420d8a97223358a668a2d9a64b94be3",
+        "hashAlgorithm": "sha256"
+      },
+      {
+        "file": "PatentWorkbench-0.22.0-macOS-arm64.pkg",
+        "bytes": 221710631,
+        "sha256": "c62e8aff7029a5357aa9749d9f8038040bc46b59ea0060087e5dbe542736d56c",
+        "hashAlgorithm": "sha256"
+      },
+      {
+        "file": "专利工作台-0.22.0-macOS-arm64.app",
+        "bytes": 505926936,
+        "sha256": "9c4e28a5df309aa89c1ca31be47c0c0d26bda61bdf81546aae483c2936a64d36",
+        "hashAlgorithm": "sha256-tree"
+      }
+    ],
+    "removedLogicalBytes": 924995946,
+    "remaining": [
+      "PatentWorkbench-0.22.1-Windows-x64-Setup.exe",
+      "PatentWorkbench-0.22.1-macOS-arm64.pkg",
+      "release-manifest.json",
+      "专利工作台-0.22.1-macOS-arm64.app"
+    ],
+    "stagingRemoved": true,
+    "lockRemoved": true
+  },
+  "previousAppPayloadUnchanged": true,
+  "verificationScratchRemoved": true
+}
