@@ -24,6 +24,8 @@
 
 ### 6.2 持久化与迁移
 
+主进程的私有工作区序列化通过 `desktop/workspace-repository.ts` 的版本化接口集中管理；FileWorkspaceRepository 为当前实际适配器，DesktopService 负责身份、代际和发布 guard。渲染层 `src/app/workspace-data.ts` 为统一快照与保存队列入口，模块通过 `module-data.ts` 获得绑定范围的冻结投影与有限元数据写入，不自建持久化案件副本。
+
 - 账号私有 `workspace.json` 以带 schema、profile 和 SHA-256 的 `caseRecords` 为主记录，保留旧兼容表示。
 - 迁移先备份原始字节，转换保留未知字段；损坏、摘要错误、账号不符或兼容数据冲突时阻止写入。
 - 共享索引使用 schema 3，兼容 schema 1/2；领域索引与兼容索引必须一致。
