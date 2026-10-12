@@ -6,7 +6,7 @@
 
 - macOS Apple Silicon：`release/专利工作台-0.22.0-macOS-arm64.app`、`release/PatentWorkbench-0.22.0-macOS-arm64.pkg`。
 - Windows x64：`release/PatentWorkbench-0.22.0-Windows-x64-Setup.exe`。
-- 摘要见 [安装清单](../release/release-manifest.json)，Git 保留 [本轮清单快照](../evidence/module-platform/phase-6/release-manifest.json)。0.20.1、0.21.0 共六项既有制品保留。
+- 摘要见 [安装清单](../release/release-manifest.json)，Git 保留 [交付时清单快照](../evidence/module-platform/phase-6/release-manifest.json)。交付后已按用户要求删除旧版本和未验收中间包，当前清单仅保留 0.22.0 三项制品；见 [清理核验](../evidence/release-cleanup-20261012.json)。
 
 没有覆盖用户现有安装。原生 .app 直接启动、pkg 元数据与 Windows 解包核对分别记录；不等同 pkg 覆盖安装或 Windows 实机验收。当前包无发行签名与 macOS 公证。
 

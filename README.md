@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-- 当前源码和安装清单为 **0.22.0 候选测试版**；macOS .app / .pkg 与 Windows .exe 已生成并核验，0.20.1、0.21.0 共六项既有制品保留且摘要不变。
+- 当前源码和安装清单为 **0.22.0 候选测试版**；macOS .app / .pkg 与 Windows .exe 已生成并核验，已按用户要求清理旧安装包，当前仅保留 0.22.0 三项制品。
 - 全局与单案面板分别注册，共用宿主；案件数据统一通过主进程仓储和渲染 Store 管理。可替换适配器与模块生成模板已实测，接入见 [模块指南](docs/development/module-guide.md)。
 - OpenCode 已迁移 v2，当前打包快照 2.0.27。按账号、案件、阶段与分支保存会话；自动检查并安装通过兼容性验证的更新，空闲切换并保留回退，不锁死补丁版本。
 - 全量 **864/864**、类型与构建通过；生成模块另有 **2/2** 验证。最终 .app 已检查保存 / 重开、导航、任务切页 / 停止及三视口；已修复性能对照暴露的面板等待和并行创建目录竞态。六阶段本地提交，未推送或对外发布；见 [交付报告](evidence/module-platform/phase-6/RESULT.md) 和 [性能对照](evidence/module-platform/phase-6/PERFORMANCE.md)。
@@ -23,7 +23,7 @@
 
 ## 安装
 
-当前 **0.22.0** 三项制品见 [安装清单](release/release-manifest.json)。macOS Apple Silicon 使用 .app / .pkg，Windows x64 使用 NSIS .exe；安装与现场验收见 [0.22.0 测试说明](docs/TESTING-0.22.0.md)。原 0.20.1、0.21.0 共六项制品保留且摘要未变。Windows 包已实际解包核对，Windows 实机及覆盖安装尚未验收。
+当前 **0.22.0** 三项制品见 [安装清单](release/release-manifest.json)。macOS Apple Silicon 使用 .app / .pkg，Windows x64 使用 NSIS .exe；安装与现场验收见 [0.22.0 测试说明](docs/TESTING-0.22.0.md)。0.20.1、0.21.0 旧制品和未验收中间包已清理，历史验收证据保留。Windows 包已实际解包核对，Windows 实机及覆盖安装尚未验收。
 
 安装器配置保留应用数据；账号、凭证和本机设置在应用数据目录，工作目录与原始申请库另行管理。当前包无发行签名和 macOS 公证，整体应用通过安装包更新。OpenCode 后台默认自动验证并更新，和应用安装包更新分开。
 
