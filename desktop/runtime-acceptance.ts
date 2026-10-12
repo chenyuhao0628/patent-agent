@@ -16,6 +16,7 @@ export async function verifyOpenCodeRuntime(binaryPath: string, options: { signa
   const blockedFile = path.join(root, 'native-tool-must-not-write');
   const synthetic = await startSyntheticProvider({ nativeCommand: process.platform === 'win32' ? `Set-Content -LiteralPath '${blockedFile.replaceAll("'", "''")}' 'unexpected'` : `touch '${blockedFile.replaceAll("'", "'\\''")}'` });
   const results: Array<{ protocol: ModelProtocol; status: string; sessionId?: string; reused?: boolean; cacheRead?: number }> = [];
+  const compactionResults: Array<{ protocol: ModelProtocol; firstCompactions: number; resumedCompactions: number; requests: number; oldPrivateContextExcluded: boolean }> = [];
   let authChecks = 0;
   const runtimeIdentity = 'candidate';
   const fetchImpl: typeof fetch = async (...args) => {
@@ -77,6 +78,25 @@ export async function verifyOpenCodeRuntime(binaryPath: string, options: { signa
     const continuedInput = makeInput('openai-responses', randomUUID());
     const continued = await runner().run(continuedInput); await checkResult(continuedInput, continued);
     verify(continued.session?.id !== stopped.session?.id && !continued.session?.reused, '停止后恢复了未完成的隐藏执行');
+    for (const protocol of ['openai-responses', 'openai-chat-completions', 'anthropic-messages', 'gemini-generate-content'] as const) {
+      options.signal?.throwIfAborted();
+      const previousPrivate = `SYNTHETIC-PRIVATE-${protocol}-PRIOR`;
+      const compactInput = makeInput(protocol, randomUUID());
+      compactInput.sessionScope = { ...compactInput.sessionScope!, caseId: `compaction-${protocol}` };
+      synthetic.forceCompaction({ runId: compactInput.runId, summary: previousPrivate });
+      const compacted = await runner().run(compactInput); await checkResult(compactInput, compacted);
+      verify((compacted.session?.compactions ?? 0) > 0, `${protocol} 未实际触发长会话压缩`);
+      verify(synthetic.requests.some(r => r.runId === compactInput.runId && JSON.stringify(r.body).includes(previousPrivate)), '合成摘要没有被后续请求使用');
+      const nextInput = makeInput(protocol, randomUUID(), { sessionScope: compactInput.sessionScope });
+      synthetic.forceCompaction({ runId: nextInput.runId, summary: 'SYNTHETIC-CURRENT-PROGRESS' });
+      const next = await runner().run(nextInput); await checkResult(nextInput, next);
+      verify(next.session?.reused && next.session.id === compacted.session?.id, '压缩后没有续接原会话');
+      const requests = synthetic.requests.filter(r => r.runId === nextInput.runId);
+      verify((next.session?.compactions ?? 0) > 0 && requests.some(r => r.compaction), '续接会话未再次实际压缩');
+      verify(requests.every(r => !JSON.stringify(r.body).includes(previousPrivate)), '压缩请求恢复了旧任务私有摘要');
+      compactionResults.push({ protocol, firstCompactions: compacted.session!.compactions, resumedCompactions: next.session!.compactions, requests: requests.length, oldPrivateContextExcluded: true });
+      synthetic.forceCompaction();
+    }
     await fs.access(blockedFile).then(() => { throw new Error('原生 shell 权限隔离失败。'); }, error => { if (error.code !== 'ENOENT') throw error; });
     verify(synthetic.requests.every(r => r.names.every(n => n.startsWith('case_tools_'))), '工具白名单改变');
     verify(synthetic.requests.every(r => !JSON.stringify(r.body).includes('FORBIDDEN-AMBIENT-INSTRUCTION')), '读取了工作台外的配置或指令');
@@ -84,7 +104,7 @@ export async function verifyOpenCodeRuntime(binaryPath: string, options: { signa
     verify(synthetic.requests.filter(r=>r.protocol==='openai-chat-completions').every(r=>!(r.body.max_tokens!==undefined&&r.body.max_completion_tokens!==undefined)), 'Chat 请求同时发送两个互斥输出限制');
     verify(cached.every(r => r.body.store === false && typeof r.body.prompt_cache_key === 'string'), '未启用独立缓存键或开启了响应存储');
     verify(first?.session && first.session.cacheReadTokens > 0, '没有读到合成供应商的缓存用量');
-    const report = { schema: 1, checkedAt: new Date().toISOString(), version: first.session.runtimeVersion, authChecks, requests: synthetic.requests.length, results, stopped: stopped.status, nativeToolDenied: true, foreignMaterialDenied: true, ambientConfigExcluded: true, retainedAfterRestart: true, retainedInCopiedDatabase: true, independentCases: true, cacheUsageObserved: true };
+    const report = { schema: 1, checkedAt: new Date().toISOString(), version: first.session.runtimeVersion, authChecks, requests: synthetic.requests.length, results, compactionResults, stopped: stopped.status, nativeToolDenied: true, foreignMaterialDenied: true, ambientConfigExcluded: true, retainedAfterRestart: true, retainedInCopiedDatabase: true, independentCases: true, cacheUsageObserved: true };
     if (options.keepEvidenceAt) { await fs.mkdir(options.keepEvidenceAt, { recursive: true }); await fs.writeFile(path.join(options.keepEvidenceAt, 'acceptance.json'), JSON.stringify(report, null, 2)); }
     return report;
   } catch (error) {

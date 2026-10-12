@@ -11,6 +11,7 @@
 | 当前目标、待办、版本与验收缺口 | [实施计划](../EXEC_PLAN.md) |
 | 架构与开发约束 | [开发入口](../DEVELOPMENT.md) |
 | 仓库执行规则 | [AGENTS](../AGENTS.md) |
+| 0.21.0 安装与现场验收 | [测试说明](TESTING-0.21.0.md) |
 | 已实现内容及历史证据 | [模块归档索引](archive/README.md) |
 
 ## 按模块直达
@@ -23,7 +24,7 @@
 | 答复、补正与定稿 | [需求](requirements/reply-finalization.md) | [接口与作用域](architecture/contracts.md) |
 | 撰写与独立审查 | [需求](requirements/writing-review.md) | [阶段成果与阅读区](archive/writing-review.md) |
 | 提交与内部转交 | [需求](requirements/internal-transfer.md) | [材料与流转修复](archive/internal-transfer.md) |
-| Agent、模型与工具 | [需求](requirements/agent-tools.md) | [v2 会话与更新证据](../evidence/opencode-v2-migration/phase-3/RESULT.md) |
+| Agent、模型与工具 | [需求](requirements/agent-tools.md) | [v2 最终交付证据](../evidence/opencode-v2-migration/phase-5/RESULT.md) |
 | 文档、目录与账号 | [需求](requirements/documents-security.md) | [领域持久化与安全](architecture/data-security.md) |
 
 ## 文档维护约定

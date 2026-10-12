@@ -1,0 +1,178 @@
+{
+  "fixture": "Synthetic loopback provider; 29000 input tokens reported to trigger compaction at a 32000 context window.",
+  "before": {
+    "results": [
+      {
+        "status": "completed",
+        "session": {
+          "id": "ses_ed12d2857ffe4Vhio0jG5HHn1V",
+          "reused": false,
+          "retained": true,
+          "runtimeVersion": "2.0.27",
+          "cacheEnabled": true,
+          "usageReported": true,
+          "inputTokens": 58012,
+          "outputTokens": 80,
+          "cacheReadTokens": 60,
+          "cacheWriteTokens": 0,
+          "compactions": 2
+        }
+      },
+      {
+        "status": "completed",
+        "session": {
+          "id": "ses_ed12d2857ffe4Vhio0jG5HHn1V",
+          "reused": true,
+          "retained": true,
+          "runtimeVersion": "2.0.27",
+          "cacheEnabled": true,
+          "usageReported": true,
+          "inputTokens": 29012,
+          "outputTokens": 48,
+          "cacheReadTokens": 36,
+          "cacheWriteTokens": 0,
+          "compactions": 1
+        }
+      }
+    ],
+    "requests": [
+      {
+        "activeRun": "round1",
+        "marker": "round1",
+        "oldPrivate": false,
+        "compaction": false
+      },
+      {
+        "activeRun": "round1",
+        "marker": "round1",
+        "oldPrivate": false,
+        "compaction": true
+      },
+      {
+        "activeRun": "round1",
+        "marker": "no-marker",
+        "oldPrivate": true,
+        "compaction": false
+      },
+      {
+        "activeRun": "round1",
+        "marker": "no-marker",
+        "oldPrivate": true,
+        "compaction": true
+      },
+      {
+        "activeRun": "round1",
+        "marker": "no-marker",
+        "oldPrivate": true,
+        "compaction": false
+      },
+      {
+        "activeRun": "round2",
+        "marker": "round2",
+        "oldPrivate": false,
+        "compaction": false
+      },
+      {
+        "activeRun": "round2",
+        "marker": "no-marker",
+        "oldPrivate": true,
+        "compaction": true
+      },
+      {
+        "activeRun": "round2",
+        "marker": "round2",
+        "oldPrivate": false,
+        "compaction": false
+      }
+    ],
+    "secondTaskPrivateReplay": true
+  },
+  "after": {
+    "results": [
+      {
+        "status": "completed",
+        "session": {
+          "id": "ses_ed12930b7ffeEFJkKWb38rgRPW",
+          "reused": false,
+          "retained": true,
+          "runtimeVersion": "2.0.27",
+          "cacheEnabled": true,
+          "usageReported": true,
+          "inputTokens": 58012,
+          "outputTokens": 80,
+          "cacheReadTokens": 60,
+          "cacheWriteTokens": 0,
+          "compactions": 2
+        }
+      },
+      {
+        "status": "completed",
+        "session": {
+          "id": "ses_ed12930b7ffeEFJkKWb38rgRPW",
+          "reused": true,
+          "retained": true,
+          "runtimeVersion": "2.0.27",
+          "cacheEnabled": true,
+          "usageReported": true,
+          "inputTokens": 29012,
+          "outputTokens": 48,
+          "cacheReadTokens": 36,
+          "cacheWriteTokens": 0,
+          "compactions": 1
+        }
+      }
+    ],
+    "requests": [
+      {
+        "activeRun": "round1",
+        "marker": "round1",
+        "oldPrivate": false,
+        "compaction": false
+      },
+      {
+        "activeRun": "round1",
+        "marker": "round1",
+        "oldPrivate": false,
+        "compaction": true
+      },
+      {
+        "activeRun": "round1",
+        "marker": "no-marker",
+        "oldPrivate": true,
+        "compaction": false
+      },
+      {
+        "activeRun": "round1",
+        "marker": "no-marker",
+        "oldPrivate": true,
+        "compaction": true
+      },
+      {
+        "activeRun": "round1",
+        "marker": "no-marker",
+        "oldPrivate": true,
+        "compaction": false
+      },
+      {
+        "activeRun": "round2",
+        "marker": "round2",
+        "oldPrivate": false,
+        "compaction": false
+      },
+      {
+        "activeRun": "round2",
+        "marker": "round2",
+        "oldPrivate": false,
+        "compaction": true
+      },
+      {
+        "activeRun": "round2",
+        "marker": "round2",
+        "oldPrivate": false,
+        "compaction": false
+      }
+    ],
+    "secondTaskPrivateReplay": false
+  },
+  "finalFourProtocolEvidence": "native-acceptance.json"
+}

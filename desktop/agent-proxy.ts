@@ -76,6 +76,7 @@ export type AgentProxyOptions = {
   discussionId: string;
   cacheKey?: string;
   turnBoundary?: string;
+  publicContext?: string;
   fetchImpl?: typeof fetch;
   bodyLimit?: number;
   responseLimit?: number;
@@ -87,23 +88,79 @@ export type AgentProxyOptions = {
  * exchange stays on the wire. This prevents stale tool output and hidden thought
  * from an earlier task being silently replayed. */
 export function scopedWireContext(protocol: ModelProtocol, body: JsonObject, marker: string, established: boolean): { body: JsonObject; established: boolean } {
-  const field = protocol === 'openai-responses' ? 'input' : protocol === 'gemini-generate-content' ? 'contents' : 'messages';
+  const field = contextField(protocol);
   const rows = body[field];
   if (!Array.isArray(rows)) throw new Error('后台未提供可核对的任务上下文。');
-  const boundary = rows.findIndex(raw => {
-    const row = asObject(raw);
-    return row?.role === 'user' && JSON.stringify(row).includes(marker);
-  });
+  let boundary = rows.findIndex(row => asObject(row)?.role === 'user' && wireText(row).includes(marker));
   if (boundary < 0) {
     // After a compaction the marker may have been replaced by the summary of
     // this task, which was itself generated through this same scoped proxy.
-    if (!established) throw new Error('后台上下文缺少本次任务标识，未发送模型请求。');
-    return { body, established };
+    boundary = rows.findIndex(row => asObject(row)?.role === 'user' && wireText(row).startsWith('<conversation-checkpoint>'));
+    if (!established || boundary < 0) throw new Error('后台上下文缺少本次任务标识，未发送模型请求。');
   }
   const system = rows.slice(0, boundary).filter(raw => ['system', 'developer'].includes(String(asObject(raw)?.role)));
-  const next = { ...body, [field]: [...system, ...rows.slice(boundary)] };
+  const kept = rows.slice(boundary);
+  // A checkpoint serializes several old exchanges into one user message. If it
+  // still contains this task's opening marker, discard the text before it too.
+  const trimCheckpoint = (text: string) => text.slice(text.indexOf(marker)).replace(/\s*<\/recent-context>\s*<\/conversation-checkpoint>\s*$/, '');
+  const row = asObject(kept[0]);
+  if (row && wireText(row).startsWith('<conversation-checkpoint>') && wireText(row).includes(marker)) {
+    const clean = { ...row };
+    if (typeof row.content === 'string') clean.content = trimCheckpoint(row.content);
+    for (const name of ['content', 'parts']) {
+      const parts = row[name];
+      if (!Array.isArray(parts)) continue;
+      const start = parts.findIndex(raw => String(asObject(raw)?.text ?? '').includes(marker));
+      if (start < 0) throw new Error('压缩上下文的任务标识不完整。');
+      clean[name] = parts.slice(start).map((raw, index) => {
+        const part = asObject(raw);
+        return index === 0 && typeof part?.text === 'string' ? { ...part, text: trimCheckpoint(part.text) } : raw;
+      });
+    }
+    kept[0] = clean;
+  }
+  const next = { ...body, [field]: [...system, ...kept] };
   delete next.previous_response_id;
   return { body: next, established: true };
+}
+
+const contextField = (protocol: ModelProtocol) => protocol === 'openai-responses' ? 'input' : protocol === 'gemini-generate-content' ? 'contents' : 'messages';
+function wireText(row: unknown): string {
+  const value = asObject(row);
+  if (!value) return '';
+  if (typeof value.content === 'string') return value.content;
+  const parts = Array.isArray(value.content) ? value.content : Array.isArray(value.parts) ? value.parts : [];
+  return parts.map(p => asObject(p)?.text ?? '').join('\n');
+}
+function compactionControl(row: unknown) {
+  return asObject(row)?.role === 'user' && /^(?:You MUST summarize the conversation above|Update the existing checkpoint in the conversation above|The previous response did not fill in the required summary template)/.test(wireText(row));
+}
+export function createWireTaskScope(protocol: ModelProtocol, marker: string, publicContext?: string) {
+  const field = contextField(protocol);
+  let scopedRows: unknown[] | undefined = publicContext?.startsWith(marker) ? [protocol === 'gemini-generate-content'
+    ? { role: 'user', parts: [{ text: publicContext }] } : { role: 'user', content: publicContext }] : undefined;
+  let compactionSent = false;
+  return (body: JsonObject): JsonObject => {
+    const rows = body[field];
+    if (!Array.isArray(rows)) throw new Error('后台未提供可核对的任务上下文。');
+    const control = rows.at(-1);
+    const boundary = rows.some(row => asObject(row)?.role === 'user' && wireText(row).includes(marker));
+    if (compactionControl(control)) {
+      // V2 may compact only the *older* part of its retained transcript. That
+      // request can omit the current marker even after this task has started.
+      // Rebase summaries on the last scoped request (or authoritative public
+      // seed), never on an unmarked old transcript or previous private summary.
+      if (boundary) scopedRows = (scopedWireContext(protocol, body, marker, false).body[field] as unknown[]).slice(0, -1);
+      if (!scopedRows) throw new Error('压缩请求缺少本次公开上下文。');
+      compactionSent = true;
+      const next = { ...body, [field]: [...scopedRows, control] };
+      delete next.previous_response_id;
+      return next;
+    }
+    const scoped = scopedWireContext(protocol, body, marker, compactionSent);
+    scopedRows = scoped.body[field] as unknown[];
+    return scoped.body;
+  };
 }
 
 export type AgentProxy = {
@@ -683,7 +740,7 @@ export function startAgentProxy(options: AgentProxyOptions): Promise<AgentProxy>
   const routePrefix = proxyRoutePrefix(token);
   const controllers = new Set<AbortController>();
   let closed = false;
-  let contextEstablished = false;
+  const scopeContext = options.turnBoundary ? createWireTaskScope(runtime.protocol, options.turnBoundary, options.publicContext) : undefined;
 
   const server = http.createServer((req, res) => {
     void withDiagnostics({runId:options.runId,discussionId,requestId:randomBytes(16).toString('hex')},()=>handle(req, res)).catch(() => {
@@ -751,10 +808,7 @@ export function startAgentProxy(options: AgentProxyOptions): Promise<AgentProxy>
           return;
         }
         try {
-          if (options.turnBoundary) {
-            const scoped = scopedWireContext(runtime.protocol, body, options.turnBoundary, contextEstablished);
-            body = scoped.body; contextEstablished = scoped.established;
-          }
+          if (scopeContext) body = scopeContext(body);
           body = applyWirePolicy(runtime.protocol, body, runtime, maxOutput);
         } catch {
           writeJson(res, 403, safeErrorPayload('model_mismatch'));

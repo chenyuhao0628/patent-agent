@@ -1,0 +1,122 @@
+{
+  "version": {
+    "package": "0.21.0",
+    "lock": "0.21.0",
+    "lockRoot": "0.21.0",
+    "manifest": "0.21.0"
+  },
+  "runtime": {
+    "runtime": "OpenCode",
+    "version": "2.0.27",
+    "sourceDir": "/Users/cyh/Documents/ChatGPT/patent-agent/.lab/agent-runtime",
+    "files": [
+      {
+        "platform": "darwin-arm64",
+        "file": "darwin-arm64/opencode",
+        "bytes": 186071504,
+        "sha256": "7fa5c8659e57cae76b1da4f45edbc583aef93aae917246a0b3abb1ac1b3fb93c",
+        "header": "cffaedfe"
+      },
+      {
+        "platform": "win32-x64",
+        "file": "win32-x64/opencode.exe",
+        "bytes": 212824456,
+        "sha256": "42921a10846ebcf19659e9c491e68852e959e0a1d1c7e57f1283322d4cb7cc15",
+        "header": "4d5a7800"
+      }
+    ]
+  },
+  "artifacts": [
+    {
+      "file": "专利工作台-0.21.0-macOS-arm64.app",
+      "sha256": "e47a34c425671b521349580bdbc3ee44cca37306aafca5e46a34321cfbae859f",
+      "matches": true,
+      "retained": false
+    },
+    {
+      "file": "PatentWorkbench-0.21.0-macOS-arm64.pkg",
+      "sha256": "348bf1c3397b7ecf474cc4bed611d9a58611f7d76ed71e9ed5390037959a79f7",
+      "matches": true,
+      "retained": false
+    },
+    {
+      "file": "PatentWorkbench-0.21.0-Windows-x64-Setup.exe",
+      "sha256": "475205211a0a910bc132613ebdf9fa13b8c6a62dd20dcc72bf4581fa5857a485",
+      "matches": true,
+      "retained": false
+    },
+    {
+      "file": "PatentWorkbench-0.20.1-Windows-x64-Setup.exe",
+      "sha256": "ae81215eed967b23bd27f97335b3426fa8019646423a06839da76d5b40b3ecf9",
+      "matches": true,
+      "retained": true
+    },
+    {
+      "file": "PatentWorkbench-0.20.1-macOS-arm64.pkg",
+      "sha256": "10e0e000852d53f8f73180f1fde1a91d228f5a31bd22277f6a85b84d69c63d4b",
+      "matches": true,
+      "retained": true
+    },
+    {
+      "file": "专利工作台-0.20.1-macOS-arm64.app",
+      "sha256": "1da764e831e1e9887127c0485fa6c31bcc66711eb53e6d36985495df3cd930e3",
+      "matches": true,
+      "retained": true
+    }
+  ],
+  "payload": [
+    {
+      "platform": "mac",
+      "file": "desktop-dist/main.cjs",
+      "sha256": "f18a3c52eda447d780e9d6005c0c1176d211c9bc6433628301be30ad8fb48d0d",
+      "matches": true
+    },
+    {
+      "platform": "mac",
+      "file": "desktop-dist/preload.cjs",
+      "sha256": "91be098694b4cac54bc42e13b5ba6a7f0f0423a9c15c2221edf6aab0aad2ed7e",
+      "matches": true
+    },
+    {
+      "platform": "mac",
+      "file": "dist/index.html",
+      "sha256": "ad7bd8156c175a46dc527c6ddaaeb9611e08481e9617bd9f2991bec45ffc2dde",
+      "matches": true
+    },
+    {
+      "platform": "mac",
+      "noNodeModules": true,
+      "version": "0.21.0"
+    },
+    {
+      "platform": "windows",
+      "file": "desktop-dist/main.cjs",
+      "sha256": "f18a3c52eda447d780e9d6005c0c1176d211c9bc6433628301be30ad8fb48d0d",
+      "matches": true
+    },
+    {
+      "platform": "windows",
+      "file": "desktop-dist/preload.cjs",
+      "sha256": "91be098694b4cac54bc42e13b5ba6a7f0f0423a9c15c2221edf6aab0aad2ed7e",
+      "matches": true
+    },
+    {
+      "platform": "windows",
+      "file": "dist/index.html",
+      "sha256": "ad7bd8156c175a46dc527c6ddaaeb9611e08481e9617bd9f2991bec45ffc2dde",
+      "matches": true
+    },
+    {
+      "platform": "windows",
+      "noNodeModules": true,
+      "version": "0.21.0"
+    }
+  ],
+  "windowsRuntime": {
+    "version": "2.0.27",
+    "sha256": "42921a10846ebcf19659e9c491e68852e959e0a1d1c7e57f1283322d4cb7cc15",
+    "matches": true
+  },
+  "pkgMetadata": "<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\"?>\n<installer-gui-script minSpecVersion=\"2\">\n    <pkg-ref id=\"com.patentworkbench.desktop\"/>\n    <product id=\"com.patentworkbench.desktop\" version=\"0.21.0\"/>\n    <title>专利工作台</title>\n    <options customize=\"never\" require-scripts=\"false\" hostArchitectures=\"arm64\"/>\n    <volume-check>\n        <allowed-os-versions>\n            <os-version min=\"13.0\"/>\n        </allowed-os-versions>\n    </volume-check>\n    <choices-outline>\n        <line choice=\"default\">\n            <line choice=\"com.patentworkbench.desktop\"/>\n        </line>\n    </choices-outline>\n    <choice id=\"default\" title=\"专利工作台\" versStr=\"0.21.0\"/>\n    <choice id=\"com.patentworkbench.desktop\" title=\"专利工作台\" visible=\"false\">\n        <pkg-ref id=\"com.patentworkbench.desktop\"/>\n    </choice>\n    <pkg-ref id=\"com.patentworkbench.desktop\" version=\"0.21.0\" onConclusion=\"none\">#com.patentworkbench.desktop.pkg</pkg-ref>\n    <pkg-ref id=\"com.patentworkbench.desktop\" installKBytes=\"494323\" updateKBytes=\"0\">\n        <must-close>\n            <app id=\"com.patentworkbench.desktop\"/>\n        </must-close>\n        <bundle-version>\n            <bundle CFBundleShortVersionString=\"0.21.0\" CFBundleVersion=\"0.21.0\" id=\"com.patentworkbench.desktop\" path=\"专利工作台.app\"/>\n        </bundle-version>\n    </pkg-ref>\n    <domains enable_anywhere=\"false\" enable_currentUserHome=\"true\" enable_localSystem=\"true\"/>\n</installer-gui-script>",
+  "oldArtifactsUnchanged": true
+}

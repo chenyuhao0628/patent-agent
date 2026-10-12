@@ -11,7 +11,8 @@ type Call = { name: string; args: Record<string, unknown> };
  * or case data. No model network request is made by this acceptance fixture. */
 export async function startSyntheticProvider(options: { nativeCommand?: string } = {}) {
   const counts = new Map<string, number>();
-  const requests: Array<{ protocol: ModelProtocol; context: string; body: Record<string, any>; names: string[] }> = [];
+  const requests: Array<{ protocol: ModelProtocol; context: string; body: Record<string, any>; names: string[]; runId: string; compaction: boolean }> = [];
+  let compactionProbe: { runId: string; summary: string } | undefined;
   const server = http.createServer(async (req, res) => {
     const buffers: Buffer[] = [];
     for await (const data of req) buffers.push(Buffer.from(data));
@@ -19,45 +20,50 @@ export async function startSyntheticProvider(options: { nativeCommand?: string }
     const url = req.url ?? '';
     const protocol: ModelProtocol = url.includes('/responses') ? 'openai-responses' : url.includes('/chat/completions') ? 'openai-chat-completions' : url.includes('/messages') ? 'anthropic-messages' : 'gemini-generate-content';
     const text = JSON.stringify(body), marker = [...text.matchAll(/<!--workbench-turn:([^>]+)-->/g)].at(-1)?.[1] ?? 'unmarked';
+    const runId = compactionProbe?.runId ?? marker;
+    const compaction = text.includes('You MUST use this format for your response') || text.includes('The previous response did not fill in the required summary template');
     const context = String(req.headers[OPENCODE_SESSION_HEADER] || '');
     const names = (body.tools || []).flatMap((tool: any) => tool.functionDeclarations?.map((f: any) => f.name) ?? [tool.name ?? tool.function?.name]).filter(Boolean);
-    requests.push({ protocol, context, body, names });
+    requests.push({ protocol, context, body, names, runId, compaction });
     res.writeHead(200, { 'Content-Type': 'text/event-stream', Connection: 'close' });
     if (marker.startsWith('hang-')) { res.write(': synthetic waiting\n\n'); return; }
-    const key = `${context}:${marker}`, index = counts.get(key) ?? 0;
-    counts.set(key, index + 1);
+    const key = `${context}:${runId}`, index = counts.get(key) ?? 0;
+    if (!compaction) counts.set(key, index + 1);
     const calls: Call[] = [
       { name: 'case_tools_read_material', args: { materialId: 'synthetic-material' } },
       { name: 'case_tools_read_material', args: { materialId: 'forbidden-other-case' } },
       { name: 'shell', args: { command: options.nativeCommand ?? 'exit 73', description: 'Synthetic permission probe' } },
-      { name: 'case_tools_write_artifact', args: { name: 'result.json', content: { kind: 'discuss', reply: `SYNTHETIC-${marker}` } } },
+      { name: 'case_tools_write_artifact', args: { name: 'result.json', content: { kind: 'discuss', reply: `SYNTHETIC-${runId}` } } },
     ];
-    const call = calls[index], id = `call_${index}`, finalText = `SYNTHETIC-${marker}`;
+    const call = compaction ? undefined : calls[index], id = `call_${index}`;
+    const finalText = compaction ? `## Objective\nComplete the current synthetic probe.\n## Work State\n${compactionProbe?.summary ?? 'Synthetic current progress.'}` : `SYNTHETIC-${runId}`;
+    const inputTokens = compactionProbe && !compaction && index === 0 ? 29_000 : 24;
     if (protocol === 'openai-responses') {
-      res.end(encodeResponsesSse(body.model, call ? [{ type: 'function_call', id: `fc_${index}`, call_id: id, name: call.name, arguments: JSON.stringify(call.args) }] : [{ type: 'message', role: 'assistant', content: [{ type: 'output_text', text: finalText }] }]));
+      res.end(encodeResponsesSse(body.model, call ? [{ type: 'function_call', id: `fc_${index}`, call_id: id, name: call.name, arguments: JSON.stringify(call.args) }] : [{ type: 'message', role: 'assistant', content: [{ type: 'output_text', text: finalText }] }], inputTokens));
     } else if (protocol === 'openai-chat-completions') {
       const base = { id: `chat_${index}`, object: 'chat.completion.chunk', created: Math.floor(Date.now() / 1000), model: body.model };
       const delta = call ? { role: 'assistant', tool_calls: [{ index: 0, id, type: 'function', function: { name: call.name, arguments: JSON.stringify(call.args) } }] } : { role: 'assistant', content: finalText };
-      res.end(chunk({ ...base, choices: [{ index: 0, delta, finish_reason: null }] }) + chunk({ ...base, choices: [{ index: 0, delta: {}, finish_reason: call ? 'tool_calls' : 'stop' }], usage: { prompt_tokens: 24, completion_tokens: 16, total_tokens: 40, prompt_tokens_details: { cached_tokens: 12 } } }) + 'data: [DONE]\n\n');
+      res.end(chunk({ ...base, choices: [{ index: 0, delta, finish_reason: null }] }) + chunk({ ...base, choices: [{ index: 0, delta: {}, finish_reason: call ? 'tool_calls' : 'stop' }], usage: { prompt_tokens: inputTokens, completion_tokens: 16, total_tokens: inputTokens + 16, prompt_tokens_details: { cached_tokens: 12 } } }) + 'data: [DONE]\n\n');
     } else if (protocol === 'anthropic-messages') {
-      res.end(event('message_start', { type: 'message_start', message: { id: `msg_${index}`, type: 'message', role: 'assistant', model: body.model, content: [], stop_reason: null, stop_sequence: null, usage: { input_tokens: 24, output_tokens: 0, cache_read_input_tokens: 12, cache_creation_input_tokens: 0 } } })
+      res.end(event('message_start', { type: 'message_start', message: { id: `msg_${index}`, type: 'message', role: 'assistant', model: body.model, content: [], stop_reason: null, stop_sequence: null, usage: { input_tokens: inputTokens, output_tokens: 0, cache_read_input_tokens: 12, cache_creation_input_tokens: 0 } } })
         + event('content_block_start', { type: 'content_block_start', index: 0, content_block: call ? { type: 'tool_use', id, name: call.name, input: {} } : { type: 'text', text: '' } })
         + event('content_block_delta', { type: 'content_block_delta', index: 0, delta: call ? { type: 'input_json_delta', partial_json: JSON.stringify(call.args) } : { type: 'text_delta', text: finalText } })
         + event('content_block_stop', { type: 'content_block_stop', index: 0 })
         + event('message_delta', { type: 'message_delta', delta: { stop_reason: call ? 'tool_use' : 'end_turn', stop_sequence: null }, usage: { output_tokens: 16 } })
         + event('message_stop', { type: 'message_stop' }));
     } else {
-      res.end(chunk({ candidates: [{ index: 0, content: { role: 'model', parts: call ? [{ functionCall: { id, name: call.name, args: call.args } }] : [{ text: finalText }] }, finishReason: 'STOP' }], usageMetadata: { promptTokenCount: 24, candidatesTokenCount: 16, totalTokenCount: 40, cachedContentTokenCount: 12 } }));
+      res.end(chunk({ candidates: [{ index: 0, content: { role: 'model', parts: call ? [{ functionCall: { id, name: call.name, args: call.args } }] : [{ text: finalText }] }, finishReason: 'STOP' }], usageMetadata: { promptTokenCount: inputTokens, candidatesTokenCount: 16, totalTokenCount: inputTokens + 16, cachedContentTokenCount: 12 } }));
     }
   });
   await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve); });
   return { origin: `http://127.0.0.1:${(server.address() as {port:number}).port}`, requests,
+    forceCompaction: (probe?: { runId: string; summary: string }) => { compactionProbe = probe; },
     close: () => new Promise<void>(resolve => { server.closeAllConnections(); server.close(() => resolve()); }),
   };
 }
-export function encodeResponsesSse(model: unknown, output: Record<string, unknown>[]) {
+export function encodeResponsesSse(model: unknown, output: Record<string, unknown>[], inputTokens = 24) {
   const id = 'resp_' + randomBytes(3).toString('hex');
-  const usage = { input_tokens: 24, output_tokens: 16, total_tokens: 40, input_tokens_details: { cached_tokens: 12 } };
+  const usage = { input_tokens: inputTokens, output_tokens: 16, total_tokens: inputTokens + 16, input_tokens_details: { cached_tokens: 12 } };
   const events: Record<string, unknown>[] = [];
   let seq = 0;
   const push = (event: Record<string, unknown>) => {

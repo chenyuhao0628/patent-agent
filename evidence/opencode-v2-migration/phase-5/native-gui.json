@@ -1,0 +1,79 @@
+{
+  "version": "0.21.0",
+  "first": {
+    "id": "ses_ed11a2f9cffeEAHS197wf4gw6i",
+    "reused": false,
+    "retained": true,
+    "runtimeVersion": "2.0.27",
+    "cacheEnabled": true,
+    "usageReported": true,
+    "inputTokens": 29012,
+    "outputTokens": 48,
+    "cacheReadTokens": 36,
+    "cacheWriteTokens": 0,
+    "compactions": 1
+  },
+  "second": {
+    "id": "ses_ed11a2f9cffeEAHS197wf4gw6i",
+    "reused": true,
+    "retained": true,
+    "runtimeVersion": "2.0.27",
+    "cacheEnabled": true,
+    "usageReported": true,
+    "inputTokens": 29012,
+    "outputTokens": 48,
+    "cacheReadTokens": 36,
+    "cacheWriteTokens": 0,
+    "compactions": 1
+  },
+  "resumed": {
+    "id": "ses_ed11a2f9cffeEAHS197wf4gw6i",
+    "reused": true,
+    "retained": true,
+    "runtimeVersion": "2.0.27",
+    "cacheEnabled": true,
+    "usageReported": true,
+    "inputTokens": 29012,
+    "outputTokens": 48,
+    "cacheReadTokens": 36,
+    "cacheWriteTokens": 0,
+    "compactions": 1
+  },
+  "stopped": "stopped",
+  "otherCase": {
+    "id": "ses_ed11a090fffeKKwT409cfmB4sT",
+    "reused": false,
+    "retained": true,
+    "runtimeVersion": "2.0.27",
+    "cacheEnabled": true,
+    "usageReported": true,
+    "inputTokens": 29012,
+    "outputTokens": 48,
+    "cacheReadTokens": 36,
+    "cacheWriteTokens": 0,
+    "compactions": 1
+  },
+  "oldPrivateContextExcluded": true,
+  "independentCases": true,
+  "independentCacheKeys": true,
+  "requestCount": 13,
+  "geometry": [
+    {
+      "width": 1440,
+      "height": 900,
+      "scrollWidth": 1425
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "scrollWidth": 1905
+    },
+    {
+      "width": 1280,
+      "height": 800,
+      "scrollWidth": 1265
+    }
+  ],
+  "errors": [],
+  "checkedAt": "2026-10-12T06:56:26.501Z"
+}

@@ -820,22 +820,20 @@ export class OpenCodeRunner implements AgentRunner {
         onToolEvent: onTool,
       });
       runAbort.signal.throwIfAborted();
+      const systemPrompt = buildSystemPrompt(productPrompt);
+      const userPrompt = turnMarker(input.runId) + '\n' + buildUserPrompt({
+        materials: input.materials, publicMessages: context.messages, review: false, allowedArtifacts,
+      });
       proxy = await startAgentProxy({
         runtime: input.runtime,
         runId: input.runId,
         discussionId: retained?.scopeHash ?? input.discussionId.trim(),
         cacheKey: retained?.scopeHash ?? digest(JSON.stringify([input.runtime.profileKey, input.discussionId, input.artifactScope, input.runtime.providerId, input.runtime.modelId])),
         turnBoundary: turnMarker(input.runId),
+        publicContext: userPrompt,
         fetchImpl: this.fetchImpl,
       });
       runAbort.signal.throwIfAborted();
-      const systemPrompt = buildSystemPrompt(productPrompt);
-      const userPrompt = buildUserPrompt({
-        materials: input.materials,
-        publicMessages: context.messages,
-        review: false,
-        allowedArtifacts,
-      });
       const mcpEnv:Record<string,string>={};
       const secretMcp=structuredClone(input.customMcp||{});
       for(const config of Object.values(secretMcp))for(const field of ['headers','environment'] as const)for(const [key,value]of Object.entries(config[field]||{})){const envKey='PATENT_MCP_SECRET_'+Object.keys(mcpEnv).length;mcpEnv[envKey]=value;config[field]![key]='{env:'+envKey+'}';}
@@ -938,7 +936,7 @@ export class OpenCodeRunner implements AgentRunner {
       eventAbort = new AbortController();
       const eventState = { idleObserved: false, sessionError: false, error: undefined as {code:string;message:string}|undefined };
       void this.consumeEvents(origin, auth, eventAbort.signal, sessionId, texts, eventState, emit,input.runId);
-      const promptBody = { text: userPrompt + '\n' + turnMarker(input.runId), metadata: { workbenchRunId: input.runId }, delivery: 'queue', resume: true };
+      const promptBody = { text: userPrompt, metadata: { workbenchRunId: input.runId }, delivery: 'queue', resume: true };
       await client.request('POST', `/api/session/${sessionId}/prompt`, promptBody, bounded(deadline, HTTP_WAIT_MS));
       emit({ type: 'status', status: 'busy' });
       emit({ type: 'activity', label: '等待模型响应' });

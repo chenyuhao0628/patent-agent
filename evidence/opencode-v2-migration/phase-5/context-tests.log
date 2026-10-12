@@ -1,0 +1,27 @@
+✔ openai-responses: compaction of older history uses only the current task and retains current progress (0.937125ms)
+✔ openai-responses: compaction before the first normal request uses the public seed; unknown unmarked history fails closed (0.110584ms)
+✔ openai-responses: a checkpoint containing the current marker drops older serialized text, including earlier content parts (0.175292ms)
+✔ openai-chat-completions: compaction of older history uses only the current task and retains current progress (0.075958ms)
+✔ openai-chat-completions: compaction before the first normal request uses the public seed; unknown unmarked history fails closed (0.054583ms)
+✔ openai-chat-completions: a checkpoint containing the current marker drops older serialized text, including earlier content parts (0.078084ms)
+✔ anthropic-messages: compaction of older history uses only the current task and retains current progress (0.084792ms)
+✔ anthropic-messages: compaction before the first normal request uses the public seed; unknown unmarked history fails closed (0.050375ms)
+✔ anthropic-messages: a checkpoint containing the current marker drops older serialized text, including earlier content parts (0.056917ms)
+✔ gemini-generate-content: compaction of older history uses only the current task and retains current progress (0.101625ms)
+✔ gemini-generate-content: compaction before the first normal request uses the public seed; unknown unmarked history fails closed (0.053041ms)
+✔ gemini-generate-content: a checkpoint containing the current marker drops older serialized text, including earlier content parts (0.039583ms)
+✔ native pagination stops at this run and never returns an earlier idle outcome (0.752959ms)
+✔ unknown additive fields and future versions are accepted; malformed required contracts fail (0.173917ms)
+✔ v2 deltas, cumulative polling, reasoning and foreign sessions stay separate (0.433875ms)
+✔ openai-responses keeps current task tools but does not replay hidden thought or stale tools from a prior task (0.240125ms)
+✔ openai-chat-completions keeps current task tools but does not replay hidden thought or stale tools from a prior task (0.050042ms)
+✔ anthropic-messages keeps current task tools but does not replay hidden thought or stale tools from a prior task (0.051375ms)
+✔ gemini-generate-content keeps current task tools but does not replay hidden thought or stale tools from a prior task (0.045625ms)
+ℹ tests 19
+ℹ suites 0
+ℹ pass 19
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 174.278
