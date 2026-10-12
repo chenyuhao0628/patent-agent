@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { DesktopState } from '../contracts/desktop-state.ts';
 import { createWorkspaceStore } from './workspace-data.ts';
-import { createModuleData } from './module-data.ts';
+import { createModuleData, createModuleDataLease } from './module-data.ts';
 
 function state(): DesktopState {
  return {profileKey:'local',scopeVersion:1,snapshotVersion:1,caseRevisions:{a:0,b:0},account:null,
@@ -60,4 +60,11 @@ test('a settings response arriving after an account switch cannot restore its se
  const saved=store.saveSettings({provider:'OLD',baseUrl:'',model:''}),rejected=assert.rejects(saved,/账号已变化/);
  store.receive({...state(),profileKey:'other',scopeVersion:2});hold.release();await rejected;
  assert.equal(store.getSnapshot().workspace.settings.provider,'');assert.equal(store.getSnapshot().nativeState?.profileKey,'other');
+});
+
+test('unmounting a module expires retained callbacks and releases its subscriptions',async()=>{
+ const initial=state(),store=createWorkspaceStore({initial,api:{saveWorkspace:async()=>{throw Error('Must not write')},saveSettings:async()=>initial}});
+ const lease=createModuleDataLease(store,'a',true);let calls=0;lease.data.subscribe(()=>calls++);lease.dispose();
+ store.receive({...initial,snapshotVersion:2});assert.equal(calls,0);assert.throws(()=>lease.data.case(),/范围已变化/);
+ if('saveMetadata' in lease.data)await assert.rejects(lease.data.saveMetadata!({title:'late'}),/范围已变化/);
 });

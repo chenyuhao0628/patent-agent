@@ -1,0 +1,30 @@
+import type { ComponentType } from 'react';
+import type { LucideIcon } from 'lucide-react';
+import type { CaseWorkspaceView } from '../domain/case-view.ts';
+import type { Module } from '../domain/library.ts';
+import type { ModuleData } from './module-data.ts';
+import type { GlobalPanelContext, CasePanelContext } from './panel-context.ts';
+
+export type PanelLocation = 'global' | 'case';
+export type PanelAccessContext = { desktop: boolean; capabilities: ReadonlySet<string>; caseView?: CaseWorkspaceView; historical: boolean };
+export type PanelProps = { context: GlobalPanelContext | CasePanelContext; data: ModuleData; readonly: boolean };
+export type PanelDefinition = {
+  id: string;
+  location: PanelLocation;
+  route: string;
+  label: string;
+  order: number;
+  navigation?: 'main' | 'footer' | 'case' | 'hidden';
+  icon?: LucideIcon;
+  module?: Module;
+  activeNavigation?: string;
+  requiredCapabilities?: readonly string[];
+  canOpen?: (context: PanelAccessContext) => boolean;
+  visible?: (context: PanelAccessContext) => boolean;
+  canEdit?: (context: PanelAccessContext) => boolean;
+  enter?: 'open-case';
+  historyRoute?: string;
+  layout?: 'standard' | 'focused' | 'conversation';
+  enabled?: boolean;
+  load: () => Promise<{ default: ComponentType<PanelProps> }>;
+};

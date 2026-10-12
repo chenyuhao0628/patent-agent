@@ -1,0 +1,10 @@
+{
+  "loadRetry": true,
+  "lateLoadExcluded": true,
+  "capabilityGate": true,
+  "readonly": true,
+  "unmountLeaseExpired": true,
+  "accountLeaseExpired": true,
+  "caughtExpectedLoadFailure": 1,
+  "checkedAt": "2026-10-12T07:56:03.739Z"
+}

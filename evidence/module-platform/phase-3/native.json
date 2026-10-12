@@ -1,0 +1,99 @@
+{
+  "routes": [
+    {
+      "page": "library",
+      "loaded": true
+    },
+    {
+      "page": "official",
+      "loaded": true
+    },
+    {
+      "page": "tasks",
+      "loaded": true
+    },
+    {
+      "page": "review",
+      "loaded": true
+    },
+    {
+      "page": "transfer",
+      "loaded": true
+    },
+    {
+      "page": "status",
+      "loaded": true
+    },
+    {
+      "page": "settings",
+      "loaded": true
+    },
+    {
+      "page": "reply",
+      "loaded": true
+    },
+    {
+      "page": "write",
+      "loaded": true
+    },
+    {
+      "tab": "overview",
+      "loaded": true
+    },
+    {
+      "tab": "materials",
+      "loaded": true
+    },
+    {
+      "tab": "discussion",
+      "loaded": true
+    },
+    {
+      "tab": "write",
+      "loaded": true
+    },
+    {
+      "tab": "review",
+      "loaded": true
+    },
+    {
+      "tab": "history",
+      "loaded": true
+    },
+    {
+      "tab": "outputs",
+      "loaded": true
+    },
+    {
+      "tab": "flow",
+      "loaded": true
+    },
+    {
+      "tab": "submit",
+      "loaded": true
+    }
+  ],
+  "missingHistoricalTargetRejected": true,
+  "readOnlyDidNotStartTask": true,
+  "taskSurvivedPanelSwitch": true,
+  "stopped": true,
+  "geometry": [
+    {
+      "width": 1440,
+      "height": 900,
+      "scrollWidth": 1425
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "scrollWidth": 1905
+    },
+    {
+      "width": 1280,
+      "height": 800,
+      "scrollWidth": 1265
+    }
+  ],
+  "errors": [],
+  "checkedAt": "2026-10-12T07:52:20.721Z"
+}

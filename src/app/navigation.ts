@@ -1,4 +1,5 @@
-import { ArrowRightLeft, BadgeCheck, Clock3, FileSearch, Folder, ListTodo, Settings, type LucideIcon } from 'lucide-react';
+import { Settings, type LucideIcon } from 'lucide-react';
+import { panels } from './panels.ts';
 import type { CaseTab } from '../components/CaseSpace.tsx';
 import type { Module } from '../domain/library.ts';
 import { FEATURE_MODULES, type FeatureContext } from './features.ts';
@@ -18,41 +19,16 @@ export function isHistoryTarget(target?:CaseNavigationTarget):boolean {
 }
 export type NavigationItem = { id: string; label: string; icon: LucideIcon };
 
-const CORE_NAV_ITEMS: NavigationItem[] = [
-  { id: 'library', label: '案件库', icon: Folder },
-  { id: 'official', label: '等待官方', icon: Clock3 },
-  { id: 'tasks', label: '工作任务', icon: ListTodo },
-  { id: 'status', label: '案件状态', icon: BadgeCheck },
-];
-
-const AGGREGATE_NAV_ITEMS: Array<NavigationItem & { capability: string }> = [
-  { id: 'review', label: '审查队列', icon: FileSearch, capability: 'professional.review' },
-  { id: 'transfer', label: '内部流转', icon: ArrowRightLeft, capability: 'transfer.prepare' },
-];
-
 export function navigationItems(context: FeatureContext): NavigationItem[] {
-  return [
-    ...CORE_NAV_ITEMS.slice(0, 3),
-    ...AGGREGATE_NAV_ITEMS
-      .filter(item => context.desktop && context.capabilities.has(item.capability))
-      .map(({ capability: _capability, ...item }) => item),
-    CORE_NAV_ITEMS[3],
-  ];
+ return panels.navigation('global',{...context,historical:false}).filter(p=>p.navigation==='main').map(p=>({id:p.route,label:p.label,icon:p.icon??Settings}));
 }
 
-export const SETTINGS_NAVIGATION = { label: '设置', icon: Settings } as const;
+export function footerNavigationItems(context:FeatureContext):NavigationItem[]{return panels.navigation('global',{...context,historical:false}).filter(p=>p.navigation==='footer').map(p=>({id:p.route,label:p.label,icon:p.icon??Settings}));}
+export const SETTINGS_NAVIGATION = { label: panels.resolve('global','settings')!.label, icon: Settings } as const;
 export const MODULE_LABELS: Record<Module, string> = Object.fromEntries(
   FEATURE_MODULES.map(feature => [feature.id, feature.label]),
 ) as Record<Module, string>;
-export const PAGE_LABELS: Record<string, string> = {
-  library: '案件库',
-  official: '等待官方',
-  tasks: '工作任务',
-  review: '审查队列',
-  transfer: '内部流转',
-  status: '案件状态',
-  settings: '设置',
-};
+export const PAGE_LABELS: Record<string,string> = Object.fromEntries(panels.all.filter(p=>p.location==='global').map(p=>[p.route,p.label]));
 
 export function navigate(path: string) { location.hash = path; }
 
@@ -82,7 +58,7 @@ export function parseRoute(hash: string): AppRoute {
 }
 
 export function isCaseTab(value: string | undefined): value is CaseTab {
-  return !!value && ['overview', 'materials', 'discussion', 'reply', 'write', 'review', 'history', 'outputs', 'flow', 'submit'].includes(value);
+  return !!value && !!panels.resolve('case',value);
 }
 
 export function pageLabel(page: string, module?: Module) {

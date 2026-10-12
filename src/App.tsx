@@ -5,9 +5,10 @@ import { ImportCases } from './components/ImportCases.tsx';
 import { Modal } from './components/Primitives.tsx';
 import { LocalCaseForm } from './components/LocalCaseForm.tsx';
 import { desktop } from './desktop.ts';
-import { inOfficialWaiting, type Module } from './domain/library.ts';
+import { inOfficialWaiting } from './domain/library.ts';
+import { panels } from './app/panels.ts';
 import { workModule } from './domain/lifecycle.ts';
-import { casePath, isCaseTab, navigate, readRoute, type CaseNavigationTarget } from './app/navigation.ts';
+import { casePath, navigate, readRoute, type CaseNavigationTarget } from './app/navigation.ts';
 import { AppShell } from './app/app-shell.tsx';
 import { PageContent } from './app/page-content.tsx';
 import type { DesktopScope } from './app/scope.ts';
@@ -27,13 +28,14 @@ export function App({ store }: { store: WorkspaceStore }) {
   useEffect(()=>{active.current=true;return()=>{active.current=false;};},[]);
   const page = route[0] || 'library';
   const item = page === 'case' ? data.cases.find(caseItem => caseItem.id === route[1]) : undefined;
-  const tab: CaseTab = isCaseTab(route[2]) ? route[2] : 'overview';
-  const module = ['reply', 'write', 'review', 'transfer'].includes(page) ? page as Module : undefined;
+  const tab: CaseTab = route[2] || 'overview';
+  const definition=panels.resolve('global',page);
+  const module=definition?.module;
   const activeNav = item
     ? inOfficialWaiting(item)
       ? 'official'
       : 'library'
-    : page === 'reply' || page === 'write' ? 'library' : page;
+    : definition?.activeNavigation ?? page;
 
   useEffect(() => {
     const handler = () => {

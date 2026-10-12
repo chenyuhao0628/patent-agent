@@ -6,7 +6,7 @@ import type { DesktopState } from '../desktop.ts';
 import { desktop } from '../desktop.ts';
 import { caseTabs, type CaseTab } from '../components/CaseSpace.tsx';
 import { inOfficialWaiting, type Module } from '../domain/library.ts';
-import { MODULE_LABELS, PAGE_LABELS, SETTINGS_NAVIGATION, navigationItems } from './navigation.ts';
+import { MODULE_LABELS, PAGE_LABELS, footerNavigationItems, navigationItems } from './navigation.ts';
 import { featureContextForDesktop } from './features.ts';
 
 type AppShellProps = {
@@ -45,8 +45,10 @@ export function AppShell({
   const jobs = data.cases.flatMap(c => c.rounds.filter(r => r.job).map(r => ({ c, r })));
   const backHref = item && inOfficialWaiting(item) ? '#/official' : '#/library';
   const backLabel = item && inOfficialWaiting(item) ? '等待官方' : '案件库';
-  const pageLabel = PAGE_LABELS[page] ?? (module ? MODULE_LABELS[module] : '案件库');
-  const navItems = navigationItems(featureContextForDesktop(nativeState ? desktop : undefined));
+  const pageLabel = PAGE_LABELS[page] ?? (module ? MODULE_LABELS[module] : '面板不可用');
+  const featureContext=featureContextForDesktop(nativeState ? desktop : undefined);
+  const navItems = navigationItems(featureContext);
+  const footerItems=footerNavigationItems(featureContext);
 
   return <div className="app-shell">
     <aside className="global-sidebar">
@@ -67,10 +69,7 @@ export function AppShell({
         </div>)}
       </nav>
       <div className="sidebar-bottom">
-        <a href="#/settings" aria-label={SETTINGS_NAVIGATION.label} className={page === 'settings' ? 'active' : ''}>
-          <SETTINGS_NAVIGATION.icon/>
-          <span>{SETTINGS_NAVIGATION.label}</span>
-        </a>
+        {footerItems.map(entry=><a key={entry.id} href={`#/${entry.id}`} aria-label={entry.label} className={page===entry.id?'active':''}><entry.icon/><span>{entry.label}</span></a>)}
         <div>
           <UserRound/>
           <span>{nativeState?.account?.displayName ?? '本机工作空间'}</span>
