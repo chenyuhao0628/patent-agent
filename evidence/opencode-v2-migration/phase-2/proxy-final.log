@@ -1,0 +1,28 @@
+✔ stream timing retains local request correlation when upstream supplies its own request id (24.358292ms)
+✔ unknown protocol is rejected and does not fall back to chat (0.199583ms)
+✔ proxy replaces dummy child key, injects session/UA/reasoning/limits, store=false, and rejects other endpoints (2.7925ms)
+✔ proxy rejects redirects, caps body, aborts upstream when client cancels, and does not log secrets (84.098083ms)
+✔ applyWirePolicy writes Gemini nested generationConfig reasoning and keeps protocol npm mapping (0.126958ms)
+✔ vendor-default omitted reasoning strips engine injections (0.059208ms)
+✔ Gemini streamGenerateContent keeps alt=sse query (0.14825ms)
+✔ unauthorized and foreign origin never reach upstream fetch (4.627083ms)
+✔ childAuthAccepted matches protocol-native headers or injected Authorization, not the other protocol key (0.0915ms)
+✔ four protocols forward only the matching upstream auth header and reject wrong child credentials without fetch (7.484084ms)
+✔ close during body read does not forward the late payload (41.038333ms)
+✔ DeepSeek Responses adapter works on Node and fetch transports and restores tool-history reasoning (16.164709ms)
+✔ node forwards compressed json without double decoding or stale length (2.1275ms)
+✔ node forwards compressed sse without double decoding or stale length (2.627125ms)
+✔ node forwards compressed deepseek without double decoding or stale length (1.283875ms)
+✔ node cancels upstream SSE after the POST body has fully arrived (21.823417ms)
+✔ fetch forwards compressed json without double decoding or stale length (2.344833ms)
+✔ fetch forwards compressed sse without double decoding or stale length (2.047541ms)
+✔ fetch forwards compressed deepseek without double decoding or stale length (1.468916ms)
+✔ fetch cancels upstream SSE after the POST body has fully arrived (21.806917ms)
+ℹ tests 20
+ℹ suites 0
+ℹ pass 20
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 331.336958

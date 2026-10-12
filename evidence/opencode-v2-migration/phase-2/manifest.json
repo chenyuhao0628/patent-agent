@@ -1,0 +1,30 @@
+{
+  "date": "2026-10-12",
+  "baseline": "d2270e0",
+  "files": [
+    {
+      "file": "RESULT.md",
+      "sha256": "20f2fa83bf82fa94a915585728c95594bdd7267b85fa1d587e7a18ab36274601"
+    },
+    {
+      "file": "build.log",
+      "sha256": "fc2d36b243b01e2878cb4d139842790f6670a711d2e4e7737339140d927c0876"
+    },
+    {
+      "file": "proxy-final.log",
+      "sha256": "50ce4a00923ebfe14ea745d24af46d02932dc60a1902f4eb0bd3bb7edb9846f4"
+    },
+    {
+      "file": "regression-after.log",
+      "sha256": "93f13e6e787bd773c3a6d1fb5fd2d022db10e6209f6d174a404edec790fb1197"
+    },
+    {
+      "file": "regression-before.log",
+      "sha256": "ee58dcc130bc92033f1bf58425aecbaf4b7cd8f2bab5bc602d936c857babd9b9"
+    },
+    {
+      "file": "tests.log",
+      "sha256": "8951ec8e401987c241f5e48e715c9ba2a13f8fdac1d20a35246d64c7bb3d0587"
+    }
+  ]
+}

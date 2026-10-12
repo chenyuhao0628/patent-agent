@@ -1,0 +1,280 @@
+✔ stream timing retains local request correlation when upstream supplies its own request id (29.86775ms)
+✔ unknown protocol is rejected and does not fall back to chat (0.188ms)
+✔ proxy replaces dummy child key, injects session/UA/reasoning/limits, store=false, and rejects other endpoints (2.2975ms)
+✔ proxy rejects redirects, caps body, aborts upstream when client cancels, and does not log secrets (83.549375ms)
+✔ applyWirePolicy writes Gemini nested generationConfig reasoning and keeps protocol npm mapping (0.139291ms)
+✔ vendor-default omitted reasoning strips engine injections (0.056042ms)
+✔ Gemini streamGenerateContent keeps alt=sse query (0.142334ms)
+✔ unauthorized and foreign origin never reach upstream fetch (4.144167ms)
+✔ childAuthAccepted matches protocol-native headers or injected Authorization, not the other protocol key (0.089958ms)
+✔ four protocols forward only the matching upstream auth header and reject wrong child credentials without fetch (6.907958ms)
+✔ close during body read does not forward the late payload (42.685375ms)
+✔ DeepSeek Responses adapter works on Node and fetch transports and restores tool-history reasoning (16.067417ms)
+✖ node forwards compressed json without double decoding or stale length (2.105167ms)
+✖ node forwards compressed sse without double decoding or stale length (3.242541ms)
+✖ node forwards compressed deepseek without double decoding or stale length (3.024375ms)
+✖ node cancels upstream SSE after the POST body has fully arrived (2015.17125ms)
+✖ fetch forwards compressed json without double decoding or stale length (4.782292ms)
+✖ fetch forwards compressed sse without double decoding or stale length (4.5225ms)
+✖ fetch forwards compressed deepseek without double decoding or stale length (3.072583ms)
+✖ fetch cancels upstream SSE after the POST body has fully arrived (2002.847459ms)
+✖ completed tool-call and unknown-finish turns are not terminal answers (0.674333ms)
+✖ runner waits past tool-boundary and adopts the final checked artifact (169.908292ms)
+✖ runner waits past busy-boundary and adopts the final checked artifact (144.799792ms)
+✖ cancellation at before-start leaves no listening task services (3.343542ms)
+✖ cancellation at broker-initializing leaves no listening task services (3.064208ms)
+✖ child exit after prompt is reported as server_exited rather than the task deadline (5004.99ms)
+✔ Windows argv encoding preserves embedded quotes and trailing backslashes (0.309917ms)
+✖ managed process cleanup kills descendants after their root has already exited (345.016542ms)
+ℹ tests 28
+ℹ suites 0
+ℹ pass 13
+ℹ fail 15
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 5467.794917
+
+✖ failing tests:
+
+test at desktop/agent-proxy.test.ts:508:53
+✖ node forwards compressed json without double decoding or stale length (2.105167ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  'gzip' !== null
+  
+      at TestContext.<anonymous> (file:///private/var/folders/hq/dbmwrsr53nq3r4kgtg843ph40000gn/T/patent-phase2-before-x9_357kz/desktop/agent-proxy.test.ts:524:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'gzip',
+    expected: null,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at desktop/agent-proxy.test.ts:508:53
+✖ node forwards compressed sse without double decoding or stale length (3.242541ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  'br' !== null
+  
+      at TestContext.<anonymous> (file:///private/var/folders/hq/dbmwrsr53nq3r4kgtg843ph40000gn/T/patent-phase2-before-x9_357kz/desktop/agent-proxy.test.ts:524:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'br',
+    expected: null,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at desktop/agent-proxy.test.ts:508:53
+✖ node forwards compressed deepseek without double decoding or stale length (3.024375ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  'gzip' !== null
+  
+      at TestContext.<anonymous> (file:///private/var/folders/hq/dbmwrsr53nq3r4kgtg843ph40000gn/T/patent-phase2-before-x9_357kz/desktop/agent-proxy.test.ts:524:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'gzip',
+    expected: null,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at desktop/agent-proxy.test.ts:531:3
+✖ node cancels upstream SSE after the POST body has fully arrived (2015.17125ms)
+  AssertionError [ERR_ASSERTION]: cancelling the response must close the still-running upstream response
+  
+  false !== true
+  
+      at TestContext.<anonymous> (file:///private/var/folders/hq/dbmwrsr53nq3r4kgtg843ph40000gn/T/patent-phase2-before-x9_357kz/desktop/agent-proxy.test.ts:549:12)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at desktop/agent-proxy.test.ts:508:53
+✖ fetch forwards compressed json without double decoding or stale length (4.782292ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  'gzip' !== null
+  
+      at TestContext.<anonymous> (file:///private/var/folders/hq/dbmwrsr53nq3r4kgtg843ph40000gn/T/patent-phase2-before-x9_357kz/desktop/agent-proxy.test.ts:524:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'gzip',
+    expected: null,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at desktop/agent-proxy.test.ts:508:53
+✖ fetch forwards compressed sse without double decoding or stale length (4.5225ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  'br' !== null
+  
+      at TestContext.<anonymous> (file:///private/var/folders/hq/dbmwrsr53nq3r4kgtg843ph40000gn/T/patent-phase2-before-x9_357kz/desktop/agent-proxy.test.ts:524:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'br',
+    expected: null,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at desktop/agent-proxy.test.ts:508:53
+✖ fetch forwards compressed deepseek without double decoding or stale length (3.072583ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  'gzip' !== null
+  
+      at TestContext.<anonymous> (file:///private/var/folders/hq/dbmwrsr53nq3r4kgtg843ph40000gn/T/patent-phase2-before-x9_357kz/desktop/agent-proxy.test.ts:524:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'gzip',
+    expected: null,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at desktop/agent-proxy.test.ts:531:3
+✖ fetch cancels upstream SSE after the POST body has fully arrived (2002.847459ms)
+  AssertionError [ERR_ASSERTION]: cancelling the response must close the still-running upstream response
+  
+  false !== true
+  
+      at TestContext.<anonymous> (file:///private/var/folders/hq/dbmwrsr53nq3r4kgtg843ph40000gn/T/patent-phase2-before-x9_357kz/desktop/agent-proxy.test.ts:549:12)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at desktop/agent-runtime-lifecycle.test.ts:50:1
+✖ completed tool-call and unknown-finish turns are not terminal answers (0.674333ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  true !== false
+  
+      at TestContext.<anonymous> (file:///private/var/folders/hq/dbmwrsr53nq3r4kgtg843ph40000gn/T/patent-phase2-before-x9_357kz/desktop/agent-runtime-lifecycle.test.ts:53:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: true,
+    expected: false,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at desktop/agent-runtime-lifecycle.test.ts:57:56
+✖ runner waits past tool-boundary and adopts the final checked artifact (169.908292ms)
+  [Error: ENOENT: no such file or directory, open '/var/folders/hq/dbmwrsr53nq3r4kgtg843ph40000gn/T/runtime-lifecycle-jmhfU1/run/work/final-reached'] { errno: -2, code: 'ENOENT', syscall: 'open', path: '/var/folders/hq/dbmwrsr53nq3r4kgtg843ph40000gn/T/runtime-lifecycle-jmhfU1/run/work/final-reached' }
+
+test at desktop/agent-runtime-lifecycle.test.ts:57:56
+✖ runner waits past busy-boundary and adopts the final checked artifact (144.799792ms)
+  [Error: ENOENT: no such file or directory, open '/var/folders/hq/dbmwrsr53nq3r4kgtg843ph40000gn/T/runtime-lifecycle-aKkdMa/run/work/final-reached'] { errno: -2, code: 'ENOENT', syscall: 'open', path: '/var/folders/hq/dbmwrsr53nq3r4kgtg843ph40000gn/T/runtime-lifecycle-aKkdMa/run/work/final-reached' }
+
+test at desktop/agent-runtime-lifecycle.test.ts:66:62
+✖ cancellation at before-start leaves no listening task services (3.343542ms)
+  AssertionError [ERR_ASSERTION]: aborted tasks must revoke both model and tool servers
+  
+  2 !== 0
+  
+      at TestContext.<anonymous> (file:///private/var/folders/hq/dbmwrsr53nq3r4kgtg843ph40000gn/T/patent-phase2-before-x9_357kz/desktop/agent-runtime-lifecycle.test.ts:75:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 2,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at desktop/agent-runtime-lifecycle.test.ts:66:62
+✖ cancellation at broker-initializing leaves no listening task services (3.064208ms)
+  AssertionError [ERR_ASSERTION]: aborted tasks must revoke both model and tool servers
+  
+  2 !== 0
+  
+      at TestContext.<anonymous> (file:///private/var/folders/hq/dbmwrsr53nq3r4kgtg843ph40000gn/T/patent-phase2-before-x9_357kz/desktop/agent-runtime-lifecycle.test.ts:75:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 2,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at desktop/agent-runtime-lifecycle.test.ts:78:1
+✖ child exit after prompt is reported as server_exited rather than the task deadline (5004.99ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'deadline'
+  - 'server_exited'
+  
+      at TestContext.<anonymous> (file:///private/var/folders/hq/dbmwrsr53nq3r4kgtg843ph40000gn/T/patent-phase2-before-x9_357kz/desktop/agent-runtime-lifecycle.test.ts:82:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'deadline',
+    expected: 'server_exited',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at desktop/managed-process.test.ts:15:1
+✖ managed process cleanup kills descendants after their root has already exited (345.016542ms)
+  AssertionError [ERR_ASSERTION]: descendant must stop writing after cleanup
+  
+  11 !== 5
+  
+      at TestContext.<anonymous> (file:///private/var/folders/hq/dbmwrsr53nq3r4kgtg843ph40000gn/T/patent-phase2-before-x9_357kz/desktop/managed-process.test.ts:30:10)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 11,
+    expected: 5,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

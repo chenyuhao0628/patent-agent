@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
-import { spawn, execFile } from 'node:child_process';
+import { killManagedProcess, spawnManagedProcess } from './managed-process.ts';
 import { createHash, randomUUID } from 'node:crypto';
 import { managedPath, atomicJSON } from './files.ts';
 import { managedToolsRoot } from './managed-tools.ts';
@@ -86,7 +86,7 @@ export async function executeLocalCommand(input: { command: string; workRoot: st
     const win = process.platform === 'win32';
     const executable = win ? path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe') : '/bin/sh';
     const args = win ? ['-NoLogo', '-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(input.command, 'utf16le').toString('base64')] : ['-c', input.command];
-    const child = spawn(executable, args, { cwd: input.directory === 'tools' ? input.toolsRoot : input.workRoot, env, detached: !win, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawnManagedProcess(executable, args, { cwd: input.directory === 'tools' ? input.toolsRoot : input.workRoot, env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] }, environmentRoot);
     let stdout = '', stderr = '', bytes = 0, truncated = false, stopped = false, timedOut = false, settled = false;
     const capture = (key: 'stdout' | 'stderr', data: Buffer) => {
       const remaining = Math.max(0, 48000 - bytes); bytes += data.length;
@@ -94,11 +94,9 @@ export async function executeLocalCommand(input: { command: string; workRoot: st
       const value = data.subarray(0, remaining).toString('utf8');
       if (key === 'stdout') stdout += value; else stderr += value;
     };
-    child.stdout.on('data', b => capture('stdout', b)); child.stderr.on('data', b => capture('stderr', b));
+    child.stdout?.on('data', b => capture('stdout', b)); child.stderr?.on('data', b => capture('stderr', b));
     const killTree = () => {
-      if (!child.pid) return;
-      if (win) execFile(path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'taskkill.exe'), ['/PID', String(child.pid), '/T', '/F'], { timeout: 5000, windowsHide: true }, () => {});
-      else try { process.kill(-child.pid, 'SIGKILL'); } catch { /* exited */ }
+      void killManagedProcess(child);
     };
     const abort = () => { stopped = true; killTree(); };
     const timer = setTimeout(() => { timedOut = true; killTree(); }, timeout * 1000);
@@ -106,7 +104,7 @@ export async function executeLocalCommand(input: { command: string; workRoot: st
     const clean = () => { clearTimeout(timer); input.signal?.removeEventListener('abort', abort); };
     child.once('error', e => { if (settled) return; settled = true; clean(); reject(e); });
     // Also kill descendants after an ordinary exit: a command cannot silently outlive a task.
-    child.once('exit', () => { if (!win) killTree(); });
+    child.once('exit', killTree);
     child.once('close', (exitCode, signal) => {
       if (settled) return; settled = true; clean();
       resolve({ exitCode, signal, stdout: redactToolText(stdout), stderr: redactToolText(stderr), truncated, stopped, timedOut, durationMs: Date.now() - start });

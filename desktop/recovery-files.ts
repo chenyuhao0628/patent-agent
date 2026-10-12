@@ -42,7 +42,7 @@ export class RecoveryFiles {
       let dir:string;try{dir=relative?await managedPath(this.work,relative):this.work;const stat=await fs.lstat(dir);if(stat.isSymbolicLink()||!stat.isDirectory())return;}catch{return;}
       for(const item of (await fs.readdir(dir,{withFileTypes:true})).sort((a,b)=>a.name.localeCompare(b.name))){
         if(++visited>500||saved.length>=MAX_FILES){omitted=true;break;}
-        if(item.name==='.home'||item.name==='.tmp'||item.name.startsWith('.office-command-'))continue;
+        if(item.name==='.home'||item.name==='.tmp'||item.name.startsWith('.office-command-')||item.name.startsWith('.process-'))continue;
         const rel=relative?relative+'/'+item.name:item.name;
         if(item.isSymbolicLink()){omitted=true;continue;}
         if(item.isDirectory()){await walk(rel,depth+1);continue;}

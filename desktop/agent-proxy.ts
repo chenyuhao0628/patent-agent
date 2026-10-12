@@ -2,6 +2,8 @@ import { DeepseekEventAdapter, deepseekResponses, restoreDeepseekReasoning } fro
 import { diagnostic, withDiagnostics } from './diagnostics.ts';
 import http from 'node:http';
 import https from 'node:https';
+import { Readable, pipeline } from 'node:stream';
+import { createBrotliDecompress, createGunzip, createInflate } from 'node:zlib';
 import { Buffer } from 'node:buffer';
 import { randomBytes } from 'node:crypto';
 import type { RuntimeModelConfig } from './model-service.ts';
@@ -554,14 +556,17 @@ async function writeUpstreamResponse(
     return;
   }
   if(!/text\/event-stream/i.test(headers.get('content-type')||''))adapter=undefined;
-  copySafeHeaders(status, headers, res);
+  copySafeHeaders(status, headers, res, { decoded: true, transformed: !!adapter });
   if (!body) {
     res.end();
     return;
   }
   const reader = body.getReader();
+  const onAbort = () => { void reader.cancel().catch(() => undefined); };
+  signal.addEventListener('abort', onAbort, { once: true });
   let sent = 0;
   try {
+    if (signal.aborted) { await reader.cancel().catch(() => undefined); return; }
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -584,6 +589,8 @@ async function writeUpstreamResponse(
   } catch {
     void reader.cancel().catch(() => undefined);
     if (!res.writableEnded) res.destroy();
+  } finally {
+    signal.removeEventListener('abort', onAbort);
   }
 }
 
@@ -597,65 +604,24 @@ function writeNodeStream(
   responseLimit: number,
   adapter?: DeepseekEventAdapter,
 ): Promise<void> {
-  const rid = requestIdOf(headers);
-  diagnostic('model','upstream_headers',{statusCode:status,upstreamRequestId:rid});
-  if (status >= 400) {
-    upstream.resume();
-    const code = status === 401 || status === 403 || status === 429 ? `http_${status}` : 'upstream_error';
-    diagnostic('model','upstream_status',{statusCode:status,code,upstreamRequestId:rid});
-    safeLog('upstream error', { code, upstreamRequestId: rid });
-    writeJson(res, status >= 500 ? 502 : status, safeErrorPayload(code, rid));
+  // Node's HTTP client leaves compressed bytes intact. Decode before applying the
+  // event adapter and enforce the response limit on the decoded body on both paths.
+  let stream: Readable = upstream;
+  const encodings = (headers.get('content-encoding') || '').toLowerCase().split(',').map(s => s.trim()).filter(s => s && s !== 'identity');
+  if (encodings.some(s => !['gzip', 'x-gzip', 'deflate', 'br'].includes(s))) {
+    upstream.destroy();
+    writeJson(res, 502, safeErrorPayload('unsupported_content_encoding'));
     return Promise.resolve();
   }
-  if(!/text\/event-stream/i.test(headers.get('content-type')||''))adapter=undefined;
-  copySafeHeaders(status, headers, res);
-  (res as http.ServerResponse & { shouldKeepAlive?: boolean }).shouldKeepAlive = false;
-  const lengthHeader = headers.get('content-length');
-  const known = !adapter && lengthHeader !== null && /^\d+$/.test(lengthHeader) ? Number(lengthHeader) : -1;
-  return new Promise(resolve => {
-    let sent = 0;
-    const buffered: Buffer[] = [];
-    const fail = () => {
-      upstream.destroy();
-      if (!res.writableEnded && !res.destroyed) res.destroy();
-      resolve();
-    };
-    if (signal.aborted) {
-      fail();
-      return;
-    }
-    signal.addEventListener('abort', fail, { once: true });
-    const flushEnd = () => {
-      if (res.writableEnded || res.destroyed) {
-        resolve();
-        return;
-      }
-      if (known >= 0) res.end(buffered.length ? Buffer.concat(buffered) : undefined);
-      else res.end(adapter?.end());
-      if(adapter)diagnostic('model','thinking_adapter',{thinkingChars:adapter.thinkingChars});
-      resolve();
-    };
-    upstream.on('data', (chunk: Buffer | string) => {
-      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-      sent += buf.length;
-      if (sent > responseLimit) {
-        safeLog('upstream response over limit', { code: 'response_too_large', upstreamRequestId: rid });
-        fail();
-        return;
-      }
-      if (res.destroyed || signal.aborted) {
-        fail();
-        return;
-      }
-      if (known >= 0) buffered.push(buf);
-      else {try{res.write(adapter?adapter.push(buf):buf);}catch{safeLog('response adapter failed',{code:'event_frame_limit'});fail();}}
-    });
-    upstream.on('end', flushEnd);
-    upstream.on('error', fail);
-  });
+  for (const encoding of encodings.reverse()) {
+    const decoder = encoding === 'br' ? createBrotliDecompress() : encoding === 'deflate' ? createInflate() : createGunzip();
+    pipeline(stream, decoder, () => {}); // Propagate decoder errors/cancellation to the source.
+    stream = decoder;
+  }
+  return writeUpstreamResponse(status, headers, Readable.toWeb(stream) as ReadableStream<Uint8Array>, req, res, signal, responseLimit, adapter);
 }
 
-function copySafeHeaders(status: number, headers: Headers, res: http.ServerResponse) {
+function copySafeHeaders(status: number, headers: Headers, res: http.ServerResponse, body: { decoded?: boolean; transformed?: boolean } = {}) {
   res.statusCode = status;
   const contentType = headers.get('content-type') || 'application/json';
   res.setHeader('Content-Type', contentType);
@@ -663,6 +629,9 @@ function copySafeHeaders(status: number, headers: Headers, res: http.ServerRespo
   res.setHeader('Cache-Control', upstreamCache || 'no-store');
   res.setHeader('Connection', 'close');
   const skip = new Set(['transfer-encoding', 'connection', 'authorization', 'x-api-key', 'api-key', 'x-goog-api-key']);
+  // Fetch has already decoded HTTP compression. Adapters may also change byte length.
+  if (body.decoded && headers.has('content-encoding')) { skip.add('content-encoding'); skip.add('content-length'); }
+  if (body.transformed) skip.add('content-length');
   headers.forEach((value, key) => {
     const low = key.toLowerCase();
     if (skip.has(low) || low.includes('authorization') || low.includes('api-key')) return;
@@ -787,7 +756,10 @@ export function startAgentProxy(options: AgentProxyOptions): Promise<AgentProxy>
       return;
     }
     (req as http.IncomingMessage & { __abort?: AbortController }).__abort = controller;
-    req.on('aborted', () => controller.abort());
+    const onClientAbort = () => controller.abort();
+    const onClientClose = () => { if (!res.writableFinished) controller.abort(); };
+    req.once('aborted', onClientAbort);
+    res.once('close', onClientClose);
     const headers = new Headers({
       Accept: header(req.headers, 'accept') || 'application/json, text/event-stream',
       'User-Agent': OPENCODE_USER_AGENT,
@@ -808,6 +780,8 @@ export function startAgentProxy(options: AgentProxyOptions): Promise<AgentProxy>
         await forwardViaNode(target, method, headers, raw, controller.signal, req, res, responseLimit, adapter);
       }
     } finally {
+      req.off('aborted', onClientAbort);
+      res.off('close', onClientClose);
       controllers.delete(controller);
     }
   }

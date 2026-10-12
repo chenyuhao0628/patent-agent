@@ -7,7 +7,9 @@ import type { ArtifactQuality, EvidencePolicy } from '../src/domain/agent-eviden
 import { classifySessionError } from './agent-errors.ts';
 import type { McpConfig } from './extensions.ts';
 import { LOCAL_TOOL_NAMES, localToolAllowed, localToolPermissions } from './agent-local-tools.ts';
-import { spawn, execFile, type ChildProcess } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
+import { killManagedProcess, spawnManagedProcess } from './managed-process.ts';
+export { killManagedProcess, windowsTaskkillArgs, PROCESS_STOP_MS } from './managed-process.ts';
 import { Buffer } from 'node:buffer';
 import * as fsSync from 'node:fs';
 import * as fs from 'node:fs/promises';
@@ -72,7 +74,6 @@ export const PROVIDER_ID = 'patent';
 export const DEFAULT_RUN_DEADLINE_MS = 3_600_000;
 export const HEALTH_WAIT_MS = 20_000;
 export const HTTP_WAIT_MS = 15_000;
-export const PROCESS_STOP_MS = 8_000;
 export const POLL_INTERVAL_MS = 250;
 export const LOG_MAX_BYTES = 1_000_000;
 export const HTTP_RESPONSE_MAX_BYTES = 16 * 1024 * 1024;
@@ -490,63 +491,6 @@ function bounded(deadline: number, ms: number): number {
   return Math.min(ms, left);
 }
 
-export function windowsTaskkillArgs(pid: number): string[] {
-  return ['/PID', String(pid), '/T', '/F'];
-}
-
-async function waitExit(proc: ChildProcess, ms: number): Promise<boolean> {
-  if (proc.exitCode !== null || proc.signalCode !== null) return true;
-  return await new Promise(resolve => {
-    const onExit = () => {
-      clearTimeout(timer);
-      resolve(true);
-    };
-    const timer = setTimeout(() => {
-      proc.off('exit', onExit);
-      resolve(proc.exitCode !== null || proc.signalCode !== null);
-    }, ms);
-    timer.unref?.();
-    if (proc.exitCode !== null || proc.signalCode !== null) {
-      clearTimeout(timer);
-      resolve(true);
-      return;
-    }
-    proc.once('exit', onExit);
-  });
-}
-
-function taskkillHeldPid(pid: number): Promise<void> {
-  return new Promise(resolve => {
-    execFile('taskkill', windowsTaskkillArgs(pid), { windowsHide: true, timeout: 5_000 }, () => resolve());
-  });
-}
-
-export async function killManagedProcess(proc: ChildProcess | undefined): Promise<void> {
-  if (!proc?.pid || proc.exitCode !== null || proc.signalCode !== null) return;
-  const pid = proc.pid;
-  if (process.platform === 'win32') {
-    try { proc.kill(); } catch { /* ignore */ }
-    if (!await waitExit(proc, PROCESS_STOP_MS) && proc.exitCode === null && proc.signalCode === null) {
-      await taskkillHeldPid(pid);
-      await waitExit(proc, 3_000);
-    }
-    return;
-  }
-  try {
-    process.kill(-pid, 'SIGTERM');
-  } catch {
-    try { proc.kill('SIGTERM'); } catch { /* ignore */ }
-  }
-  if (!await waitExit(proc, PROCESS_STOP_MS) && proc.exitCode === null && proc.signalCode === null) {
-    try {
-      process.kill(-pid, 'SIGKILL');
-    } catch {
-      try { proc.kill('SIGKILL'); } catch { /* ignore */ }
-    }
-    await waitExit(proc, 3_000);
-  }
-}
-
 type OpenCodeClient = {
   url: string;
   request: (method: string, path: string, body?: unknown, timeoutMs?: number) => Promise<unknown>;
@@ -773,7 +717,10 @@ export function inspectAssistantTurn(messages: unknown, runId?:string): Assistan
   }
   const completedAt = lastAssistant ? (asRecord(lastAssistant.time)?.completed ?? lastAssistant.completed) : undefined;
   if(lastAssistant?.finish==='length')error={code:'output_limit',message:'模型达到最大输出限制，未能生成完整产物。请在模型设置中提高最大输出后重试；原稿保留。'};
-  const assistantCompleted = Boolean(lastAssistant) && isCompletedTimestamp(completedAt) && !pendingTools;
+  const finish = asString(lastAssistant?.finish);
+  if (finish === 'content-filter' || finish === 'error') error ??= { code: 'incomplete_response', message: '模型未正常结束本次回复，原稿与检查点已保留。' };
+  const assistantCompleted = Boolean(lastAssistant) && isCompletedTimestamp(completedAt) && !pendingTools
+    && (finish === undefined || finish === 'stop');
   return {
     pendingTools,
     assistantCompleted,
@@ -789,12 +736,6 @@ function sessionStatus(map: unknown, sessionId: string): string | undefined {
   const rec = asRecord(map);
   const row = asRecord(rec?.[sessionId]);
   return asString(row?.type) || asString(asRecord(row?.status)?.type);
-}
-
-function isAbortError(error: unknown): boolean {
-  const code = (error as { code?: string; name?: string })?.code || (error as { name?: string })?.name || '';
-  const message = String((error as Error)?.message || '');
-  return code === 'ABORT_ERR' || code === 'TIMEOUT' || /abort|timeout/i.test(String(code)) || /aborted/i.test(message);
 }
 
 export class OpenCodeRunner implements AgentRunner {
@@ -846,7 +787,6 @@ export class OpenCodeRunner implements AgentRunner {
     const polledSteps = new Map<string, string>();
     let closed = false;
     let aborted = false;
-    let idleObserved = false;
     const emit = (event: AgentEvent) => {
       if (closed && event.type !== 'status') return;
       if (aborted && event.type !== 'status') return;
@@ -871,15 +811,19 @@ export class OpenCodeRunner implements AgentRunner {
     let proc: ChildProcess | undefined;
     let client: OpenCodeClient | undefined;
     let eventAbort: AbortController | undefined;
-    let ioClosed = false;
+    let closedBroker: AgentBroker | undefined;
+    let closedProxy: AgentProxy | undefined;
+    let ioClosing = Promise.resolve();
+    let processFailure: { code: string; message: string } | undefined;
 
-    const invalidateIO = async () => {
-      if (ioClosed) return;
-      ioClosed = true;
+    const invalidateIO = () => {
       eventAbort?.abort();
       client?.close();
-      try { await broker?.close(); } catch { /* ignore */ }
-      try { await proxy?.close(); } catch { /* ignore */ }
+      const closing: Promise<unknown>[] = [ioClosing];
+      if (broker && closedBroker !== broker) { closedBroker = broker; closing.push(broker.close()); }
+      if (proxy && closedProxy !== proxy) { closedProxy = proxy; closing.push(proxy.close()); }
+      ioClosing = Promise.allSettled(closing).then(() => undefined);
+      return ioClosing;
     };
 
     const onUserAbort = () => {
@@ -909,6 +853,7 @@ export class OpenCodeRunner implements AgentRunner {
     const artifactOf = () => pickPreferredArtifact(broker?.artifacts() ?? []);
 
     try {
+      runAbort.signal.throwIfAborted();
       const mcpToken = randomRunToken();
       broker = await startAgentBroker({
         taskContract:input.taskContract,
@@ -934,12 +879,14 @@ export class OpenCodeRunner implements AgentRunner {
         signal:runAbort.signal,
         onToolEvent: onTool,
       });
+      runAbort.signal.throwIfAborted();
       proxy = await startAgentProxy({
         runtime: input.runtime,
         runId: input.runId,
         discussionId: input.discussionId.trim(),
         fetchImpl: this.fetchImpl,
       });
+      runAbort.signal.throwIfAborted();
       const systemPrompt = buildSystemPrompt(productPrompt);
       const userPrompt = buildUserPrompt({
         materials: input.materials,
@@ -964,6 +911,7 @@ export class OpenCodeRunner implements AgentRunner {
       });
       await fs.writeFile(layout.ocConfig, JSON.stringify(config, null, 2), { mode: 0o600 });
       const port = await bindPort();
+      runAbort.signal.throwIfAborted();
       const user = 'opencode';
       const password = randomRunToken();
       const auth = basicAuth(user, password);
@@ -975,18 +923,31 @@ export class OpenCodeRunner implements AgentRunner {
         OPENCODE_CONFIG_CONTENT: JSON.stringify(config),
       });
       const logStream = createCappedLogStream(path.join(layout.logs, 'opencode.log'),LOG_MAX_BYTES,Object.values(mcpEnv));
-      proc = spawn(this.binaryPath, ['serve', '--pure', '--hostname', '127.0.0.1', '--port', String(port)], {
+      proc = spawnManagedProcess(this.binaryPath, ['serve', '--pure', '--hostname', '127.0.0.1', '--port', String(port)], {
         cwd: layout.work,
         env,
         stdio: ['ignore', 'pipe', 'pipe'],
         windowsHide: true,
         detached: process.platform !== 'win32',
         shell: false,
-      });
+      }, layout.root);
       proc.stdout?.pipe(logStream, { end: false });
       proc.stderr?.pipe(logStream, { end: false });
-      proc.on('exit', (exitCode,signal) => {diagnostic('agent','process_exit',{runId:input.runId,exitCode,signal});logStream.end();});
-      proc.on('error', error => diagnostic('agent','process_error',{runId:input.runId,...diagnosticError(error)}));
+      proc.once('close', () => logStream.end());
+      proc.on('exit', (exitCode,signal) => {
+        diagnostic('agent','process_exit',{runId:input.runId,exitCode,signal});
+        if (!closed && !runAbort.signal.aborted) {
+          processFailure = { code: 'server_exited', message: '后台进程意外退出，请导出最近 10 分钟日志排查。' };
+          runAbort.abort();
+        }
+      });
+      proc.on('error', error => {
+        diagnostic('agent','process_error',{runId:input.runId,...diagnosticError(error)});
+        if (!closed && !runAbort.signal.aborted) {
+          processFailure = { code: 'process_error', message: '后台进程无法启动，请检查运行时安装及系统权限。' };
+          runAbort.abort();
+        }
+      });
       const origin = `http://127.0.0.1:${port}`;
       client = createOpenCodeClient(origin, auth, this.fetchImpl, layout.work, runAbort.signal);
       const healthDeadline = Date.now() + bounded(deadline, HEALTH_WAIT_MS);
@@ -1047,12 +1008,13 @@ export class OpenCodeRunner implements AgentRunner {
       let awaitingAfter:string|undefined;
       while (!runAbort.signal.aborted) {
         if (Date.now() >= deadline) throw Object.assign(new Error('deadline'), { code: 'deadline' });
-        idleObserved = idleObserved || eventState.idleObserved;
         let status: string | undefined;
         try {
-          status = sessionStatus(await client.request('GET', '/session/status', undefined, bounded(deadline, 5_000)), sessionId);
+          const snapshot = await client.request('GET', '/session/status', undefined, bounded(deadline, 5_000));
+          if (asRecord(snapshot)) status = sessionStatus(snapshot, sessionId) ?? 'idle';
         } catch (error) {
-          if (isAbortError(error) && runAbort.signal.aborted) break;
+          if (runAbort.signal.aborted) break;
+          if ((error as { code?: string }).code === 'response_too_large') throw error;
           status = undefined;
         }
         let messages: unknown = [];
@@ -1060,7 +1022,8 @@ export class OpenCodeRunner implements AgentRunner {
         try {
           messages = await client.request('GET', `/session/${sessionId}/message`, undefined, bounded(deadline, HTTP_WAIT_MS));
         } catch (error) {
-          if (isAbortError(error) && runAbort.signal.aborted) break;
+          if (runAbort.signal.aborted) break;
+          if ((error as { code?: string }).code === 'response_too_large') throw error;
           diagnostic('agent','message_poll_failed',{runId:input.runId,...diagnosticError(error)});
           messageFetchFailed = true;
           messages = [];
@@ -1098,9 +1061,7 @@ export class OpenCodeRunner implements AgentRunner {
               error: eventState.error ?? classifySessionError(undefined),
             });
           }
-          const completedByTime = inspected.assistantCompleted;
-          const completedByIdle = idleObserved && inspected.assistantCompleted;
-          if (completedByTime || completedByIdle) {
+          if (inspected.assistantCompleted && status === 'idle') {
             if(awaitingAfter&&inspected.assistantId===awaitingAfter){await delay(POLL_INTERVAL_MS);continue;}
             awaitingAfter=undefined;
             if(!artifactOf()&&(input.artifactExpect||input.allowedArtifacts?.includes(PREFERRED_ARTIFACT))){
@@ -1111,7 +1072,7 @@ export class OpenCodeRunner implements AgentRunner {
               }
               repairAttempts++;
               awaitingAfter=inspected.assistantId;
-              eventState.idleObserved=false;idleObserved=false;
+              eventState.idleObserved=false;
               diagnostic('agent','artifact_repair_started',{runId:input.runId,count:repairAttempts,code:'ARTIFACT_INVALID'});
               emit({type:'activity',stepId:`artifact-repair-${repairAttempts}`,status:'running',label:'正在自动修复产物格式或缺失内容'});
               await client.request('POST',`/session/${sessionId}/prompt_async`,{...promptBody,parts:[{type:'text',text:`工作台完成检查未通过：${problem}\n请继续本任务，只修复或保存当前产物，使用 write_artifact 并取得校验通过反馈。先调用 inspect_artifact 查看已保存字段和待办；缺少读取就只补读指定材料，内容问题只修改相应字段（答复、撰写和审查均用 mode=merge 保存相应字段，documents 可按子项补齐）。不重新起草已完成内容，不改已选策略。此前的候选内容及工具错误仍在当前上下文中；可直接传 content 对象。不要仅用文字宣称已完成。`}]},bounded(deadline,HTTP_WAIT_MS));
@@ -1145,7 +1106,7 @@ export class OpenCodeRunner implements AgentRunner {
       throw Object.assign(new Error('deadline'), { code: 'deadline' });
     } catch (error) {
       diagnostic('agent','exception',{runId:input.runId,...diagnosticError(error)});
-      const code = (error as { code?: string }).code || 'failed';
+      const code = processFailure?.code || (runAbort.signal.aborted && !aborted && !input.signal?.aborted ? 'deadline' : (error as { code?: string }).code) || 'failed';
       if (aborted || input.signal?.aborted) {
         emit({ type: 'status', status: 'aborted' });
         return finish({
@@ -1159,7 +1120,7 @@ export class OpenCodeRunner implements AgentRunner {
       const detail = typeof (error as { detail?: string }).detail === 'string'
         ? (error as { detail: string }).detail.slice(0, 240)
         : undefined;
-      const message=code==='deadline'?'后台任务达到运行时限，可导出最近 10 分钟日志后继续任务。':code==='server_exited'?'后台进程意外退出，请导出最近 10 分钟日志排查。':'后台运行失败，请导出最近 10 分钟日志排查。';
+      const message=processFailure?.message ?? (code==='deadline'?'后台任务达到运行时限，可导出最近 10 分钟日志后继续任务。':code==='response_too_large'?'后台消息超过单次读取上限，已保留检查点，请导出日志后继续。':'后台运行失败，请导出最近 10 分钟日志排查。');
       emit({ type: 'error', code, message });
       return finish({
         status: 'failed',

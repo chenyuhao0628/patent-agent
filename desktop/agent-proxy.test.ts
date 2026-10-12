@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
+import { gzipSync, brotliCompressSync } from 'node:zlib';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -84,7 +85,7 @@ async function listen(handler: (req: http.IncomingMessage, res: http.ServerRespo
   return {
     origin: `http://127.0.0.1:${port}`,
     seen,
-    close: () => new Promise<void>((resolve, reject) => server.close(err => err ? reject(err) : resolve())),
+    close: () => new Promise<void>((resolve, reject) => { server.closeAllConnections(); server.close(err => err ? reject(err) : resolve()); }),
   };
 }
 
@@ -502,3 +503,49 @@ test('DeepSeek Responses adapter works on Node and fetch transports and restores
  }finally{await proxy.close();}}
  }finally{await upstream.close();}
 });
+
+for (const transport of ['node', 'fetch']) {
+  for (const format of ['json', 'sse', 'deepseek']) test(`${transport} forwards compressed ${format} without double decoding or stale length`, async t => {
+    const payload = format === 'json' ? JSON.stringify({ output: '合成结果' })
+      : `data: ${JSON.stringify({ type: format === 'deepseek' ? 'response.reasoning_text.delta' : 'response.output_text.delta', item_id: 'r', delta: '合成内容' })}\n\n`;
+    // Brotli and gzip both exercise transport decoding, including an adapter that changes length.
+    const encoding = format === 'sse' ? 'br' : 'gzip';
+    const compressed = encoding === 'br' ? brotliCompressSync(payload) : gzipSync(payload);
+    const upstream = await listen((_req, res) => {
+      res.writeHead(200, { 'Content-Type': format === 'json' ? 'application/json' : 'text/event-stream', 'Content-Encoding': encoding, 'Content-Length': compressed.length });
+      res.end(compressed);
+    });
+    t.after(() => upstream.close());
+    const cfg = runtime({ baseURL: `${upstream.origin}/v1`, modelId: format === 'deepseek' ? 'deepseek-test' : 'synthetic' });
+    const proxy = await startAgentProxy({ runtime: cfg, discussionId: 'compressed', fetchImpl: transport === 'fetch' ? (...args) => fetch(...args) : undefined });
+    t.after(() => proxy.close());
+    const response = await fetch(`${proxy.childBaseURL}/responses`, { method: 'POST', headers: { Authorization: `Bearer ${DUMMY_UPSTREAM_KEY}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: cfg.modelId, input: 'synthetic' }) });
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('content-encoding'), null);
+    assert.equal(response.headers.get('content-length'), null);
+    const actual = await response.text();
+    if (format === 'deepseek') { assert.match(actual, /response.reasoning_summary_text.delta/); assert.match(actual, /合成内容/); }
+    else assert.equal(actual, payload);
+  });
+
+  test(`${transport} cancels upstream SSE after the POST body has fully arrived`, async t => {
+    let upstreamClosed = false;
+    const upstream = await listen((_req, res) => {
+      res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+      res.write('data: {"ready":true}\n\n');
+      res.once('close', () => { upstreamClosed = true; });
+    });
+    t.after(() => upstream.close());
+    const cfg = runtime({ baseURL: `${upstream.origin}/v1`, modelId: 'synthetic' });
+    const proxy = await startAgentProxy({ runtime: cfg, discussionId: 'disconnect', fetchImpl: transport === 'fetch' ? (...args) => fetch(...args) : undefined });
+    t.after(() => proxy.close());
+    const response = await fetch(`${proxy.childBaseURL}/responses`, { method: 'POST', headers: { Authorization: `Bearer ${DUMMY_UPSTREAM_KEY}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: cfg.modelId, input: 'synthetic' }) });
+    const reader = response.body!.getReader();
+    assert.match(new TextDecoder().decode((await reader.read()).value), /ready/);
+    assert.equal(upstreamClosed, false, 'request completion must not masquerade as response cancellation');
+    await reader.cancel();
+    const deadline = Date.now() + 2_000;
+    while (!upstreamClosed && Date.now() < deadline) await new Promise(r => setTimeout(r, 20));
+    assert.equal(upstreamClosed, true, 'cancelling the response must close the still-running upstream response');
+  });
+}
