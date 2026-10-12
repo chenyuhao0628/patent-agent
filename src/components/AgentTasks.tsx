@@ -5,6 +5,7 @@ import type { CaseNavigationTarget } from '../app/navigation.ts';
 import { desktop } from '../desktop.ts';
 import type { AgentTaskView } from '../desktop.ts';
 import { Empty, ErrorState, LoadingState } from './Primitives.tsx';
+import '../agent-tasks.css';
 
 const LABELS: Record<string, string> = {
   running: '进行中',

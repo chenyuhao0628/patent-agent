@@ -10,6 +10,7 @@
 | 应该做什么、哪些决定生效 | [需求索引](../../REQUIREMENTS.md)及 `docs/requirements/` | 用户明确确认或修改需求；不因实现完成删除需求 |
 | 现在做什么、还有什么差距 | [EXEC_PLAN.md](../../EXEC_PLAN.md) | 当前任务推进、发现实现差距或取得新验收证据 |
 | 当前代码如何工作 | `docs/architecture/`、[代码对照表](traceability.md) | 接口、数据、权限、生命周期或参数变化 |
+| UI 如何对齐和保持一致 | [UI 规范](../design/ui-standards.md)、[页面统一方案](../design/ui-unification-plan.md) | 基础参数、组件语义、例外、页面覆盖和迁移设计变化；实际进度仍在 EXEC_PLAN |
 | 开发者如何修改与验证 | [开发入口](../../DEVELOPMENT.md)、`docs/development/` | 命令、依赖准备、模块接入或开发流程变化 |
 | 用户如何操作 | [使用说明](../USER_GUIDE.md) | 界面入口、触发条件、操作效果变化 |
 | 哪个包可以使用、验证到哪一步 | [交付索引](../releases/README.md)、当前版本测试说明、`release/release-manifest.json` | 新包核验、包清理或当前版本验收变化 |
@@ -23,7 +24,7 @@
 
 - 当前入口：README、REQUIREMENTS、DEVELOPMENT、EXEC_PLAN 及 docs/README；保持简洁，详细内容按模块引用。
 - 现行参考：requirements、architecture、development、project、USER_GUIDE 和当前版本 TESTING；与当前代码 / 已确认要求对账。
-- 有状态的方案：design；实施前的“当前版本”和限制只适用于方案形成时，完成后链接实现及证据。
+- 有状态的方案与设计标准：design；实施前的“当前版本”和限制只适用于方案形成时，完成后链接实现及证据。UI 规范是目标标准，不能写成已全部实施。
 - 历史：archive、旧版本 TESTING、旧根入口；不作为活动 TODO，不据此宣称旧安装包仍存在。
 - 证据：既有截图、JSON、日志及报告保持原路径。中间失败结果和最终通过结果分别标识，原始证据不能为了结论一致而改写。
 - 运行资源：`resources/reply-rules/`、`resources/standard-skills/`、`resources/document-templates/` 由应用加载，属于产品规则与模板；改动会影响业务，不作为普通开发文档改名或精简。

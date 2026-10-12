@@ -30,6 +30,7 @@
 
 | 生效日期 | 决定 | 权威细则 |
 | --- | --- | --- |
+| 2026-10-12 | 完整规划并设定 UI 规范与设计标准，要求页面对齐、同类控件和各类页面统一；同时修复内部流转 / 工作任务首次打开的界面异常 | [模块平台 UI 要求](docs/requirements/module-platform.md#ui-对齐与页面统一)、[UI 规范](docs/design/ui-standards.md)、[页面统一方案](docs/design/ui-unification-plan.md) |
 | 2026-10-12 | 完整核对文档与代码，按项目管理职责整理；现行说明、方案、历史记录和证据分开管理 | [文档管理](docs/project/documentation.md)、[代码对照](docs/project/traceability.md) |
 | 2026-10-12 | 全局 / 单案分别注册；统一数据与可替换适配器；提供真实可接入模板并核对性能 | [模块平台](docs/requirements/module-platform.md) |
 | 2026-10-12 | OpenCode v2，自动检查并安装兼容更新，空闲切换与回退；案件 / 阶段 / 分支会话隔离、保留及缓存核验 | [模型与工具](docs/requirements/agent-tools.md) |

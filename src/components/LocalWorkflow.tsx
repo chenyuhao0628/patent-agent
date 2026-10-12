@@ -9,6 +9,7 @@ import { OUTCOME_ORDER, hasOfficialOutcome, outcomeApplies, outcomeDetail, outco
 import type { OutcomeFilter } from '../domain/outcome.ts';
 import { INTERNAL_ENDED_WAIT_LABEL, localWorkflowPhase, stageVerdict, UNVERIFIED_INTERNAL_LABEL, UNVERIFIED_OFFICIAL_LABEL, WAITING_OFFICIAL_LABEL } from '../domain/stage-verdict.ts';
 import '../outcome.css';
+import '../local-workflow.css';
 
 import { workflowBusiness, workflowNodes, workflowNodeStatus } from '../domain/workflow-nodes.ts';
 function phase(c: Case) {

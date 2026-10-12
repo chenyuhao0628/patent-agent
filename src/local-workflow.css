@@ -1,0 +1,26 @@
+.local-workflow{max-width:1200px;margin:0 auto}
+.local-workflow>p{color:#7b7489}
+.local-workflow-filters{display:flex;gap:12px;margin:20px 0}
+.local-workflow-filters input{flex:1;max-width:400px}
+.local-workflow-case{padding:18px 20px;margin:12px 0;border:1px solid #e4e7ed;border-radius:12px;background:#fff}
+.local-workflow-case header{display:flex;justify-content:space-between;gap:20px;align-items:center}
+.local-workflow-case header>div{min-width:0}
+.local-workflow-case header>button{flex-shrink:0;font-size:12px}
+.local-workflow-case h3{font-size:15px;line-height:1.5;margin:0 0 4px;color:#252b36}
+.local-workflow-case small{display:block;color:#888190;font-size:12px;line-height:1.6}
+.local-workflow-case .workflow-company{font-size:13px;color:#697386;margin:0 0 10px}
+.local-workflow-case .workflow-meta{display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-size:12px;color:#697386;margin:0 0 7px}
+.workflow-status{background:#f1f4f9;color:#44526a;padding:4px 8px;border-radius:6px}
+.workflow-type{color:#626c7e;background:#f4f5f8;border-radius:5px;padding:4px 8px}
+.local-workflow-case summary{font-size:12px;color:#64748b;cursor:pointer;margin-top:14px}
+.local-workflow-case .workflow-nodes{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:16px 12px;list-style:none;padding:18px 0 0;border-top:1px solid #edf0f5;margin:14px 0 12px}
+.local-workflow-case .workflow-nodes li{display:flex;gap:8px;min-width:0;align-items:flex-start;font-size:12px;line-height:1.5;color:#7c8594}
+.local-workflow-case .workflow-nodes li>span{display:grid;place-items:center;border-radius:50%;flex-shrink:0;width:25px;height:25px;font-size:11px;background:#f0f2f6;color:#8b94a3}
+.local-workflow-case .workflow-nodes li small{display:block;font-size:11px;color:#929aaa;margin-top:3px}
+.local-workflow-case .workflow-nodes li.done{color:#376656}
+.local-workflow-case .workflow-nodes li.done>span{background:#e9f3ee;color:#3f7960}
+.local-workflow-case .workflow-nodes li.current{color:#6353c5;font-weight:600}
+.local-workflow-case .workflow-nodes li.current>span{background:#eee9ff;color:#7259cd}
+.local-workflow-case .workflow-nodes li.unknown>span{background:transparent;border:1px dashed #c9cfda}
+.workflow-legend{color:#8b94a3}
+@media(max-width:900px){.local-workflow-case header{align-items:flex-start}.local-workflow-case .workflow-meta{gap:6px}}

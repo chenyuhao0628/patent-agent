@@ -1,0 +1,6 @@
+.agent-task-list{display:flex;flex-direction:column;gap:10px}
+.agent-task{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;padding:16px;border:1px solid var(--line);border-radius:10px;background:#fff}
+.agent-task h3{margin:0 0 6px;font-size:15px}
+.agent-task p{margin:0;font-size:13px;color:#646976}
+.agent-task small{display:block;margin-top:6px;color:#8b90a0}
+.agent-task-actions{display:flex;flex-wrap:wrap;gap:8px}

@@ -4,6 +4,8 @@
 
 从修改需求进入开发时，先看 [代码 / 测试 / 证据对照](docs/project/traceability.md)，再看 [开发与验证操作](docs/development/README.md)。文档如何归位见 [文档管理](docs/project/documentation.md)。
 
+UI 工作先读 [UI 规范与设计标准](docs/design/ui-standards.md) 和 [页面覆盖 / 分阶段方案](docs/design/ui-unification-plan.md)。规范管理目标参数，架构分册说明当前实现；不要把尚未生成的 token / 共用组件当作已有接口。
+
 ## 架构分册
 
 | 主题 | 内容 |
