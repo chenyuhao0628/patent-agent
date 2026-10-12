@@ -1,0 +1,27 @@
+✔ failed verification preserves previous outputs (130.271416ms)
+✔ successful publish removes recognized old artifacts only (73.04425ms)
+✔ partial publish failure rolls back leftover copies and leaves previous outputs (67.227166ms)
+✔ full release runs npm build once then separate mac arm64 and win x64 builder commands (87.412625ms)
+✔ empty or malformed lock is fail-closed and not deleted (2.00475ms)
+✔ dead-owner lock is left byte-for-byte unchanged and is not acquired (1.578959ms)
+✔ live-owner lock contention does not steal the lock (1.332416ms)
+✔ mac-only publish preserves windows builder dirs and old windows executables (95.044333ms)
+✔ preserve-old release keeps prior installers and checksums while promoting the new version (64.271416ms)
+✔ win-only publish preserves mac builder dirs including legacy app bundles (33.499542ms)
+✔ missing bundled OpenCode runtime fails verification and keeps previous release (30.710458ms)
+✔ missing reply-rules fails verification and keeps previous release (30.274291ms)
+✔ runtime hash mismatch fails before promote and keeps previous release (30.074166ms)
+✔ parsePrepareArgs requires injected paths and never reads HOME (0.439ms)
+✔ runtime license errors distinguish missing from invalid file types (6.475209ms)
+✔ copyAgentRuntime verifies a recorded compatible version, copies, and does not mutate process.env (3.913833ms)
+✔ wrong version or hash is rejected and does not download (1.452334ms)
+✔ lab runtime if present is compatible and is only verified read-only (233.106625ms)
+✔ global task and transfer panels ship styles before any case panel is loaded (89.594208ms)
+ℹ tests 19
+ℹ suites 0
+ℹ pass 19
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 728.145125

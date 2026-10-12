@@ -1,0 +1,50 @@
+{
+  "version": "0.22.1",
+  "builtAt": "2026-10-12T14:50:05.858Z",
+  "appId": "com.patentworkbench.desktop",
+  "productName": "专利工作台",
+  "files": [
+    {
+      "file": "专利工作台-0.22.1-macOS-arm64.app",
+      "platform": "mac-arm64",
+      "version": "0.22.1",
+      "sha256": "ff65accfd755363c3629a620fe614303fa62b0ac3fb392fd3521ba60c7e9bd2d",
+      "hashAlgorithm": "sha256-tree"
+    },
+    {
+      "file": "PatentWorkbench-0.22.1-macOS-arm64.pkg",
+      "platform": "mac-arm64-installer",
+      "version": "0.22.1",
+      "sha256": "85ae6bad38770583a55b50137a3c0cff03bf270f838b6b335bb064d4c8cd078a",
+      "hashAlgorithm": "sha256"
+    },
+    {
+      "file": "PatentWorkbench-0.22.1-Windows-x64-Setup.exe",
+      "platform": "win-x64",
+      "version": "0.22.1",
+      "sha256": "38066a49e0d06dc400b2cd13791a06b16e6d342ee174ebd80423f43ad15fac91",
+      "hashAlgorithm": "sha256"
+    },
+    {
+      "file": "PatentWorkbench-0.22.0-Windows-x64-Setup.exe",
+      "platform": "win-x64",
+      "retained": true,
+      "sha256": "dcf160f0c0135a7c032d8aba23810497d420d8a97223358a668a2d9a64b94be3",
+      "hashAlgorithm": "sha256"
+    },
+    {
+      "file": "PatentWorkbench-0.22.0-macOS-arm64.pkg",
+      "platform": "mac-arm64-installer",
+      "retained": true,
+      "sha256": "c62e8aff7029a5357aa9749d9f8038040bc46b59ea0060087e5dbe542736d56c",
+      "hashAlgorithm": "sha256"
+    },
+    {
+      "file": "专利工作台-0.22.0-macOS-arm64.app",
+      "platform": "mac-arm64",
+      "retained": true,
+      "sha256": "9c4e28a5df309aa89c1ca31be47c0c0d26bda61bdf81546aae483c2936a64d36",
+      "hashAlgorithm": "sha256-tree"
+    }
+  ]
+}

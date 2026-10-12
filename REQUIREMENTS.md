@@ -34,7 +34,7 @@
 | 2026-10-12 | 完整核对文档与代码，按项目管理职责整理；现行说明、方案、历史记录和证据分开管理 | [文档管理](docs/project/documentation.md)、[代码对照](docs/project/traceability.md) |
 | 2026-10-12 | 全局 / 单案分别注册；统一数据与可替换适配器；提供真实可接入模板并核对性能 | [模块平台](docs/requirements/module-platform.md) |
 | 2026-10-12 | OpenCode v2，自动检查并安装兼容更新，空闲切换与回退；案件 / 阶段 / 分支会话隔离、保留及缓存核验 | [模型与工具](docs/requirements/agent-tools.md) |
-| 2026-10-12 | 交付后清理旧安装包，本次仅保留 0.22.0 三项制品和当前清单；历史证据保留 | [产品与交付](docs/requirements/product-delivery.md#安装包保留与清理) |
+| 2026-10-12 | 重新构建已含 UI 修复的 0.22.1 并清理旧安装包；校验后仅保留 0.22.1 三项制品与当前清单，历史证据保留 | [产品与交付](docs/requirements/product-delivery.md#安装包保留与清理) |
 | 2026-10-09 | 多份修改文件独立选择、保存、预览及恢复；真实工作台稿件保存失败根因仍须验证 | [内部转交](docs/requirements/internal-transfer.md) |
 | 2026-10-01 | 官方结论只锁定结论所属流程；新后续流程仍可办理，缺少归属的旧记录保持整案锁定 | [案件与阶段](docs/requirements/cases.md)、[同步与结论](docs/requirements/sync-status.md) |
 | 2026-10-01 | 退回后旧完成稿可经二次确认显式采用，保留原记录；答复、补正与撰写不自动采用旧上下文结果 | [答复与定稿](docs/requirements/reply-finalization.md)、[撰写与审查](docs/requirements/writing-review.md) |
