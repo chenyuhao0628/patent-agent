@@ -1,39 +1,35 @@
 # 文档总索引
 
-更新：2026-10-12。按“当前入口 → 模块细则 → 历史证据”查阅；默认无需通读归档。
+更新：2026-10-12，当前应用 **0.22.0**。按“需求 → 计划 → 设计与实现 → 验证 → 交付 → 归档”查阅。现行说明描述实际代码，需求保留应达到的行为，两者差距集中在当前计划；历史报告只代表当时的版本与场景。
 
-## 当前入口
+## 按项目管理流程查阅
 
-| 需要了解什么 | 入口 |
+| 环节 | 入口与用途 |
 | --- | --- |
-| 产品、安装和使用 | [README](../README.md) |
-| 已确认需求与模块细则 | [需求索引](../REQUIREMENTS.md) |
-| 当前目标、待办、版本与验收缺口 | [实施计划](../EXEC_PLAN.md) |
-| 架构与开发约束 | [开发入口](../DEVELOPMENT.md) |
-| 仓库执行规则 | [AGENTS](../AGENTS.md) |
-| 0.22.0 安装与现场验收 | [测试说明](TESTING-0.22.0.md) |
-| 全局 / 单案模块接入 | [接入指南](development/module-guide.md) |
-| 已实现内容及历史证据 | [模块归档索引](archive/README.md) |
+| 项目概况 | [README](../README.md)：产品范围、当前版本、安装与开发入口 |
+| 工作规则 | [AGENTS](../AGENTS.md)：授权、资料边界、实施与验收规则 |
+| 需求与决定 | [REQUIREMENTS](../REQUIREMENTS.md)：九个模块及生效决定，保留完整产品范围 |
+| 当前执行 | [EXEC_PLAN](../EXEC_PLAN.md)：唯一当前任务、实现差距与待验收项入口 |
+| 设计与实现 | [DEVELOPMENT](../DEVELOPMENT.md)：六个架构分册、模块方案与开发操作 |
+| 需求追溯 | [代码对照表](project/traceability.md)：需求对应实现、测试与已有证据 |
+| 开发操作 | [命令与验证](development/README.md)、[模块接入](development/module-guide.md)：环境、生成、保存与替换合同 |
+| 用户操作 | [使用说明](USER_GUIDE.md)：首次设置、全案与单案、业务办理、会话和更新 |
+| 交付与验收 | [交付索引](releases/README.md)、[0.22.0 测试说明](TESTING-0.22.0.md)：当前包、证据及平台边界 |
+| 已完成与历史 | [归档索引](archive/README.md)：旧决定、已完成阶段、评估和旧版本记录 |
+| 文档维护 | [职责与更新流程](project/documentation.md)：信息放在哪里、何时更新、如何保留历史 |
 
-## 按模块直达
+## 按模块查阅
 
-| 模块 | 持续有效的需求 | 技术 / 历史记录 |
+| 模块 | 已确认需求 | 当前技术说明 / 操作 |
 | --- | --- | --- |
-| 模块平台 | [需求](requirements/module-platform.md) | [方案](design/module-platform.md)、[接入指南](development/module-guide.md) |
-| 产品与交付 | [需求](requirements/product-delivery.md) | [构建和源码交付](archive/releases.md) |
-| 案件与阶段 | [需求](requirements/cases.md) | [领域与平台](archive/platform.md) |
-| 同步与官方结论 | [需求](requirements/sync-status.md) | [单案刷新](archive/sync.md) |
-| 答复、补正与定稿 | [需求](requirements/reply-finalization.md) | [接口与作用域](architecture/contracts.md) |
-| 撰写与独立审查 | [需求](requirements/writing-review.md) | [阶段成果与阅读区](archive/writing-review.md) |
-| 提交与内部转交 | [需求](requirements/internal-transfer.md) | [材料与流转修复](archive/internal-transfer.md) |
-| Agent、模型与工具 | [需求](requirements/agent-tools.md) | [v2 最终交付证据](../evidence/opencode-v2-migration/phase-5/RESULT.md) |
-| 文档、目录与账号 | [需求](requirements/documents-security.md) | [领域持久化与安全](architecture/data-security.md) |
+| 模块平台 | [需求](requirements/module-platform.md) | [接入指南](development/module-guide.md)、[已实施方案](design/module-platform.md) |
+| 产品与交付 | [需求](requirements/product-delivery.md) | [开发操作](development/README.md)、[交付索引](releases/README.md) |
+| 案件与阶段 | [需求](requirements/cases.md) | [实现基线](architecture/overview.md)、[页面与历史](architecture/ui.md) |
+| 同步与官方结论 | [需求](requirements/sync-status.md) | [同步参数与已知差距](architecture/overview.md#22-同步与缓存) |
+| 答复、补正与定稿 | [需求](requirements/reply-finalization.md) | [使用说明](USER_GUIDE.md#答复与补正)、[接口与作用域](architecture/contracts.md) |
+| 撰写与独立审查 | [需求](requirements/writing-review.md) | [使用说明](USER_GUIDE.md#撰写与独立审查)、[任务续办合同](architecture/contracts.md#任务续办合同自-0170-引入) |
+| 提交与内部转交 | [需求](requirements/internal-transfer.md) | [使用说明](USER_GUIDE.md#提交与内部转交)、[实现基线](architecture/overview.md#23-办理与流转) |
+| Agent、模型与工具 | [需求](requirements/agent-tools.md) | [Agent / 运行时 / 会话](architecture/agent-runtime.md)、[使用说明](USER_GUIDE.md#会话上下文缓存与更新) |
+| 文档、目录与账号 | [需求](requirements/documents-security.md) | [数据与安全](architecture/data-security.md)、[使用说明](USER_GUIDE.md#首次设置) |
 
-## 文档维护约定
-
-- `requirements/` 保存持续有效的模块需求；实现完成后需求仍有效，不能一并删除。
-- `architecture/` 保存当前技术结构与接口边界；`design/` 保存方案与复核，实施状态以 EXEC_PLAN.md 为准。
-- `archive/` 保存已完成的实现过程、评估与历史方案；完成层级和遗留验收限制随记录保留。
-- 根目录 `EXEC_PLAN.md` 是唯一待办与当前状态入口；已完成工作只留摘要和归档链接，不逐轮累加全文。
-- `evidence/` 的既有文件名和原编号保持；临时 `/tmp` 路径仅是历史引用，不能据此保证证据仍在。
-- `resources/` 的业务规则、标准技能与模板，以及 `work/`、接入文档中的业务或参考材料，不属于本次开发文档整理。
+各模块的具体代码、测试和证据见代码对照表。历史证据索引不表示本次重新执行验证；既有 `evidence/` 文件和编号保留，运行资源、接口参考和案件材料按原职责管理。

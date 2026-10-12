@@ -9,16 +9,19 @@
 - OpenCode 已迁移 v2，当前打包快照 2.0.27。按账号、案件、阶段与分支保存会话；自动检查并安装通过兼容性验证的更新，空闲切换并保留回退，不锁死补丁版本。
 - 全量 **864/864**、类型与构建通过；生成模块另有 **2/2** 验证。最终 .app 已检查保存 / 重开、导航、任务切页 / 停止及三视口；已修复性能对照暴露的面板等待和并行创建目录竞态。六阶段本地提交，未推送或对外发布；见 [交付报告](evidence/module-platform/phase-6/RESULT.md) 和 [性能对照](evidence/module-platform/phase-6/PERFORMANCE.md)。
 - 用户此前报告的真实贝思兰德稿件保存失败根因尚未证实；合成通过不等于生产验收。历史真实模型与 Word 结果见 [既有验收记录](evidence/native-acceptance-20261001.md)，本轮边界见测试说明。
+- 2026-10-12 文档对账确认四项实现差距，已保留原需求并登记在 [当前计划](EXEC_PLAN.md#实现差距)。文档整理不代表这些代码差距已经修复。
 
 ## 文档入口
 
 | 用途 | 入口 |
 | --- | --- |
-| 全部文档与维护方式 | [文档总索引](docs/README.md) |
+| 按项目管理流程查阅文档 | [文档总索引](docs/README.md)、[职责与维护](docs/project/documentation.md) |
 | 已确认需求，按模块查阅 | [REQUIREMENTS.md](REQUIREMENTS.md) |
 | 当前任务、版本边界与未完成项 | [EXEC_PLAN.md](EXEC_PLAN.md) |
+| 需求对应哪些代码、测试和证据 | [代码对照表](docs/project/traceability.md) |
 | 技术结构、接口与开发验证 | [DEVELOPMENT.md](DEVELOPMENT.md) |
 | 案件、办理、流转、文档与工具操作 | [使用说明](docs/USER_GUIDE.md) |
+| 当前安装包及历史版本 | [交付索引](docs/releases/README.md) |
 | 仓库规则 | [AGENTS.md](AGENTS.md) |
 
 ## 安装
@@ -32,11 +35,9 @@
 ```sh
 npm ci
 npm test
-npm run build
 npm run desktop
-npm run package:release
 ```
 
-`npm test` 覆盖领域、主进程和打包脚本；构建包含类型检查；打包前在 `.lab/agent-runtime` 准备通过兼容检查的官方 OpenCode，清单记录实际版本与摘要。保留旧制品时使用 `--preserve-old`；打包失败保留上一版。本轮仅本地提交与构建，不推送或发布。
+`npm run desktop` 包含类型检查、前端及主进程构建。浏览器预览、模块生成、隔离验证和打包前提见 [开发操作](docs/development/README.md)。桌面模型任务及打包需要准备匹配平台的 OpenCode 运行时；`prepare:agent-runtime` 校验 / 复制已有资源，不自动下载最新版。安装包清理与保留按当次要求执行。
 
-本版继续保留中断续办与任务产物进度：撰写和独立审查可以继续当前未完成任务；按正文、修改依据及申请文件部分显示已保存与待补齐内容。恢复先核对范围和摘要，结果不明的操作不自动重放；提示不增加定稿或内部转交门槛。
+本次只整理项目文档和核对证据，保持 0.22.0，不重新构建安装包、推送或发布。

@@ -1,0 +1,72 @@
+{
+  "checkedAt": "2026-10-12T10:18:40.534Z",
+  "baseline": "027c9de",
+  "networkRequests": 0,
+  "navigation": {
+    "tabs": [
+      {
+        "route": "overview",
+        "order": 0,
+        "label": "概览"
+      },
+      {
+        "route": "materials",
+        "order": 1,
+        "label": "材料"
+      },
+      {
+        "route": "discussion",
+        "order": 2,
+        "label": "本案对话"
+      },
+      {
+        "route": "write",
+        "order": 3,
+        "label": "撰写"
+      },
+      {
+        "route": "review",
+        "order": 4,
+        "label": "稿件审查"
+      },
+      {
+        "route": "submit",
+        "order": 5,
+        "label": "提交"
+      },
+      {
+        "route": "history",
+        "order": 6,
+        "label": "办理历史"
+      },
+      {
+        "route": "outputs",
+        "order": 7,
+        "label": "成果"
+      },
+      {
+        "route": "flow",
+        "order": 8,
+        "label": "贝思兰德流程"
+      }
+    ],
+    "submitBeforeFlow": true
+  },
+  "folderNames": {
+    "initial": "案件/local/DOC-001_合成核对案__9c02369d4d",
+    "afterOrganization": "案件/local/合成客户+合成核对案+发明",
+    "initialContainsCompany": false,
+    "renamedFolders": 1
+  },
+  "terminalCache": {
+    "containerTtlMs": 300000,
+    "entryAfterSixMinutesRetained": false,
+    "documentedTerminalTtlMs": 3600000
+  },
+  "failedSyncThrottle": {
+    "afterFirstFailure": 1,
+    "afterImmediateAutomaticRetry": 1,
+    "afterManualRetry": 2,
+    "automaticRetrySkipped": true
+  }
+}

@@ -6,6 +6,8 @@
 
 | 模块 | 档案 / 证据 | 完成层级与边界 |
 | --- | --- | --- |
+| OpenCode v2 与自动兼容更新 | [v2 五阶段证据](../../evidence/opencode-v2-migration/phase-5/RESULT.md) | 应用 0.21.0 的真实引擎 / 合成供应商、会话与缓存检查；当前架构见 [运行时说明](../architecture/agent-runtime.md) |
+| 统一模块平台与安装包清理 | [2026-10-12 过程](module-platform-20261012.md)、[0.22.0 最终交付](../../evidence/module-platform/phase-6/RESULT.md)、[清理证据](../../evidence/release-cleanup-20261012.json) | 六阶段本地提交、原生和包内核对；随后清理旧包，当前存留以 [交付索引](../releases/README.md) 为准 |
 | v2 前实施过程 | [2026-09-30 至 10-09 记录](implementation-before-opencode-v2.md) | 历史版本、授权与证据；当前状态仅看根计划 |
 | 平台、领域、案件中心与历史 | [平台档案](platform.md) | A–C 源码、自测及合成浏览器；保留旧编号，原生与安装按当前计划验收 |
 | 案件同步与单案刷新 | [同步档案](sync.md)、[#8 视觉证据](../../evidence/pr8-visual-20260927/README.md) | 源码、合成自动化与浏览器；不替代真实服务 |
@@ -20,7 +22,8 @@
 
 | 档案 | 定位 |
 | --- | --- |
-| [统一面板注册](../design/panel-registry.md) | 评估完成、设计待实施，不放入已实现架构 |
+| [统一面板注册早期评估](../design/panel-registry.md) | 方案形成时尚未实施；后续授权并按 [模块平台方案](../design/module-platform.md) 在 0.22.0 实施，早期限制不代表当前状态 |
+| [整理前需求与决定全文](decisions/2026-10-12-requirements-history.md) | 0.22.0 文档对账前的完整决定时间线；持续生效的要求仍见 [需求入口](../../REQUIREMENTS.md) |
 | [2026-09-29 交付授权与决定](decisions/2026-09-29-delivery.md) | 历史授权，不自动授权后续操作 |
 | [2026-09-25 专项修正](history/correction-2026-09-25.md) | 保留当时 A–E 方案与局部验证；不是当前阶段清单 |
 | [2026-09-22 实现摘要](history/project-analysis-2026-09-22.md) | 0.13.0 历史背景 |
@@ -31,8 +34,8 @@
 
 | 整理前位置 | 整理后位置 |
 | --- | --- |
-| REQUIREMENTS.md 的产品与业务细则 | [需求总入口](../../REQUIREMENTS.md) 下的 8 个模块 |
-| DEVELOPMENT.md 第 1–7、9 节 | [开发入口](../../DEVELOPMENT.md) 下的 5 个架构分册 |
+| REQUIREMENTS.md 的产品与业务细则 | [需求总入口](../../REQUIREMENTS.md) 下的 9 个模块；原决定时间线见上表归档 |
+| DEVELOPMENT.md 第 1–7、9 节 | [开发入口](../../DEVELOPMENT.md) 下的架构分册；现有 6 册，包含独立的 Agent / 运行时说明 |
 | DEVELOPMENT.md 第 5.5 节、EXEC_PLAN.md 面板评估 | [面板设计与评估](../design/panel-registry.md) |
 | DEVELOPMENT.md 第 8 节 A–C；EXEC_PLAN.md 第 2、3.2、3.4、5 节 | [平台档案](platform.md) |
 | DEVELOPMENT.md 第 8 节 D 与旧计划未完成事项 | [当前实施计划](../../EXEC_PLAN.md) |
@@ -40,6 +43,8 @@
 | EXEC_PLAN.md 单文件删除与八项 PR 修复 | [流转档案](internal-transfer.md) |
 | EXEC_PLAN.md 五项实测修复、阅读区与菜单 | [撰写档案](writing-review.md) |
 | EXEC_PLAN.md 构建、PR 推送、第 1、3.3、4 节旧状态 | [交付档案](releases.md)，旧状态明确标注已被取代 |
+| EXEC_PLAN.md 的 0.22.0 模块平台六阶段及清包记录 | [2026-10-12 模块平台归档](module-platform-20261012.md) |
+| docs/TESTING-0.20.0 / 0.20.1 / 0.21.0.md | 保留原路径和版本，增加历史状态提示；通过 [交付索引](../releases/README.md) 查询 |
 | CORRECTION_PLAN.md、project_analysis.md、design 两份旧文档 | 本页历史方案；原路径保留短入口 |
 | README.md 的详细操作说明 | [使用说明](../USER_GUIDE.md) |
 
