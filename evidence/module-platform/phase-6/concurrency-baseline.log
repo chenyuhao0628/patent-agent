@@ -1,0 +1,27 @@
+✖ concurrent imports into a new work folder share safe parents and retain independent case identities (11.618583ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 173.924583
+
+✖ failing tests:
+
+test at desktop/files-concurrency.test.ts:9:1
+✖ concurrent imports into a new work folder share safe parents and retain independent case identities (11.618583ms)
+  Error: EEXIST: file already exists, mkdir '/private/var/folders/hq/dbmwrsr53nq3r4kgtg843ph40000gn/T/case-parent-race-63mvek/案件'
+      at async Module.mkdir (node:internal/fs/promises:1619:10)
+      at async managedPath (file:///private/var/folders/hq/dbmwrsr53nq3r4kgtg843ph40000gn/T/patent-module-baseline-g4069xav/desktop/files.ts:409:103)
+      at async CaseFiles.ensureCase (file:///private/var/folders/hq/dbmwrsr53nq3r4kgtg843ph40000gn/T/patent-module-baseline-g4069xav/desktop/files.ts:423:15)
+      at async Promise.all (index 2)
+      at async TestContext.<anonymous> (file:///private/var/folders/hq/dbmwrsr53nq3r4kgtg843ph40000gn/T/patent-module-baseline-g4069xav/desktop/files-concurrency.test.ts:13:20)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    errno: -17,
+    code: 'EEXIST',
+    syscall: 'mkdir',
+    path: '/private/var/folders/hq/dbmwrsr53nq3r4kgtg843ph40000gn/T/case-parent-race-63mvek/案件'
+  }

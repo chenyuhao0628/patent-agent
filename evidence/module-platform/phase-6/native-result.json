@@ -1,0 +1,109 @@
+{
+  "checkedAt": "2026-10-12T09:00:47.927Z",
+  "exe": "/Users/cyh/Documents/ChatGPT/patent-agent/release/专利工作台-0.22.0-macOS-arm64.app/Contents/MacOS/专利工作台",
+  "root": "/var/folders/hq/dbmwrsr53nq3r4kgtg843ph40000gn/T/module-final-native-Difh9x",
+  "routes": [
+    {
+      "page": "library",
+      "loaded": true
+    },
+    {
+      "page": "official",
+      "loaded": true
+    },
+    {
+      "page": "tasks",
+      "loaded": true
+    },
+    {
+      "page": "review",
+      "loaded": true
+    },
+    {
+      "page": "transfer",
+      "loaded": true
+    },
+    {
+      "page": "status",
+      "loaded": true
+    },
+    {
+      "page": "settings",
+      "loaded": true
+    },
+    {
+      "page": "reply",
+      "loaded": true
+    },
+    {
+      "page": "write",
+      "loaded": true
+    },
+    {
+      "tab": "overview",
+      "loaded": true
+    },
+    {
+      "tab": "materials",
+      "loaded": true
+    },
+    {
+      "tab": "discussion",
+      "loaded": true
+    },
+    {
+      "tab": "write",
+      "loaded": true
+    },
+    {
+      "tab": "review",
+      "loaded": true
+    },
+    {
+      "tab": "history",
+      "loaded": true
+    },
+    {
+      "tab": "outputs",
+      "loaded": true
+    },
+    {
+      "tab": "flow",
+      "loaded": true
+    },
+    {
+      "tab": "submit",
+      "loaded": true
+    }
+  ],
+  "geometry": [
+    {
+      "width": 1440,
+      "height": 900,
+      "scrollWidth": 1425
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "scrollWidth": 1905
+    },
+    {
+      "width": 1280,
+      "height": 800,
+      "scrollWidth": 1265
+    }
+  ],
+  "saved": true,
+  "unknownRoutes": true,
+  "missingHistory": true,
+  "readOnlyNoTask": true,
+  "taskSurvivedNavigation": true,
+  "stopped": true,
+  "errors": [],
+  "exit": {
+    "code": 0,
+    "signal": null
+  },
+  "reopened": true,
+  "originalPreserved": true
+}

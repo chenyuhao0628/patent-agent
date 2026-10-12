@@ -1,0 +1,11 @@
+{
+  "warmCodeReused": true,
+  "loadRetry": true,
+  "lateLoadExcluded": true,
+  "capabilityGate": true,
+  "readonly": true,
+  "unmountLeaseExpired": true,
+  "accountLeaseExpired": true,
+  "caughtExpectedLoadFailure": 1,
+  "checkedAt": "2026-10-12T08:55:09.840Z"
+}

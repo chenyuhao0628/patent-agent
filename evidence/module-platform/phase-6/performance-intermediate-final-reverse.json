@@ -1,0 +1,147 @@
+{
+  "label": "final-reverse",
+  "checkedAt": "2026-10-12T08:50:18.196Z",
+  "root": "/var/folders/hq/dbmwrsr53nq3r4kgtg843ph40000gn/T/module-performance-QvbA5l",
+  "caseCount": 80,
+  "samples": 5,
+  "networkDelayPerRequestMs": 50,
+  "variants": [
+    {
+      "name": "candidate-0.22.0",
+      "startupMs": 1661.134875,
+      "route": [
+        {
+          "libraryMs": 48.90000003576279,
+          "caseMs": 49.09999996423721
+        },
+        {
+          "libraryMs": 49.39999997615814,
+          "caseMs": 49.30000001192093
+        },
+        {
+          "libraryMs": 49.30000001192093,
+          "caseMs": 49.30000001192093
+        },
+        {
+          "libraryMs": 49.5,
+          "caseMs": 49.40000003576279
+        },
+        {
+          "libraryMs": 49.30000001192093,
+          "caseMs": 49.5
+        }
+      ],
+      "refreshMs": [
+        66,
+        66.19999998807907,
+        66.40000003576279,
+        66.19999998807907,
+        66.59999996423721
+      ],
+      "saves": [
+        {
+          "uiMs": 34,
+          "diskMs": 14
+        },
+        {
+          "uiMs": 37.39999997615814,
+          "diskMs": 13
+        },
+        {
+          "uiMs": 37.5,
+          "diskMs": 12
+        },
+        {
+          "uiMs": 37.19999998807907,
+          "diskMs": 13
+        },
+        {
+          "uiMs": 36.89999997615814,
+          "diskMs": 15
+        }
+      ],
+      "taskMs": [
+        1101.5,
+        1053.5,
+        1070.1000000238419
+      ],
+      "coldCaseMs": 355.10000002384186,
+      "errors": [],
+      "exit": {
+        "code": 0,
+        "signal": null
+      },
+      "reopenMs": 786.3356249999988,
+      "persisted": "SYNTHETIC_SAVED_4"
+    },
+    {
+      "name": "baseline-0.21.0",
+      "startupMs": 1322.3818749999991,
+      "route": [
+        {
+          "libraryMs": 39,
+          "caseMs": 49.39999997615814
+        },
+        {
+          "libraryMs": 49.30000001192093,
+          "caseMs": 49.40000003576279
+        },
+        {
+          "libraryMs": 49.5,
+          "caseMs": 49.10000002384186
+        },
+        {
+          "libraryMs": 49.60000002384186,
+          "caseMs": 49.5
+        },
+        {
+          "libraryMs": 50.39999997615814,
+          "caseMs": 48.5
+        }
+      ],
+      "refreshMs": [
+        66,
+        66.29999995231628,
+        66.30000001192093,
+        49.39999997615814,
+        66.30000001192093
+      ],
+      "saves": [
+        {
+          "uiMs": 31.299999952316284,
+          "diskMs": 14
+        },
+        {
+          "uiMs": 37.700000047683716,
+          "diskMs": 14
+        },
+        {
+          "uiMs": 37.5,
+          "diskMs": 14
+        },
+        {
+          "uiMs": 37.10000002384186,
+          "diskMs": 13
+        },
+        {
+          "uiMs": 37.10000002384186,
+          "diskMs": 14
+        }
+      ],
+      "taskMs": [
+        1119.199999988079,
+        1036.5,
+        1052.0999999642372
+      ],
+      "coldCaseMs": 44.19999998807907,
+      "errors": [],
+      "exit": {
+        "code": 0,
+        "signal": null
+      },
+      "reopenMs": 745.464417000001,
+      "persisted": "SYNTHETIC_SAVED_4"
+    }
+  ],
+  "requests": 12
+}

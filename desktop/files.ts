@@ -405,8 +405,19 @@ export async function managedPath(root:string,relative:string,makeParents=false)
   let cursor=root;
   for(let i=0;i<parts.length;i++){
     cursor=path.join(cursor,parts[i]);
-    try{const s=await fs.lstat(cursor);if(s.isSymbolicLink())throw new Error('案件目录内不支持符号链接。');if(i<parts.length-1&&!s.isDirectory())throw new Error('目录位置被文件占用。');}
-    catch(e){if((e as NodeJS.ErrnoException).code!=='ENOENT')throw e;if(makeParents&&i<parts.length-1)await fs.mkdir(cursor,{mode:0o700});}
+    let entry;
+    try{entry=await fs.lstat(cursor);}
+    catch(e){
+      if((e as NodeJS.ErrnoException).code!=='ENOENT')throw e;
+      if(makeParents&&i<parts.length-1){
+        // Concurrent case imports may create this shared parent first. Check
+        // the winning entry again; EEXIST alone does not prove a safe folder.
+        try{await fs.mkdir(cursor,{mode:0o700});}catch(error){if((error as NodeJS.ErrnoException).code!=='EEXIST')throw error;}
+        entry=await fs.lstat(cursor);
+      }
+    }
+    if(entry?.isSymbolicLink())throw new Error('案件目录内不支持符号链接。');
+    if(entry&&i<parts.length-1&&!entry.isDirectory())throw new Error('目录位置被文件占用。');
   }
   return absolute;
 }

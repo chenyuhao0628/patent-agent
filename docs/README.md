@@ -11,13 +11,15 @@
 | 当前目标、待办、版本与验收缺口 | [实施计划](../EXEC_PLAN.md) |
 | 架构与开发约束 | [开发入口](../DEVELOPMENT.md) |
 | 仓库执行规则 | [AGENTS](../AGENTS.md) |
-| 0.21.0 安装与现场验收 | [测试说明](TESTING-0.21.0.md) |
+| 0.22.0 安装与现场验收 | [测试说明](TESTING-0.22.0.md) |
+| 全局 / 单案模块接入 | [接入指南](development/module-guide.md) |
 | 已实现内容及历史证据 | [模块归档索引](archive/README.md) |
 
 ## 按模块直达
 
 | 模块 | 持续有效的需求 | 技术 / 历史记录 |
 | --- | --- | --- |
+| 模块平台 | [需求](requirements/module-platform.md) | [方案](design/module-platform.md)、[接入指南](development/module-guide.md) |
 | 产品与交付 | [需求](requirements/product-delivery.md) | [构建和源码交付](archive/releases.md) |
 | 案件与阶段 | [需求](requirements/cases.md) | [领域与平台](archive/platform.md) |
 | 同步与官方结论 | [需求](requirements/sync-status.md) | [单案刷新](archive/sync.md) |
@@ -30,7 +32,7 @@
 ## 文档维护约定
 
 - `requirements/` 保存持续有效的模块需求；实现完成后需求仍有效，不能一并删除。
-- `architecture/` 保存当前技术结构与接口边界；`design/` 保存明确标注未实施的设计。
+- `architecture/` 保存当前技术结构与接口边界；`design/` 保存方案与复核，实施状态以 EXEC_PLAN.md 为准。
 - `archive/` 保存已完成的实现过程、评估与历史方案；完成层级和遗留验收限制随记录保留。
 - 根目录 `EXEC_PLAN.md` 是唯一待办与当前状态入口；已完成工作只留摘要和归档链接，不逐轮累加全文。
 - `evidence/` 的既有文件名和原编号保持；临时 `/tmp` 路径仅是历史引用，不能据此保证证据仍在。

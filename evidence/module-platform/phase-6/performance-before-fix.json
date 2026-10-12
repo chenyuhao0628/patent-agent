@@ -1,0 +1,111 @@
+{
+  "label": "before-optimization",
+  "checkedAt": "2026-10-12T08:38:39.084Z",
+  "root": "/var/folders/hq/dbmwrsr53nq3r4kgtg843ph40000gn/T/module-performance-RBesxV",
+  "caseCount": 80,
+  "samples": 3,
+  "networkDelayPerRequestMs": 50,
+  "variants": [
+    {
+      "name": "baseline-0.21.0",
+      "startupMs": 1475.3794169999999,
+      "route": [
+        {
+          "libraryMs": 176.80000001192093,
+          "caseMs": 49.30000001192093
+        },
+        {
+          "libraryMs": 82.89999997615814,
+          "caseMs": 48.80000001192093
+        },
+        {
+          "libraryMs": 49.5,
+          "caseMs": 49.39999997615814
+        }
+      ],
+      "refreshMs": [
+        82.69999998807907,
+        66.19999998807907,
+        66.30000001192093
+      ],
+      "saves": [
+        {
+          "uiMs": 201.89999997615814,
+          "diskMs": 17
+        },
+        {
+          "uiMs": 34.299999952316284,
+          "diskMs": 12
+        },
+        {
+          "uiMs": 34,
+          "diskMs": 34
+        }
+      ],
+      "taskMs": [
+        1404.5,
+        1068.8999999761581,
+        1067.0999999642372
+      ],
+      "coldCaseMs": 724.2999999523163,
+      "errors": [],
+      "exit": {
+        "code": 0,
+        "signal": null
+      },
+      "reopenMs": 820.7244160000009,
+      "persisted": "SYNTHETIC_SAVED_2"
+    },
+    {
+      "name": "candidate",
+      "startupMs": 1184.603916,
+      "route": [
+        {
+          "libraryMs": 348.19999998807907,
+          "caseMs": 349.30000001192093
+        },
+        {
+          "libraryMs": 348.19999998807907,
+          "caseMs": 349.7000000476837
+        },
+        {
+          "libraryMs": 349.2000000476837,
+          "caseMs": 349.10000002384186
+        }
+      ],
+      "refreshMs": [
+        65.90000003576279,
+        66.19999998807907,
+        66.10000002384186
+      ],
+      "saves": [
+        {
+          "uiMs": 35.80000001192093,
+          "diskMs": 33
+        },
+        {
+          "uiMs": 37.69999998807907,
+          "diskMs": 22
+        },
+        {
+          "uiMs": 37.10000002384186,
+          "diskMs": 14
+        }
+      ],
+      "taskMs": [
+        1133,
+        1069.300000011921,
+        1035.6000000238419
+      ],
+      "coldCaseMs": 339.5,
+      "errors": [],
+      "exit": {
+        "code": 0,
+        "signal": null
+      },
+      "reopenMs": 786.8062919999975,
+      "persisted": "SYNTHETIC_SAVED_2"
+    }
+  ],
+  "requests": 12
+}

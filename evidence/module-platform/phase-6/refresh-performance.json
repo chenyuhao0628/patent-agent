@@ -1,0 +1,224 @@
+{
+  "checkedAt": "2026-10-12T08:46:47.150Z",
+  "remoteCaseCount": 12,
+  "latencyMs": 20,
+  "samples": 5,
+  "preparedCommonParents": true,
+  "baselineFreshRootFailure": "EEXIST during concurrent parent creation",
+  "variants": [
+    {
+      "name": "baseline-0.21.0",
+      "full": [
+        {
+          "ms": 236.79275,
+          "calls": 37,
+          "byType": {
+            "personal-cases": 1,
+            "closure": 12,
+            "outcome": 12,
+            "files": 12
+          }
+        },
+        {
+          "ms": 236.730417,
+          "calls": 37,
+          "byType": {
+            "personal-cases": 1,
+            "closure": 12,
+            "outcome": 12,
+            "files": 12
+          }
+        },
+        {
+          "ms": 231.99079099999994,
+          "calls": 37,
+          "byType": {
+            "personal-cases": 1,
+            "closure": 12,
+            "outcome": 12,
+            "files": 12
+          }
+        },
+        {
+          "ms": 231.47220900000002,
+          "calls": 37,
+          "byType": {
+            "personal-cases": 1,
+            "closure": 12,
+            "outcome": 12,
+            "files": 12
+          }
+        },
+        {
+          "ms": 229.47966599999995,
+          "calls": 37,
+          "byType": {
+            "personal-cases": 1,
+            "closure": 12,
+            "outcome": 12,
+            "files": 12
+          }
+        }
+      ],
+      "single": [
+        {
+          "ms": 94.74508300000002,
+          "calls": 4,
+          "byType": {
+            "flow": 1,
+            "files": 1,
+            "outcome": 1,
+            "case-info": 1
+          }
+        },
+        {
+          "ms": 95.09270800000002,
+          "calls": 4,
+          "byType": {
+            "flow": 1,
+            "files": 1,
+            "outcome": 1,
+            "case-info": 1
+          }
+        },
+        {
+          "ms": 93.08520900000008,
+          "calls": 4,
+          "byType": {
+            "flow": 1,
+            "files": 1,
+            "outcome": 1,
+            "case-info": 1
+          }
+        },
+        {
+          "ms": 91.337041,
+          "calls": 4,
+          "byType": {
+            "flow": 1,
+            "files": 1,
+            "outcome": 1,
+            "case-info": 1
+          }
+        },
+        {
+          "ms": 92.367209,
+          "calls": 4,
+          "byType": {
+            "flow": 1,
+            "files": 1,
+            "outcome": 1,
+            "case-info": 1
+          }
+        }
+      ]
+    },
+    {
+      "name": "candidate-0.22.0",
+      "full": [
+        {
+          "ms": 232.25737500000014,
+          "calls": 37,
+          "byType": {
+            "personal-cases": 1,
+            "closure": 12,
+            "outcome": 12,
+            "files": 12
+          }
+        },
+        {
+          "ms": 233.67945800000007,
+          "calls": 37,
+          "byType": {
+            "personal-cases": 1,
+            "closure": 12,
+            "outcome": 12,
+            "files": 12
+          }
+        },
+        {
+          "ms": 232.8929159999998,
+          "calls": 37,
+          "byType": {
+            "personal-cases": 1,
+            "closure": 12,
+            "outcome": 12,
+            "files": 12
+          }
+        },
+        {
+          "ms": 229.52633300000025,
+          "calls": 37,
+          "byType": {
+            "personal-cases": 1,
+            "closure": 12,
+            "outcome": 12,
+            "files": 12
+          }
+        },
+        {
+          "ms": 233.454291,
+          "calls": 37,
+          "byType": {
+            "personal-cases": 1,
+            "closure": 12,
+            "outcome": 12,
+            "files": 12
+          }
+        }
+      ],
+      "single": [
+        {
+          "ms": 95.27358400000003,
+          "calls": 4,
+          "byType": {
+            "flow": 1,
+            "files": 1,
+            "outcome": 1,
+            "case-info": 1
+          }
+        },
+        {
+          "ms": 91.90820799999983,
+          "calls": 4,
+          "byType": {
+            "flow": 1,
+            "files": 1,
+            "outcome": 1,
+            "case-info": 1
+          }
+        },
+        {
+          "ms": 94.2554170000003,
+          "calls": 4,
+          "byType": {
+            "flow": 1,
+            "files": 1,
+            "outcome": 1,
+            "case-info": 1
+          }
+        },
+        {
+          "ms": 93.74158299999999,
+          "calls": 4,
+          "byType": {
+            "flow": 1,
+            "files": 1,
+            "outcome": 1,
+            "case-info": 1
+          }
+        },
+        {
+          "ms": 97.45870799999966,
+          "calls": 4,
+          "byType": {
+            "flow": 1,
+            "files": 1,
+            "outcome": 1,
+            "case-info": 1
+          }
+        }
+      ]
+    }
+  ]
+}

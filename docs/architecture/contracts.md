@@ -55,6 +55,8 @@
 
 长任务必须提供停止、继续、重试或明确的不可恢复状态。产物有效性由材料读取证据、文件校验与状态机决定，不能只接受模型自述。
 
+执行合同位于 `desktop/agent-contract.ts`，引擎、业务客户端和仓储分别经 `engine-adapters.ts`、`case-system-adapters.ts`、`workspace-adapters.ts` 创建。注册检查接口版本与必要能力；生产实现和测试替代实现走同一入口。任务启动后保持依赖不变，新的实现需完成契约与实际供应商验证，详见 [接入指南](../development/module-guide.md)。
+
 ### 4.5 阅读证据与任务记忆（0.16.0）
 
 `desktop/agent-evidence.ts` 的任务内台账只接受宿主阅读器实际返回的哈希、页 / 行范围、总范围和文字 / 页图 / 转换来源。重复读取合并区间；私有文字块不通过 MCP 回显为额外元数据。`inspect_evidence` 返回覆盖及待补读范围。
