@@ -1,0 +1,19 @@
+To https://github.com/chenyuhao0628/patent-agent.git
+-	:refs/heads/audit/r1-preserve-local-correction-draft	[deleted]
+-	:refs/heads/audit/r2-reuse-remote-reply-word	[deleted]
+-	:refs/heads/audit/r3-preserve-office-math-readback	[deleted]
+-	:refs/heads/audit/r4-save-before-source-switch	[deleted]
+-	:refs/heads/audit/r5-preview-remote-transfer-file	[deleted]
+-	:refs/heads/audit/r6-harden-docx-section-detection	[deleted]
+-	:refs/heads/audit/r7-verify-clear-remote-result	[deleted]
+-	:refs/heads/fix/r1-preserve-local-correction-draft	[deleted]
+-	:refs/heads/fix/r2-reuse-remote-reply-word	[deleted]
+-	:refs/heads/fix/r3-preserve-office-math-on-readback	[deleted]
+-	:refs/heads/fix/r4-save-before-switching-transfer-source	[deleted]
+-	:refs/heads/fix/r5-preview-remote-transfer-file	[deleted]
+-	:refs/heads/fix/r6-harden-docx-section-detection	[deleted]
+-	:refs/heads/fix/r7-verify-remote-clear-result	[deleted]
+-	:refs/heads/fix/r8-make-refresh-case-case-scoped	[deleted]
+-	:refs/heads/fix/r9-recover-transfer-from-saved-target	[deleted]
+ 	refs/heads/main:refs/heads/main	f881796..7da2986
+Done

@@ -1,0 +1,13 @@
+{
+  "files": 91,
+  "localLinks": 647,
+  "externalLinksNotFetched": 9,
+  "broken": [
+    {
+      "file": "evidence/merge-main-20261024/REPORT.md",
+      "line": 22,
+      "target": "document-links.json",
+      "reason": "missing file"
+    }
+  ]
+}

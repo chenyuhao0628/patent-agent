@@ -1,0 +1,19 @@
+{
+  "mergeCommit": "7da29864928d43dc7cff3d887bb11099250fe519",
+  "remoteHeads": {
+    "refs/heads/main": "7da29864928d43dc7cff3d887bb11099250fe519"
+  },
+  "localBranches": [
+    "refs/heads/main"
+  ],
+  "remoteTrackingRefs": [
+    "refs/remotes/origin/HEAD",
+    "refs/remotes/origin/main"
+  ],
+  "deletedLocalBranches": [
+    "codex/module-platform",
+    "codex/opencode-v2-reliability"
+  ],
+  "deletedRemoteBranchCount": 16,
+  "allOriginalHeadsReachable": true
+}

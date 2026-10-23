@@ -1,0 +1,106 @@
+{
+  "mergeCommit": "7da29864928d43dc7cff3d887bb11099250fe519",
+  "allOriginalHeadsReachable": true,
+  "heads": [
+    {
+      "ref": "refs/heads/codex/module-platform",
+      "sha": "e9c3c59f6713f539f2ff53445a3a05f3272fda18",
+      "ancestorOfMain": true
+    },
+    {
+      "ref": "refs/heads/codex/opencode-v2-reliability",
+      "sha": "6f311049f715aaf29f1451cf892fba37cbf67582",
+      "ancestorOfMain": true
+    },
+    {
+      "ref": "refs/heads/main",
+      "sha": "d2270e05220342ab8e1100188909728d849d01d3",
+      "ancestorOfMain": true
+    },
+    {
+      "ref": "refs/remotes/origin/audit/r1-preserve-local-correction-draft",
+      "sha": "1f24570933ff19da5a4154818e7cdc28d6e9bf83",
+      "ancestorOfMain": true
+    },
+    {
+      "ref": "refs/remotes/origin/audit/r2-reuse-remote-reply-word",
+      "sha": "e079fd13e83a4bf318044e9e29ff1690354278e4",
+      "ancestorOfMain": true
+    },
+    {
+      "ref": "refs/remotes/origin/audit/r3-preserve-office-math-readback",
+      "sha": "8b7e8471b837700fe06437a75c762ed6e3a4f8e5",
+      "ancestorOfMain": true
+    },
+    {
+      "ref": "refs/remotes/origin/audit/r4-save-before-source-switch",
+      "sha": "6c07468f079b5bda1c389870ce0fddb494c438f2",
+      "ancestorOfMain": true
+    },
+    {
+      "ref": "refs/remotes/origin/audit/r5-preview-remote-transfer-file",
+      "sha": "4c8a411b80f921816b9edf182bdae8a7b7e3502e",
+      "ancestorOfMain": true
+    },
+    {
+      "ref": "refs/remotes/origin/audit/r6-harden-docx-section-detection",
+      "sha": "a72420c067b2c2b5553ea66df817e7f4dde15314",
+      "ancestorOfMain": true
+    },
+    {
+      "ref": "refs/remotes/origin/audit/r7-verify-clear-remote-result",
+      "sha": "aadc659acfa0885f831da755b84d3fd4f76bb882",
+      "ancestorOfMain": true
+    },
+    {
+      "ref": "refs/remotes/origin/fix/r1-preserve-local-correction-draft",
+      "sha": "863d8d56763aa3c372791d831acab8ba6ab0c72d",
+      "ancestorOfMain": true
+    },
+    {
+      "ref": "refs/remotes/origin/fix/r2-reuse-remote-reply-word",
+      "sha": "01c41701e915830d8d478a8097e8578d811c9cc1",
+      "ancestorOfMain": true
+    },
+    {
+      "ref": "refs/remotes/origin/fix/r3-preserve-office-math-on-readback",
+      "sha": "5a40b2187233a2f5f4a3376beb47c5138d2b9b91",
+      "ancestorOfMain": true
+    },
+    {
+      "ref": "refs/remotes/origin/fix/r4-save-before-switching-transfer-source",
+      "sha": "ba5e86fe8146af0a829d1c51c2124ad053c4ccce",
+      "ancestorOfMain": true
+    },
+    {
+      "ref": "refs/remotes/origin/fix/r5-preview-remote-transfer-file",
+      "sha": "e3b6d4f21bb2bbbcc05fc265dafca39c543b6a79",
+      "ancestorOfMain": true
+    },
+    {
+      "ref": "refs/remotes/origin/fix/r6-harden-docx-section-detection",
+      "sha": "30ce2395c7d77667a6410eb74cd2086562ae2a06",
+      "ancestorOfMain": true
+    },
+    {
+      "ref": "refs/remotes/origin/fix/r7-verify-remote-clear-result",
+      "sha": "2ab839969b7db29a89c6c4e81f92dbdc466531b7",
+      "ancestorOfMain": true
+    },
+    {
+      "ref": "refs/remotes/origin/fix/r8-make-refresh-case-case-scoped",
+      "sha": "21141f6c7d0ed19aff9b9433e40f3e215832d66a",
+      "ancestorOfMain": true
+    },
+    {
+      "ref": "refs/remotes/origin/fix/r9-recover-transfer-from-saved-target",
+      "sha": "fe53fc2292fcfe243b889ff96e29601f0711603c",
+      "ancestorOfMain": true
+    },
+    {
+      "ref": "refs/remotes/origin/main",
+      "sha": "f881796b155f9394ba3b4e8bcd52ef121e7810b4",
+      "ancestorOfMain": true
+    }
+  ]
+}
