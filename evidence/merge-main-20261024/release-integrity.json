@@ -1,0 +1,24 @@
+{
+  "version": "0.22.1",
+  "files": [
+    {
+      "file": "专利工作台-0.22.1-macOS-arm64.app",
+      "hashAlgorithm": "sha256-tree",
+      "sha256": "ff65accfd755363c3629a620fe614303fa62b0ac3fb392fd3521ba60c7e9bd2d",
+      "matched": true
+    },
+    {
+      "file": "PatentWorkbench-0.22.1-macOS-arm64.pkg",
+      "hashAlgorithm": "sha256",
+      "sha256": "133ff5d08b07a2bb31478e7cb182ae82c07439cf56096d2f161eb7ec5dda0a5e",
+      "matched": true
+    },
+    {
+      "file": "PatentWorkbench-0.22.1-Windows-x64-Setup.exe",
+      "hashAlgorithm": "sha256",
+      "sha256": "be93ca52598c1cdd0fec32a00a2a7d32b38e50541d8ea6920930b73bb29c5fdf",
+      "matched": true
+    }
+  ],
+  "validation": "Existing artifact integrity and package metadata; no install or GUI acceptance performed in this run."
+}

@@ -1,0 +1,124 @@
+{
+  "originalRefs": [
+    "refs/heads/codex/module-platform e9c3c59f6713f539f2ff53445a3a05f3272fda18",
+    "refs/heads/codex/opencode-v2-reliability 6f311049f715aaf29f1451cf892fba37cbf67582",
+    "refs/heads/main d2270e05220342ab8e1100188909728d849d01d3",
+    "refs/remotes/origin/HEAD f881796b155f9394ba3b4e8bcd52ef121e7810b4",
+    "refs/remotes/origin/audit/r1-preserve-local-correction-draft 1f24570933ff19da5a4154818e7cdc28d6e9bf83",
+    "refs/remotes/origin/audit/r2-reuse-remote-reply-word e079fd13e83a4bf318044e9e29ff1690354278e4",
+    "refs/remotes/origin/audit/r3-preserve-office-math-readback 8b7e8471b837700fe06437a75c762ed6e3a4f8e5",
+    "refs/remotes/origin/audit/r4-save-before-source-switch 6c07468f079b5bda1c389870ce0fddb494c438f2",
+    "refs/remotes/origin/audit/r5-preview-remote-transfer-file 4c8a411b80f921816b9edf182bdae8a7b7e3502e",
+    "refs/remotes/origin/audit/r6-harden-docx-section-detection a72420c067b2c2b5553ea66df817e7f4dde15314",
+    "refs/remotes/origin/audit/r7-verify-clear-remote-result aadc659acfa0885f831da755b84d3fd4f76bb882",
+    "refs/remotes/origin/fix/r1-preserve-local-correction-draft 863d8d56763aa3c372791d831acab8ba6ab0c72d",
+    "refs/remotes/origin/fix/r2-reuse-remote-reply-word 01c41701e915830d8d478a8097e8578d811c9cc1",
+    "refs/remotes/origin/fix/r3-preserve-office-math-on-readback 5a40b2187233a2f5f4a3376beb47c5138d2b9b91",
+    "refs/remotes/origin/fix/r4-save-before-switching-transfer-source ba5e86fe8146af0a829d1c51c2124ad053c4ccce",
+    "refs/remotes/origin/fix/r5-preview-remote-transfer-file e3b6d4f21bb2bbbcc05fc265dafca39c543b6a79",
+    "refs/remotes/origin/fix/r6-harden-docx-section-detection 30ce2395c7d77667a6410eb74cd2086562ae2a06",
+    "refs/remotes/origin/fix/r7-verify-remote-clear-result 2ab839969b7db29a89c6c4e81f92dbdc466531b7",
+    "refs/remotes/origin/fix/r8-make-refresh-case-case-scoped 21141f6c7d0ed19aff9b9433e40f3e215832d66a",
+    "refs/remotes/origin/fix/r9-recover-transfer-from-saved-target fe53fc2292fcfe243b889ff96e29601f0711603c",
+    "refs/remotes/origin/main f881796b155f9394ba3b4e8bcd52ef121e7810b4"
+  ],
+  "reviewedSource": "e9c3c59",
+  "archivedPlans": [
+    {
+      "branch": "audit/r1-preserve-local-correction-draft",
+      "head": "1f24570933ff19da5a4154818e7cdc28d6e9bf83",
+      "originalPath": "docs/fixes/r1.md",
+      "archivedPath": "docs/archive/branch-plans-0.15.0/fixes/r1.md"
+    },
+    {
+      "branch": "audit/r2-reuse-remote-reply-word",
+      "head": "e079fd13e83a4bf318044e9e29ff1690354278e4",
+      "originalPath": "docs/fixes/r2.md",
+      "archivedPath": "docs/archive/branch-plans-0.15.0/fixes/r2.md"
+    },
+    {
+      "branch": "audit/r3-preserve-office-math-readback",
+      "head": "8b7e8471b837700fe06437a75c762ed6e3a4f8e5",
+      "originalPath": "docs/fixes/r3.md",
+      "archivedPath": "docs/archive/branch-plans-0.15.0/fixes/r3.md"
+    },
+    {
+      "branch": "audit/r4-save-before-source-switch",
+      "head": "6c07468f079b5bda1c389870ce0fddb494c438f2",
+      "originalPath": "docs/fixes/r4.md",
+      "archivedPath": "docs/archive/branch-plans-0.15.0/fixes/r4.md"
+    },
+    {
+      "branch": "audit/r5-preview-remote-transfer-file",
+      "head": "4c8a411b80f921816b9edf182bdae8a7b7e3502e",
+      "originalPath": "docs/fixes/r5.md",
+      "archivedPath": "docs/archive/branch-plans-0.15.0/fixes/r5.md"
+    },
+    {
+      "branch": "audit/r6-harden-docx-section-detection",
+      "head": "a72420c067b2c2b5553ea66df817e7f4dde15314",
+      "originalPath": "docs/fixes/r6.md",
+      "archivedPath": "docs/archive/branch-plans-0.15.0/fixes/r6.md"
+    },
+    {
+      "branch": "audit/r7-verify-clear-remote-result",
+      "head": "aadc659acfa0885f831da755b84d3fd4f76bb882",
+      "originalPath": "docs/fixes/r7.md",
+      "archivedPath": "docs/archive/branch-plans-0.15.0/fixes/r7.md"
+    },
+    {
+      "branch": "fix/r1-preserve-local-correction-draft",
+      "head": "863d8d56763aa3c372791d831acab8ba6ab0c72d",
+      "originalPath": "docs/fix-plans/r1-preserve-local-correction-draft.md",
+      "archivedPath": "docs/archive/branch-plans-0.15.0/fix-plans/r1-preserve-local-correction-draft.md"
+    },
+    {
+      "branch": "fix/r2-reuse-remote-reply-word",
+      "head": "01c41701e915830d8d478a8097e8578d811c9cc1",
+      "originalPath": "docs/fix-plans/r2-reuse-remote-reply-word.md",
+      "archivedPath": "docs/archive/branch-plans-0.15.0/fix-plans/r2-reuse-remote-reply-word.md"
+    },
+    {
+      "branch": "fix/r3-preserve-office-math-on-readback",
+      "head": "5a40b2187233a2f5f4a3376beb47c5138d2b9b91",
+      "originalPath": "docs/fix-plans/r3-preserve-office-math-on-readback.md",
+      "archivedPath": "docs/archive/branch-plans-0.15.0/fix-plans/r3-preserve-office-math-on-readback.md"
+    },
+    {
+      "branch": "fix/r4-save-before-switching-transfer-source",
+      "head": "ba5e86fe8146af0a829d1c51c2124ad053c4ccce",
+      "originalPath": "docs/fix-plans/r4-save-before-switching-transfer-source.md",
+      "archivedPath": "docs/archive/branch-plans-0.15.0/fix-plans/r4-save-before-switching-transfer-source.md"
+    },
+    {
+      "branch": "fix/r5-preview-remote-transfer-file",
+      "head": "e3b6d4f21bb2bbbcc05fc265dafca39c543b6a79",
+      "originalPath": "docs/fix-plans/r5-preview-remote-transfer-file.md",
+      "archivedPath": "docs/archive/branch-plans-0.15.0/fix-plans/r5-preview-remote-transfer-file.md"
+    },
+    {
+      "branch": "fix/r6-harden-docx-section-detection",
+      "head": "30ce2395c7d77667a6410eb74cd2086562ae2a06",
+      "originalPath": "docs/fix-plans/r6-harden-docx-section-detection.md",
+      "archivedPath": "docs/archive/branch-plans-0.15.0/fix-plans/r6-harden-docx-section-detection.md"
+    },
+    {
+      "branch": "fix/r7-verify-remote-clear-result",
+      "head": "2ab839969b7db29a89c6c4e81f92dbdc466531b7",
+      "originalPath": "docs/fix-plans/r7-verify-remote-clear-result.md",
+      "archivedPath": "docs/archive/branch-plans-0.15.0/fix-plans/r7-verify-remote-clear-result.md"
+    },
+    {
+      "branch": "fix/r8-make-refresh-case-case-scoped",
+      "head": "21141f6c7d0ed19aff9b9433e40f3e215832d66a",
+      "originalPath": "docs/fix-plans/r8-make-refresh-case-case-scoped.md",
+      "archivedPath": "docs/archive/branch-plans-0.15.0/fix-plans/r8-make-refresh-case-case-scoped.md"
+    },
+    {
+      "branch": "fix/r9-recover-transfer-from-saved-target",
+      "head": "fe53fc2292fcfe243b889ff96e29601f0711603c",
+      "originalPath": "docs/fix-plans/r9-recover-transfer-from-saved-target.md",
+      "archivedPath": "docs/archive/branch-plans-0.15.0/fix-plans/r9-recover-transfer-from-saved-target.md"
+    }
+  ]
+}
